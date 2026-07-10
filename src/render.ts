@@ -14,6 +14,12 @@ interface Star {
   brightness: number;
 }
 
+/** Full-screen cinematic overlays (launch warp, arrival flash, death veil). */
+export interface TransitionFx {
+  kind: "warp" | "flash" | "death";
+  t: number; // 0..1 progress
+}
+
 export interface RenderOpts {
   alpha: number; // interpolation factor between fixed steps
   uiTime: number; // wall-clock seconds for animations that run while paused
@@ -23,6 +29,7 @@ export interface RenderOpts {
   showShip: boolean;
   bestScore: number;
   touch: TouchStickView | null;
+  fx: TransitionFx | null;
 }
 
 const pingPong = (t: number): number => {
@@ -133,6 +140,155 @@ export class Renderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (opts.showHud) this.drawHud(world, opts);
     if (opts.touch?.active || opts.touch?.boostActive) this.drawTouchOverlay(opts.touch);
+
+    // cinematic overlays (drawn above everything, below the DOM UI)
+    if (opts.fx) {
+      if (opts.fx.kind === "warp") this.drawWarpFx(opts.fx.t, opts.uiTime);
+      else if (opts.fx.kind === "flash") this.drawFlashFx(opts.fx.t);
+      else this.drawDeathFx(opts.fx.t, opts.uiTime);
+    }
+  }
+
+  // --- cinematic transitions ---
+
+  /**
+   * Launch warp: a golden stargate ring forms in the void, star lines
+   * stretch into a hyperspace tunnel, and the view plunges into the core.
+   */
+  private drawWarpFx(t: number, uiTime: number): void {
+    const { ctx } = this;
+    const cx = this.cssW / 2;
+    const cy = this.cssH / 2;
+    const maxR = Math.hypot(cx, cy);
+
+    // gently dim the backdrop as the gate takes over
+    ctx.fillStyle = `rgba(4, 4, 12, ${0.35 * clamp01(t * 2)})`;
+    ctx.fillRect(0, 0, this.cssW, this.cssH);
+
+    const ease = t * t * (3 - 2 * t); // smoothstep
+    const open = clamp01(t / 0.45); // gate forming
+    const plunge = clamp01((t - 0.45) / 0.55); // flying into it
+    const ringR = lerp(maxR * 0.06, maxR * 1.35, ease * ease);
+
+    // hyperspace star streaks, radiating from the gate
+    const streaks = 150;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < streaks; i++) {
+      // deterministic pseudo-random per streak
+      const h = Math.sin(i * 127.1) * 43758.5453;
+      const rnd = h - Math.floor(h);
+      const ang = (i / streaks) * Math.PI * 2 + rnd * 0.35;
+      const speed = 0.35 + rnd * 0.65;
+      const d0 = maxR * (0.08 + rnd * 0.55) * (1 - plunge * 0.7);
+      const len = maxR * (0.02 + (open * 0.12 + plunge * 1.1) * speed);
+      const a = clamp01(open * 0.5 + plunge) * (0.25 + rnd * 0.5);
+      const gold = rnd < 0.6;
+      ctx.strokeStyle = gold ? `rgba(255, 216, 120, ${a})` : `rgba(150, 210, 255, ${a})`;
+      ctx.lineWidth = 1 + rnd * 1.6 + plunge * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ang) * d0, cy + Math.sin(ang) * d0);
+      ctx.lineTo(cx + Math.cos(ang) * (d0 + len), cy + Math.sin(ang) * (d0 + len));
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // the stargate ring itself: layered strokes + rotating rune dashes
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const ringAlpha = clamp01(open * 1.4) * (1 - plunge * 0.55);
+    ctx.shadowColor = "rgba(255, 200, 80, 0.9)";
+    ctx.shadowBlur = 30 + open * 40;
+    ctx.strokeStyle = `rgba(255, 215, 0, ${ringAlpha})`;
+    ctx.lineWidth = 5 + open * 6 + plunge * 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // inner cyan rim
+    ctx.shadowColor = "rgba(140, 220, 255, 0.8)";
+    ctx.shadowBlur = 22;
+    ctx.strokeStyle = `rgba(170, 230, 255, ${ringAlpha * 0.8})`;
+    ctx.lineWidth = 2 + open * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR * 0.93, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // rotating rune segments
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(255, 238, 136, ${ringAlpha * 0.9})`;
+    ctx.lineWidth = 3 + open * 3;
+    ctx.setLineDash([ringR * 0.09, ringR * 0.16]);
+    ctx.lineDashOffset = uiTime * 90;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR * 1.06, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // the core: dark void that ignites as we dive in
+    const coreR = Math.max(ringR * 0.92, 1);
+    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+    const glow = clamp01(plunge * 1.3);
+    core.addColorStop(0, `rgba(${255}, ${244 - 60 * (1 - glow)}, ${200 * glow + 30}, ${0.15 + glow * 0.85})`);
+    core.addColorStop(0.55, `rgba(90, 70, 160, ${0.25 + glow * 0.4})`);
+    core.addColorStop(1, "rgba(10, 8, 24, 0)");
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // white-out at the very end, handing over to the arrival flash
+    const white = clamp01((t - 0.86) / 0.14);
+    if (white > 0) {
+      ctx.fillStyle = `rgba(255, 250, 235, ${white})`;
+      ctx.fillRect(0, 0, this.cssW, this.cssH);
+    }
+  }
+
+  /** Arrival flash: the warp's white-out fading to reveal gameplay. */
+  private drawFlashFx(t: number): void {
+    const { ctx } = this;
+    const a = clamp01(1 - t);
+    ctx.fillStyle = `rgba(255, 250, 235, ${a * a})`;
+    ctx.fillRect(0, 0, this.cssW, this.cssH);
+  }
+
+  /**
+   * Death veil: the field darkens and a slow crimson tide rises from the
+   * bottom of the screen while the wreckage drifts.
+   */
+  private drawDeathFx(t: number, uiTime: number): void {
+    const { ctx } = this;
+    const ease = t * t * (3 - 2 * t);
+
+    // darken the world
+    ctx.fillStyle = `rgba(2, 2, 8, ${ease * 0.6})`;
+    ctx.fillRect(0, 0, this.cssW, this.cssH);
+
+    // rising red tide with a slow heartbeat pulse
+    const pulse = 0.85 + 0.15 * Math.sin(uiTime * 2.4);
+    const rise = ease * pulse;
+    const tide = ctx.createLinearGradient(0, this.cssH, 0, this.cssH * (1 - rise * 1.15));
+    tide.addColorStop(0, `rgba(140, 10, 30, ${0.55 * ease})`);
+    tide.addColorStop(0.5, `rgba(196, 30, 58, ${0.28 * ease})`);
+    tide.addColorStop(1, "rgba(196, 30, 58, 0)");
+    ctx.fillStyle = tide;
+    ctx.fillRect(0, 0, this.cssW, this.cssH);
+
+    // blood-red vignette closing in from the corners
+    const vig = ctx.createRadialGradient(
+      this.cssW / 2,
+      this.cssH / 2,
+      Math.min(this.cssW, this.cssH) * (0.55 - ease * 0.15),
+      this.cssW / 2,
+      this.cssH / 2,
+      Math.max(this.cssW, this.cssH) * 0.8,
+    );
+    vig.addColorStop(0, "rgba(60, 4, 12, 0)");
+    vig.addColorStop(1, `rgba(60, 4, 12, ${0.75 * ease})`);
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, this.cssW, this.cssH);
   }
 
   // --- world drawing ---

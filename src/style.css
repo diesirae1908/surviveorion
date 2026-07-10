@@ -53,6 +53,18 @@ body {
   }
 }
 
+.screen.fade-out {
+  opacity: 0;
+  transition: opacity 0.7s ease-out;
+  pointer-events: none;
+}
+
+/* game over rises out of the canvas death veil, so no backdrop of its own */
+.screen.gameover-screen {
+  background: none;
+  animation: fadeIn 1.6s ease-out;
+}
+
 .title {
   font-size: clamp(56px, 14vw, 110px);
   letter-spacing: 0.28em;

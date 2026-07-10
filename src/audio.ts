@@ -234,4 +234,36 @@ export class AudioSystem {
     this.noiseBurst(1.1, 0.7, 1200);
     this.tone(160, 30, 1.0, "sawtooth", 0.35);
   }
+
+  /** Rising hyperspace surge for the launch warp. */
+  warp(duration: number): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const t0 = this.ctx.currentTime;
+
+    // swelling noise pushed through a rising bandpass
+    const src = this.ctx.createBufferSource();
+    const len = Math.ceil(this.ctx.sampleRate * (duration + 0.5));
+    const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.min(1, (i / len) * 1.6);
+    src.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 1.1;
+    filter.frequency.setValueAtTime(180, t0);
+    filter.frequency.exponentialRampToValueAtTime(3400, t0 + duration);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.45, t0 + duration * 0.85);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration + 0.45);
+
+    src.connect(filter).connect(gain).connect(this.sfxGain);
+    src.start(t0);
+
+    // deep riser underneath + a shimmer on top
+    this.tone(48, 340, duration, "sawtooth", 0.14);
+    this.tone(220, 1760, duration, "sine", 0.07, duration * 0.25);
+  }
 }

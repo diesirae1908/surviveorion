@@ -52,6 +52,14 @@ export class Ui {
     this.pauseBtn.style.display = "block";
   }
 
+  /** Fade out whatever screen is showing (used by the launch transition). */
+  fadeOutScreens(): void {
+    this.pauseBtn.style.display = "none";
+    for (const el of Array.from(this.root.children)) {
+      el.classList.add("fade-out");
+    }
+  }
+
   private toggleRow(keys: Array<[keyof Settings, string]>): HTMLElement {
     const row = document.createElement("div");
     row.className = "toggles";
@@ -212,7 +220,8 @@ export class Ui {
     const mins = Math.floor(stats.time / 60);
     const secs = Math.floor(stats.time % 60);
 
-    const screen = this.el("div", "screen", "");
+    // transparent + slow fade: the canvas death veil provides the backdrop
+    const screen = this.el("div", "screen gameover-screen", "");
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
     if (stats.isNewBest) {
       screen.appendChild(this.el("div", "new-best", "New best score"));

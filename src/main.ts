@@ -8,12 +8,12 @@ import { createWorld, resizeWorld, tick } from "./gameState";
 import { Input } from "./input";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
-import { Renderer } from "./render";
+import { Renderer, type TransitionFx } from "./render";
 import { loadBestScore, loadSettings, saveBestScore, saveSettings } from "./save";
 import type { World } from "./types";
 import { Ui } from "./ui";
 
-type AppState = "menu" | "playing" | "paused" | "gameover";
+type AppState = "menu" | "launching" | "playing" | "paused" | "gameover";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -28,6 +28,15 @@ let world: World = createWorld(renderer.viewW, renderer.viewH); // menu backdrop
 let bestScore = loadBestScore();
 let accumulator = 0;
 let uiTime = 0;
+let fx: TransitionFx | null = null; // cinematic overlay (warp / flash / death veil)
+let gameOverUiShown = false;
+let lastRunWasBest = false;
+
+const WARP_SECONDS = 2.1;
+const FLASH_SECONDS = 0.55;
+const DEATH_VEIL_SECONDS = 1.9;
+/** Veil progress at which the game-over screen starts fading in. */
+const DEATH_UI_AT = 0.55;
 
 audio.setSound(settings.sound);
 audio.setMusic(settings.music);
@@ -35,9 +44,9 @@ audio.setMusic(settings.music);
 const api = new Api();
 
 const ui = new Ui(settings, {
-  onPlay: startRun,
+  onPlay: beginLaunch,
   onResume: resume,
-  onRestart: startRun,
+  onRestart: beginLaunch,
   onQuitToMenu: quitToMenu,
   onPauseRequest: pause,
   onToggle: (key) => {
@@ -62,6 +71,17 @@ function showMenu(): void {
   ui.showMenu(bestScore, isTouchDevice(), {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
   });
+}
+
+/** Fade the menu, open the stargate, and dive into the run. */
+function beginLaunch(): void {
+  if (state === "launching") return;
+  audio.unlock();
+  audio.pauseMusic();
+  audio.warp(WARP_SECONDS);
+  state = "launching";
+  fx = { kind: "warp", t: 0 };
+  ui.fadeOutScreens();
 }
 
 function startRun(): void {
@@ -92,6 +112,7 @@ function resume(): void {
 
 function quitToMenu(): void {
   state = "menu";
+  fx = null;
   audio.setThrustLevel(0, false);
   audio.playTrack("menu");
   world = createWorld(renderer.viewW, renderer.viewH);
@@ -100,21 +121,28 @@ function quitToMenu(): void {
   showMenu();
 }
 
+/** Death: start the crimson veil; the game-over screen fades in mid-veil. */
 function onGameOver(): void {
   state = "gameover";
+  fx = { kind: "death", t: 0 };
+  gameOverUiShown = false;
   audio.setThrustLevel(0, false);
   audio.playTrack("gameover");
-  const isNewBest = world.score > bestScore;
-  if (isNewBest) {
+  lastRunWasBest = world.score > bestScore;
+  if (lastRunWasBest) {
     bestScore = world.score;
     saveBestScore(bestScore);
   }
+}
+
+function showGameOverUi(): void {
+  gameOverUiShown = true;
   ui.showGameOver({
     score: world.score,
     time: world.time,
     kills: world.kills,
     best: bestScore,
-    isNewBest,
+    isNewBest: lastRunWasBest,
   });
   submitRun();
 }
@@ -248,6 +276,21 @@ function frame(now: number): void {
   last = now;
   uiTime += dt;
 
+  // cinematic transition timeline
+  if (state === "launching" && fx?.kind === "warp") {
+    fx.t += dt / WARP_SECONDS;
+    if (fx.t >= 1) {
+      startRun();
+      fx = { kind: "flash", t: 0 };
+    }
+  } else if (fx?.kind === "flash") {
+    fx.t += dt / FLASH_SECONDS;
+    if (fx.t >= 1) fx = null;
+  } else if (state === "gameover" && fx?.kind === "death") {
+    fx.t = Math.min(1, fx.t + dt / DEATH_VEIL_SECONDS);
+    if (!gameOverUiShown && fx.t >= DEATH_UI_AT) showGameOverUi();
+  }
+
   if (state === "playing") {
     accumulator += dt;
     while (accumulator >= FIXED_DT) {
@@ -273,9 +316,10 @@ function frame(now: number): void {
     uiTime,
     shakeEnabled: settings.screenShake && state === "playing",
     showHud: state === "playing" || state === "paused",
-    showShip: state !== "menu",
+    showShip: state !== "menu" && state !== "launching",
     bestScore,
     touch: state === "playing" ? input.getTouchView() : null,
+    fx,
   });
 
   requestAnimationFrame(frame);
