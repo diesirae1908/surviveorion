@@ -168,6 +168,107 @@ button.primary:active {
   box-shadow: 0 0 34px rgba(255, 215, 0, 0.5);
 }
 
+button.launch {
+  font-size: 20px;
+  padding: 17px 64px;
+  animation: launchGlow 2.4s ease-in-out infinite;
+}
+
+@keyframes launchGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 18px rgba(255, 215, 0, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 42px rgba(255, 215, 0, 0.55);
+  }
+}
+
+.pilot-badge {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 26px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  border: 1px solid rgba(170, 136, 68, 0.55);
+  background: rgba(26, 26, 42, 0.6);
+  color: #ccaa66;
+}
+
+.pilot-badge b {
+  color: #ffee88;
+  font-weight: bold;
+}
+
+.pilot-badge .wing {
+  color: #ffd700;
+  font-size: 15px;
+}
+
+.pilot-badge .sub {
+  color: #8a7a55;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0.08em;
+}
+
+.pilot-badge:hover .sub {
+  color: #ffd700;
+}
+
+.corner-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-width: 0;
+  padding: 10px 14px;
+  font-size: 20px;
+  line-height: 1;
+  border-color: rgba(170, 136, 68, 0.5);
+  background: rgba(26, 26, 42, 0.5);
+  color: #aa8844;
+  text-indent: 0;
+  letter-spacing: 0;
+}
+
+.corner-btn:hover {
+  color: #ffd700;
+}
+
+.manual-title {
+  color: #aa8844;
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  margin-right: -0.35em;
+}
+
+.manual {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: min(340px, 84vw);
+}
+
+.manual > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid rgba(170, 136, 68, 0.2);
+  padding-bottom: 6px;
+}
+
+.manual .k {
+  color: #ffee88;
+  font-size: 14px;
+}
+
+.manual .v {
+  color: #8a7a55;
+  font-size: 14px;
+}
+
 .toggles {
   display: flex;
   gap: 10px;
@@ -253,6 +354,13 @@ button.primary:active {
   flex: 1;
   padding: 10px 12px;
   font-size: 13px;
+  opacity: 0.55;
+}
+
+.tabs button.active {
+  opacity: 1;
+  border-color: #ffd700;
+  color: #ffd700;
 }
 
 .form {
@@ -316,14 +424,31 @@ select.field {
   min-height: 44px;
 }
 
-button.clerk-btn {
-  border-color: #6c47ff;
-  color: #b9a6ff;
+button.enlist-btn {
+  font-size: 16px;
 }
 
-button.clerk-btn:hover,
-button.clerk-btn:active {
-  box-shadow: 0 0 24px rgba(108, 71, 255, 0.4);
+.field-hint.center {
+  text-align: center;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8a7a55;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin: 4px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(170, 136, 68, 0.5), transparent);
 }
 
 .board {

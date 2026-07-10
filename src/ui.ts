@@ -90,7 +90,7 @@ export class Ui {
     this.clear();
     this.pauseBtn.style.display = "none";
 
-    const screen = this.el("div", "screen", "");
+    const screen = this.el("div", "screen menu", "");
     screen.appendChild(this.el("div", "title", "ORION"));
     screen.appendChild(this.el("div", "subtitle", "Survive the swarm"));
     screen.appendChild(this.el("div", "divider", ""));
@@ -105,7 +105,9 @@ export class Ui {
       );
     }
 
-    screen.appendChild(this.button("Launch", true, () => this.cb.onPlay()));
+    const launch = this.button("Launch", true, () => this.cb.onPlay());
+    launch.classList.add("launch");
+    screen.appendChild(launch);
 
     // community row (only when the server is reachable)
     if (community && community.callsign !== null) {
@@ -113,16 +115,37 @@ export class Ui {
       row.appendChild(this.button("World Arena", false, () => this.cb.onWorldArena()));
       row.appendChild(this.button("Arenas", false, () => this.cb.onArenas()));
       screen.appendChild(row);
-      const profile = this.el(
-        "div",
-        "profile-chip",
-        community.callsign
-          ? `Flying as <b>${community.callsign.replace(/[&<>]/g, "")}</b> — edit profile`
-          : "Sign in to compete on the leaderboards",
-      );
-      profile.addEventListener("click", () => this.cb.onProfile());
-      screen.appendChild(profile);
+
+      const badge = document.createElement("button");
+      badge.className = "pilot-badge";
+      badge.innerHTML = community.callsign
+        ? `<span class="wing">✦</span> <b>${community.callsign.replace(/[&<>]/g, "")}</b> <span class="sub">pilot profile</span>`
+        : `<span class="wing">✦</span> Pilot login <span class="sub">join the leaderboards</span>`;
+      badge.addEventListener("click", () => this.cb.onProfile());
+      screen.appendChild(badge);
     }
+
+    // settings gear (toggles + controls live behind it)
+    const gear = document.createElement("button");
+    gear.className = "corner-btn";
+    gear.title = "Settings";
+    gear.innerHTML = "&#9881;";
+    gear.addEventListener("click", () =>
+      this.showSettings(touchDevice, () => this.showMenu(bestScore, touchDevice, community)),
+    );
+    screen.appendChild(gear);
+
+    this.root.appendChild(screen);
+  }
+
+  /** Settings screen: audio/shake toggles + flight manual. */
+  showSettings(touchDevice: boolean, onBack: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "SETTINGS"));
+    screen.appendChild(this.el("div", "divider", ""));
 
     screen.appendChild(this.toggleRow([
       ["sound", "Sound"],
@@ -130,11 +153,37 @@ export class Ui {
       ["screenShake", "Shake"],
     ]));
 
-    const hint = touchDevice
-      ? "<b>Left side</b> — drag to steer &amp; thrust &nbsp;·&nbsp; <b>Right side</b> — hold to boost"
-      : "<b>W / ↑</b> thrust &nbsp;·&nbsp; <b>A D / ← →</b> turn &nbsp;·&nbsp; <b>Space</b> boost &nbsp;·&nbsp; <b>Esc</b> pause<br/>Powers auto-activate on pickup. Touching a drone is fatal — unless shielded.";
-    screen.appendChild(this.el("div", "hint", hint));
+    const rows = touchDevice
+      ? [
+          ["Steer &amp; thrust", "drag on the left half"],
+          ["Boost", "hold the right half"],
+          ["Pause", "the II button, top right"],
+        ]
+      : [
+          ["Thrust", "W or ↑"],
+          ["Turn", "A D or ← →"],
+          ["Boost", "Space"],
+          ["Pause", "Esc"],
+        ];
+    screen.appendChild(this.el("div", "manual-title", "FLIGHT MANUAL"));
+    screen.appendChild(
+      this.el(
+        "div",
+        "manual",
+        rows.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join(""),
+      ),
+    );
+    screen.appendChild(
+      this.el(
+        "div",
+        "hint",
+        "Powers auto-activate on pickup. Touching a drone is fatal — unless shielded.<br/>Chain kills to build your multiplier and climb the World Arena.",
+      ),
+    );
 
+    const back = this.button("Back", false, onBack);
+    back.classList.add("small-btn");
+    screen.appendChild(back);
     this.root.appendChild(screen);
   }
 

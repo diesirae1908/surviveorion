@@ -107,6 +107,20 @@ export class CommunityUi {
 
   showAuth(onDone: () => void): void {
     const { screen, body, error } = this.screen("PILOT LOGIN");
+    body.appendChild(
+      this.el("div", "field-hint center", "Enter the ranks — your scores join the World Arena."),
+    );
+
+    // Primary path: Clerk (email code or Google, no password to remember)
+    if (this.api.clerkPublishableKey) {
+      const cbtn = this.button("✦ Enlist / Sign in", true, () => {
+        void this.guard(error, () => this.clerkSignIn(onDone));
+      });
+      cbtn.classList.add("enlist-btn");
+      body.appendChild(cbtn);
+      body.appendChild(this.el("div", "field-hint center", "Email or Google — takes 10 seconds"));
+      body.appendChild(this.el("div", "auth-divider", "<span>or use a callsign</span>"));
+    }
 
     let mode: "login" | "register" = "login";
     const tabs = this.el("div", "tabs");
@@ -147,15 +161,6 @@ export class CommunityUi {
         }),
       );
 
-      // Clerk sign-in (email, Google, etc. — whatever is enabled in the Clerk dashboard)
-      if (this.api.clerkPublishableKey) {
-        const cbtn = this.button("Sign in with Clerk (email / Google)", false, () => {
-          void this.guard(error, () => this.clerkSignIn(onDone));
-        });
-        cbtn.classList.add("clerk-btn");
-        form.appendChild(cbtn);
-      }
-
       // Google sign-in (only when the server has a client id configured)
       if (this.api.googleClientId) {
         const gwrap = this.el("div", "google-wrap");
@@ -166,8 +171,8 @@ export class CommunityUi {
 
     const switchMode = (m: "login" | "register"): void => {
       mode = m;
-      tabLogin.classList.toggle("primary", m === "login");
-      tabRegister.classList.toggle("primary", m === "register");
+      tabLogin.classList.toggle("active", m === "login");
+      tabRegister.classList.toggle("active", m === "register");
       renderForm();
     };
 
