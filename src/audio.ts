@@ -169,6 +169,12 @@ export class AudioSystem {
     this.tone(330, 880, 0.4, "sine", 0.2);
   }
 
+  starshellUp(): void {
+    // heroic rising fifth: the "you are the weapon now" fanfare
+    this.tone(440, 1320, 0.5, "sine", 0.22);
+    this.tone(660, 1980, 0.35, "triangle", 0.12);
+  }
+
   shieldDetonate(): void {
     this.noiseBurst(0.5, 0.5, 1600);
     this.tone(220, 55, 0.5, "sawtooth", 0.25);

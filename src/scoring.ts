@@ -3,21 +3,25 @@ import type { World } from "./types";
 
 /**
  * Competitive scoring loop:
- * - Survival pay ramps with time ("danger pay"), scaled by the multiplier.
+ * - All scoring scales with elapsed danger ("danger pay", uncapped linear):
+ *   the deeper into the escalation you are, the more every second and every
+ *   kill is worth — so the easy opening is never worth grinding.
  * - The kill multiplier climbs fast (x10 cap) but drains faster the higher it
  *   is, so keeping it up under pressure is the skill test.
  * - Kill chains (kills within a short window) pay escalating bonuses.
  */
+
+/** Uncapped linear score scale: 1 + minutes * dangerPerMinute. */
+export function dangerFactor(world: World): number {
+  return 1 + (world.time / 60) * SCORING.dangerPerMinute;
+}
+
 export function updateScoring(world: World, dt: number): void {
   if (world.phase !== "playing") return;
 
   world.time += dt;
 
-  const survivalRate = Math.min(
-    SCORING.survivalPointsCap,
-    SCORING.survivalPointsPerSecond + SCORING.survivalRampPerMinute * (world.time / 60),
-  );
-  world.score += survivalRate * world.multiplier * dt;
+  world.score += SCORING.survivalPointsPerSecond * world.multiplier * dangerFactor(world) * dt;
 
   // chain window
   if (world.chainTimer > 0) {
@@ -36,18 +40,29 @@ export function updateScoring(world: World, dt: number): void {
   }
 }
 
+/** Optional scaling for skill kills (pulse shots, frozen shatters, ...). */
+export interface KillModifiers {
+  pointsScale?: number; // multiplies the base kill points
+  multiplierScale?: number; // multiplies the multiplier gain per kill
+}
+
 /** Credit a kill and return the points it was worth (for score popups). */
-export function registerKill(world: World, x = 0, y = 0): number {
+export function registerKill(
+  world: World,
+  x = 0,
+  y = 0,
+  mods?: KillModifiers,
+): number {
   if (world.phase !== "playing") return 0;
 
   world.multiplier = Math.min(
     SCORING.multiplierMax,
-    world.multiplier + SCORING.multiplierPerKill,
+    world.multiplier + SCORING.multiplierPerKill * (mods?.multiplierScale ?? 1),
   );
   world.maxMultiplier = Math.max(world.maxMultiplier, world.multiplier);
   world.multiplierDecayTimer = SCORING.multiplierDecayDelay;
 
-  let points = SCORING.killPoints * world.multiplier;
+  let points = SCORING.killPoints * (mods?.pointsScale ?? 1) * world.multiplier * dangerFactor(world);
 
   // chain bonus: escalating payout every N kills inside the chain window
   world.chainCount += 1;

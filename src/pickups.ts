@@ -1,12 +1,28 @@
-import { ALL_POWER_IDS, PICKUPS, POWERS, SHIP } from "./config";
-import { randRange } from "./math";
+import {
+  ALL_POWER_IDS,
+  PICKUPS,
+  POWERS,
+  POWER_MIN_MINUTES,
+  POWER_SPAWN_WEIGHTS,
+  SHIP,
+  type PowerId,
+} from "./config";
+import { clamp01, lerp, randRange } from "./math";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
 import type { World } from "./types";
 
 export function initPickups(world: World): void {
-  world.pickupTimer = randRange(...PICKUPS.secondsBetweenRange);
+  world.pickupTimer = nextInterval(world);
   if (PICKUPS.spawnOnStart) spawnPickup(world);
+}
+
+/** Support scales with pressure: drops come faster as the escalation climbs. */
+function nextInterval(world: World): number {
+  const t = clamp01(world.time / 60 / PICKUPS.intervalRampMinutes);
+  const min = lerp(PICKUPS.secondsBetweenRange[0], PICKUPS.secondsBetweenAtPeak[0], t);
+  const max = lerp(PICKUPS.secondsBetweenRange[1], PICKUPS.secondsBetweenAtPeak[1], t);
+  return randRange(min, max);
 }
 
 export function updatePickups(world: World, dt: number): void {
@@ -14,7 +30,7 @@ export function updatePickups(world: World, dt: number): void {
 
   world.pickupTimer -= dt;
   if (world.pickupTimer <= 0) {
-    world.pickupTimer = randRange(...PICKUPS.secondsBetweenRange);
+    world.pickupTimer = nextInterval(world);
     if (world.pickups.length < PICKUPS.maxActive) spawnPickup(world);
   }
 
@@ -61,6 +77,25 @@ function spawnPickup(world: World): void {
     if (dist >= PICKUPS.minDistanceFromShip) break;
   }
 
-  const power = ALL_POWER_IDS[Math.floor(Math.random() * ALL_POWER_IDS.length)];
-  world.pickups.push({ x, y, power, age: 0 });
+  world.pickups.push({ x, y, power: rollPowerId(world), age: 0 });
+}
+
+/**
+ * Weighted random pick so not every power appears at the same frequency.
+ * Late-game powers (POWER_MIN_MINUTES) only enter the pool once the run is
+ * deep enough to warrant them.
+ */
+function rollPowerId(world: World): PowerId {
+  const minutes = world.time / 60;
+  const pool = ALL_POWER_IDS.filter((id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0));
+
+  let total = 0;
+  for (const id of pool) total += POWER_SPAWN_WEIGHTS[id];
+
+  let roll = Math.random() * total;
+  for (const id of pool) {
+    roll -= POWER_SPAWN_WEIGHTS[id];
+    if (roll <= 0) return id;
+  }
+  return pool[pool.length - 1];
 }

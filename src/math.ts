@@ -38,6 +38,18 @@ export const ramp = (
   cfg: { from: number; to: number; plateauMinutes: number },
 ): number => lerp(cfg.from, cfg.to, clamp01(minutes / cfg.plateauMinutes));
 
+/**
+ * Endless escalation: fast linear ramp to `to` over `rampMinutes`, then keeps
+ * growing at `latePerMinute` forever (the Tetris model — every run ends).
+ */
+export const escalate = (
+  minutes: number,
+  cfg: { from: number; to: number; rampMinutes: number; latePerMinute: number },
+): number =>
+  minutes <= cfg.rampMinutes
+    ? lerp(cfg.from, cfg.to, clamp01(minutes / cfg.rampMinutes))
+    : cfg.to + cfg.latePerMinute * (minutes - cfg.rampMinutes);
+
 /** Cheap smooth pseudo-noise in [-1, 1] (stand-in for Perlin jitter). */
 export const smoothNoise = (t: number, seed: number): number =>
   Math.sin(t * 2.1 + seed) * 0.6 + Math.sin(t * 3.7 + seed * 2.3) * 0.4;

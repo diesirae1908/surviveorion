@@ -1,8 +1,8 @@
-import { DRONE, SHIP, SPAWNER } from "./config";
-import { clamp, lerp, ramp, randDir, randInCircle, randRange, smoothNoise } from "./math";
+import { DRONE, SCORING, SHIP, SPAWNER } from "./config";
+import { clamp, clamp01, escalate, lerp, randDir, randInCircle, randRange, smoothNoise } from "./math";
 import { halfDiagonal, randomEdgePoint, toroidalDistance } from "./physics";
 import { registerKill } from "./scoring";
-import type { Drone, World } from "./types";
+import type { Drone, KillSource, World } from "./types";
 
 // --- drones ---
 
@@ -92,16 +92,30 @@ export function updateDrones(world: World, dt: number): void {
 }
 
 /** Kill a drone: mark dead, emit event, credit score. Removal happens in tick(). */
-export function killDrone(world: World, d: Drone): void {
+export function killDrone(world: World, d: Drone, source?: KillSource): void {
   if (!d.alive) return;
   d.alive = false;
-  const points = registerKill(world, d.x, d.y);
+
+  // Skill kills pay more: pulse skill shots double the points, and frozen
+  // shatters (risky by design) pay extra and build the multiplier faster.
+  // Modifiers stack multiplicatively (pulsing a frozen drone gets both).
+  const wasFrozen = d.frozen > 0;
+  let pointsScale = 1;
+  let multiplierScale = 1;
+  if (source === "pulse") pointsScale *= SCORING.pulsePointsScale;
+  if (wasFrozen) {
+    pointsScale *= SCORING.frozenPointsScale;
+    multiplierScale *= SCORING.frozenMultiplierScale;
+  }
+
+  const points = registerKill(world, d.x, d.y, { pointsScale, multiplierScale });
   world.events.push({
     type: "droneKilled",
     x: d.x,
     y: d.y,
     scale: d.scale,
-    wasFrozen: d.frozen > 0,
+    wasFrozen,
+    source,
     points,
   });
 }
@@ -132,7 +146,7 @@ export function updateSpawner(world: World, dt: number): void {
   if (world.phase !== "playing") return;
 
   const minutes = world.time / 60;
-  world.spawnAccumulator += ramp(minutes, SPAWNER.spawnsPerSecond) * dt;
+  world.spawnAccumulator += escalate(minutes, SPAWNER.spawnsPerSecond) * dt;
 
   updateTelegraphs(world, dt, minutes);
   handleFormations(world, minutes, dt);
@@ -189,7 +203,7 @@ function spawnAt(world: World, x: number, y: number, minutes: number): void {
     SPAWNER.scaleClamp[0],
     SPAWNER.scaleClamp[1],
   );
-  const speedMult = Math.max(0.1, ramp(minutes, SPAWNER.speedMultiplier));
+  const speedMult = Math.max(0.1, escalate(minutes, SPAWNER.speedMultiplier));
   world.drones.push(createDrone(x, y, scale, speedMult));
 }
 
@@ -232,6 +246,12 @@ function formationIntensity(minutes: number): number {
   return lerp(0.5, 1, clamp(minutes / 3, 0, 1));
 }
 
+/** Past the ramp, formations keep growing: +1 enemy per N minutes, capped. */
+function formationCountBonus(minutes: number): number {
+  const cfg = SPAWNER.formations;
+  return Math.min(cfg.maxCountBonus, Math.floor(minutes / cfg.countGrowthMinutes));
+}
+
 function handleFormations(world: World, minutes: number, dt: number): void {
   world.formationTimer += dt;
   if (world.formationTimer < world.nextFormationDelay) return;
@@ -255,16 +275,22 @@ function handleFormations(world: World, minutes: number, dt: number): void {
   scheduleNextFormation(world);
 }
 
+/** Formations come faster over time: the interval shrinks toward a floor. */
 function scheduleNextFormation(world: World): void {
   world.formationTimer = 0;
-  const [min, max] = SPAWNER.formations.intervalRange;
+  const cfg = SPAWNER.formations;
+  const t = clamp01(world.time / 60 / cfg.intervalRampMinutes);
+  const min = lerp(cfg.intervalRange[0], cfg.intervalFloor[0], t);
+  const max = lerp(cfg.intervalRange[1], cfg.intervalFloor[1], t);
   world.nextFormationDelay = randRange(min, max);
 }
 
 /** A sweeping line of drones approaching from one off-screen direction. */
 function spawnLineFormation(world: World, minutes: number): void {
   const { spacing } = SPAWNER.formations.line;
-  const count = Math.max(2, Math.round(SPAWNER.formations.line.count * formationIntensity(minutes)));
+  const count =
+    Math.max(2, Math.round(SPAWNER.formations.line.count * formationIntensity(minutes))) +
+    formationCountBonus(minutes);
   const dir = randDir();
   const dist = spawnRadius(world) + 1;
   const cx = world.ship.x + dir.x * dist;
@@ -285,7 +311,9 @@ function spawnLineFormation(world: World, minutes: number): void {
  */
 function spawnRingFormation(world: World, minutes: number): void {
   const { radius, telegraphDuration } = SPAWNER.formations.ring;
-  const count = Math.max(3, Math.round(SPAWNER.formations.ring.count * formationIntensity(minutes)));
+  const count =
+    Math.max(3, Math.round(SPAWNER.formations.ring.count * formationIntensity(minutes))) +
+    formationCountBonus(minutes);
   const startAngle = Math.random() * Math.PI * 2;
 
   for (let i = 0; i < count; i++) {
@@ -303,7 +331,9 @@ function spawnRingFormation(world: World, minutes: number): void {
 /** A dense swarm bursting in from a single off-screen point. */
 function spawnBurstFormation(world: World, minutes: number): void {
   const { spreadRadius } = SPAWNER.formations.burst;
-  const count = Math.max(3, Math.round(SPAWNER.formations.burst.count * formationIntensity(minutes)));
+  const count =
+    Math.max(3, Math.round(SPAWNER.formations.burst.count * formationIntensity(minutes))) +
+    formationCountBonus(minutes);
   const dir = randDir();
   const dist = spawnRadius(world) + spreadRadius;
   const ox = world.ship.x + dir.x * dist;

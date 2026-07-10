@@ -40,9 +40,10 @@ export const DRONE = {
 
 export const SPAWNER = {
   initialBurst: 3,
-  // Linear ramps over minutes (Unity AnimationCurve.Linear equivalents)
-  spawnsPerSecond: { from: 0.15, to: 1.2, plateauMinutes: 4 },
-  speedMultiplier: { from: 1.0, to: 1.4, plateauMinutes: 5 },
+  // Endless escalation (the Tetris model): fast ramp, then slow growth
+  // forever so every run ends and scores measure depth, not patience.
+  spawnsPerSecond: { from: 0.5, to: 1.5, rampMinutes: 3, latePerMinute: 0.12 },
+  speedMultiplier: { from: 1.0, to: 1.3, rampMinutes: 3, latePerMinute: 0.03 },
   scaleClamp: [0.3, 0.9] as const,
   scaleJitter: 0.15,
   jitterStrength: 0.35, // perpendicular wobble on drone heading
@@ -58,6 +59,11 @@ export const SPAWNER = {
   },
   formations: {
     intervalRange: [12, 20] as const,
+    // formations come faster over time, down to this floor
+    intervalFloor: [8, 10] as const,
+    intervalRampMinutes: 6,
+    countGrowthMinutes: 2, // formations gain +1 enemy per this many minutes...
+    maxCountBonus: 4, // ...capped here
     postFormationDelay: 1.5,
     line: { count: 6, spacing: 1.6 },
     // ring closes in around the player ON-screen: telegraphed circle with
@@ -89,8 +95,11 @@ export const MINES = {
 // NOTE: server/validate.mjs mirrors these caps for score sanity checks.
 export const SCORING = {
   survivalPointsPerSecond: 5,
-  survivalRampPerMinute: 2.5, // pts/s gained per minute survived
-  survivalPointsCap: 20, // pts/s ceiling (reached at 6 min)
+  // Danger pay: all scoring scales by 1 + minutes * dangerPerMinute, uncapped
+  // (like Tetris points-per-line growing with level). Late-game survival and
+  // kills dominate the score, so the easy opening is never worth grinding.
+  // Linear, not exponential, so early mistakes don't force insta-resets.
+  dangerPerMinute: 0.5,
   killPoints: 40,
   multiplierPerKill: 0.5,
   multiplierMax: 10,
@@ -100,10 +109,19 @@ export const SCORING = {
   chainWindow: 2.0, // kills within this window keep the chain alive
   chainBonusEvery: 5, // every N chained kills...
   chainBonusPoints: 100, // ...award this * multiplier
+  // Skill-kill bonuses: risky/deliberate kills pay more than passive ones.
+  pulsePointsScale: 2, // pulse projectile kills are worth double
+  pulseMultiKillMin: 3, // one projectile killing >= this many drones pays a bonus...
+  pulseMultiKillPoints: 150, // ...of this * (hits - min + 1) * multiplier
+  frozenPointsScale: 1.5, // shattering a frozen drone pays extra...
+  frozenMultiplierScale: 2, // ...and builds the multiplier twice as fast
 };
 
 export const PICKUPS = {
   secondsBetweenRange: [3.5, 6] as const,
+  // support scales with pressure: intervals shrink to this range over the ramp
+  secondsBetweenAtPeak: [2.8, 4.5] as const,
+  intervalRampMinutes: 4,
   maxActive: 5,
   spawnOnStart: true,
   radius: 0.45,
@@ -119,7 +137,8 @@ export type PowerId =
   | "magnet"
   | "afterburner"
   | "freeze"
-  | "missiles";
+  | "missiles"
+  | "starshell";
 
 export const POWERS = {
   shield: {
@@ -153,6 +172,7 @@ export const POWERS = {
     dashSpeed: 30,
     dashDuration: 0.35, // ~10 units of travel
     exitSpeed: 3.5, // hard brake when the dash ends so the ship stays controllable
+    arrivalInvulnTime: 1.0, // grace window on arrival: contact kills drones instead of you
     trailLifetime: 2.5,
     trailKillRadius: 0.55,
   },
@@ -172,6 +192,12 @@ export const POWERS = {
     lifetime: 4,
     radius: 0.15,
   },
+  // Late-game pressure valve (Tilt to Live's Spike Shield): a golden shell
+  // that makes the ship invulnerable and ram-kill everything it touches.
+  starshell: {
+    duration: 6,
+    flickerLastSeconds: 2,
+  },
 };
 
 export const ALL_POWER_IDS: PowerId[] = [
@@ -182,7 +208,28 @@ export const ALL_POWER_IDS: PowerId[] = [
   "afterburner",
   "freeze",
   "missiles",
+  "starshell",
 ];
+
+// Relative spawn frequency. Panic-button powers stay common as a safety net
+// for new players; the high-skill, high-reward powers (see SCORING bonuses)
+// show up less often so they feel special without being a crutch.
+export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
+  shield: 3,
+  shockwave: 3,
+  pulse: 2,
+  magnet: 2,
+  missiles: 2,
+  freeze: 1.5,
+  afterburner: 1,
+  starshell: 1.5,
+};
+
+// Powers gated to the late game: they only enter the pickup pool after this
+// many minutes, once the escalation actually warrants them.
+export const POWER_MIN_MINUTES: Partial<Record<PowerId, number>> = {
+  starshell: 2.5,
+};
 
 // Gold / red "Red Rising" palette from the style bible + menu mockup.
 export const PALETTE = {
@@ -202,6 +249,7 @@ export const PALETTE = {
   afterburner: "#ff6633",
   freeze: "#9fe8ff",
   missiles: "#a8ff9e",
+  starshell: "#ffd24d",
 };
 
 export const POWER_COLORS: Record<PowerId, string> = {
@@ -212,6 +260,7 @@ export const POWER_COLORS: Record<PowerId, string> = {
   afterburner: PALETTE.afterburner,
   freeze: PALETTE.freeze,
   missiles: PALETTE.missiles,
+  starshell: PALETTE.starshell,
 };
 
 export const POWER_NAMES: Record<PowerId, string> = {
@@ -222,4 +271,5 @@ export const POWER_NAMES: Record<PowerId, string> = {
   afterburner: "Afterburner",
   freeze: "Cryo Field",
   missiles: "Missile Swarm",
+  starshell: "Starshell",
 };

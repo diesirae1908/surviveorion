@@ -84,8 +84,15 @@ function handleShipDroneCollisions(world: World): void {
     if (!d.alive) continue;
     if (!circlesOverlap(s.x, s.y, SHIP.radius, d.x, d.y, droneRadius(d))) continue;
 
-    // dashing through drones kills them
-    if (world.powers.afterburnerDash > 0) {
+    // starshell: invulnerable ram-kill shell — everything you touch dies
+    if (world.powers.starshellTimer > 0) {
+      killDrone(world, d);
+      continue;
+    }
+
+    // dashing through drones kills them; the arrival grace window extends
+    // that protection so landing inside a swarm isn't an instant death
+    if (world.powers.afterburnerDash > 0 || world.powers.afterburnerGrace > 0) {
       killDrone(world, d);
       continue;
     }
@@ -124,8 +131,14 @@ function handleShipMineCollisions(world: World): void {
     if (!m.alive || !isMineArmed(m)) continue;
     if (!circlesOverlap(s.x, s.y, SHIP.radius, m.x, m.y, mineRadius())) continue;
 
-    // dashing through a mine detonates it safely
-    if (world.powers.afterburnerDash > 0) {
+    // starshell rams mines safely too: they detonate against the shell
+    if (world.powers.starshellTimer > 0) {
+      killMine(world, m);
+      continue;
+    }
+
+    // dashing through a mine detonates it safely, arrival grace included
+    if (world.powers.afterburnerDash > 0 || world.powers.afterburnerGrace > 0) {
       killMine(world, m);
       continue;
     }

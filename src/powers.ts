@@ -1,4 +1,4 @@
-import { MINES, PALETTE, POWERS, type PowerId } from "./config";
+import { MINES, PALETTE, POWERS, SCORING, type PowerId } from "./config";
 import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { isMineArmed, killMine, killMinesInRadius } from "./mines";
 import type { Drone, Mine, PowersState, World } from "./types";
@@ -6,10 +6,12 @@ import type { Drone, Mine, PowersState, World } from "./types";
 export function createPowersState(): PowersState {
   return {
     shieldTimer: 0,
+    starshellTimer: 0,
     pulseTimer: 0,
     magnetTimer: 0,
     afterburnerCharge: 0,
     afterburnerDash: 0,
+    afterburnerGrace: 0,
     trail: [],
     projectiles: [],
     missiles: [],
@@ -24,6 +26,10 @@ export function activatePower(world: World, power: PowerId): void {
     case "shield":
       p.shieldTimer = POWERS.shield.duration;
       world.events.push({ type: "shieldUp" });
+      break;
+    case "starshell":
+      p.starshellTimer = POWERS.starshell.duration;
+      world.events.push({ type: "starshellUp" });
       break;
     case "shockwave":
       killDronesInRadius(world, world.ship.x, world.ship.y, POWERS.shockwave.radius);
@@ -199,6 +205,7 @@ export function updatePowers(world: World, dt: number): void {
   const p = world.powers;
 
   if (p.shieldTimer > 0) p.shieldTimer -= dt;
+  if (p.starshellTimer > 0) p.starshellTimer -= dt;
   if (p.magnetTimer > 0) p.magnetTimer -= dt;
 
   // afterburner: charge -> dash -> burning trail
@@ -213,6 +220,12 @@ export function updatePowers(world: World, dt: number): void {
   if (p.afterburnerDash > 0) {
     p.afterburnerDash -= dt;
     p.trail.push({ x: world.ship.x, y: world.ship.y, age: 0 });
+    // arrival grace: brief invincibility so dashing into a swarm isn't lethal
+    if (p.afterburnerDash <= 0) {
+      p.afterburnerGrace = POWERS.afterburner.arrivalInvulnTime;
+    }
+  } else if (p.afterburnerGrace > 0) {
+    p.afterburnerGrace -= dt;
   }
   for (let i = p.trail.length - 1; i >= 0; i--) {
     const t = p.trail[i];
@@ -263,7 +276,20 @@ export function updatePowers(world: World, dt: number): void {
       const rr = r + droneRadius(d);
       if (dx * dx + dy * dy <= rr * rr) {
         proj.hit.add(d);
-        killDrone(world, d);
+        killDrone(world, d, "pulse");
+        // skill-shot payoff: each kill at/past the threshold pays a bonus, so
+        // one projectile totals pulseMultiKillPoints * (hits - min + 1) * mult
+        if (proj.hit.size >= SCORING.pulseMultiKillMin && world.phase === "playing") {
+          const bonus = SCORING.pulseMultiKillPoints * world.multiplier;
+          world.score += bonus;
+          world.events.push({
+            type: "pulseMultiKill",
+            x: d.x,
+            y: d.y,
+            points: Math.round(bonus),
+            hits: proj.hit.size,
+          });
+        }
       }
     }
 

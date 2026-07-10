@@ -195,17 +195,26 @@ function isTouchDevice(): boolean {
 function drainEvents(w: World): void {
   for (const e of w.events) {
     switch (e.type) {
-      case "droneKilled":
+      case "droneKilled": {
         if (e.wasFrozen) {
           particles.burst(e.x, e.y, [PALETTE.freeze, PALETTE.white, "#dffaff"], 16, 4, 0.7, 0.1);
+        } else if (e.source === "pulse") {
+          particles.burst(e.x, e.y, [PALETTE.pulse, PALETTE.goldPale, "#ffcc77"], 16, 5, 0.65, 0.12);
         } else {
           particles.burst(e.x, e.y, [PALETTE.redBright, PALETTE.gold, "#ff8866"], 14, 5, 0.6, 0.12);
         }
         if (e.points > 0) {
-          popups.spawn(e.x, e.y, `+${e.points}`, e.wasFrozen ? PALETTE.freeze : PALETTE.gold);
+          // bonus kills get their power's color so players learn what pays more
+          const color = e.wasFrozen
+            ? PALETTE.freeze
+            : e.source === "pulse"
+              ? PALETTE.pulse
+              : PALETTE.gold;
+          popups.spawn(e.x, e.y, `+${e.points}`, color);
         }
         audio.droneKill();
         break;
+      }
       case "mineExploded":
         particles.burst(e.x, e.y, ["#ff8844", PALETTE.gold, PALETTE.redBright], 26, 7, 0.8, 0.15);
         if (e.points > 0) popups.spawn(e.x, e.y, `+${e.points}`, "#ff8844");
@@ -218,6 +227,10 @@ function drainEvents(w: World): void {
         break;
       case "shieldUp":
         audio.shieldUp();
+        break;
+      case "starshellUp":
+        particles.burst(world.ship.x, world.ship.y, [PALETTE.starshell, PALETTE.goldPale, PALETTE.white], 20, 5, 0.6, 0.12);
+        audio.starshellUp();
         break;
       case "shieldDetonate":
         particles.burst(e.x, e.y, [PALETTE.shield, PALETTE.white], 30, 8, 0.8, 0.14);
@@ -252,6 +265,10 @@ function drainEvents(w: World): void {
         break;
       case "chainBonus":
         popups.spawn(e.x, e.y + 0.7, `CHAIN ×${e.count}  +${e.points}`, PALETTE.goldPale, 0.5);
+        audio.chainBonus();
+        break;
+      case "pulseMultiKill":
+        popups.spawn(e.x, e.y + 0.7, `PULSE ×${e.hits}  +${e.points}`, PALETTE.pulse, 0.5);
         audio.chainBonus();
         break;
       case "droneSpawn":

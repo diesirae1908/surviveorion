@@ -10,22 +10,33 @@ defensive power pickups:
 - **Shockwave** — instantly kills every drone in a radius
 - **Pulse Shot** — charges up, then fires a piercing bolt forward
 - **Magnet** — pulls pickups toward you for a few seconds
-- **Afterburner** — charges, then dashes you forward through enemies, leaving a burning trail that stays lethal for ~2.5s
+- **Afterburner** — charges, then dashes you forward through enemies, leaving a burning trail that stays lethal for ~2.5s; you get a 1s invincibility grace on arrival
 - **Cryo Field** — flash-freezes all drones in a big area; fly into frozen drones to shatter them
 - **Missile Swarm** — launches a volley of guided missiles in all directions that curve toward the nearest enemies
+- **Starshell** — a golden shell that makes you invulnerable for ~6s and ram-kills everything you touch; only appears after 2.5 minutes as a late-game pressure valve
+
+Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`):
+shield/shockwave are common safety nets, freeze and afterburner are rarer, and
+late-game powers are time-gated (`POWER_MIN_MINUTES`). Pickup drops come faster
+as the difficulty climbs. Skill kills pay more: pulse kills are worth 2x points
+(with an escalating bonus when one bolt kills 3+), and shattering frozen drones
+pays 1.5x points and builds the multiplier twice as fast.
 
 Enemies:
 
-- **Drones** — chase you relentlessly; the swarm grows and speeds up over time.
+- **Drones** — chase you relentlessly; the swarm grows and speeds up over time,
+  and the escalation never plateaus — spawn rate, drone speed, and formation
+  frequency/size keep climbing until the run ends, so every run has an ending.
   Most spawns telegraph on-screen (a red glow warns ~1s before the drone pops,
   and the ring formation closes in around you); some still sneak in from the edges.
 - **Floating mines** (after 30s) — stationary hazards that arm after a brief fade-in and despawn after a while; lethal on contact, but destroying one with a power chain-explodes everything nearby
 
-Kills feed a score multiplier (up to x5) — the ship glows brighter gold the higher it climbs.
-
-Kills feed the score multiplier (up to **x10**): it climbs fast on streaks but drains
-faster the higher it is, kill chains pay escalating bonuses, and survival pay ramps
-up the longer the run goes. High scores come from aggressive, risky play.
+Kills feed the score multiplier (up to **x10**) — the ship glows brighter gold the
+higher it climbs: it climbs fast on streaks but drains faster the higher it is,
+and kill chains pay escalating bonuses. All scoring also scales with **danger pay**
+(uncapped, `1 + 0.5/min`): the deeper into the escalation you survive, the more
+every second and every kill is worth. High scores come from aggressive, risky
+play deep into the run.
 
 ## Run
 

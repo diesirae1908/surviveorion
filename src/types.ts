@@ -97,10 +97,12 @@ export interface SpawnTelegraph {
 
 export interface PowersState {
   shieldTimer: number; // >0 => shield active
+  starshellTimer: number; // >0 => invulnerable ram-kill shell active
   pulseTimer: number; // >0 => pulse charging
   magnetTimer: number;
   afterburnerCharge: number; // >0 => charging up the dash
   afterburnerDash: number; // >0 => dashing
+  afterburnerGrace: number; // >0 => post-dash invincibility window
   trail: TrailPoint[];
   projectiles: PulseProjectile[];
   missiles: Missile[];
@@ -109,12 +111,24 @@ export interface PowersState {
 
 export type RunPhase = "playing" | "dying" | "dead";
 
+/** What killed a drone, when it matters for scoring/visuals. */
+export type KillSource = "pulse";
+
 /** One-frame gameplay events, drained by main for audio/particles/shake. */
 export type GameEvent =
-  | { type: "droneKilled"; x: number; y: number; scale: number; wasFrozen: boolean; points: number }
+  | {
+      type: "droneKilled";
+      x: number;
+      y: number;
+      scale: number;
+      wasFrozen: boolean;
+      source?: KillSource;
+      points: number;
+    }
   | { type: "mineExploded"; x: number; y: number; points: number }
   | { type: "pickup"; power: import("./config").PowerId; x: number; y: number }
   | { type: "shieldUp" }
+  | { type: "starshellUp" }
   | { type: "shieldDetonate"; x: number; y: number }
   | { type: "shockwave"; x: number; y: number }
   | { type: "pulseCharge" }
@@ -125,6 +139,7 @@ export type GameEvent =
   | { type: "freeze"; x: number; y: number }
   | { type: "missilesFire" }
   | { type: "chainBonus"; x: number; y: number; points: number; count: number }
+  | { type: "pulseMultiKill"; x: number; y: number; points: number; hits: number }
   | { type: "droneSpawn"; x: number; y: number }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };

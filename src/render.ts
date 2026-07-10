@@ -400,6 +400,28 @@ export class Renderer {
       ctx.restore();
     }
 
+    // afterburner arrival grace: flickering ember aura that fades with the window
+    if (world.powers.afterburnerGrace > 0 && world.powers.afterburnerDash <= 0) {
+      const fade = clamp01(
+        world.powers.afterburnerGrace / POWERS.afterburner.arrivalInvulnTime,
+      );
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = fade * (0.4 + 0.25 * Math.sin(opts.uiTime * 24));
+      const gg = ctx.createRadialGradient(x, y, 0.15, x, y, 0.75);
+      gg.addColorStop(0, "rgba(255,217,160,0)");
+      gg.addColorStop(0.75, "rgba(255,102,51,0.4)");
+      gg.addColorStop(1, PALETTE.afterburner);
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = PALETTE.afterburner;
+      ctx.lineWidth = 0.04;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // shield bubble (flickers during its final seconds)
     if (world.powers.shieldTimer > 0) {
       const remaining = world.powers.shieldTimer;
@@ -420,6 +442,41 @@ export class Renderer {
       ctx.fill();
       ctx.strokeStyle = PALETTE.shield;
       ctx.lineWidth = 0.05;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // starshell: golden ram-kill shell with rotating star points
+    if (world.powers.starshellTimer > 0) {
+      const remaining = world.powers.starshellTimer;
+      let alpha = 0.5;
+      if (remaining <= POWERS.starshell.flickerLastSeconds) {
+        alpha = lerp(0.25, 0.75, pingPong(opts.uiTime * 5));
+      }
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = alpha;
+      const shellR = 0.8;
+      const gg = ctx.createRadialGradient(x, y, 0.25, x, y, shellR);
+      gg.addColorStop(0, "rgba(255,210,77,0)");
+      gg.addColorStop(0.75, "rgba(255,210,77,0.4)");
+      gg.addColorStop(1, PALETTE.starshell);
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(x, y, shellR, 0, Math.PI * 2);
+      ctx.fill();
+      // spiked rim so it reads as "touching this kills THEM"
+      ctx.strokeStyle = PALETTE.starshell;
+      ctx.lineWidth = 0.06;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = opts.uiTime * 1.8 + (Math.PI / 4) * i;
+        ctx.moveTo(x + Math.cos(a) * shellR * 0.92, y + Math.sin(a) * shellR * 0.92);
+        ctx.lineTo(x + Math.cos(a) * shellR * 1.18, y + Math.sin(a) * shellR * 1.18);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, shellR, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -689,6 +746,20 @@ export class Renderer {
         }
         ctx.stroke();
         break;
+      case "starshell":
+        // five-pointed star
+        for (let i = 0; i < 5; i++) {
+          const outer = -Math.PI / 2 + (Math.PI * 2 * i) / 5;
+          const inner = -Math.PI / 2 + (Math.PI * 2 * (i + 0.5)) / 5;
+          const px = Math.cos(outer) * size;
+          const py = Math.sin(outer) * size;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+          ctx.lineTo(Math.cos(inner) * size * 0.45, Math.sin(inner) * size * 0.45);
+        }
+        ctx.closePath();
+        ctx.fill();
+        break;
       case "missiles":
         // three darts fanning outward
         for (let i = -1; i <= 1; i++) {
@@ -933,6 +1004,8 @@ export class Renderer {
     const p = world.powers;
     if (p.shieldTimer > 0)
       powers.push(["SHIELD", p.shieldTimer, POWERS.shield.duration, POWER_COLORS.shield]);
+    if (p.starshellTimer > 0)
+      powers.push(["STARSHELL", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
     if (p.magnetTimer > 0)
       powers.push(["MAGNET", p.magnetTimer, POWERS.magnet.duration, POWER_COLORS.magnet]);
     if (p.afterburnerCharge > 0)
