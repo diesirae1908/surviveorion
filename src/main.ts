@@ -273,6 +273,7 @@ function frame(now: number): void {
     uiTime,
     shakeEnabled: settings.screenShake && state === "playing",
     showHud: state === "playing" || state === "paused",
+    showShip: state !== "menu",
     bestScore,
     touch: state === "playing" ? input.getTouchView() : null,
   });

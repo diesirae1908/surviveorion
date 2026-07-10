@@ -19,6 +19,8 @@ export interface RenderOpts {
   uiTime: number; // wall-clock seconds for animations that run while paused
   shakeEnabled: boolean;
   showHud: boolean;
+  /** false on the menu backdrop, where a parked ship looks odd */
+  showShip: boolean;
   bestScore: number;
   touch: TouchStickView | null;
 }
@@ -123,7 +125,7 @@ export class Renderer {
     this.drawProjectiles(world, opts.alpha);
     this.drawMissiles(world, opts.alpha);
     this.drawDrones(world, opts.alpha);
-    if (world.phase === "playing") this.drawShip(world, opts);
+    if (opts.showShip && world.phase === "playing") this.drawShip(world, opts);
     particles.draw(ctx);
     popups.draw(ctx);
 
