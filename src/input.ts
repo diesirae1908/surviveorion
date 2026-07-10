@@ -1,0 +1,117 @@
+import { clamp, clamp01 } from "./math";
+
+export interface InputState {
+  turn: number; // -1..1 (positive = turn right / clockwise)
+  thrust: number; // 0..1
+  boost: boolean;
+}
+
+export interface TouchStickView {
+  active: boolean;
+  originX: number;
+  originY: number;
+  stickX: number;
+  stickY: number;
+  boostActive: boolean;
+}
+
+const STICK_RANGE_PX = 60;
+
+/**
+ * Keyboard + touch input. Keys are sampled per fixed tick from held state, so
+ * inputs are never dropped (fixes the Unity Update/FixedUpdate race).
+ */
+export class Input {
+  private keys = new Set<string>();
+  private stickTouchId: number | null = null;
+  private boostTouchId: number | null = null;
+  private stickOrigin = { x: 0, y: 0 };
+  private stickPos = { x: 0, y: 0 };
+  touchUsed = false;
+
+  onPause: (() => void) | null = null;
+
+  constructor(canvas: HTMLCanvasElement) {
+    window.addEventListener("keydown", (e) => {
+      if (e.repeat) return;
+      this.keys.add(e.code);
+      if (e.code === "Escape" || e.code === "KeyP") this.onPause?.();
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+        e.preventDefault();
+      }
+    });
+    window.addEventListener("keyup", (e) => this.keys.delete(e.code));
+    window.addEventListener("blur", () => this.keys.clear());
+
+    canvas.addEventListener("touchstart", this.onTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", this.onTouchEnd, { passive: false });
+    canvas.addEventListener("touchcancel", this.onTouchEnd, { passive: false });
+  }
+
+  private onTouchStart = (e: TouchEvent): void => {
+    e.preventDefault();
+    this.touchUsed = true;
+    for (const t of Array.from(e.changedTouches)) {
+      if (t.clientX < window.innerWidth / 2) {
+        if (this.stickTouchId === null) {
+          this.stickTouchId = t.identifier;
+          this.stickOrigin = { x: t.clientX, y: t.clientY };
+          this.stickPos = { x: t.clientX, y: t.clientY };
+        }
+      } else if (this.boostTouchId === null) {
+        this.boostTouchId = t.identifier;
+      }
+    }
+  };
+
+  private onTouchMove = (e: TouchEvent): void => {
+    e.preventDefault();
+    for (const t of Array.from(e.changedTouches)) {
+      if (t.identifier === this.stickTouchId) {
+        this.stickPos = { x: t.clientX, y: t.clientY };
+      }
+    }
+  };
+
+  private onTouchEnd = (e: TouchEvent): void => {
+    e.preventDefault();
+    for (const t of Array.from(e.changedTouches)) {
+      if (t.identifier === this.stickTouchId) this.stickTouchId = null;
+      if (t.identifier === this.boostTouchId) this.boostTouchId = null;
+    }
+  };
+
+  sample(): InputState {
+    let turn = 0;
+    let thrust = 0;
+    let boost = false;
+
+    if (this.keys.has("ArrowLeft") || this.keys.has("KeyA")) turn -= 1;
+    if (this.keys.has("ArrowRight") || this.keys.has("KeyD")) turn += 1;
+    if (this.keys.has("ArrowUp") || this.keys.has("KeyW")) thrust = 1;
+    if (this.keys.has("Space")) boost = true;
+
+    if (this.stickTouchId !== null) {
+      const dx = this.stickPos.x - this.stickOrigin.x;
+      const dy = this.stickPos.y - this.stickOrigin.y;
+      turn = clamp(dx / STICK_RANGE_PX, -1, 1);
+      thrust = clamp01(-dy / STICK_RANGE_PX); // drag up = thrust
+    }
+    if (this.boostTouchId !== null) boost = true;
+
+    return { turn, thrust, boost };
+  }
+
+  /** For rendering the virtual joystick overlay. */
+  getTouchView(): TouchStickView {
+    return {
+      active: this.stickTouchId !== null,
+      originX: this.stickOrigin.x,
+      originY: this.stickOrigin.y,
+      stickX: this.stickPos.x,
+      stickY: this.stickPos.y,
+      boostActive: this.boostTouchId !== null,
+    };
+  }
+}
