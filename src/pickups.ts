@@ -83,19 +83,29 @@ function spawnPickup(world: World): void {
 /**
  * Weighted random pick so not every power appears at the same frequency.
  * Late-game powers (POWER_MIN_MINUTES) only enter the pool once the run is
- * deep enough to warrant them.
+ * deep enough to warrant them. Bad-luck protection: each time a power spawns
+ * its weight is demoted for the rest of the run, so the rarer powers all get
+ * their moment instead of shield/shockwave hogging every drop.
  */
 function rollPowerId(world: World): PowerId {
   const minutes = world.time / 60;
   const pool = ALL_POWER_IDS.filter((id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0));
 
+  const weight = (id: PowerId): number =>
+    POWER_SPAWN_WEIGHTS[id] / (1 + 1.5 * (world.powerSpawnCounts[id] ?? 0));
+
   let total = 0;
-  for (const id of pool) total += POWER_SPAWN_WEIGHTS[id];
+  for (const id of pool) total += weight(id);
 
   let roll = Math.random() * total;
+  let picked = pool[pool.length - 1];
   for (const id of pool) {
-    roll -= POWER_SPAWN_WEIGHTS[id];
-    if (roll <= 0) return id;
+    roll -= weight(id);
+    if (roll <= 0) {
+      picked = id;
+      break;
+    }
   }
-  return pool[pool.length - 1];
+  world.powerSpawnCounts[picked] = (world.powerSpawnCounts[picked] ?? 0) + 1;
+  return picked;
 }

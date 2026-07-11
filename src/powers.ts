@@ -1,5 +1,6 @@
 import { MINES, PALETTE, POWERS, SCORING, type PowerId } from "./config";
 import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
+import { randInCircle } from "./math";
 import { isMineArmed, killMine, killMinesInRadius } from "./mines";
 import type { ArcChainState, Drone, Mine, PowersState, World } from "./types";
 
@@ -18,6 +19,13 @@ export function createPowersState(): PowersState {
     waves: [],
     arcBolts: [],
     arcChain: null,
+    autocannonTimer: 0,
+    autocannonCooldown: 0,
+    autocannonAngle: 0,
+    bullets: [],
+    meteorTimer: 0,
+    meteorCooldown: 0,
+    vortices: [],
   };
 }
 
@@ -86,6 +94,23 @@ export function activatePower(world: World, power: PowerId): void {
       break;
     case "arc":
       startArcChain(world);
+      break;
+    case "autocannon":
+      p.autocannonTimer = POWERS.autocannon.duration;
+      p.autocannonCooldown = 0; // first shot fires immediately
+      break;
+    case "meteors":
+      p.meteorTimer = POWERS.meteors.duration;
+      p.meteorCooldown = 0;
+      break;
+    case "vortex":
+      p.vortices.push({
+        x: world.ship.x,
+        y: world.ship.y,
+        timer: POWERS.vortex.pullDuration,
+      });
+      world.events.push({ type: "vortexOpen", x: world.ship.x, y: world.ship.y });
+      world.shake = Math.max(world.shake, 0.15);
       break;
   }
 }
@@ -365,6 +390,157 @@ function updateMissiles(world: World, dt: number): void {
   }
 }
 
+const NO_DRONES: Set<Drone> = new Set();
+const NO_MINES: Set<Mine> = new Set();
+
+/** Ship-mounted turret: auto-fires tracer rounds at the nearest enemy in range. */
+function updateAutocannon(world: World, dt: number): void {
+  const p = world.powers;
+  const cfg = POWERS.autocannon;
+
+  if (p.autocannonTimer > 0) {
+    p.autocannonTimer -= dt;
+    p.autocannonCooldown -= dt;
+    if (p.autocannonCooldown <= 0 && world.phase === "playing") {
+      const ship = world.ship;
+      const target = nearestEnemyInRadius(world, ship.x, ship.y, cfg.range, NO_DRONES, NO_MINES);
+      if (target) {
+        const angle = Math.atan2(target.y - ship.y, target.x - ship.x);
+        p.autocannonAngle = angle;
+        p.bullets.push({
+          x: ship.x,
+          y: ship.y,
+          prevX: ship.x,
+          prevY: ship.y,
+          dirX: Math.cos(angle),
+          dirY: Math.sin(angle),
+          elapsed: 0,
+        });
+        p.autocannonCooldown = cfg.fireInterval;
+        world.events.push({ type: "autocannonFire", x: ship.x, y: ship.y });
+      }
+    }
+  }
+
+  // bullets: fly straight, kill the first drone (or mine) hit, then die
+  for (let i = p.bullets.length - 1; i >= 0; i--) {
+    const b = p.bullets[i];
+    b.prevX = b.x;
+    b.prevY = b.y;
+    b.elapsed += dt;
+    b.x += b.dirX * cfg.bulletSpeed * dt;
+    b.y += b.dirY * cfg.bulletSpeed * dt;
+
+    let hit = false;
+    for (const d of world.drones) {
+      if (!d.alive) continue;
+      const dx = d.x - b.x;
+      const dy = d.y - b.y;
+      const r = cfg.bulletRadius + droneRadius(d);
+      if (dx * dx + dy * dy <= r * r) {
+        killDrone(world, d);
+        hit = true;
+        break;
+      }
+    }
+    if (!hit) {
+      for (const m of world.mines) {
+        if (!m.alive || !isMineArmed(m)) continue;
+        const dx = m.x - b.x;
+        const dy = m.y - b.y;
+        const r = cfg.bulletRadius + MINES.radius;
+        if (dx * dx + dy * dy <= r * r) {
+          killMine(world, m);
+          hit = true;
+          break;
+        }
+      }
+    }
+    if (hit || b.elapsed >= cfg.bulletLifetime) p.bullets.splice(i, 1);
+  }
+}
+
+/** Meteor storm: explosions rain down, biased toward drone clusters. */
+function updateMeteors(world: World, dt: number): void {
+  const p = world.powers;
+  const cfg = POWERS.meteors;
+  if (p.meteorTimer <= 0) return;
+
+  p.meteorTimer -= dt;
+  p.meteorCooldown -= dt;
+  if (p.meteorCooldown > 0 || world.phase !== "playing") return;
+  p.meteorCooldown = cfg.interval;
+
+  // aim at a random alive drone (jittered) so strikes chase the swarm;
+  // with no drones left, hammer a random on-screen point for the spectacle
+  let x: number;
+  let y: number;
+  const alive = world.drones.filter((d) => d.alive);
+  if (alive.length > 0) {
+    const target = alive[Math.floor(Math.random() * alive.length)];
+    const off = randInCircle();
+    x = target.x + off.x * cfg.scatter;
+    y = target.y + off.y * cfg.scatter;
+  } else {
+    x = (Math.random() - 0.5) * world.viewW * 0.8;
+    y = (Math.random() - 0.5) * world.viewH * 0.8;
+  }
+
+  killDronesInRadius(world, x, y, cfg.radius);
+  killMinesInRadius(world, x, y, cfg.radius);
+  p.waves.push({
+    x,
+    y,
+    elapsed: 0,
+    lifetime: cfg.waveLifetime,
+    maxRadius: cfg.radius * 1.6,
+    color: PALETTE.meteors,
+  });
+  world.events.push({ type: "meteorStrike", x, y });
+  world.shake = Math.max(world.shake, 0.18);
+}
+
+/** Vortices: pull drones inward, then collapse and kill the core. */
+function updateVortices(world: World, dt: number): void {
+  const p = world.powers;
+  const cfg = POWERS.vortex;
+
+  for (let i = p.vortices.length - 1; i >= 0; i--) {
+    const v = p.vortices[i];
+    v.timer -= dt;
+
+    if (v.timer <= 0) {
+      killDronesInRadius(world, v.x, v.y, cfg.killRadius);
+      killMinesInRadius(world, v.x, v.y, cfg.killRadius);
+      p.waves.push({
+        x: v.x,
+        y: v.y,
+        elapsed: 0,
+        lifetime: 0.9,
+        maxRadius: cfg.pullRadius,
+        color: PALETTE.vortex,
+      });
+      world.events.push({ type: "vortexCollapse", x: v.x, y: v.y });
+      world.shake = Math.max(world.shake, 0.4);
+      p.vortices.splice(i, 1);
+      continue;
+    }
+
+    // drag drones toward the singularity, harder the closer they get
+    for (const d of world.drones) {
+      if (!d.alive) continue;
+      const dx = v.x - d.x;
+      const dy = v.y - d.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.05 || dist > cfg.pullRadius) continue;
+      const strength = 0.4 + 0.6 * (1 - dist / cfg.pullRadius);
+      const pull = Math.min(dist, cfg.pullSpeed * strength * dt);
+      d.x += (dx / dist) * pull;
+      d.y += (dy / dist) * pull;
+    }
+  }
+}
+
 export function updatePowers(world: World, dt: number): void {
   const p = world.powers;
 
@@ -466,6 +642,9 @@ export function updatePowers(world: World, dt: number): void {
   updateMissiles(world, dt);
   updateArcChain(world, dt);
   updateArcBolts(world, dt);
+  updateAutocannon(world, dt);
+  updateMeteors(world, dt);
+  updateVortices(world, dt);
 
   // expanding ring visuals
   for (let i = p.waves.length - 1; i >= 0; i--) {

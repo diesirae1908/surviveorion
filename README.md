@@ -13,15 +13,20 @@ defensive power pickups:
 - **Afterburner** — charges, then dashes you forward through enemies, leaving a burning trail that stays lethal for ~2.5s; you get a 1s invincibility grace on arrival
 - **Cryo Field** — flash-freezes all drones in a big area; fly into frozen drones to shatter them
 - **Missile Swarm** — launches a volley of guided missiles in all directions that curve toward the nearest enemies
-- **Starshell** — a golden shell that makes you invulnerable for ~6s and ram-kills everything you touch; only appears after 2.5 minutes as a late-game pressure valve
+- **Starshell** — a golden shell that makes you invulnerable for ~6s and ram-kills everything you touch
 - **Arc Lightning** — zaps the nearest enemy, then chain-jumps through nearby drones until nothing is close enough to continue
+- **Autocannon** — mounts a turret on the ship for ~6s that auto-fires tracer rounds at the nearest enemy in range
+- **Meteor Storm** — explosions rain down for ~4s, biased toward drone clusters, each clearing a small radius
+- **Vortex** — drops a singularity at your position that drags drones inward for ~3s, then collapses and kills everything caught in the core
 
 Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`):
-shield/shockwave are common safety nets, freeze and afterburner are rarer, and
-late-game powers are time-gated (`POWER_MIN_MINUTES`). Pickup drops come faster
-as the difficulty climbs. Skill kills pay more: pulse kills are worth 2x points
-(with an escalating bonus when one bolt kills 3+), and shattering frozen drones
-pays 1.5x points and builds the multiplier twice as fast.
+shield/shockwave are common safety nets, freeze and afterburner are rarer. Every
+power can spawn from minute zero (`POWER_MIN_MINUTES` is empty), and bad-luck
+protection demotes a power's weight each time it drops so the whole roster
+appears over a run. Pickup drops come faster as the difficulty climbs. Skill kills pay more: pulse kills are
+worth 2x points (with an escalating bonus when one bolt kills 3+), and
+shattering frozen drones pays 1.5x points and builds the multiplier twice as
+fast.
 
 Enemies:
 
@@ -31,6 +36,15 @@ Enemies:
   the run ends, so every run has an ending.
   Most spawns telegraph on-screen (a red glow warns ~1s before the drone pops,
   and the ring formation closes in around you); some still sneak in from the edges.
+  Formations are weighted (`SPAWNER.formations.weights`) and heavier patterns
+  unlock as the run deepens: **line**, **ring**, and **burst** from the start,
+  then Tilt to Live-style **walls** (a dot wall with escape gaps marching across
+  the arena), **swarms** (a loose school drifting across as one organic blob),
+  **serpents** (a dotted train whose head carves a curve before the whole train
+  releases to homing), **tight rings** (smaller, denser closing circles),
+  **corner crosses** (bursts from all four corners), **mega walls** (a slow
+  3-row-thick wall spanning the arena with one narrow gap — thread it or blast
+  through), and **pincers** (two walls converging from opposite edges).
 - **Floating mines** (after 30s) — stationary hazards that arm after a brief fade-in and despawn after a while; lethal on contact, but destroying one with a power chain-explodes everything nearby
 
 Kills feed the score multiplier (up to **x10**) — the ship glows brighter gold the

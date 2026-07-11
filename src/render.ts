@@ -147,11 +147,13 @@ export class Renderer {
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawTrail(world, opts.uiTime);
     this.drawWaves(world);
+    this.drawVortices(world, opts.uiTime);
     this.drawArcBolts(world);
     this.drawPickups(world, opts.uiTime);
     this.drawMines(world, opts.uiTime);
     this.drawMagnetField(world, opts.uiTime);
     this.drawProjectiles(world, opts.alpha);
+    this.drawBullets(world, opts.alpha);
     this.drawMissiles(world, opts.alpha);
     this.drawDrones(world, opts.alpha);
     if (opts.showShip && world.phase === "playing") this.drawShip(world, opts);
@@ -499,6 +501,26 @@ export class Renderer {
       ctx.restore();
     }
 
+    // autocannon: silvery turret ring with a barrel tracking the last target
+    if (world.powers.autocannonTimer > 0) {
+      const aim = world.powers.autocannonAngle;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = PALETTE.autocannon;
+      ctx.lineWidth = 0.05;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 0.09;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(aim) * 0.42, y + Math.sin(aim) * 0.42);
+      ctx.lineTo(x + Math.cos(aim) * 0.72, y + Math.sin(aim) * 0.72);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // pulse shot charge glow at the nose
     if (world.powers.pulseTimer > 0) {
       const progress = 1 - world.powers.pulseTimer / POWERS.pulse.chargeTime;
@@ -807,6 +829,51 @@ export class Renderer {
         ctx.closePath();
         ctx.fill();
         break;
+      case "autocannon":
+        // crosshair: ring + four ticks + center dot
+        ctx.arc(0, 0, size * 0.55, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const a = (Math.PI / 2) * i;
+          ctx.moveTo(Math.cos(a) * size * 0.55, Math.sin(a) * size * 0.55);
+          ctx.lineTo(Math.cos(a) * size, Math.sin(a) * size);
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      case "meteors":
+        // falling comet: filled head with trailing speed lines
+        ctx.arc(-size * 0.3, -size * 0.35, size * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.05, -size * 0.05);
+        ctx.lineTo(size * 0.75, size * 0.75);
+        ctx.moveTo(-size * 0.45, size * 0.15);
+        ctx.lineTo(size * 0.15, size * 0.85);
+        ctx.moveTo(-size * 0.05, -size * 0.6);
+        ctx.lineTo(size * 0.65, size * 0.15);
+        ctx.stroke();
+        break;
+      case "vortex": {
+        // inward spiral (2 turns)
+        const turns = 2;
+        const steps = 40;
+        ctx.moveTo(size, 0);
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const a = t * Math.PI * 2 * turns;
+          const r = size * (1 - t * 0.9);
+          ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
     }
   }
 
@@ -927,6 +994,100 @@ export class Renderer {
 
       ctx.restore();
     }
+  }
+
+  /** Singularities: a dark core, a swirling rim, and a faint pull-radius ring. */
+  private drawVortices(world: World, time: number): void {
+    if (world.powers.vortices.length === 0) return;
+    const { ctx } = this;
+    const cfg = POWERS.vortex;
+    const color = PALETTE.vortex;
+
+    for (const v of world.powers.vortices) {
+      const progress = 1 - v.timer / cfg.pullDuration; // 0 -> 1 toward collapse
+      const coreR = 0.5 + progress * 0.5;
+
+      ctx.save();
+
+      // faint pull-radius ring so players read the danger zone
+      ctx.globalAlpha = 0.12 + 0.05 * Math.sin(time * 5);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.05;
+      ctx.setLineDash([0.35, 0.3]);
+      ctx.beginPath();
+      ctx.arc(v.x, v.y, cfg.pullRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // dark core swallowing the light
+      ctx.globalAlpha = 0.8;
+      const core = ctx.createRadialGradient(v.x, v.y, 0, v.x, v.y, coreR);
+      core.addColorStop(0, "rgba(6,4,18,0.95)");
+      core.addColorStop(0.7, "rgba(30,20,70,0.7)");
+      core.addColorStop(1, "rgba(136,119,255,0)");
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(v.x, v.y, coreR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // rotating spiral arms, tightening as the collapse nears
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.55 + progress * 0.3;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.07;
+      ctx.lineCap = "round";
+      const arms = 3;
+      for (let arm = 0; arm < arms; arm++) {
+        const base = time * 3 + (Math.PI * 2 * arm) / arms;
+        ctx.beginPath();
+        const steps = 16;
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const r = coreR * 0.4 + (2.2 - progress * 0.8) * t;
+          const a = base + t * 2.6;
+          const px = v.x + Math.cos(a) * r;
+          const py = v.y + Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  /** Autocannon tracers: short bright streaks along their flight path. */
+  private drawBullets(world: World, alpha: number): void {
+    if (world.powers.bullets.length === 0) return;
+    const { ctx } = this;
+    const color = PALETTE.autocannon;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    for (const b of world.powers.bullets) {
+      const x = lerp(b.prevX, b.x, alpha);
+      const y = lerp(b.prevY, b.y, alpha);
+      const tailX = x - b.dirX * 0.5;
+      const tailY = y - b.dirY * 0.5;
+
+      const tg = ctx.createLinearGradient(x, y, tailX, tailY);
+      tg.addColorStop(0, color);
+      tg.addColorStop(1, "rgba(232,232,248,0)");
+      ctx.strokeStyle = tg;
+      ctx.lineWidth = 0.09;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(tailX, tailY);
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private drawMagnetField(world: World, time: number): void {
@@ -1129,6 +1290,15 @@ export class Renderer {
       ]);
     if (p.pulseTimer > 0)
       powers.push(["PULSE", p.pulseTimer, POWERS.pulse.chargeTime, POWER_COLORS.pulse]);
+    if (p.autocannonTimer > 0)
+      powers.push([
+        "AUTOCANNON",
+        p.autocannonTimer,
+        POWERS.autocannon.duration,
+        POWER_COLORS.autocannon,
+      ]);
+    if (p.meteorTimer > 0)
+      powers.push(["METEORS", p.meteorTimer, POWERS.meteors.duration, POWER_COLORS.meteors]);
 
     let py = this.cssH - pad - this.safe.bottom - powers.length * 24;
     ctx.textAlign = "left";

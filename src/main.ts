@@ -411,6 +411,21 @@ function drainEvents(w: World): void {
       case "missilesFire":
         audio.missilesFire();
         break;
+      case "autocannonFire":
+        audio.autocannonFire();
+        break;
+      case "meteorStrike":
+        particles.burst(e.x, e.y, [PALETTE.meteors, PALETTE.goldPale, "#ff8844"], 20, 6, 0.65, 0.13);
+        audio.meteorStrike();
+        break;
+      case "vortexOpen":
+        particles.burst(e.x, e.y, [PALETTE.vortex, "#c4b8ff"], 14, 3, 0.5, 0.1);
+        audio.vortexOpen();
+        break;
+      case "vortexCollapse":
+        particles.burst(e.x, e.y, [PALETTE.vortex, PALETTE.white, "#c4b8ff"], 32, 8, 0.85, 0.15);
+        audio.vortexCollapse();
+        break;
       case "arcZap":
         particles.burst(e.x, e.y, [PALETTE.arc, PALETTE.white, "#c8f0ff"], 14, 5, 0.55, 0.1);
         audio.arcZap();

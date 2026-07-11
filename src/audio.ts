@@ -219,6 +219,29 @@ export class AudioSystem {
     this.tone(550, 1600, 0.25, "sawtooth", 0.08, 0.14);
   }
 
+  autocannonFire(): void {
+    // quick metallic pew, quiet enough to spam at 4/sec
+    this.tone(1250, 420, 0.07, "square", 0.09);
+    this.noiseBurst(0.05, 0.06, 5200);
+  }
+
+  meteorStrike(): void {
+    this.noiseBurst(0.3, 0.3, 950);
+    this.tone(150, 45, 0.32, "sine", 0.24);
+  }
+
+  vortexOpen(): void {
+    // descending swallow: something heavy just tore open
+    this.tone(520, 90, 0.6, "sine", 0.18);
+    this.tone(260, 55, 0.8, "triangle", 0.12, 0.1);
+  }
+
+  vortexCollapse(): void {
+    this.noiseBurst(0.55, 0.5, 750);
+    this.tone(75, 26, 0.65, "sine", 0.4);
+    this.tone(600, 1400, 0.25, "sine", 0.1, 0.05);
+  }
+
   arcZap(): void {
     this.noiseBurst(0.12, 0.08, 4200);
     this.tone(880, 220, 0.08, "square", 0.18);

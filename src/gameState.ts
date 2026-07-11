@@ -36,6 +36,7 @@ export function createWorld(viewW: number, viewH: number): World {
     nextFormationDelay: 0,
     sustainedSpawnCooldown: 0,
     pickupTimer: 0,
+    powerSpawnCounts: {},
     mineTimer: MINES.intervalRange[0],
     shake: 0,
     events: [],

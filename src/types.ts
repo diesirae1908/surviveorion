@@ -29,6 +29,13 @@ export interface Drone {
   spin: number; // visual rotation
   frozen: number; // seconds of freeze remaining (0 = mobile)
   alive: boolean;
+  // scripted formation movement (walls, serpents); undefined = normal homing
+  scriptMode?: "straight" | "follow";
+  scriptDirX?: number;
+  scriptDirY?: number;
+  scriptTimer?: number; // seconds until the drone releases to homing
+  scriptWander?: number; // rad/s curve amplitude for straight movers (serpent head)
+  followTarget?: Drone | null; // previous segment in a train
 }
 
 /** Stationary hazard: lethal to the ship, chain-explodes when destroyed. */
@@ -99,6 +106,24 @@ export interface ArcChainState {
   hitMines: Set<Mine>;
 }
 
+/** A single autocannon tracer round: flies straight, kills the first drone hit. */
+export interface Bullet {
+  x: number;
+  y: number;
+  prevX: number;
+  prevY: number;
+  dirX: number;
+  dirY: number;
+  elapsed: number;
+}
+
+/** An active singularity: pulls drones inward, then collapses and kills. */
+export interface Vortex {
+  x: number;
+  y: number;
+  timer: number; // counts down to the collapse
+}
+
 /** A burning point left behind by the afterburner dash; lethal until it fades. */
 export interface TrailPoint {
   x: number;
@@ -128,6 +153,13 @@ export interface PowersState {
   waves: WaveFx[];
   arcBolts: ArcBolt[];
   arcChain: ArcChainState | null;
+  autocannonTimer: number; // >0 => turret active
+  autocannonCooldown: number; // time until the next shot
+  autocannonAngle: number; // last aim direction (for the turret barrel)
+  bullets: Bullet[];
+  meteorTimer: number; // >0 => storm active
+  meteorCooldown: number; // time until the next strike
+  vortices: Vortex[];
 }
 
 export type RunPhase = "playing" | "dying" | "dead";
@@ -159,6 +191,10 @@ export type GameEvent =
   | { type: "dash" }
   | { type: "freeze"; x: number; y: number }
   | { type: "missilesFire" }
+  | { type: "autocannonFire"; x: number; y: number }
+  | { type: "meteorStrike"; x: number; y: number }
+  | { type: "vortexOpen"; x: number; y: number }
+  | { type: "vortexCollapse"; x: number; y: number }
   | { type: "arcZap"; x: number; y: number }
   | { type: "arcFizzle"; x: number; y: number }
   | { type: "chainBonus"; x: number; y: number; points: number; count: number }
@@ -197,6 +233,8 @@ export interface World {
   nextFormationDelay: number;
   sustainedSpawnCooldown: number;
   pickupTimer: number;
+  /** Times each power spawned this run (bad-luck protection in the roll). */
+  powerSpawnCounts: Partial<Record<PowerId, number>>;
   mineTimer: number;
 
   shake: number; // screen shake amplitude (world units)

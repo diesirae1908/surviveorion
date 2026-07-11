@@ -69,11 +69,23 @@ export const DRONE = {
   sizeSpeed: { small: 0.85, large: 1.12 },
 };
 
+export type FormationKind =
+  | "line"
+  | "ring"
+  | "burst"
+  | "wall"
+  | "serpent"
+  | "pincer"
+  | "corners"
+  | "tightring"
+  | "swarm"
+  | "megawall";
+
 export const SPAWNER = {
   initialBurst: 3,
   // Endless escalation (the Tetris model): fast ramp, then slow growth
   // forever so every run ends and scores measure depth, not patience.
-  spawnsPerSecond: { from: 0.5, to: 1.5, rampMinutes: 3, latePerMinute: 0.12 },
+  spawnsPerSecond: { from: 0.5, to: 1.8, rampMinutes: 3, latePerMinute: 0.15 },
   speedMultiplier: { from: 1.0, to: 1.3, rampMinutes: 3, latePerMinute: 0.03 },
   scaleClamp: [0.3, 0.9] as const,
   scaleJitter: 0.15,
@@ -81,6 +93,8 @@ export const SPAWNER = {
   minSpawnRadius: 12, // Unity's spawnRadius; formations use max(this, view half-diagonal)
   edgeMargin: 1.0, // ambient spawns appear this far beyond the view edge
   minDistanceFromShip: 7, // edge spawns keep at least this distance from the ship
+  // Soft safety cap: no pooling/partitioning, so guard frame rate in marathon runs.
+  maxDrones: 250,
   // Telegraphed on-screen spawns: a red glow fades in, then the drone pops.
   telegraph: {
     ratio: 0.7, // fraction of ambient spawns that appear on-screen (rest sneak from edges)
@@ -89,18 +103,57 @@ export const SPAWNER = {
     edgeInset: 1.0, // keep telegraphs this far inside the view
   },
   formations: {
-    intervalRange: [12, 20] as const,
+    intervalRange: [10, 17] as const,
     // formations come faster over time, down to this floor
-    intervalFloor: [8, 10] as const,
+    intervalFloor: [6, 8] as const,
     intervalRampMinutes: 6,
     countGrowthMinutes: 2, // formations gain +1 enemy per this many minutes...
-    maxCountBonus: 4, // ...capped here
+    maxCountBonus: 6, // ...capped here
     postFormationDelay: 1.5,
-    line: { count: 6, spacing: 1.6 },
+    // Relative pick frequency per pattern; heavy patterns unlock later.
+    weights: {
+      line: 2,
+      ring: 2,
+      burst: 2,
+      wall: 2,
+      serpent: 2,
+      pincer: 1.5,
+      corners: 1.5,
+      tightring: 1.5,
+      swarm: 2,
+      megawall: 1.5,
+    } as Record<FormationKind, number>,
+    minMinutes: {
+      wall: 0.5,
+      swarm: 0.75,
+      serpent: 1,
+      tightring: 1,
+      corners: 1.5,
+      megawall: 1.5,
+      pincer: 2,
+    } as Partial<Record<FormationKind, number>>,
+    line: { count: 8, spacing: 1.6 },
     // ring closes in around the player ON-screen: telegraphed circle with
     // enough warning time to fly through a gap before it pops
-    ring: { count: 12, radius: 4.2, telegraphDuration: 2.0 },
-    burst: { count: 14, spreadRadius: 2.5 },
+    ring: { count: 14, radius: 4.2, telegraphDuration: 2.0 },
+    burst: { count: 18, spreadRadius: 2.5 },
+    // Tilt to Live-style dot wall: spans one arena edge (minus 1-2 escape
+    // gaps) and marches straight across before releasing to homing.
+    wall: { spacing: 1.15, gapSize: 2.6, scale: 0.55, speedScale: 1.0 },
+    // A dotted train: the head wanders on a curved path, the body follows.
+    serpent: { count: 14, spacing: 0.55, duration: 7, wander: 1.7, scale: 0.5, speedScale: 1.25 },
+    // Two walls converging from opposite edges (each with an escape gap).
+    pincer: { spacing: 1.5, gapSize: 2.8, scale: 0.55, speedScale: 0.85 },
+    // Simultaneous bursts from all four corners.
+    corners: { countPerCorner: 5, spreadRadius: 1.8 },
+    // A much tighter, denser ring: less room, more drones, slightly more warning.
+    tightring: { count: 20, radius: 2.9, telegraphDuration: 2.2 },
+    // A loose school of drones drifting across the arena as one organic blob,
+    // released to homing as it passes the player.
+    swarm: { count: 26, spreadRadius: 3.5, scale: 0.5, speedScale: 1.1, wander: 0.5 },
+    // The big one: a slow 3-row-thick wall spanning the whole arena with a
+    // single narrow gap — thread it or blast through with a power.
+    megawall: { spacing: 1.0, gapSize: 2.2, scale: 0.55, speedScale: 0.7, rows: 3, rowOffset: 0.9 },
   },
 };
 
@@ -149,11 +202,11 @@ export const SCORING = {
 };
 
 export const PICKUPS = {
-  secondsBetweenRange: [3.5, 6] as const,
+  secondsBetweenRange: [3.0, 5.0] as const,
   // support scales with pressure: intervals shrink to this range over the ramp
-  secondsBetweenAtPeak: [2.8, 4.5] as const,
+  secondsBetweenAtPeak: [2.2, 3.5] as const,
   intervalRampMinutes: 4,
-  maxActive: 5,
+  maxActive: 6,
   spawnOnStart: true,
   radius: 0.45,
   minDistanceFromShip: 3,
@@ -170,7 +223,10 @@ export type PowerId =
   | "freeze"
   | "missiles"
   | "starshell"
-  | "arc";
+  | "arc"
+  | "autocannon"
+  | "meteors"
+  | "vortex";
 
 export const POWERS = {
   // The shield has no timer: it stays on the ship until it absorbs a hit
@@ -240,6 +296,33 @@ export const POWERS = {
     fizzleLifetime: 0.5,
     fizzleRadius: 2.5,
   },
+  // Ship-mounted turret (Tilt to Live's gun): auto-fires at the nearest
+  // enemy in range for the duration; each bullet kills one drone.
+  autocannon: {
+    duration: 6,
+    fireInterval: 0.25,
+    range: 8,
+    bulletSpeed: 22,
+    bulletLifetime: 0.6,
+    bulletRadius: 0.2,
+  },
+  // Meteor storm (Tilt to Live's Brimstone): explosions rain down, biased
+  // toward drone clusters, each clearing a small radius.
+  meteors: {
+    duration: 4,
+    interval: 0.35,
+    radius: 1.8,
+    scatter: 1.4, // strike jitter around the targeted drone
+    waveLifetime: 0.6,
+  },
+  // Drops a singularity at the ship: pulls drones inward, then collapses
+  // and kills everything caught in the core.
+  vortex: {
+    pullDuration: 3,
+    pullRadius: 8,
+    pullSpeed: 7,
+    killRadius: 3,
+  },
 };
 
 export const ALL_POWER_IDS: PowerId[] = [
@@ -252,6 +335,9 @@ export const ALL_POWER_IDS: PowerId[] = [
   "missiles",
   "starshell",
   "arc",
+  "autocannon",
+  "meteors",
+  "vortex",
 ];
 
 // Relative spawn frequency. Panic-button powers stay common as a safety net
@@ -267,13 +353,14 @@ export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
   afterburner: 1,
   starshell: 1.5,
   arc: 2,
+  autocannon: 2,
+  meteors: 2,
+  vortex: 1.5,
 };
 
 // Powers gated to the late game: they only enter the pickup pool after this
-// many minutes, once the escalation actually warrants them.
-export const POWER_MIN_MINUTES: Partial<Record<PowerId, number>> = {
-  starshell: 2.5,
-};
+// many minutes. Currently empty — every power can spawn from minute zero.
+export const POWER_MIN_MINUTES: Partial<Record<PowerId, number>> = {};
 
 // Gold / red "Red Rising" palette from the style bible + menu mockup.
 export const PALETTE = {
@@ -295,6 +382,9 @@ export const PALETTE = {
   missiles: "#a8ff9e",
   starshell: "#ffd24d",
   arc: "#88eeff",
+  autocannon: "#e8e8f8",
+  meteors: "#ffce55",
+  vortex: "#8877ff",
 };
 
 export const POWER_COLORS: Record<PowerId, string> = {
@@ -307,6 +397,9 @@ export const POWER_COLORS: Record<PowerId, string> = {
   missiles: PALETTE.missiles,
   starshell: PALETTE.starshell,
   arc: PALETTE.arc,
+  autocannon: PALETTE.autocannon,
+  meteors: PALETTE.meteors,
+  vortex: PALETTE.vortex,
 };
 
 export const POWER_NAMES: Record<PowerId, string> = {
@@ -319,4 +412,7 @@ export const POWER_NAMES: Record<PowerId, string> = {
   missiles: "Missile Swarm",
   starshell: "Starshell",
   arc: "Arc Lightning",
+  autocannon: "Autocannon",
+  meteors: "Meteor Storm",
+  vortex: "Vortex",
 };
