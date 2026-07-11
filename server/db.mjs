@@ -35,7 +35,7 @@ db.exec(`
     time_survived REAL NOT NULL,
     kills INTEGER NOT NULL,
     max_multiplier REAL NOT NULL,
-    mode TEXT NOT NULL DEFAULT 'classic',
+    mode TEXT NOT NULL DEFAULT 'desktop',
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id, score DESC);
@@ -74,7 +74,7 @@ db.exec(`
     time_survived REAL NOT NULL,
     kills INTEGER NOT NULL,
     max_multiplier REAL NOT NULL,
-    mode TEXT NOT NULL DEFAULT 'classic',
+    mode TEXT NOT NULL DEFAULT 'desktop',
     platform TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
   );
@@ -113,6 +113,29 @@ try {
   db.exec(`ALTER TABLE scores ADD COLUMN mode TEXT NOT NULL DEFAULT 'classic'`);
 } catch {
   // column already exists
+}
+
+// One-time migration to platform-based boards (desktop / touch / tilt). The
+// old modes were flight-physics tags ('classic' = inertia, 'tilt' = direct
+// control); inertia is a flavor setting now, so old rows are refiled by the
+// platform they were played on, using the runs telemetry (same user, same
+// score, logged within 2s). Old tilt can't be told apart from touch stick
+// retroactively — old phone runs land on the touch board. Guarded by
+// user_version because 'tilt' stays a valid mode with a new meaning.
+if ((db.prepare("PRAGMA user_version").get()?.user_version ?? 0) < 1) {
+  db.exec(`
+    UPDATE scores SET mode = CASE WHEN EXISTS (
+      SELECT 1 FROM runs r
+      WHERE r.user_id = scores.user_id AND r.score = scores.score
+        AND ABS(r.created_at - scores.created_at) < 2000 AND r.platform = 'touch'
+    ) THEN 'touch' ELSE 'desktop' END
+    WHERE mode IN ('classic', 'tilt');
+
+    UPDATE runs SET mode = CASE WHEN platform = 'touch' THEN 'touch' ELSE 'desktop' END
+    WHERE mode IN ('classic', 'tilt');
+
+    PRAGMA user_version = 1;
+  `);
 }
 
 // --- users / sessions ---
@@ -184,16 +207,16 @@ export function insertScore(userId, { score, timeSurvived, kills, maxMultiplier,
   db.prepare(
     `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "classic", Date.now());
+  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "desktop", Date.now());
 }
 
-export const getUserBest = (userId, mode = "classic") =>
+export const getUserBest = (userId, mode = "desktop") =>
   db
     .prepare(`SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND mode = ?`)
     .get(userId, mode)?.best ?? 0;
 
-/** Best score per user, ranked. Scoped by control mode; optional country/arena. */
-export function leaderboard({ country = null, arenaId = null, mode = "classic", limit = 100 }) {
+/** Best score per user, ranked. Scoped by board mode (platform); optional country/arena. */
+export function leaderboard({ country = null, arenaId = null, mode = "desktop", limit = 100 }) {
   const joins = arenaId ? `JOIN arena_members am ON am.user_id = u.id AND am.arena_id = ?` : "";
   const where = country ? `WHERE u.country = ?` : "";
   const params = [mode, ...(arenaId ? [arenaId] : []), ...(country ? [country] : []), limit];
@@ -213,7 +236,7 @@ export function leaderboard({ country = null, arenaId = null, mode = "classic", 
 }
 
 /** 1-based rank of a user's best within a scope (null if no scores). */
-export function rankOf(userId, { country = null, arenaId = null, mode = "classic" }) {
+export function rankOf(userId, { country = null, arenaId = null, mode = "desktop" }) {
   const best = getUserBest(userId, mode);
   if (!best) return null;
   const joins = arenaId ? `JOIN arena_members am ON am.user_id = u.id AND am.arena_id = ?` : "";
@@ -322,13 +345,12 @@ export function friendIdsOf(userId) {
     .map((r) => r.id);
 }
 
-/** Accepted friends with per-mode bests and last-flown time. */
+/** Accepted friends with overall best and last-flown time. */
 export function friendsOf(userId) {
   return db
     .prepare(
       `SELECT u.callsign, u.country,
-              COALESCE((SELECT MAX(score) FROM scores WHERE user_id = u.id AND mode = 'classic'), 0) AS bestClassic,
-              COALESCE((SELECT MAX(score) FROM scores WHERE user_id = u.id AND mode = 'tilt'), 0) AS bestTilt,
+              COALESCE((SELECT MAX(score) FROM scores WHERE user_id = u.id), 0) AS best,
               (SELECT MAX(created_at) FROM scores WHERE user_id = u.id) AS lastRunAt
        FROM friends f
        JOIN users u ON u.id = CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END
@@ -365,7 +387,7 @@ export const pendingFriendCount = (userId) =>
     .get(userId).c;
 
 /** Best score per pilot among the user and their friends, ranked. */
-export function friendsLeaderboard(userId, mode = "classic") {
+export function friendsLeaderboard(userId, mode = "desktop") {
   const ids = [userId, ...friendIdsOf(userId)];
   const marks = ids.map(() => "?").join(",");
   return db
@@ -429,7 +451,7 @@ export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, m
     timeSurvived,
     kills,
     maxMultiplier,
-    mode ?? "classic",
+    mode ?? "desktop",
     platform ?? "",
     Date.now(),
   );

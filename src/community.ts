@@ -12,23 +12,33 @@ import {
 } from "./api";
 import { BADGES, TIER_LABEL } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
-import { loadSettings } from "./save";
 
 const BOARD_MODE_KEY = "orion.boardMode";
 
 /**
- * Board display names. Runs are tagged by flight physics: "tilt" covers all
- * direct control (phone tilt, touch stick, desktop keys — the default), while
- * "classic" is the opt-in inertia thrust-and-drift physics.
+ * Board display names. Runs are tagged by the platform they were played on:
+ * desktop keyboard, phone touch stick, or phone tilt. Inertia is a flavor
+ * setting and doesn't affect where a run ranks.
  */
-const MODE_LABEL: Record<BoardMode, string> = { tilt: "Direct", classic: "Classic" };
-const MODE_TAB_LABEL: Record<BoardMode, string> = { tilt: "Direct", classic: "Classic (inertia)" };
+const BOARD_MODES: BoardMode[] = ["desktop", "touch", "tilt"];
+const MODE_LABEL: Record<BoardMode, string> = {
+  desktop: "Desktop",
+  touch: "Phone",
+  tilt: "Tilt",
+};
+const MODE_TAB_LABEL: Record<BoardMode, string> = {
+  desktop: "Desktop",
+  touch: "Phone",
+  tilt: "Phone tilt",
+};
+
+const isTouchDevice = (): boolean => "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
 /** Last-viewed leaderboard tab; defaults to where your own runs score. */
 function loadBoardMode(): BoardMode {
   const saved = localStorage.getItem(BOARD_MODE_KEY);
-  if (saved === "classic" || saved === "tilt") return saved;
-  return loadSettings().inertia ? "classic" : "tilt";
+  if (saved && (BOARD_MODES as string[]).includes(saved)) return saved as BoardMode;
+  return isTouchDevice() ? "touch" : "desktop";
 }
 
 type Google = {
@@ -50,25 +60,23 @@ export class CommunityUi {
     private onAuthChange: () => void,
   ) {}
 
-  /** Classic / Tilt leaderboard tabs — the two control schemes rank separately. */
+  /** Desktop / Phone / Phone tilt leaderboard tabs — each platform ranks separately. */
   private modeTabs(onChange: () => void): HTMLElement {
     const row = this.el("div", "tabs");
-    const mk = (mode: BoardMode, label: string): HTMLButtonElement =>
-      this.button(label, false, () => {
+    const tabs = BOARD_MODES.map((mode) => {
+      const b = this.button(MODE_TAB_LABEL[mode], false, () => {
         this.boardMode = mode;
         localStorage.setItem(BOARD_MODE_KEY, mode);
         paint();
         onChange();
       });
-    const tilt = mk("tilt", MODE_TAB_LABEL.tilt);
-    const classic = mk("classic", MODE_TAB_LABEL.classic);
+      return { mode, b };
+    });
     const paint = (): void => {
-      classic.classList.toggle("active", this.boardMode === "classic");
-      tilt.classList.toggle("active", this.boardMode === "tilt");
+      for (const { mode, b } of tabs) b.classList.toggle("active", this.boardMode === mode);
     };
     paint();
-    // Direct first — it's the default flight model, so it's where new runs land
-    row.append(tilt, classic);
+    row.append(...tabs.map((t) => t.b));
     return row;
   }
 
@@ -367,10 +375,15 @@ export class CommunityUi {
 
   private statsRow(p: PlayerProfile): HTMLElement {
     const cells: Array<[string, string]> = [
-      [`Best (${MODE_LABEL.tilt})`, p.best.tilt.toLocaleString()],
-      [`Best (${MODE_LABEL.classic})`, p.best.classic.toLocaleString()],
-      [`World rank (${MODE_LABEL.tilt})`, p.rank?.tilt ? `#${p.rank.tilt}` : "0"],
-      [`World rank (${MODE_LABEL.classic})`, p.rank?.classic ? `#${p.rank.classic}` : "0"],
+      ...BOARD_MODES.map(
+        (m): [string, string] => [`Best (${MODE_LABEL[m]})`, p.best[m].toLocaleString()],
+      ),
+      ...BOARD_MODES.map(
+        (m): [string, string] => [
+          `World rank (${MODE_LABEL[m]})`,
+          p.rank?.[m] ? `#${p.rank[m]}` : "0",
+        ],
+      ),
       ["Runs", p.runs.toLocaleString()],
       ["Kills", p.totalKills.toLocaleString()],
       ["Longest run", fmtDuration(p.bestTime)],

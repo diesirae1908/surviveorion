@@ -14,9 +14,10 @@ const PULSE_MULTI_POINTS = 150; // pulseMultiKillPoints (paid per kill past the 
 const MAX_KILLS_PER_SEC = 10; // generous physical ceiling
 const MAX_TIME_SECONDS = 4 * 3600;
 
-// Control modes with their own leaderboards. Scoring config is identical in
-// both, so the ceiling math below applies unchanged.
-const MODES = ["classic", "tilt"];
+// Board modes (one leaderboard each): desktop keyboard, phone touch stick,
+// phone tilt. Scoring config is identical across them, so the ceiling math
+// below applies unchanged.
+export const MODES = ["desktop", "touch", "tilt"];
 
 /** Returns an error string, or null if the run passes sanity checks. */
 export function validateRun({ score, timeSurvived, kills, maxMultiplier, mode }) {

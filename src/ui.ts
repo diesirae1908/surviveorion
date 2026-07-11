@@ -312,7 +312,7 @@ export class Ui {
         "div",
         "field-hint center",
         "Direct control is the default: the ship goes where you point. " +
-          "Inertia ON adds classic thrust-and-drift piloting — those runs rank on the Classic leaderboard.",
+          "Inertia ON adds thrust-and-drift piloting for flavor — leaderboards don't care either way.",
       ),
     );
 

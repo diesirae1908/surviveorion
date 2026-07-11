@@ -22,8 +22,8 @@ export interface InputState {
    */
   moveVector: Vec2 | null;
   /**
-   * Classic-mode inertia toggle (settings). When false, keyboard/stick builds
-   * a moveVector (directional WASD) — such runs score as "tilt".
+   * Inertia toggle (settings, flavor only). When false, keyboard/stick builds
+   * a moveVector (directional WASD) instead of thrust-and-drift.
    */
   inertia: boolean;
   /** Flight speed for direct control (tilt passes the ship's max speed). */

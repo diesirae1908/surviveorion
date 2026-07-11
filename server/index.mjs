@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "./env.mjs"; // loads server/.env before other modules read process.env
 import * as store from "./db.mjs";
-import { validateRun } from "./validate.mjs";
+import { validateRun, MODES } from "./validate.mjs";
 import { qualifyingBadges } from "./badges.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 
@@ -74,6 +74,18 @@ const clientIp = (req) =>
   (req.headers["x-forwarded-for"]?.split(",")[0] ?? req.socket.remoteAddress ?? "?").trim();
 
 const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
+
+/**
+ * Board mode from a submitted run. Boards are per platform: desktop keyboard,
+ * phone touch stick, phone tilt. Older clients tagged runs by flight physics
+ * ('classic' = inertia, 'tilt' = direct control) — coerce those to the
+ * platform they were played on until every cached bundle rolls over.
+ */
+function boardMode(body) {
+  const mode = body.mode ?? "desktop";
+  if (MODES.includes(mode)) return mode;
+  return cleanPlatform(body.platform) === "touch" ? "touch" : "desktop";
+}
 
 /** Admin key check: Bearer header or ?key= param. 404s when no key is set. */
 const isAdmin = (req, url) => {
@@ -264,8 +276,7 @@ const routes = {
       timeSurvived: body.timeSurvived,
       kills: body.kills,
       maxMultiplier: body.maxMultiplier,
-      // pre-tilt clients don't send a mode; their runs are classic by definition
-      mode: body.mode ?? "classic",
+      mode: boardMode(body),
     };
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
@@ -300,7 +311,7 @@ const routes = {
       timeSurvived: body.timeSurvived,
       kills: body.kills,
       maxMultiplier: body.maxMultiplier,
-      mode: body.mode ?? "classic",
+      mode: boardMode(body),
     };
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
@@ -311,8 +322,8 @@ const routes = {
   "GET /api/leaderboard/world": (req, res, user, url) => {
     const country = url.searchParams.get("country")?.toUpperCase() || null;
     if (country && !/^[A-Z]{2}$/.test(country)) return json(res, 400, { error: "invalid country" });
-    const mode = url.searchParams.get("mode") ?? "classic";
-    if (!["classic", "tilt"].includes(mode)) return json(res, 400, { error: "invalid mode" });
+    const mode = url.searchParams.get("mode") ?? "desktop";
+    if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
     const entries = store.leaderboard({ country, mode, limit });
     const me =
@@ -403,8 +414,8 @@ const routes = {
 
   "GET /api/friends/leaderboard": (req, res, user, url) => {
     if (!user) return json(res, 401, { error: "not signed in" });
-    const mode = url.searchParams.get("mode") ?? "classic";
-    if (!["classic", "tilt"].includes(mode)) return json(res, 400, { error: "invalid mode" });
+    const mode = url.searchParams.get("mode") ?? "desktop";
+    if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
     json(res, 200, { entries: store.friendsLeaderboard(user.id, mode), me: null });
   },
 
@@ -482,11 +493,13 @@ function playerProfile(req, res, user, callsign) {
     country: target.country,
     joinedAt: target.created_at,
     best: {
-      classic: store.getUserBest(target.id, "classic"),
+      desktop: store.getUserBest(target.id, "desktop"),
+      touch: store.getUserBest(target.id, "touch"),
       tilt: store.getUserBest(target.id, "tilt"),
     },
     rank: {
-      classic: store.rankOf(target.id, { mode: "classic" }),
+      desktop: store.rankOf(target.id, { mode: "desktop" }),
+      touch: store.rankOf(target.id, { mode: "touch" }),
       tilt: store.rankOf(target.id, { mode: "tilt" }),
     },
     runs: career.runs,
@@ -505,8 +518,8 @@ function arenaLeaderboard(req, res, user, code, url) {
   const arena = store.getArenaByCode(code);
   if (!arena) return json(res, 404, { error: "arena not found" });
   if (!store.isArenaMember(arena.id, user.id)) return json(res, 403, { error: "not a member" });
-  const mode = url.searchParams.get("mode") ?? "classic";
-  if (!["classic", "tilt"].includes(mode)) return json(res, 400, { error: "invalid mode" });
+  const mode = url.searchParams.get("mode") ?? "desktop";
+  if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
   const entries = store.leaderboard({ arenaId: arena.id, mode, limit: 100 });
   const me = store.getUserBest(user.id, mode)
     ? {

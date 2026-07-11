@@ -19,8 +19,8 @@ export const SHIP = {
 };
 
 // Tilt controls (mobile): tilt maps directly to velocity, Tilt to Live style.
-// No inertia — the ship goes where the phone leans, so runs are tagged "tilt"
-// and ranked on their own leaderboards.
+// No inertia — the ship goes where the phone leans. Tilt runs rank on their
+// own leaderboard, separate from phone touch and desktop.
 export const TILT = {
   deadzoneDeg: 3, // resting-hand jitter absorbed here
   maxTiltDeg: 22, // full speed at this lean (overridden by tiltSensitivity setting)

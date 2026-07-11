@@ -70,9 +70,10 @@ community buttons simply don't appear.
 ## Community
 
 - **World Arena** — global leaderboard (best run per pilot), filterable by country.
-  Runs are tagged by control physics (`classic` = inertia thrust-and-drift,
-  `tilt` = direct control: phone tilt or the default no-inertia mode) and every
-  leaderboard ranks the two modes separately.
+  Runs are tagged by the platform they were played on (`desktop` = keyboard,
+  `touch` = phone virtual stick, `tilt` = phone tilt) and every leaderboard
+  ranks the three separately. The Inertia setting is flavor only — it doesn't
+  change which board a run lands on.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
 - **Wingmates (friends)** — add pilots by callsign (mutual accept; requests can
   be sent from any pilot record too). The Wingmates screen has a squadron
@@ -106,7 +107,7 @@ Every finished run is logged to a `runs` table — signed-in runs through
 rate-limited; analytics only, never the leaderboards). Set `ORION_ADMIN_KEY`
 in the environment (or `server/.env`) and open **`/admin`** for a dashboard:
 pilot counts, runs per day, game-length and score distributions
-(average/median/range/percentiles), kills per minute, classic-vs-tilt and
+(average/median/range/percentiles), kills per minute, per-board and
 touch-vs-desktop splits, badge holder counts, and all player feedback. The
 same data is available as JSON at `GET /api/admin/stats` and
 `GET /api/admin/feedback` (Bearer key or `?key=`).
@@ -192,8 +193,8 @@ Live: lean the phone to fly (retries keep the choice; it's also switchable
 in Settings). Tilt maps directly to velocity (`TILT` in `src/config.ts`)
 and needs the motion-sensor permission on iOS (requested when picked) and
 a secure context, so test it against a deployed build rather than
-plain-HTTP LAN dev. Tilt runs rank on the Tilt/Direct leaderboard, same
-as the default no-inertia mode.
+plain-HTTP LAN dev. Tilt runs rank on their own Phone tilt leaderboard,
+separate from phone touch and desktop.
 
 **Direct speed** (Low/Med/High) tunes the cruise pace of direct control; on
 phones, **Tilt sense** tunes how much lean reaches full speed. Desktop

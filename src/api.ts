@@ -7,8 +7,12 @@ export interface UserInfo {
   country: string;
 }
 
-/** Control scheme a run was played with — each has its own leaderboards. */
-export type BoardMode = "classic" | "tilt";
+/**
+ * Platform a run was played on — each has its own leaderboards.
+ * desktop = keyboard/mouse, touch = phone virtual stick, tilt = phone tilt.
+ * (Inertia is a settings flavor, not a board.)
+ */
+export type BoardMode = "desktop" | "touch" | "tilt";
 
 export interface LeaderboardEntry {
   userId: number;
@@ -47,8 +51,8 @@ export interface PlayerProfile {
   callsign: string;
   country: string;
   joinedAt: number;
-  best: { classic: number; tilt: number };
-  rank: { classic: number | null; tilt: number | null };
+  best: Record<BoardMode, number>;
+  rank: Record<BoardMode, number | null>;
   runs: number;
   totalKills: number;
   totalTime: number;
@@ -61,8 +65,7 @@ export interface PlayerProfile {
 export interface FriendInfo {
   callsign: string;
   country: string;
-  bestClassic: number;
-  bestTilt: number;
+  best: number;
   lastRunAt: number | null;
 }
 
@@ -233,7 +236,7 @@ export class Api {
     return this.request("GET", `/api/players/${encodeURIComponent(callsign)}`);
   }
 
-  worldLeaderboard(country?: string, mode: BoardMode = "classic"): Promise<LeaderboardResponse> {
+  worldLeaderboard(country?: string, mode: BoardMode = "desktop"): Promise<LeaderboardResponse> {
     const q = new URLSearchParams({ mode });
     if (country) q.set("country", country);
     return this.request<LeaderboardResponse>("GET", `/api/leaderboard/world?${q}`);
@@ -253,7 +256,7 @@ export class Api {
 
   arenaLeaderboard(
     code: string,
-    mode: BoardMode = "classic",
+    mode: BoardMode = "desktop",
   ): Promise<LeaderboardResponse & { arena: ArenaInfo }> {
     return this.request("GET", `/api/arenas/${code}/leaderboard?mode=${mode}`);
   }
@@ -278,7 +281,7 @@ export class Api {
     await this.request("POST", "/api/friends/remove", { callsign });
   }
 
-  friendsLeaderboard(mode: BoardMode = "classic"): Promise<LeaderboardResponse> {
+  friendsLeaderboard(mode: BoardMode = "desktop"): Promise<LeaderboardResponse> {
     return this.request("GET", `/api/friends/leaderboard?mode=${mode}`);
   }
 

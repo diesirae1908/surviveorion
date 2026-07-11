@@ -1,5 +1,5 @@
 import "./style.css";
-import { Api } from "./api";
+import { Api, type BoardMode } from "./api";
 import { AudioSystem } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
@@ -54,8 +54,8 @@ let keybinds: KeyBindings = loadKeyBindings();
 let state: AppState = "gate";
 let world: World = createWorld(renderer.viewW, renderer.viewH); // menu backdrop (not ticked)
 let bestScore = loadBestScore();
-/** Control scheme locked at run start; tags the score submission. */
-let runMode: "classic" | "tilt" = "classic";
+/** Board mode (platform) locked at run start; tags the score submission. */
+let runMode: BoardMode = "desktop";
 let accumulator = 0;
 let uiTime = 0;
 let fx: TransitionFx | null = null; // cinematic overlay (warp / flash / death veil / intro)
@@ -140,11 +140,8 @@ const ui = new Ui(settings, {
     saveSettings(settings);
     if (key === "sound") audio.setSound(settings.sound);
     if (key === "music") audio.setMusic(settings.music);
-    if (key === "inertia") {
-      input.inertia = settings.inertia;
-      // direct control plays by tilt rules: turning it off mid-run re-tags the run
-      if (!settings.inertia) runMode = "tilt";
-    }
+    // inertia is a flavor setting — it doesn't change which board the run ranks on
+    if (key === "inertia") input.inertia = settings.inertia;
   },
   onCycleSense: (key) => {
     settings[key] = nextSenseLevel(settings[key]);
@@ -247,8 +244,8 @@ function doLaunch(): void {
 
 function startRun(): void {
   audio.unlock();
-  // inertia-off classic uses tilt physics, so it competes on the tilt board
-  runMode = input.tiltActive || !settings.inertia ? "tilt" : "classic";
+  // boards are per platform: phone tilt, phone touch stick, or desktop keys
+  runMode = input.tiltActive ? "tilt" : isTouchDevice() ? "touch" : "desktop";
   world = createWorld(renderer.viewW, renderer.viewH);
   particles.clear();
   popups.clear();
