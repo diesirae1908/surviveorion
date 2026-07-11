@@ -108,11 +108,10 @@ export class AudioSystem {
     noise.start();
   }
 
-  /** level 0..1, boosting raises pitch/volume. */
-  setThrustLevel(level: number, boosting: boolean): void {
+  /** level 0..1. */
+  setThrustLevel(level: number): void {
     if (!this.thrustGain || !this.ctx) return;
-    const target = level * (boosting ? 0.4 : 0.18);
-    this.thrustGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.06);
+    this.thrustGain.gain.setTargetAtTime(level * 0.18, this.ctx.currentTime, 0.06);
   }
 
   // --- one-shot SFX helpers ---
@@ -196,10 +195,6 @@ export class AudioSystem {
 
   droneKill(): void {
     this.noiseBurst(0.25, 0.25, 2200);
-  }
-
-  boostStart(): void {
-    this.tone(140, 420, 0.35, "sawtooth", 0.12);
   }
 
   dash(): void {

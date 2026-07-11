@@ -183,7 +183,6 @@ const ui = new Ui(settings, {
       down: [...DEFAULT_KEYBINDS.down],
       left: [...DEFAULT_KEYBINDS.left],
       right: [...DEFAULT_KEYBINDS.right],
-      boost: [...DEFAULT_KEYBINDS.boost],
       pause: [...DEFAULT_KEYBINDS.pause],
     };
     saveKeyBindings(keybinds);
@@ -254,7 +253,6 @@ function startTutorial(): void {
       moveKeys: [keybinds.up, keybinds.left, keybinds.down, keybinds.right]
         .map((codes) => formatKeyCode(codes[0] ?? ""))
         .join(" "),
-      boostKeys: formatKeyCode(keybinds.boost[0] ?? "Space"),
     },
     (html) => ui.setTutorialHint(html),
   );
@@ -272,7 +270,7 @@ function finishTutorial(): void {
 function pause(): void {
   if (state !== "playing") return;
   state = "paused";
-  audio.setThrustLevel(0, false);
+  audio.setThrustLevel(0);
   audio.pauseMusic();
   ui.showPause();
 }
@@ -288,7 +286,7 @@ function quitToMenu(): void {
   state = "menu";
   fx = null;
   tutorial = null;
-  audio.setThrustLevel(0, false);
+  audio.setThrustLevel(0);
   audio.playTrack("menu");
   world = createWorld(renderer.viewW, renderer.viewH);
   particles.clear();
@@ -301,7 +299,7 @@ function onGameOver(): void {
   state = "gameover";
   fx = { kind: "death", t: 0 };
   gameOverUiShown = false;
-  audio.setThrustLevel(0, false);
+  audio.setThrustLevel(0);
   audio.playTrack("gameover");
   lastRunWasBest = world.score > bestScore;
   if (lastRunWasBest) {
@@ -428,9 +426,6 @@ function drainEvents(w: World): void {
         particles.burst(e.x, e.y, [PALETTE.pulse, PALETTE.white], 10, 4, 0.4, 0.1);
         audio.pulseFire();
         break;
-      case "boostStart":
-        audio.boostStart();
-        break;
       case "afterburnerCharge":
         audio.pulseCharge(POWERS.afterburner.chargeTime);
         break;
@@ -524,11 +519,7 @@ function frame(now: number): void {
       accumulator -= FIXED_DT;
     }
 
-    const s = world.ship;
-    audio.setThrustLevel(
-      world.phase === "playing" ? Math.max(s.thrusting, s.boostHeld ? 1 : 0) : 0,
-      s.boostHeld,
-    );
+    audio.setThrustLevel(world.phase === "playing" ? world.ship.thrusting : 0);
 
     if (world.phase === "dead") {
       // dying in flight school just restarts the lesson
@@ -570,7 +561,7 @@ Object.defineProperty(window, "__orion", {
       return audio;
     },
     /** Advance the simulation manually (rAF is throttled in headless tests). */
-    step(seconds: number, override?: { turn?: number; thrust?: number; boost?: boolean }) {
+    step(seconds: number, override?: { turn?: number; thrust?: number }) {
       if (state !== "playing") return;
       const steps = Math.round(seconds / FIXED_DT);
       for (let i = 0; i < steps && world.phase !== "dead"; i++) {
@@ -580,11 +571,9 @@ Object.defineProperty(window, "__orion", {
           {
             turn: override?.turn ?? sample.turn,
             thrust: override?.thrust ?? sample.thrust,
-            boost: override?.boost ?? sample.boost,
             heading: override ? null : sample.heading,
             moveVector: override ? null : sample.moveVector,
             inertia: sample.inertia,
-            simpleBoost: override ? false : sample.simpleBoost,
             cruiseSpeed: sample.cruiseSpeed,
           },
           FIXED_DT,

@@ -5,19 +5,18 @@ export type { ControlMode, SenseLevel };
 
 export type BooleanSetting = "sound" | "music" | "screenShake" | "inertia";
 
-export type KeyAction = "up" | "down" | "left" | "right" | "boost" | "pause";
+export type KeyAction = "up" | "down" | "left" | "right" | "pause";
 
 /** KeyboardEvent.code lists per action — multiple codes = alternates (WASD + arrows). */
 export type KeyBindings = Record<KeyAction, string[]>;
 
-export const KEY_ACTIONS: KeyAction[] = ["up", "down", "left", "right", "boost", "pause"];
+export const KEY_ACTIONS: KeyAction[] = ["up", "down", "left", "right", "pause"];
 
 export const KEY_ACTION_LABELS: Record<KeyAction, string> = {
   up: "Up",
   down: "Down",
   left: "Left",
   right: "Right",
-  boost: "Boost",
   pause: "Pause",
 };
 
@@ -26,7 +25,6 @@ export const DEFAULT_KEYBINDS: KeyBindings = {
   down: ["KeyS", "ArrowDown"],
   left: ["KeyA", "ArrowLeft"],
   right: ["KeyD", "ArrowRight"],
-  boost: ["Space"],
   pause: ["Escape", "KeyP"],
 };
 
@@ -132,7 +130,6 @@ function cloneBinds(b: KeyBindings): KeyBindings {
     down: [...b.down],
     left: [...b.left],
     right: [...b.right],
-    boost: [...b.boost],
     pause: [...b.pause],
   };
 }

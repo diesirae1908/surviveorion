@@ -10,9 +10,6 @@ export interface Ship {
   angle: number; // radians, 0 = +x, forward = (cos, sin)
   prevAngle: number;
   thrusting: number; // 0..1 current thrust input (for visuals/audio)
-  boostHeld: boolean;
-  boostHoldTimer: number;
-  boostCooldownTimer: number;
 }
 
 export interface Drone {
@@ -186,7 +183,6 @@ export type GameEvent =
   | { type: "shockwave"; x: number; y: number }
   | { type: "pulseCharge" }
   | { type: "pulseFire"; x: number; y: number }
-  | { type: "boostStart" }
   | { type: "afterburnerCharge" }
   | { type: "dash" }
   | { type: "freeze"; x: number; y: number }

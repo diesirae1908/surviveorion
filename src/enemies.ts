@@ -331,9 +331,9 @@ function spawnAmbient(world: World, minutes: number): void {
 
 // --- formations ---
 
-/** Formations start big and reach full size fast (the fun shouldn't wait). */
+/** Formations start big and reach full size fast (swarmy by ~20s). */
 function formationIntensity(minutes: number): number {
-  return lerp(0.7, 1, clamp(minutes / 1.5, 0, 1));
+  return lerp(0.75, 1, clamp(minutes, 0, 1));
 }
 
 /** Past the ramp, formations keep growing: +1 enemy per N minutes, capped. */

@@ -15,14 +15,6 @@ export const SHIP = {
   radius: 0.16, // forgiving hitbox, much smaller than the drawn hull (arcade-fair)
   visualScale: 0.8, // hull drawn smaller for more perceived flying room
   linearDamping: 0.12, // gentle drag so the ship eventually settles
-  boost: {
-    initialForce: 10,
-    maxForce: 42,
-    rampTime: 1.2,
-    maxHoldTime: 2.2,
-    cooldown: 1.2,
-    maxSpeedMultiplier: 1.6,
-  },
   deathKnockback: 12,
 };
 
@@ -36,11 +28,10 @@ export const TILT = {
   rotateSpeed: (720 * Math.PI) / 180, // hull turns to face travel fast enough to track flicks
 };
 
-// Directional no-inertia (keyboard/stick with Inertia OFF): two speeds —
-// cruise while moving, hold Space/boost for full speed. No ramp/cooldown.
+// Directional no-inertia (keyboard/stick with Inertia OFF): one flat speed,
+// tuned by the Direct speed setting. No boost.
 export const DIRECT = {
   cruiseSpeed: 8, // overridden by directSpeed setting
-  boostSpeed: 15, // = SHIP.maxSpeed
 };
 
 export type SenseLevel = "low" | "med" | "high";
@@ -52,7 +43,7 @@ export const TILT_MAX_DEG: Record<SenseLevel, number> = {
   high: 15,
 };
 
-/** Cruise speed in directional no-inertia mode (boost always DIRECT.boostSpeed). */
+/** Flight speed in directional no-inertia mode. */
 export const DIRECT_CRUISE: Record<SenseLevel, number> = {
   low: 6.5,
   med: 8,
@@ -82,12 +73,12 @@ export type FormationKind =
   | "megawall";
 
 export const SPAWNER = {
-  initialBurst: 5,
+  initialBurst: 8,
   // Endless escalation (the Tetris model): fast ramp, then slow growth
   // forever so every run ends and scores measure depth, not patience.
-  // Density arrives early (the fun starts inside the first minute); raw
-  // enemy speed is the lever that keeps growing late.
-  spawnsPerSecond: { from: 0.7, to: 1.8, rampMinutes: 2, latePerMinute: 0.15 },
+  // Density arrives early (swarmy by ~20s); raw enemy speed is the lever
+  // that keeps growing late.
+  spawnsPerSecond: { from: 1.0, to: 1.8, rampMinutes: 1.5, latePerMinute: 0.15 },
   speedMultiplier: { from: 1.0, to: 1.25, rampMinutes: 4, latePerMinute: 0.045 },
   scaleClamp: [0.3, 0.9] as const,
   scaleJitter: 0.15,
@@ -105,10 +96,10 @@ export const SPAWNER = {
     edgeInset: 1.0, // keep telegraphs this far inside the view
   },
   formations: {
-    intervalRange: [8, 13] as const,
+    intervalRange: [6, 10] as const,
     // formations come faster over time, down to this floor
-    intervalFloor: [6, 8] as const,
-    intervalRampMinutes: 3,
+    intervalFloor: [5, 7] as const,
+    intervalRampMinutes: 2,
     countGrowthMinutes: 2, // formations gain +1 enemy per this many minutes...
     maxCountBonus: 6, // ...capped here
     postFormationDelay: 1.5,
@@ -126,13 +117,13 @@ export const SPAWNER = {
       megawall: 1.5,
     } as Record<FormationKind, number>,
     minMinutes: {
-      wall: 0.25,
-      swarm: 0.4,
-      serpent: 0.5,
-      tightring: 0.6,
-      corners: 0.75,
-      megawall: 1,
-      pincer: 1.25,
+      wall: 0.1,
+      swarm: 0.15,
+      serpent: 0.3,
+      tightring: 0.35,
+      corners: 0.5,
+      megawall: 0.75,
+      pincer: 1,
     } as Partial<Record<FormationKind, number>>,
     line: { count: 8, spacing: 1.6 },
     // ring closes in around the player ON-screen: telegraphed circle with

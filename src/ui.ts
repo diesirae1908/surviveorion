@@ -315,25 +315,21 @@ export class Ui {
         ? controls.mode === "tilt"
           ? [
               ["Fly", "tilt your phone — the ship follows the lean"],
-              ["Boost", "touch and hold anywhere"],
               ["Pause", "the II button, top right"],
             ]
           : this.settings.inertia
             ? [
-                ["Fly", "drag on the left half — the ship flies where you point"],
-                ["Boost", "hold the right half"],
+                ["Fly", "drag anywhere — the ship flies where you point"],
                 ["Pause", "the II button, top right"],
               ]
             : [
-                ["Fly", "drag on the left half — ship goes that way"],
-                ["Boost", "hold the right half for full speed"],
+                ["Fly", "drag anywhere — ship goes that way"],
                 ["Pause", "the II button, top right"],
               ]
         : this.settings.inertia
           ? [
               ["Thrust", formatKeyList(binds.up)],
               ["Turn", `${formatKeyList(binds.left)} ${formatKeyList(binds.right)}`],
-              ["Boost", formatKeyList(binds.boost)],
               ["Pause", formatKeyList(binds.pause)],
             ]
           : [
@@ -341,7 +337,6 @@ export class Ui {
                 "Fly",
                 `${formatKeyList(binds.up)} ${formatKeyList(binds.left)} ${formatKeyList(binds.down)} ${formatKeyList(binds.right)}`,
               ],
-              ["Boost", `hold ${formatKeyList(binds.boost)} for full speed`],
               ["Pause", formatKeyList(binds.pause)],
             ];
       manual.innerHTML = rows

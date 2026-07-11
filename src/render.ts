@@ -163,7 +163,7 @@ export class Renderer {
     // screen-space UI
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (opts.showHud) this.drawHud(world, opts);
-    if (opts.touch?.active || opts.touch?.boostActive) this.drawTouchOverlay(opts.touch);
+    if (opts.touch?.active) this.drawTouchOverlay(opts.touch);
 
     // cinematic overlays (drawn above everything, below the DOM UI)
     if (opts.fx) {
@@ -509,14 +509,13 @@ export class Renderer {
 
     // engine flame
     const dashing = world.powers.afterburnerDash > 0;
-    const boosting = s.boostHeld || dashing;
-    if (s.thrusting > 0 || boosting) {
+    if (s.thrusting > 0 || dashing) {
       const flicker = 0.8 + 0.2 * Math.sin(opts.uiTime * 40);
-      const flameLen = (boosting ? 1.1 : 0.55) * flicker * Math.max(s.thrusting, boosting ? 1 : 0);
+      const flameLen = (dashing ? 1.1 : 0.55) * flicker * Math.max(s.thrusting, dashing ? 1 : 0);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       const fg = ctx.createLinearGradient(-0.35, 0, -0.35 - flameLen, 0);
-      fg.addColorStop(0, boosting ? "#ffe9b0" : "#ffb347");
+      fg.addColorStop(0, dashing ? "#ffe9b0" : "#ffb347");
       fg.addColorStop(1, "rgba(196,30,58,0)");
       ctx.fillStyle = fg;
       ctx.beginPath();
@@ -1059,44 +1058,57 @@ export class Renderer {
         ctx.globalAlpha = alpha;
       }
 
-      // spikes
-      ctx.strokeStyle = PALETTE.gold;
-      ctx.lineWidth = 0.08;
-      ctx.lineCap = "round";
+      // Naval-mine silhouette in hostile red — nothing gold, so it can't be
+      // mistaken for a power pickup (pickups are colored rings with glyphs).
+      // Jagged triangular spikes, alternating long/short
+      ctx.fillStyle = armed ? "#c41e3a" : "#6a2430";
       ctx.beginPath();
-      for (let i = 0; i < 8; i++) {
-        const a = (Math.PI / 4) * i;
-        ctx.moveTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7);
-        ctx.lineTo(Math.cos(a) * r * 1.4, Math.sin(a) * r * 1.4);
+      for (let i = 0; i < 10; i++) {
+        const a = (Math.PI / 5) * i;
+        const len = i % 2 === 0 ? 1.65 : 1.35;
+        const half = 0.16;
+        ctx.moveTo(Math.cos(a - half) * r * 0.85, Math.sin(a - half) * r * 0.85);
+        ctx.lineTo(Math.cos(a) * r * len, Math.sin(a) * r * len);
+        ctx.lineTo(Math.cos(a + half) * r * 0.85, Math.sin(a + half) * r * 0.85);
+        ctx.closePath();
       }
-      ctx.stroke();
+      ctx.fill();
 
-      // body
+      // dark steel body with a blood-red rim
       const bg = ctx.createRadialGradient(-r * 0.25, r * 0.25, r * 0.1, 0, 0, r);
-      bg.addColorStop(0, "#585868");
-      bg.addColorStop(1, "#22222f");
+      bg.addColorStop(0, "#3a2230");
+      bg.addColorStop(1, "#160d16");
       ctx.fillStyle = bg;
-      ctx.strokeStyle = PALETTE.gold;
-      ctx.lineWidth = 0.05;
+      ctx.strokeStyle = armed ? "#e6394f" : "#7a3040";
+      ctx.lineWidth = 0.07;
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // blinking core: slow amber while arming, sharp red blink when live
+      // rivet band across the equator (reads mechanical, not collectible)
+      ctx.fillStyle = armed ? "#ff8896" : "#8a4a55";
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i + Math.PI / 6;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62, r * 0.09, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // blinking eye: dull ember while arming, harsh red strobe when live
       const blink = armed
         ? Math.sin(time * 6 + m.seed) > 0.2
           ? 1
-          : 0.4
-        : 0.4 + 0.3 * Math.sin(time * 12);
+          : 0.35
+        : 0.3 + 0.2 * Math.sin(time * 12);
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = alpha * blink;
-      const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.6);
-      cg.addColorStop(0, armed ? "#ff6655" : "#ffcc66");
-      cg.addColorStop(1, "rgba(255,68,85,0)");
+      const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.55);
+      cg.addColorStop(0, armed ? "#ff3344" : "#aa4433");
+      cg.addColorStop(1, "rgba(255,40,60,0)");
       ctx.fillStyle = cg;
       ctx.beginPath();
-      ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2);
+      ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
@@ -1461,51 +1473,27 @@ export class Renderer {
       py += 24;
     }
 
-    // boost cooldown indicator (bottom-center)
-    const s = world.ship;
-    if (s.boostHeld || s.boostCooldownTimer > 0) {
-      const frac = s.boostHeld
-        ? 1 - clamp01(s.boostHoldTimer / SHIP.boost.maxHoldTime)
-        : 1 - clamp01(s.boostCooldownTimer / SHIP.boost.cooldown);
-      const barY = this.cssH - 26 - this.safe.bottom;
-      ctx.fillStyle = s.boostHeld ? PALETTE.goldPale : PALETTE.bronze;
-      ctx.globalAlpha = 0.35;
-      ctx.fillRect(this.cssW / 2 - 60, barY, 120, 6);
-      ctx.globalAlpha = 1;
-      ctx.fillRect(this.cssW / 2 - 60, barY, 120 * frac, 6);
-    }
   }
 
   private drawTouchOverlay(touch: TouchStickView): void {
     const { ctx } = this;
-    if (touch.active) {
-      ctx.save();
-      ctx.globalAlpha = 0.25;
-      ctx.strokeStyle = PALETTE.gold;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(touch.originX, touch.originY, 60, 0, Math.PI * 2);
-      ctx.stroke();
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = PALETTE.gold;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(touch.originX, touch.originY, 60, 0, Math.PI * 2);
+    ctx.stroke();
 
-      const dx = touch.stickX - touch.originX;
-      const dy = touch.stickY - touch.originY;
-      const d = Math.hypot(dx, dy);
-      const cl = d > 60 ? 60 / d : 1;
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = PALETTE.gold;
-      ctx.beginPath();
-      ctx.arc(touch.originX + dx * cl, touch.originY + dy * cl, 24, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-    if (touch.boostActive) {
-      ctx.save();
-      ctx.globalAlpha = 0.4;
-      ctx.fillStyle = PALETTE.redBright;
-      ctx.font = "bold 16px Georgia, serif";
-      ctx.textAlign = "center";
-      ctx.fillText("BOOST", this.cssW * 0.75, this.cssH - 40);
-      ctx.restore();
-    }
+    const dx = touch.stickX - touch.originX;
+    const dy = touch.stickY - touch.originY;
+    const d = Math.hypot(dx, dy);
+    const cl = d > 60 ? 60 / d : 1;
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = PALETTE.gold;
+    ctx.beginPath();
+    ctx.arc(touch.originX + dx * cl, touch.originY + dy * cl, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 }

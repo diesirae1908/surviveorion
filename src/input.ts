@@ -1,4 +1,4 @@
-import { DIRECT } from "./config";
+import { DIRECT, SHIP } from "./config";
 import { clamp01, type Vec2 } from "./math";
 import { DEFAULT_KEYBINDS, type KeyAction, type KeyBindings } from "./save";
 import { TiltControl } from "./tilt";
@@ -8,7 +8,6 @@ export type ControlMode = "stick" | "tilt";
 export interface InputState {
   turn: number; // -1..1 (positive = turn right / clockwise)
   thrust: number; // 0..1
-  boost: boolean;
   /**
    * Touch: desired world-space heading (rad). The ship auto-rotates toward it
    * and `thrust` is the stick magnitude, so any drag direction accelerates —
@@ -27,12 +26,7 @@ export interface InputState {
    * a moveVector (directional WASD) — such runs score as "tilt".
    */
   inertia: boolean;
-  /**
-   * Keyboard/stick direct mode: hold boost for cruise→boostSpeed with no
-   * ramp/cooldown. False for tilt (managed boost) and classic inertia.
-   */
-  simpleBoost: boolean;
-  /** Cruise speed used when simpleBoost is true. */
+  /** Flight speed for direct control (tilt passes the ship's max speed). */
   cruiseSpeed: number;
 }
 
@@ -42,7 +36,6 @@ export interface TouchStickView {
   originY: number;
   stickX: number;
   stickY: number;
-  boostActive: boolean;
 }
 
 const STICK_RANGE_PX = 60;
@@ -55,7 +48,6 @@ const STICK_DEADZONE_PX = 10;
 export class Input {
   private keys = new Set<string>();
   private stickTouchId: number | null = null;
-  private boostTouchId: number | null = null;
   private stickOrigin = { x: 0, y: 0 };
   private stickPos = { x: 0, y: 0 };
   touchUsed = false;
@@ -65,7 +57,7 @@ export class Input {
   controlMode: ControlMode = "stick";
   /** Mirrors the settings toggle (main.ts keeps it in sync). */
   inertia = false;
-  /** Cruise speed for directional no-inertia mode (from directSpeed setting). */
+  /** Flight speed for directional no-inertia mode (from directSpeed setting). */
   cruiseSpeed = DIRECT.cruiseSpeed;
   /** Remappable keyboard bindings (main.ts keeps them in sync with localStorage). */
   bindings: KeyBindings = {
@@ -73,7 +65,6 @@ export class Input {
     down: [...DEFAULT_KEYBINDS.down],
     left: [...DEFAULT_KEYBINDS.left],
     right: [...DEFAULT_KEYBINDS.right],
-    boost: [...DEFAULT_KEYBINDS.boost],
     pause: [...DEFAULT_KEYBINDS.pause],
   };
 
@@ -104,7 +95,6 @@ export class Input {
       down: [...b.down],
       left: [...b.left],
       right: [...b.right],
-      boost: [...b.boost],
       pause: [...b.pause],
     };
   }
@@ -119,7 +109,7 @@ export class Input {
     );
   }
 
-  /** Tilt steers the ship, so touch is only used for boost (and pause). */
+  /** Tilt steers the ship; touch is only used for the pause button (DOM). */
   get tiltActive(): boolean {
     return this.controlMode === "tilt" && this.tilt.ready;
   }
@@ -127,18 +117,13 @@ export class Input {
   private onTouchStart = (e: TouchEvent): void => {
     e.preventDefault();
     this.touchUsed = true;
+    if (this.tiltActive) return;
+    // the stick spawns wherever the first finger lands — anywhere on screen
     for (const t of Array.from(e.changedTouches)) {
-      if (this.tiltActive) {
-        // tilt mode: hold anywhere on screen to boost
-        if (this.boostTouchId === null) this.boostTouchId = t.identifier;
-      } else if (t.clientX < window.innerWidth / 2) {
-        if (this.stickTouchId === null) {
-          this.stickTouchId = t.identifier;
-          this.stickOrigin = { x: t.clientX, y: t.clientY };
-          this.stickPos = { x: t.clientX, y: t.clientY };
-        }
-      } else if (this.boostTouchId === null) {
-        this.boostTouchId = t.identifier;
+      if (this.stickTouchId === null) {
+        this.stickTouchId = t.identifier;
+        this.stickOrigin = { x: t.clientX, y: t.clientY };
+        this.stickPos = { x: t.clientX, y: t.clientY };
       }
     }
   };
@@ -168,7 +153,6 @@ export class Input {
     e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
       if (t.identifier === this.stickTouchId) this.stickTouchId = null;
-      if (t.identifier === this.boostTouchId) this.boostTouchId = null;
     }
   };
 
@@ -187,31 +171,23 @@ export class Input {
   sample(): InputState {
     let turn = 0;
     let thrust = 0;
-    let boost = false;
     let heading: number | null = null;
     let moveVector: Vec2 | null = null;
-    let simpleBoost = false;
-
-    if (this.pressed("boost")) boost = true;
-    if (this.boostTouchId !== null) boost = true;
 
     if (this.tiltActive) {
-      moveVector = this.tilt.vector();
+      // tilt lean is analog, so it targets the full max speed by itself
       return {
         turn: 0,
         thrust: 0,
-        boost,
         heading: null,
-        moveVector,
+        moveVector: this.tilt.vector(),
         inertia: this.inertia,
-        simpleBoost: false,
-        cruiseSpeed: this.cruiseSpeed,
+        cruiseSpeed: SHIP.maxSpeed,
       };
     }
 
     // Directional no-inertia: bound keys (and stick) map straight to velocity
     if (!this.inertia) {
-      simpleBoost = true;
       const stick = this.stickVector();
       if (stick) {
         moveVector = stick;
@@ -228,11 +204,9 @@ export class Input {
       return {
         turn: 0,
         thrust: 0,
-        boost,
         heading: null,
         moveVector,
         inertia: false,
-        simpleBoost,
         cruiseSpeed: this.cruiseSpeed,
       };
     }
@@ -258,11 +232,9 @@ export class Input {
     return {
       turn,
       thrust,
-      boost,
       heading,
       moveVector,
       inertia: true,
-      simpleBoost: false,
       cruiseSpeed: this.cruiseSpeed,
     };
   }
@@ -275,7 +247,6 @@ export class Input {
       originY: this.stickOrigin.y,
       stickX: this.stickPos.x,
       stickY: this.stickPos.y,
-      boostActive: this.boostTouchId !== null,
     };
   }
 }

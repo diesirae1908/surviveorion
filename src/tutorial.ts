@@ -7,7 +7,6 @@ export interface TutorialEnv {
   touch: boolean;
   inertia: boolean;
   moveKeys: string; // e.g. "W A S D" (formatted key list)
-  boostKeys: string; // e.g. "Space"
 }
 
 const MOVE_DISTANCE = 12; // world units of flying before step 1 completes
@@ -43,19 +42,19 @@ export class Tutorial {
   private flyText(): string {
     if (this.env.touch) {
       return (
-        "<b>FLIGHT SCHOOL</b><br/>Drag on the left half of the screen to fly." +
-        "<br/>Hold the right half to boost. Take her for a spin!"
+        "<b>FLIGHT SCHOOL</b><br/>Drag anywhere on the screen to fly —" +
+        "<br/>the ship goes where you point. Take her for a spin!"
       );
     }
     if (this.env.inertia) {
       return (
         `<b>FLIGHT SCHOOL</b><br/>Thrust with ${this.env.moveKeys.split(" ")[0] ?? "W"}, ` +
-        `turn with the side keys, hold ${this.env.boostKeys} to boost.<br/>Take her for a spin!`
+        "turn with the side keys.<br/>Take her for a spin!"
       );
     }
     return (
-      `<b>FLIGHT SCHOOL</b><br/>Fly with ${this.env.moveKeys}.` +
-      `<br/>Hold ${this.env.boostKeys} to boost. Take her for a spin!`
+      `<b>FLIGHT SCHOOL</b><br/>Fly with ${this.env.moveKeys} — ship goes that way.` +
+      "<br/>Take her for a spin!"
     );
   }
 

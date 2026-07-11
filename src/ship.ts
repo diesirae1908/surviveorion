@@ -1,6 +1,5 @@
-import { DIRECT, POWERS, SHIP, TILT } from "./config";
+import { POWERS, SHIP, TILT } from "./config";
 import type { InputState } from "./input";
-import { clamp01, lerp } from "./math";
 import { clampToBounds } from "./physics";
 import type { Ship, World } from "./types";
 
@@ -15,13 +14,10 @@ export function createShip(): Ship {
     angle: Math.PI / 2, // facing up
     prevAngle: Math.PI / 2,
     thrusting: 0,
-    boostHeld: false,
-    boostHoldTimer: 0,
-    boostCooldownTimer: 0,
   };
 }
 
-/** Port of Unity ShipController.FixedUpdate + boost state machine. */
+/** Port of Unity ShipController.FixedUpdate (boost feature removed). */
 export function updateShip(world: World, input: InputState, dt: number): void {
   const s = world.ship;
   s.prevX = s.x;
@@ -77,30 +73,8 @@ export function updateShip(world: World, input: InputState, dt: number): void {
     s.vy += fy * a * dt;
   }
 
-  // --- boost (hold to ramp force, capped hold time, cooldown after) ---
-  if (s.boostCooldownTimer > 0) s.boostCooldownTimer -= dt;
-
-  if (input.boost && !s.boostHeld && s.boostCooldownTimer <= 0) {
-    s.boostHeld = true;
-    s.boostHoldTimer = 0;
-    world.events.push({ type: "boostStart" });
-  } else if (!input.boost && s.boostHeld) {
-    stopBoost(s);
-  }
-
-  if (s.boostHeld) {
-    s.boostHoldTimer += dt;
-    const t = clamp01(s.boostHoldTimer / SHIP.boost.rampTime);
-    const force = lerp(SHIP.boost.initialForce, SHIP.boost.maxForce, t);
-    s.vx += fx * force * dt;
-    s.vy += fy * force * dt;
-    if (s.boostHoldTimer >= SHIP.boost.maxHoldTime) stopBoost(s);
-  }
-
   // --- speed cap + light damping ---
-  let maxSpeed = SHIP.maxSpeed;
-  if (s.boostHeld) maxSpeed *= SHIP.boost.maxSpeedMultiplier;
-
+  const maxSpeed = SHIP.maxSpeed;
   const speedSq = s.vx * s.vx + s.vy * s.vy;
   if (speedSq > maxSpeed * maxSpeed) {
     const speed = Math.sqrt(speedSq);
@@ -121,9 +95,8 @@ export function updateShip(world: World, input: InputState, dt: number): void {
  * Direct control (Tilt to Live rules): velocity converges straight to a target
  * — no thrust integration, no damping, no drift. Hull faces travel direction.
  *
- * - Tilt: mv is lean strength 0..1 × SHIP.maxSpeed; boost uses ramp/cooldown.
- * - Keyboard/stick (simpleBoost): mv is a unit direction; cruise vs boostSpeed
- *   with a plain hold (no timers).
+ * mv is a lean strength 0..1 (tilt) or a unit direction (keyboard/stick);
+ * input.cruiseSpeed is the flight speed (tilt passes SHIP.maxSpeed).
  */
 function updateShipDirect(
   world: World,
@@ -132,40 +105,8 @@ function updateShipDirect(
   dt: number,
 ): void {
   const s = world.ship;
-  let tx: number;
-  let ty: number;
-
-  if (input.simpleBoost) {
-    // two-speed: cruise while moving, hold Space for full speed — no cooldown
-    if (input.boost && !s.boostHeld) {
-      s.boostHeld = true;
-      s.boostHoldTimer = 0;
-      world.events.push({ type: "boostStart" });
-    } else if (!input.boost && s.boostHeld) {
-      s.boostHeld = false;
-      s.boostHoldTimer = 0;
-    }
-    const speed = input.boost ? DIRECT.boostSpeed : input.cruiseSpeed;
-    tx = mv.x * speed;
-    ty = mv.y * speed;
-  } else {
-    // tilt: managed boost multiplies max speed
-    if (s.boostCooldownTimer > 0) s.boostCooldownTimer -= dt;
-    if (input.boost && !s.boostHeld && s.boostCooldownTimer <= 0) {
-      s.boostHeld = true;
-      s.boostHoldTimer = 0;
-      world.events.push({ type: "boostStart" });
-    } else if (!input.boost && s.boostHeld) {
-      stopBoost(s);
-    }
-    if (s.boostHeld) {
-      s.boostHoldTimer += dt;
-      if (s.boostHoldTimer >= SHIP.boost.maxHoldTime) stopBoost(s);
-    }
-    const speedScale = s.boostHeld ? SHIP.boost.maxSpeedMultiplier : 1;
-    tx = mv.x * SHIP.maxSpeed * speedScale;
-    ty = mv.y * SHIP.maxSpeed * speedScale;
-  }
+  const tx = mv.x * input.cruiseSpeed;
+  const ty = mv.y * input.cruiseSpeed;
 
   // tight exponential approach: reads as instant but filters sensor jitter
   const k = 1 - Math.exp(-TILT.response * dt);
@@ -185,10 +126,4 @@ function updateShipDirect(
   s.x += s.vx * dt;
   s.y += s.vy * dt;
   clampToBounds(s, world, SHIP.radius);
-}
-
-function stopBoost(s: Ship): void {
-  s.boostHeld = false;
-  s.boostHoldTimer = 0;
-  s.boostCooldownTimer = SHIP.boost.cooldown;
 }

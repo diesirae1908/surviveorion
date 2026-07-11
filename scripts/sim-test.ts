@@ -12,11 +12,9 @@ import type { World } from "../src/types";
 const input: InputState = {
   turn: 0,
   thrust: 0,
-  boost: false,
   heading: null,
   moveVector: null,
   inertia: true,
-  simpleBoost: false,
   cruiseSpeed: 8,
 };
 
@@ -55,6 +53,15 @@ function check(name: string, ok: boolean, detail = ""): void {
   check("drone population grew but stayed under cap", maxDrones > 20 && maxDrones <= 250, `max ${maxDrones}`);
   check("kills accumulated (starshell ram)", world.kills > 50, `${world.kills} kills`);
   check("score is finite and positive", Number.isFinite(world.score) && world.score > 0, `${Math.round(world.score)}`);
+}
+
+// --- 1b. swarmy by 20 seconds ---
+{
+  const world = createWorld(17.8, 10);
+  step(world, 20);
+  // the starshell observer rams constantly, so spawned = kills + alive
+  const spawned = world.kills + world.drones.length;
+  check("swarmy by 20s (>=25 drones spawned)", spawned >= 25, `${spawned} spawned in 20s`);
 }
 
 // --- 2. scripted drones release back to homing ---
@@ -172,7 +179,7 @@ function activate(world: World, power: PowerId): void {
   const hints: string[] = [];
   const tut = new Tutorial(
     world,
-    { touch: false, inertia: false, moveKeys: "W A S D", boostKeys: "Space" },
+    { touch: false, inertia: false, moveKeys: "W A S D" },
     (h) => hints.push(h),
   );
 
@@ -185,11 +192,7 @@ function activate(world: World, power: PowerId): void {
     for (let i = 0; i < steps; i++) {
       // headless dodging is luck, so the harness banks a shield every tick
       if (invuln) world.powers.shieldActive = true;
-      tick(
-        world,
-        { ...input, inertia: false, simpleBoost: true, moveVector: drive ?? { x: 0, y: 0 } },
-        FIXED_DT,
-      );
+      tick(world, { ...input, inertia: false, moveVector: drive ?? { x: 0, y: 0 } }, FIXED_DT);
       tut.update(FIXED_DT);
       world.events.length = 0;
     }

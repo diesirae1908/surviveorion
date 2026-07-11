@@ -139,11 +139,11 @@ asked to confirm their country after the first sign-in.
 ## Controls
 
 Direct control is the default: the ship flies the way you point, no drift.
+There is no boost — one flight speed, tuned by the Direct speed setting.
 
 | Action | Desktop (default) | Touch (default) |
 | --- | --- | --- |
-| Fly | `WASD` / arrows — ship goes that way | drag on left half — ship goes that way |
-| Boost | hold `Space` for full speed | hold right half |
+| Fly | `WASD` / arrows — ship goes that way | drag anywhere on screen — ship goes that way |
 | Pause | `Esc` / `P` | pause button |
 
 Settings has an **Inertia** toggle for classic thrust-and-drift piloting
@@ -153,6 +153,9 @@ pilots through flying, drones, and powers in a sandbox with static (frozen)
 enemies, and the game boots through a tap-to-enter gate into a ~5s cinematic
 intro (hyperspace rush, swarm fly-by, title slam) before the menu.
 
+The arena gets swarmy fast: an 8-drone opening burst, the first formation
+inside ~10s, and near-full-size patterns by the 20-second mark.
+
 ## Mobile
 
 The game is an installable PWA: on a phone, "Add to Home Screen" gives a
@@ -161,14 +164,13 @@ full-screen app with its own icon (`public/manifest.webmanifest` +
 the canvas tracks `visualViewport` resizes (iOS browser chrome, rotation),
 and the page blocks pinch/double-tap zoom.
 
-Phones default to the **virtual stick** (drag the left half to fly, hold the
-right half to boost). **Tilt controls** are a settings opt-in — a tribute to
-Tilt to Live: lean the phone to fly, touch and hold anywhere to boost. Tilt
-maps directly to velocity (`TILT` in `src/config.ts`) and needs the
-motion-sensor permission on iOS (requested from the settings toggle) and a
-secure context, so test it against a deployed build rather than plain-HTTP
-LAN dev. Tilt runs rank on the Tilt/Direct leaderboard, same as the default
-no-inertia mode.
+Phones default to the **virtual stick** — the stick spawns wherever your
+finger lands, anywhere on the screen. **Tilt controls** are a settings opt-in
+— a tribute to Tilt to Live: lean the phone to fly. Tilt maps directly to
+velocity (`TILT` in `src/config.ts`) and needs the motion-sensor permission
+on iOS (requested from the settings toggle) and a secure context, so test it
+against a deployed build rather than plain-HTTP LAN dev. Tilt runs rank on
+the Tilt/Direct leaderboard, same as the default no-inertia mode.
 
 **Direct speed** (Low/Med/High) tunes the cruise pace of direct control; on
 phones, **Tilt sense** tunes how much lean reaches full speed. Desktop
