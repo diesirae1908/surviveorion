@@ -225,7 +225,11 @@ const routes = {
 
   "GET /api/me": (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
-    json(res, 200, { user: publicUser(user), best: store.getUserBest(user.id) });
+    json(res, 200, {
+      user: publicUser(user),
+      best: store.getUserBest(user.id),
+      pendingFriends: store.pendingFriendCount(user.id),
+    });
   },
 
   "PATCH /api/me": async (req, res, user) => {
@@ -345,6 +349,66 @@ const routes = {
     json(res, 200, { arenas: store.userArenas(user.id) });
   },
 
+  // --- friends ---
+
+  "GET /api/friends": (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const { incoming, outgoing } = store.friendRequests(user.id);
+    json(res, 200, { friends: store.friendsOf(user.id), incoming, outgoing });
+  },
+
+  "POST /api/friends/request": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!rateLimit(`friendreq:${user.id}`, 10)) return json(res, 429, { error: "slow down" });
+    const { callsign } = await readBody(req);
+    if (typeof callsign !== "string") return json(res, 400, { error: "missing callsign" });
+    const target = store.getUserByCallsign(callsign.trim());
+    if (!target) return json(res, 404, { error: "no pilot with that callsign" });
+    if (target.id === user.id) return json(res, 400, { error: "that's you, pilot" });
+
+    const existing = store.getFriendship(user.id, target.id);
+    if (existing?.status === "accepted") return json(res, 409, { error: "already wingmates" });
+    if (existing?.requester_id === user.id) return json(res, 409, { error: "request already sent" });
+    if (existing) {
+      // they already asked us — treat the request as an accept
+      store.acceptFriend(user.id, target.id);
+      return json(res, 200, { status: "accepted" });
+    }
+    store.requestFriend(user.id, target.id);
+    json(res, 200, { status: "pending" });
+  },
+
+  "POST /api/friends/accept": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const { callsign } = await readBody(req);
+    const target = typeof callsign === "string" ? store.getUserByCallsign(callsign.trim()) : null;
+    if (!target || !store.acceptFriend(user.id, target.id))
+      return json(res, 404, { error: "no pending request from that pilot" });
+    json(res, 200, { ok: true });
+  },
+
+  // Decline an incoming request, cancel an outgoing one, or unfriend.
+  "POST /api/friends/remove": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const { callsign } = await readBody(req);
+    const target = typeof callsign === "string" ? store.getUserByCallsign(callsign.trim()) : null;
+    if (!target) return json(res, 404, { error: "pilot not found" });
+    store.removeFriend(user.id, target.id);
+    json(res, 200, { ok: true });
+  },
+
+  "GET /api/friends/leaderboard": (req, res, user, url) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const mode = url.searchParams.get("mode") ?? "classic";
+    if (!["classic", "tilt"].includes(mode)) return json(res, 400, { error: "invalid mode" });
+    json(res, 200, { entries: store.friendsLeaderboard(user.id, mode), me: null });
+  },
+
+  "GET /api/friends/activity": (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    json(res, 200, { activity: store.friendActivity(user.id, 20) });
+  },
+
   // Player feedback (works signed-in or anonymous; email is optional so we
   // can reach back out with follow-ups / rewards).
   "POST /api/feedback": async (req, res, user) => {
@@ -390,11 +454,25 @@ const routes = {
   },
 };
 
-// GET /api/players/:callsign — public pilot profile (stats + badges)
-function playerProfile(req, res, callsign) {
+// GET /api/players/:callsign — public pilot profile (stats + badges).
+// When the viewer is signed in, includes their friendship with this pilot.
+function playerProfile(req, res, user, callsign) {
   const target = store.getUserByCallsign(callsign);
   if (!target) return json(res, 404, { error: "pilot not found" });
   const career = store.userCareer(target.id);
+
+  let friendship = null;
+  if (user && user.id !== target.id) {
+    const f = store.getFriendship(user.id, target.id);
+    friendship = !f
+      ? "none"
+      : f.status === "accepted"
+        ? "friends"
+        : f.requester_id === user.id
+          ? "outgoing"
+          : "incoming";
+  }
+
   json(res, 200, {
     callsign: target.callsign,
     country: target.country,
@@ -403,11 +481,17 @@ function playerProfile(req, res, callsign) {
       classic: store.getUserBest(target.id, "classic"),
       tilt: store.getUserBest(target.id, "tilt"),
     },
+    rank: {
+      classic: store.rankOf(target.id, { mode: "classic" }),
+      tilt: store.rankOf(target.id, { mode: "tilt" }),
+    },
     runs: career.runs,
     totalKills: career.totalKills,
     totalTime: career.totalTime,
     bestTime: career.bestTime,
+    history: store.scoreHistory(target.id, 40),
     badges: store.userBadges(target.id),
+    friendship,
   });
 }
 
@@ -577,7 +661,7 @@ const server = http.createServer(async (req, res) => {
     }
     const player = /^\/api\/players\/([^/]+)$/.exec(url.pathname);
     if (req.method === "GET" && player) {
-      return playerProfile(req, res, decodeURIComponent(player[1]));
+      return playerProfile(req, res, authUser(req), decodeURIComponent(player[1]));
     }
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);

@@ -87,6 +87,17 @@ db.exec(`
     earned_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, badge_id)
   );
+
+  -- Friendships: one row per pair, created by the requester. status is
+  -- 'pending' until the addressee accepts.
+  CREATE TABLE IF NOT EXISTS friends (
+    requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    addressee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (requester_id, addressee_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_friends_addressee ON friends(addressee_id, status);
 `);
 
 // Migration for databases created before Clerk support.
@@ -260,6 +271,132 @@ export function userArenas(userId) {
        ORDER BY am.joined_at DESC`,
     )
     .all(userId, userId);
+}
+
+// --- friends ---
+
+/** The friendship row between two users, whichever direction it was created. */
+export const getFriendship = (a, b) =>
+  db
+    .prepare(
+      `SELECT * FROM friends
+       WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`,
+    )
+    .get(a, b, b, a) ?? null;
+
+export function requestFriend(fromId, toId) {
+  db.prepare(
+    `INSERT OR IGNORE INTO friends (requester_id, addressee_id, status, created_at)
+     VALUES (?, ?, 'pending', ?)`,
+  ).run(fromId, toId, Date.now());
+}
+
+/** Accept a pending request sent *to* userId. Returns true if one existed. */
+export function acceptFriend(userId, requesterId) {
+  const r = db
+    .prepare(
+      `UPDATE friends SET status = 'accepted'
+       WHERE requester_id = ? AND addressee_id = ? AND status = 'pending'`,
+    )
+    .run(requesterId, userId);
+  return r.changes > 0;
+}
+
+/** Remove a friendship or request in either direction (decline/cancel/unfriend). */
+export function removeFriend(userId, otherId) {
+  db.prepare(
+    `DELETE FROM friends
+     WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`,
+  ).run(userId, otherId, otherId, userId);
+}
+
+/** Ids of accepted friends. */
+export function friendIdsOf(userId) {
+  return db
+    .prepare(
+      `SELECT CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END AS id
+       FROM friends
+       WHERE status = 'accepted' AND (requester_id = ? OR addressee_id = ?)`,
+    )
+    .all(userId, userId, userId)
+    .map((r) => r.id);
+}
+
+/** Accepted friends with per-mode bests and last-flown time. */
+export function friendsOf(userId) {
+  return db
+    .prepare(
+      `SELECT u.callsign, u.country,
+              COALESCE((SELECT MAX(score) FROM scores WHERE user_id = u.id AND mode = 'classic'), 0) AS bestClassic,
+              COALESCE((SELECT MAX(score) FROM scores WHERE user_id = u.id AND mode = 'tilt'), 0) AS bestTilt,
+              (SELECT MAX(created_at) FROM scores WHERE user_id = u.id) AS lastRunAt
+       FROM friends f
+       JOIN users u ON u.id = CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END
+       WHERE f.status = 'accepted' AND (f.requester_id = ? OR f.addressee_id = ?)
+       ORDER BY lastRunAt DESC NULLS LAST`,
+    )
+    .all(userId, userId, userId);
+}
+
+/** Pending requests: incoming (to accept) and outgoing (sent, waiting). */
+export function friendRequests(userId) {
+  const incoming = db
+    .prepare(
+      `SELECT u.callsign, u.country, f.created_at AS createdAt
+       FROM friends f JOIN users u ON u.id = f.requester_id
+       WHERE f.addressee_id = ? AND f.status = 'pending'
+       ORDER BY f.created_at DESC`,
+    )
+    .all(userId);
+  const outgoing = db
+    .prepare(
+      `SELECT u.callsign, u.country, f.created_at AS createdAt
+       FROM friends f JOIN users u ON u.id = f.addressee_id
+       WHERE f.requester_id = ? AND f.status = 'pending'
+       ORDER BY f.created_at DESC`,
+    )
+    .all(userId);
+  return { incoming, outgoing };
+}
+
+export const pendingFriendCount = (userId) =>
+  db
+    .prepare(`SELECT COUNT(*) AS c FROM friends WHERE addressee_id = ? AND status = 'pending'`)
+    .get(userId).c;
+
+/** Best score per pilot among the user and their friends, ranked. */
+export function friendsLeaderboard(userId, mode = "classic") {
+  const ids = [userId, ...friendIdsOf(userId)];
+  const marks = ids.map(() => "?").join(",");
+  return db
+    .prepare(
+      `SELECT u.id AS userId, u.callsign, u.country,
+              MAX(s.score) AS best, COUNT(s.id) AS runs,
+              MAX(s.time_survived) AS bestTime
+       FROM users u
+       JOIN scores s ON s.user_id = u.id AND s.mode = ?
+       WHERE u.id IN (${marks})
+       GROUP BY u.id
+       ORDER BY best DESC, MIN(s.created_at) ASC`,
+    )
+    .all(mode, ...ids);
+}
+
+/** Recent runs by friends (activity feed). */
+export function friendActivity(userId, limit = 20) {
+  const ids = friendIdsOf(userId);
+  if (ids.length === 0) return [];
+  const marks = ids.map(() => "?").join(",");
+  return db
+    .prepare(
+      `SELECT u.callsign, u.country, s.score, s.time_survived AS timeSurvived,
+              s.kills, s.mode, s.created_at AS createdAt
+       FROM scores s JOIN users u ON u.id = s.user_id
+       WHERE s.user_id IN (${marks})
+       ORDER BY s.created_at DESC
+       LIMIT ?`,
+    )
+    .all(...ids, limit);
 }
 
 // --- feedback ---
@@ -440,6 +577,17 @@ export const userBadges = (userId) =>
   db
     .prepare(`SELECT badge_id AS id, earned_at AS earnedAt FROM badges WHERE user_id = ? ORDER BY earned_at`)
     .all(userId);
+
+/** Last N ranked runs, oldest first (profile score-history graph). */
+export function scoreHistory(userId, limit = 40) {
+  return db
+    .prepare(
+      `SELECT score, mode, created_at AS createdAt
+       FROM scores WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(userId, limit)
+    .reverse();
+}
 
 /** Career aggregates used by cumulative badges and public profiles. */
 export function userCareer(userId) {

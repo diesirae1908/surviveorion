@@ -24,6 +24,7 @@ export interface UiCallbacks {
   onCycleSense: (key: "tiltSensitivity" | "directSpeed") => SenseLevel;
   onWorldArena: () => void;
   onArenas: () => void;
+  onFriends: () => void;
   onProfile: () => void;
   /** Switch control scheme; resolves with the mode actually in effect (tilt may be denied). */
   onControlModeChange: (mode: ControlMode) => Promise<ControlMode>;
@@ -41,6 +42,8 @@ export interface UiCallbacks {
 export interface MenuCommunity {
   /** null → community server offline (hide community buttons) */
   callsign: string | null | undefined;
+  /** Incoming friend requests — shows a dot on the Wingmates button. */
+  pendingFriends?: number;
 }
 
 export interface GameOverStats {
@@ -251,6 +254,11 @@ export class Ui {
       const row = this.el("div", "menu-row", "");
       row.appendChild(this.button("World Arena", false, () => this.cb.onWorldArena()));
       row.appendChild(this.button("Arenas", false, () => this.cb.onArenas()));
+      const friends = this.button("Wingmates", false, () => this.cb.onFriends());
+      if ((community.pendingFriends ?? 0) > 0) {
+        friends.appendChild(this.el("span", "notif-dot", ""));
+      }
+      row.appendChild(friends);
       screen.appendChild(row);
 
       const badge = document.createElement("button");

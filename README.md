@@ -74,6 +74,11 @@ community buttons simply don't appear.
   `tilt` = direct control: phone tilt or the default no-inertia mode) and every
   leaderboard ranks the two modes separately.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
+- **Wingmates (friends)** — add pilots by callsign (mutual accept; requests can
+  be sent from any pilot record too). The Wingmates screen has a squadron
+  leaderboard (you + friends, per mode), a recent-flights activity feed, and
+  request management; the menu button shows a dot when a request is waiting
+  (`pendingFriends` on `GET /api/me`, endpoints under `/api/friends/*`).
 - **Accounts** — callsign + password, Clerk sign-in (email/Google, see below),
   or direct Google sign-in. Country is guessed from the browser locale/timezone,
   always confirmable and editable in the profile — no external geolocation service.
@@ -84,8 +89,9 @@ community buttons simply don't appear.
   submission, celebrated on the game-over screen, and shown as a collection on
   the pilot profile (locked ones are dimmed with an unlock hint).
 - **Public pilot records** — every leaderboard row is clickable and opens that
-  pilot's read-only record (`GET /api/players/:callsign`): best scores, runs,
-  lifetime kills, and earned badges.
+  pilot's read-only record (`GET /api/players/:callsign`): best scores, world
+  ranks, playtime, a score-history sparkline of the last 40 ranked runs, earned
+  badges, and a wingmate add/accept/remove action for signed-in viewers.
 - **Anti-cheat** — submissions are sanity-checked server-side against the game's
   scoring ceilings (`server/validate.mjs`, mirrors `SCORING` in `src/config.ts`)
   and rate-limited.

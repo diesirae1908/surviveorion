@@ -39,17 +39,53 @@ export interface SubmitResult {
   newBadges?: string[];
 }
 
+/** Viewer's relationship with a pilot (null = viewing yourself / signed out). */
+export type Friendship = "none" | "friends" | "outgoing" | "incoming" | null;
+
 /** Public pilot profile (GET /api/players/:callsign). */
 export interface PlayerProfile {
   callsign: string;
   country: string;
   joinedAt: number;
   best: { classic: number; tilt: number };
+  rank: { classic: number | null; tilt: number | null };
   runs: number;
   totalKills: number;
   totalTime: number;
   bestTime: number;
+  history: Array<{ score: number; mode: BoardMode; createdAt: number }>;
   badges: Array<{ id: string; earnedAt: number }>;
+  friendship: Friendship;
+}
+
+export interface FriendInfo {
+  callsign: string;
+  country: string;
+  bestClassic: number;
+  bestTilt: number;
+  lastRunAt: number | null;
+}
+
+export interface FriendRequest {
+  callsign: string;
+  country: string;
+  createdAt: number;
+}
+
+export interface FriendsResponse {
+  friends: FriendInfo[];
+  incoming: FriendRequest[];
+  outgoing: FriendRequest[];
+}
+
+export interface FriendActivityEntry {
+  callsign: string;
+  country: string;
+  score: number;
+  timeSurvived: number;
+  kills: number;
+  mode: BoardMode;
+  createdAt: number;
 }
 
 export class ApiError extends Error {
@@ -65,6 +101,8 @@ export class Api {
   user: UserInfo | null = null;
   googleClientId = "";
   clerkPublishableKey = "";
+  /** Incoming friend requests awaiting an answer (menu badge). */
+  pendingFriends = 0;
   /** false once a request fails to reach the server at all. */
   online = true;
 
@@ -115,8 +153,12 @@ export class Api {
     }
     if (this.token) {
       try {
-        const me = await this.request<{ user: UserInfo }>("GET", "/api/me");
+        const me = await this.request<{ user: UserInfo; pendingFriends?: number }>(
+          "GET",
+          "/api/me",
+        );
         this.user = me.user;
+        this.pendingFriends = me.pendingFriends ?? 0;
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;
@@ -229,6 +271,34 @@ export class Api {
     mode: BoardMode = "classic",
   ): Promise<LeaderboardResponse & { arena: ArenaInfo }> {
     return this.request("GET", `/api/arenas/${code}/leaderboard?mode=${mode}`);
+  }
+
+  // --- friends ---
+
+  myFriends(): Promise<FriendsResponse> {
+    return this.request("GET", "/api/friends");
+  }
+
+  requestFriend(callsign: string): Promise<{ status: "pending" | "accepted" }> {
+    return this.request("POST", "/api/friends/request", { callsign });
+  }
+
+  async acceptFriend(callsign: string): Promise<void> {
+    await this.request("POST", "/api/friends/accept", { callsign });
+    this.pendingFriends = Math.max(0, this.pendingFriends - 1);
+  }
+
+  /** Decline an incoming request, cancel an outgoing one, or unfriend. */
+  async removeFriend(callsign: string): Promise<void> {
+    await this.request("POST", "/api/friends/remove", { callsign });
+  }
+
+  friendsLeaderboard(mode: BoardMode = "classic"): Promise<LeaderboardResponse> {
+    return this.request("GET", `/api/friends/leaderboard?mode=${mode}`);
+  }
+
+  friendActivity(): Promise<{ activity: FriendActivityEntry[] }> {
+    return this.request("GET", "/api/friends/activity");
   }
 
   /** Player feedback; email is optional (follow-ups / rewards). */

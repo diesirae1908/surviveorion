@@ -1,7 +1,15 @@
 // Community screens: sign-in, World Arena leaderboard, private arenas.
 // Rendered into the same #ui overlay as the menu screens.
 
-import { Api, ApiError, type BoardMode, type LeaderboardEntry, type PlayerProfile } from "./api";
+import {
+  Api,
+  ApiError,
+  type BoardMode,
+  type FriendActivityEntry,
+  type FriendRequest,
+  type LeaderboardEntry,
+  type PlayerProfile,
+} from "./api";
 import { BADGES, TIER_LABEL } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 
@@ -437,6 +445,8 @@ export class CommunityUi {
     void this.guard(error, async () => {
       const p = await this.api.playerProfile(user.callsign);
       record.appendChild(this.statsRow(p));
+      const graph = this.historyGraph(p);
+      if (graph) record.appendChild(graph);
       record.appendChild(this.badgeGrid(p.badges, true));
     });
 
@@ -453,7 +463,7 @@ export class CommunityUi {
     this.backRow(screen);
   }
 
-  /** Public read-only pilot profile, opened from any leaderboard row. */
+  /** Public pilot profile, opened from any leaderboard row (with friend actions). */
   showPilot(callsign: string, onBack: () => void): void {
     const { screen, body, error } = this.screen("PILOT RECORD");
     body.appendChild(this.el("div", "field-hint", "Loading…"));
@@ -467,32 +477,121 @@ export class CommunityUi {
           `${p.country ? countryFlag(p.country) + " " : ""}<b>${escapeHtml(p.callsign)}</b>`,
         ),
       );
+      const action = this.friendAction(p, error, () => this.showPilot(callsign, onBack));
+      if (action) body.appendChild(action);
       body.appendChild(this.statsRow(p));
+      const graph = this.historyGraph(p);
+      if (graph) body.appendChild(graph);
       body.appendChild(this.badgeGrid(p.badges, false));
     });
     this.backRow(screen, onBack);
   }
 
   private statsRow(p: PlayerProfile): HTMLElement {
-    const fmtTime = (s: number): string =>
-      s >= 3600
-        ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
-        : `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
     const cells: Array<[string, string]> = [
       ["Best (Tilt)", p.best.tilt.toLocaleString()],
       ["Best (Classic)", p.best.classic.toLocaleString()],
+      ["World rank (Tilt)", p.rank?.tilt ? `#${p.rank.tilt}` : "0"],
+      ["World rank (Classic)", p.rank?.classic ? `#${p.rank.classic}` : "0"],
       ["Runs", p.runs.toLocaleString()],
       ["Kills", p.totalKills.toLocaleString()],
-      ["Longest run", fmtTime(p.bestTime)],
+      ["Longest run", fmtDuration(p.bestTime)],
+      ["Time in the swarm", fmtDuration(p.totalTime)],
+      [
+        "Enlisted",
+        p.joinedAt
+          ? new Date(p.joinedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })
+          : "0",
+      ],
     ];
     return this.el(
       "div",
       "stats pilot-stats",
       cells
-        .filter(([, v]) => v !== "0")
+        .filter(([, v]) => v !== "0" && v !== "0:00")
         .map(([k, v]) => `<div><span class="label">${k}</span><span class="value">${v}</span></div>`)
         .join(""),
     );
+  }
+
+  /** Score-over-time sparkline of the last ~40 ranked runs. */
+  private historyGraph(p: PlayerProfile): HTMLElement | null {
+    const h = p.history ?? [];
+    if (h.length < 2) return null;
+    const max = Math.max(...h.map((r) => r.score), 1);
+    const W = 100;
+    const H = 30;
+    const pts = h
+      .map((r, i) => {
+        const x = (i / (h.length - 1)) * W;
+        const y = H - 2 - (r.score / max) * (H - 6);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    const wrap = this.el("div", "history-graph");
+    wrap.appendChild(this.el("div", "manual-title", `LAST ${h.length} RUNS`));
+    wrap.appendChild(
+      this.el(
+        "div",
+        "history-svg",
+        `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">` +
+          `<polyline points="${pts}" fill="none" stroke="#ffd700" stroke-width="1" ` +
+          `stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/></svg>`,
+      ),
+    );
+    wrap.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        `peak <b>${max.toLocaleString()}</b> · latest <b>${h[h.length - 1].score.toLocaleString()}</b>`,
+      ),
+    );
+    return wrap;
+  }
+
+  /** Add friend / accept / cancel / unfriend button for a viewed pilot. */
+  private friendAction(p: PlayerProfile, error: HTMLElement, rerender: () => void): HTMLElement | null {
+    if (!this.api.signedIn || p.friendship === null) return null;
+    const wrap = this.el("div", "friend-action");
+    const act = (fn: () => Promise<unknown>): void => {
+      void this.guard(error, async () => {
+        await fn();
+        rerender();
+      });
+    };
+    switch (p.friendship) {
+      case "none":
+        wrap.appendChild(
+          this.button("✦ Add wingmate", true, () => act(() => this.api.requestFriend(p.callsign))),
+        );
+        break;
+      case "outgoing": {
+        wrap.appendChild(this.el("div", "field-hint center", "Wingmate request sent."));
+        const cancel = this.button("Cancel request", false, () =>
+          act(() => this.api.removeFriend(p.callsign)),
+        );
+        cancel.classList.add("small-btn");
+        wrap.appendChild(cancel);
+        break;
+      }
+      case "incoming":
+        wrap.appendChild(
+          this.button("✦ Accept wingmate request", true, () =>
+            act(() => this.api.acceptFriend(p.callsign)),
+          ),
+        );
+        break;
+      case "friends": {
+        wrap.appendChild(this.el("div", "field-hint center", "✦ Your wingmate"));
+        const remove = this.button("Remove wingmate", false, () =>
+          act(() => this.api.removeFriend(p.callsign)),
+        );
+        remove.classList.add("small-btn");
+        wrap.appendChild(remove);
+        break;
+      }
+    }
+    return wrap;
   }
 
   /** Badge collection: earned bright; locked dimmed (with hints on own profile). */
@@ -595,6 +694,165 @@ export class CommunityUi {
     }
   }
 
+  // --- friends ---
+
+  showFriends(): void {
+    if (!this.api.signedIn) return this.showAuth(() => this.showFriends());
+    const { screen, body, error } = this.screen("WINGMATES");
+
+    body.appendChild(
+      this.el("div", "field-hint center", "Add pilots by callsign — race their best runs and see their latest flights."),
+    );
+
+    const addInput = this.input("Pilot callsign");
+    const addBtn = this.button("Add", true, () => {
+      const callsign = addInput.value.trim();
+      if (!callsign) return;
+      void this.guard(error, async () => {
+        const r = await this.api.requestFriend(callsign);
+        addInput.value = "";
+        note.textContent =
+          r.status === "accepted"
+            ? `You and ${callsign} are now wingmates!`
+            : `Request sent — ${callsign} can accept it from their Wingmates screen.`;
+        refresh();
+      });
+    });
+    addInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") addBtn.click();
+    });
+    const rowAdd = this.el("div", "form-row");
+    rowAdd.append(addInput, addBtn);
+    const note = this.el("div", "field-hint center");
+    body.append(rowAdd, note);
+
+    const requests = this.el("div", "friend-requests");
+    const boardTitle = this.el("div", "manual-title", "SQUADRON BOARD");
+    const table = this.el("div", "board");
+    const activityTitle = this.el("div", "manual-title", "RECENT FLIGHTS");
+    const activityList = this.el("div", "board");
+
+    const loadBoard = (): void => {
+      table.innerHTML = `<div class="field-hint">Loading…</div>`;
+      void this.guard(error, async () => {
+        const [board, mine] = await Promise.all([
+          this.api.friendsLeaderboard(this.boardMode),
+          this.api.myFriends(),
+        ]);
+        this.renderBoard(table, board.entries, null, () => this.showFriends());
+        if (mine.friends.length === 0 && board.entries.length <= 1) {
+          table.innerHTML = `<div class="field-hint">No wingmates yet — add a pilot above, or meet them in the World Arena.</div>`;
+          return;
+        }
+        // friends with no ranked run in this mode still deserve a row
+        const ranked = new Set(board.entries.map((e) => e.callsign));
+        for (const f of mine.friends) {
+          if (ranked.has(f.callsign)) continue;
+          const row = this.el(
+            "div",
+            "board-row link dim-row",
+            `<span class="rank">–</span>` +
+              `<span class="flag">${f.country ? countryFlag(f.country) : "·"}</span>` +
+              `<span class="name">${escapeHtml(f.callsign)}</span>` +
+              `<span class="pts dim">no ${this.boardMode} runs</span>`,
+          );
+          row.addEventListener("click", () => this.showPilot(f.callsign, () => this.showFriends()));
+          table.appendChild(row);
+        }
+      });
+    };
+    const tabs = this.modeTabs(loadBoard);
+
+    const refresh = (): void => {
+      loadBoard();
+      void this.guard(error, async () => {
+        const [mine, act] = await Promise.all([this.api.myFriends(), this.api.friendActivity()]);
+        this.renderFriendRequests(requests, mine.incoming, mine.outgoing, error, refresh);
+        this.renderActivity(activityList, act.activity);
+      });
+    };
+
+    body.append(requests, boardTitle, tabs, table, activityTitle, activityList);
+    refresh();
+    this.backRow(screen);
+  }
+
+  private renderFriendRequests(
+    wrap: HTMLElement,
+    incoming: FriendRequest[],
+    outgoing: FriendRequest[],
+    error: HTMLElement,
+    refresh: () => void,
+  ): void {
+    wrap.innerHTML = "";
+    if (incoming.length === 0 && outgoing.length === 0) return;
+    wrap.appendChild(this.el("div", "manual-title", "REQUESTS"));
+    for (const r of incoming) {
+      const row = this.el(
+        "div",
+        "board-row",
+        `<span class="flag">${r.country ? countryFlag(r.country) : "·"}</span>` +
+          `<span class="name">${escapeHtml(r.callsign)}</span>`,
+      );
+      const actions = this.el("span", "row-actions");
+      const accept = this.button("Accept", true, () => {
+        void this.guard(error, async () => {
+          await this.api.acceptFriend(r.callsign);
+          refresh();
+        });
+      });
+      const decline = this.button("Decline", false, () => {
+        void this.guard(error, async () => {
+          await this.api.removeFriend(r.callsign);
+          refresh();
+        });
+      });
+      actions.append(accept, decline);
+      row.appendChild(actions);
+      wrap.appendChild(row);
+    }
+    for (const r of outgoing) {
+      const row = this.el(
+        "div",
+        "board-row",
+        `<span class="flag">${r.country ? countryFlag(r.country) : "·"}</span>` +
+          `<span class="name">${escapeHtml(r.callsign)}</span>` +
+          `<span class="pts dim">pending</span>`,
+      );
+      const actions = this.el("span", "row-actions");
+      actions.appendChild(
+        this.button("Cancel", false, () => {
+          void this.guard(error, async () => {
+            await this.api.removeFriend(r.callsign);
+            refresh();
+          });
+        }),
+      );
+      row.appendChild(actions);
+      wrap.appendChild(row);
+    }
+  }
+
+  private renderActivity(wrap: HTMLElement, activity: FriendActivityEntry[]): void {
+    wrap.innerHTML = "";
+    if (activity.length === 0) {
+      wrap.appendChild(this.el("div", "field-hint", "No flights from your wingmates yet."));
+      return;
+    }
+    for (const a of activity) {
+      const row = this.el(
+        "div",
+        "board-row link",
+        `<span class="flag">${a.country ? countryFlag(a.country) : "·"}</span>` +
+          `<span class="name">${escapeHtml(a.callsign)}</span>` +
+          `<span class="pts">${a.score.toLocaleString()}</span>` +
+          `<span class="pts dim">${fmtDuration(a.timeSurvived)} · ${timeAgo(a.createdAt)}</span>`,
+      );
+      row.addEventListener("click", () => this.showPilot(a.callsign, () => this.showFriends()));
+      wrap.appendChild(row);
+    }
+  }
+
   // --- private arenas ---
 
   showArenas(): void {
@@ -676,4 +934,20 @@ export class CommunityUi {
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+/** "3:41" under an hour, "2h 15m" above. */
+function fmtDuration(s: number): string {
+  return s >= 3600
+    ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+    : `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+}
+
+function timeAgo(ts: number): string {
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 30 * 86400) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }

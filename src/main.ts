@@ -155,6 +155,7 @@ const ui = new Ui(settings, {
   },
   onWorldArena: () => community.showWorldArena(),
   onArenas: () => community.showArenas(),
+  onFriends: () => community.showFriends(),
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
   onControlModeChange: async (mode) => {
     if (mode === "tilt") {
@@ -206,6 +207,7 @@ const community = new CommunityUi(
 function showMenu(): void {
   ui.showMenu(bestScore, isTouchDevice(), {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
+    pendingFriends: api.pendingFriends,
   });
 }
 
