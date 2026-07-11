@@ -6,6 +6,8 @@ import { BADGES, TIER_LABEL } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 
 const BOARD_MODE_KEY = "orion.boardMode";
+/** Set while a Clerk sign-in is in flight; survives the OAuth full-page redirect. */
+const CLERK_PENDING_KEY = "orion.clerkPending";
 
 /** Last-viewed leaderboard tab; phones default to Tilt (their native mode). */
 function loadBoardMode(): BoardMode {
@@ -298,6 +300,7 @@ export class CommunityUi {
       const jwt = await clerk.session?.getToken();
       if (!jwt) return false;
       const isNew = await this.api.clerkSignIn(jwt, guessCountry());
+      localStorage.removeItem(CLERK_PENDING_KEY);
       clerk.closeSignIn();
       this.onAuthChange();
       if (isNew) this.showConfirmCountry(onDone);
@@ -308,6 +311,9 @@ export class CommunityUi {
     // Already signed in to Clerk from a previous visit: reuse the session.
     if (await finish()) return;
 
+    // OAuth (Google) does a full-page redirect, losing this JS context; the
+    // flag lets resumeClerkSignIn() pick the flow back up after the reload.
+    localStorage.setItem(CLERK_PENDING_KEY, "1");
     let handled = false;
     clerk.addListener((state) => {
       if (handled || !state.session) return;
@@ -315,6 +321,30 @@ export class CommunityUi {
       void finish();
     });
     clerk.openSignIn({});
+  }
+
+  /**
+   * Complete a Clerk sign-in interrupted by an OAuth redirect: if the previous
+   * page load opened the Clerk modal and we now have a Clerk session, exchange
+   * it for an Orion session without the player having to click anything.
+   */
+  async resumeClerkSignIn(): Promise<"none" | "signedIn" | "newPilot"> {
+    if (!this.api.clerkPublishableKey || this.api.signedIn) {
+      localStorage.removeItem(CLERK_PENDING_KEY);
+      return "none";
+    }
+    if (localStorage.getItem(CLERK_PENDING_KEY) !== "1") return "none";
+    localStorage.removeItem(CLERK_PENDING_KEY);
+    const clerk = await this.loadClerk();
+    const jwt = await clerk?.session?.getToken();
+    if (!clerk || !jwt) return "none";
+    try {
+      const isNew = await this.api.clerkSignIn(jwt, guessCountry());
+      this.onAuthChange();
+      return isNew ? "newPilot" : "signedIn";
+    } catch {
+      return "none";
+    }
   }
 
   private googleLoaded: Promise<Google | null> | null = null;
@@ -359,8 +389,8 @@ export class CommunityUi {
     google.accounts.id.renderButton(wrap, { theme: "filled_black", size: "large", shape: "pill" });
   }
 
-  /** Post-Google-signup step: confirm the guessed country (all-cases geo). */
-  private showConfirmCountry(onDone: () => void): void {
+  /** Post-signup step: confirm the guessed country (all-cases geo). */
+  showConfirmCountry(onDone: () => void): void {
     const { screen, body, error } = this.screen("WHERE DO YOU FLY FROM?");
     body.appendChild(
       this.el("div", "field-hint", "Your country places you in its arena leaderboard. You can change it anytime."),
