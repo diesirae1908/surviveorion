@@ -12,14 +12,23 @@ import {
 } from "./api";
 import { BADGES, TIER_LABEL } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
+import { loadSettings } from "./save";
 
 const BOARD_MODE_KEY = "orion.boardMode";
 
-/** Last-viewed leaderboard tab; phones default to Tilt (their native mode). */
+/**
+ * Board display names. Runs are tagged by flight physics: "tilt" covers all
+ * direct control (phone tilt, touch stick, desktop keys — the default), while
+ * "classic" is the opt-in inertia thrust-and-drift physics.
+ */
+const MODE_LABEL: Record<BoardMode, string> = { tilt: "Direct", classic: "Classic" };
+const MODE_TAB_LABEL: Record<BoardMode, string> = { tilt: "Direct", classic: "Classic (inertia)" };
+
+/** Last-viewed leaderboard tab; defaults to where your own runs score. */
 function loadBoardMode(): BoardMode {
   const saved = localStorage.getItem(BOARD_MODE_KEY);
   if (saved === "classic" || saved === "tilt") return saved;
-  return "ontouchstart" in window ? "tilt" : "classic";
+  return loadSettings().inertia ? "classic" : "tilt";
 }
 
 type Google = {
@@ -51,14 +60,15 @@ export class CommunityUi {
         paint();
         onChange();
       });
-    const classic = mk("classic", "Classic");
-    const tilt = mk("tilt", "Tilt");
+    const tilt = mk("tilt", MODE_TAB_LABEL.tilt);
+    const classic = mk("classic", MODE_TAB_LABEL.classic);
     const paint = (): void => {
       classic.classList.toggle("active", this.boardMode === "classic");
       tilt.classList.toggle("active", this.boardMode === "tilt");
     };
     paint();
-    row.append(classic, tilt);
+    // Direct first — it's the default flight model, so it's where new runs land
+    row.append(tilt, classic);
     return row;
   }
 
@@ -357,10 +367,10 @@ export class CommunityUi {
 
   private statsRow(p: PlayerProfile): HTMLElement {
     const cells: Array<[string, string]> = [
-      ["Best (Tilt)", p.best.tilt.toLocaleString()],
-      ["Best (Classic)", p.best.classic.toLocaleString()],
-      ["World rank (Tilt)", p.rank?.tilt ? `#${p.rank.tilt}` : "0"],
-      ["World rank (Classic)", p.rank?.classic ? `#${p.rank.classic}` : "0"],
+      [`Best (${MODE_LABEL.tilt})`, p.best.tilt.toLocaleString()],
+      [`Best (${MODE_LABEL.classic})`, p.best.classic.toLocaleString()],
+      [`World rank (${MODE_LABEL.tilt})`, p.rank?.tilt ? `#${p.rank.tilt}` : "0"],
+      [`World rank (${MODE_LABEL.classic})`, p.rank?.classic ? `#${p.rank.classic}` : "0"],
       ["Runs", p.runs.toLocaleString()],
       ["Kills", p.totalKills.toLocaleString()],
       ["Longest run", fmtDuration(p.bestTime)],
@@ -622,7 +632,7 @@ export class CommunityUi {
             `<span class="rank">–</span>` +
               `<span class="flag">${f.country ? countryFlag(f.country) : "·"}</span>` +
               `<span class="name">${escapeHtml(f.callsign)}</span>` +
-              `<span class="pts dim">no ${this.boardMode} runs</span>`,
+              `<span class="pts dim">no ${MODE_LABEL[this.boardMode]} runs</span>`,
           );
           row.addEventListener("click", () => this.showPilot(f.callsign, () => this.showFriends()));
           table.appendChild(row);
