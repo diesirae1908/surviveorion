@@ -5,6 +5,7 @@
 //   ORION_SERVE_DIST=1 node ...      # also serve the production build (dist/)
 //   GOOGLE_CLIENT_ID=... node ...    # enable "Sign in with Google"
 //   CLERK_PUBLISHABLE_KEY=pk_... CLERK_SECRET_KEY=sk_...   # enable Clerk sign-in
+//   ORION_ADMIN_KEY=...              # unlock /admin dashboard + /api/admin/*
 //
 // Environment can also come from server/.env (KEY=value lines, not committed).
 
@@ -16,11 +17,14 @@ import { fileURLToPath } from "node:url";
 import "./env.mjs"; // loads server/.env before other modules read process.env
 import * as store from "./db.mjs";
 import { validateRun } from "./validate.mjs";
+import { qualifyingBadges } from "./badges.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const SERVE_DIST = process.env.ORION_SERVE_DIST === "1";
+// Set ORION_ADMIN_KEY to unlock /admin + /api/admin/* (analytics, feedback).
+const ADMIN_KEY = process.env.ORION_ADMIN_KEY ?? "";
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
 
 const CALLSIGN_RE = /^[A-Za-z0-9_\- ]{3,20}$/;
@@ -64,6 +68,17 @@ const authUser = (req) => {
 /** Real client IP (Render/other proxies set x-forwarded-for). */
 const clientIp = (req) =>
   (req.headers["x-forwarded-for"]?.split(",")[0] ?? req.socket.remoteAddress ?? "?").trim();
+
+const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
+
+/** Admin key check: Bearer header or ?key= param. 404s when no key is set. */
+const isAdmin = (req, url) => {
+  if (!ADMIN_KEY) return false;
+  const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? "");
+  const given = m?.[1] ?? url.searchParams.get("key") ?? "";
+  return given.length === ADMIN_KEY.length &&
+    crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ADMIN_KEY));
+};
 
 // --- rate limiting (in-memory, per key) ---
 
@@ -248,13 +263,41 @@ const routes = {
     if (err) return json(res, 422, { error: err });
 
     store.insertScore(user.id, run);
+    store.insertRun(user.id, { ...run, platform: cleanPlatform(body.platform) });
+
+    const worldRank = store.rankOf(user.id, { mode: run.mode });
+    // badge sweep: qualifying badges the pilot doesn't have yet
+    const career = store.userCareer(user.id);
+    const newBadges = qualifyingBadges(run, career, worldRank).filter((id) =>
+      store.awardBadge(user.id, id),
+    );
+
     json(res, 200, {
       best: store.getUserBest(user.id, run.mode),
-      worldRank: store.rankOf(user.id, { mode: run.mode }),
+      worldRank,
       countryRank: user.country
         ? store.rankOf(user.id, { country: user.country, mode: run.mode })
         : null,
+      newBadges,
     });
+  },
+
+  // Anonymous run telemetry (signed-in runs are logged via POST /api/scores).
+  // Analytics only — never touches the leaderboards.
+  "POST /api/runs": async (req, res) => {
+    if (!rateLimit(`runs:${clientIp(req)}`, 10)) return json(res, 429, { error: "slow down" });
+    const body = await readBody(req);
+    const run = {
+      score: body.score,
+      timeSurvived: body.timeSurvived,
+      kills: body.kills,
+      maxMultiplier: body.maxMultiplier,
+      mode: body.mode ?? "classic",
+    };
+    const err = validateRun(run);
+    if (err) return json(res, 422, { error: err });
+    store.insertRun(null, { ...run, platform: cleanPlatform(body.platform) });
+    json(res, 200, { ok: true });
   },
 
   "GET /api/leaderboard/world": (req, res, user, url) => {
@@ -324,9 +367,49 @@ const routes = {
       message,
       context,
     });
-    json(res, 200, { ok: true });
+    // signed-in reporters earn the DEBRIEFED badge
+    const newBadges = user && store.awardBadge(user.id, "debriefed") ? ["debriefed"] : [];
+    json(res, 200, { ok: true, newBadges });
+  },
+
+  // --- admin (requires ORION_ADMIN_KEY) ---
+
+  "GET /api/admin/stats": (req, res, user, url) => {
+    if (!isAdmin(req, url)) return json(res, 404, { error: "not found" });
+    json(res, 200, store.adminStats());
+  },
+
+  "GET /api/admin/feedback": (req, res, user, url) => {
+    if (!isAdmin(req, url)) return json(res, 404, { error: "not found" });
+    json(res, 200, { feedback: store.listFeedback(200) });
+  },
+
+  "GET /admin": (req, res, user, url) => {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(ADMIN_PAGE);
   },
 };
+
+// GET /api/players/:callsign — public pilot profile (stats + badges)
+function playerProfile(req, res, callsign) {
+  const target = store.getUserByCallsign(callsign);
+  if (!target) return json(res, 404, { error: "pilot not found" });
+  const career = store.userCareer(target.id);
+  json(res, 200, {
+    callsign: target.callsign,
+    country: target.country,
+    joinedAt: target.created_at,
+    best: {
+      classic: store.getUserBest(target.id, "classic"),
+      tilt: store.getUserBest(target.id, "tilt"),
+    },
+    runs: career.runs,
+    totalKills: career.totalKills,
+    totalTime: career.totalTime,
+    bestTime: career.bestTime,
+    badges: store.userBadges(target.id),
+  });
+}
 
 // GET /api/arenas/:code/leaderboard (dynamic segment, handled separately)
 function arenaLeaderboard(req, res, user, code, url) {
@@ -345,6 +428,121 @@ function arenaLeaderboard(req, res, user, code, url) {
     : null;
   json(res, 200, { arena: { code: arena.code, name: arena.name }, entries, me });
 }
+
+// --- admin dashboard (single self-contained page; data via /api/admin/*) ---
+
+const ADMIN_PAGE = /* html */ `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>ORION — mission control</title>
+<style>
+  body { margin: 0; padding: 24px; background: #08080f; color: #ffee88;
+         font: 14px/1.5 Georgia, serif; }
+  h1 { color: #ffd700; letter-spacing: .3em; font-size: 18px; text-transform: uppercase; }
+  h2 { color: #ffd700; letter-spacing: .15em; font-size: 13px; text-transform: uppercase;
+       border-bottom: 1px solid rgba(170,136,68,.4); padding-bottom: 6px; margin: 28px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .stat { background: rgba(26,26,42,.6); border: 1px solid rgba(170,136,68,.35);
+          padding: 10px 14px; border-radius: 4px; }
+  .stat .v { color: #ffd700; font-size: 20px; }
+  .stat .k { color: #8a7a55; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border-bottom: 1px solid rgba(170,136,68,.2); padding: 6px 10px; text-align: left;
+           vertical-align: top; }
+  th { color: #8a7a55; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  input { background: rgba(26,26,42,.85); border: 1px solid #aa8844; color: #ffee88;
+          font: inherit; padding: 10px 14px; width: 280px; }
+  button { background: #ffd700; border: 0; color: #08080f; font: inherit; padding: 10px 22px;
+           cursor: pointer; margin-left: 8px; }
+  .err { color: #ff4455; margin-top: 10px; }
+  .muted { color: #8a7a55; }
+  pre { white-space: pre-wrap; margin: 0; font: 12px/1.5 monospace; }
+</style>
+</head>
+<body>
+<h1>Orion mission control</h1>
+<div id="gate">
+  <p class="muted">Enter the admin key to load analytics.</p>
+  <input id="key" type="password" placeholder="admin key" autofocus>
+  <button onclick="go()">Open</button>
+  <div id="gate-err" class="err"></div>
+</div>
+<div id="dash" style="display:none"></div>
+<script>
+const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
+const secs = (s) => s == null ? "—" : s >= 60 ? Math.floor(s / 60) + "m " + Math.round(s % 60) + "s" : Math.round(s) + "s";
+const esc = (t) => String(t ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const stat = (k, v) => '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + "</div></div>";
+
+async function go() {
+  const key = document.getElementById("key").value.trim();
+  const auth = { headers: { Authorization: "Bearer " + key } };
+  const sRes = await fetch("/api/admin/stats", auth);
+  if (!sRes.ok) { document.getElementById("gate-err").textContent = "Wrong key (or ORION_ADMIN_KEY unset)."; return; }
+  const s = await sRes.json();
+  const fb = (await (await fetch("/api/admin/feedback", auth)).json()).feedback ?? [];
+  localStorage.setItem("orion.adminKey", key);
+  document.getElementById("gate").style.display = "none";
+  const d = document.getElementById("dash");
+  d.style.display = "";
+  d.innerHTML =
+    "<h2>Pilots</h2><div class='grid'>" +
+      stat("registered pilots", fmt(s.users.total)) +
+      stat("new this week", fmt(s.users.newThisWeek)) +
+      stat("new today", fmt(s.users.newToday)) +
+      stat("returning (&gt;1 run)", fmt(s.users.returningPlayers)) +
+    "</div>" +
+    "<h2>Runs</h2><div class='grid'>" +
+      stat("total runs", fmt(s.runs.total)) +
+      stat("anonymous runs", fmt(s.runs.anonymous)) +
+      stat("signed-in players", fmt(s.runs.signedInPlayers)) +
+      s.runs.modeSplit.map((m) => stat(m.mode + " runs", fmt(m.runs))).join("") +
+      s.runs.platformSplit.map((p) => stat((p.platform || "unknown") + " runs", fmt(p.runs))).join("") +
+    "</div>" +
+    "<h2>Game length</h2><div class='grid'>" +
+      stat("average", secs(s.gameLength.avg)) +
+      stat("median", secs(s.gameLength.median)) +
+      stat("range", secs(s.gameLength.min) + " – " + secs(s.gameLength.max)) +
+      Object.entries(s.gameLength.buckets).map(([k, v]) => stat(k, fmt(v))).join("") +
+    "</div>" +
+    "<h2>Score</h2><div class='grid'>" +
+      stat("average", fmt(s.score.avg)) + stat("median", fmt(s.score.median)) +
+      stat("p90", fmt(s.score.p90)) + stat("p99", fmt(s.score.p99)) +
+      stat("range", fmt(s.score.min) + " – " + fmt(s.score.max)) +
+    "</div>" +
+    "<h2>Combat</h2><div class='grid'>" +
+      stat("avg kills / run", fmt(s.combat.avgKills, 1)) +
+      stat("kills / minute", fmt(s.combat.killsPerMinute, 1)) +
+      stat("avg peak multiplier", "x" + fmt(s.combat.avgMaxMultiplier, 1)) +
+      stat("best multiplier", "x" + fmt(s.combat.bestMultiplier, 1)) +
+    "</div>" +
+    "<h2>Community</h2><div class='grid'>" +
+      stat("feedback reports", fmt(s.community.feedback)) +
+      stat("with email", fmt(s.community.feedbackWithEmail)) +
+      stat("arenas", fmt(s.community.arenas)) +
+      stat("badges awarded", fmt(s.community.badgesAwarded)) +
+    "</div>" +
+    "<h2>Badge holders</h2><table><tr><th>badge</th><th>holders</th></tr>" +
+      s.community.badgeCounts.map((b) => "<tr><td>" + esc(b.badge) + "</td><td>" + fmt(b.holders) + "</td></tr>").join("") +
+    "</table>" +
+    "<h2>Runs per day (last 14)</h2><table><tr><th>day</th><th>runs</th><th>signed-in players</th></tr>" +
+      s.runs.perDay.map((r) => "<tr><td>" + r.day + "</td><td>" + fmt(r.runs) + "</td><td>" + fmt(r.players) + "</td></tr>").join("") +
+    "</table>" +
+    "<h2>Recent feedback</h2><table><tr><th>when</th><th>pilot</th><th>email</th><th>message</th></tr>" +
+      fb.map((f) => "<tr><td class='muted'>" + new Date(f.createdAt).toLocaleString() + "</td><td>" +
+        esc(f.callsign ?? "anon") + "</td><td>" + esc(f.email ?? "") + "</td><td><pre>" +
+        esc(f.message) + "</pre><span class='muted'>" + esc(f.context) + "</span></td></tr>").join("") +
+    "</table>";
+}
+const saved = localStorage.getItem("orion.adminKey");
+if (saved) { document.getElementById("key").value = saved; go(); }
+document.getElementById("key").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+</script>
+</body>
+</html>`;
 
 // --- static file serving (production single-process mode) ---
 
@@ -376,6 +574,10 @@ const server = http.createServer(async (req, res) => {
     const arenaLb = /^\/api\/arenas\/([A-Za-z0-9]+)\/leaderboard$/.exec(url.pathname);
     if (req.method === "GET" && arenaLb) {
       return arenaLeaderboard(req, res, authUser(req), arenaLb[1], url);
+    }
+    const player = /^\/api\/players\/([^/]+)$/.exec(url.pathname);
+    if (req.method === "GET" && player) {
+      return playerProfile(req, res, decodeURIComponent(player[1]));
     }
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);

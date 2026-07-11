@@ -77,12 +77,33 @@ community buttons simply don't appear.
 - **Accounts** — callsign + password, Clerk sign-in (email/Google, see below),
   or direct Google sign-in. Country is guessed from the browser locale/timezone,
   always confirmable and editable in the profile — no external geolocation service.
+- **Badges** — 17 milestone awards (definitions in `server/badges.mjs`, display
+  data in `src/badges.ts`), from easy (First Flight, Space Dust — die inside
+  10s) through rare (Swarm Reaper — 1,000 kills in a run; Galaxy's Finest —
+  hold world #1) to career grinds (10,000 lifetime kills). Earned on score
+  submission, celebrated on the game-over screen, and shown as a collection on
+  the pilot profile (locked ones are dimmed with an unlock hint).
+- **Public pilot records** — every leaderboard row is clickable and opens that
+  pilot's read-only record (`GET /api/players/:callsign`): best scores, runs,
+  lifetime kills, and earned badges.
 - **Anti-cheat** — submissions are sanity-checked server-side against the game's
   scoring ceilings (`server/validate.mjs`, mirrors `SCORING` in `src/config.ts`)
   and rate-limited.
 
 Data lives in `server/orion.db` (SQLite via `node:sqlite`, zero npm dependencies;
 requires Node 22.5+).
+
+### Analytics & admin dashboard
+
+Every finished run is logged to a `runs` table — signed-in runs through
+`POST /api/scores`, anonymous runs through `POST /api/runs` (validated and
+rate-limited; analytics only, never the leaderboards). Set `ORION_ADMIN_KEY`
+in the environment (or `server/.env`) and open **`/admin`** for a dashboard:
+pilot counts, runs per day, game-length and score distributions
+(average/median/range/percentiles), kills per minute, classic-vs-tilt and
+touch-vs-desktop splits, badge holder counts, and all player feedback. The
+same data is available as JSON at `GET /api/admin/stats` and
+`GET /api/admin/feedback` (Bearer key or `?key=`).
 
 ## Deploy (surviveorion.com)
 
@@ -202,8 +223,9 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 | `src/audio.ts` | Procedural Web Audio SFX + music loop |
 | `src/ui.ts` | Menu / pause / game-over / tutorial overlays |
 | `src/tutorial.ts` | Flight-school sandbox: scripted beats over a spawner-free world |
-| `src/api.ts` | Community server client (auth, scores, arenas) |
-| `src/community.ts` | World Arena / arenas / sign-in screens |
+| `src/api.ts` | Community server client (auth, scores, arenas, badges) |
+| `src/community.ts` | World Arena / arenas / sign-in / pilot record screens |
+| `src/badges.ts` | Badge display metadata (ids mirror `server/badges.mjs`) |
 | `src/countries.ts` | Country list, flags, offline geo guess |
 | `server/` | Zero-dependency Node community server (http + sqlite) |
 
@@ -212,3 +234,4 @@ Music (Suno-generated, from the project's inspiration assets), one looping track
 - Menu: `public/music/empire-of-the-stars.mp3`
 - Gameplay: `public/music/empire-of-the-stars-battle.mp3` (alternate take of the same theme)
 - Game over: `public/music/fallen-honor.mp3`
+- Tutorial: synthesized live in `src/audio.ts` (chill ambient pads, no file)

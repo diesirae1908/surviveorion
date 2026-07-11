@@ -64,6 +64,29 @@ db.exec(`
     context TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
   );
+
+  -- Every finished run (signed-in or anonymous), for analytics only:
+  -- leaderboards keep reading the scores table.
+  CREATE TABLE IF NOT EXISTS runs (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    score INTEGER NOT NULL,
+    time_survived REAL NOT NULL,
+    kills INTEGER NOT NULL,
+    max_multiplier REAL NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'classic',
+    platform TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at);
+
+  -- Earned badges (see server/badges.mjs for the definitions).
+  CREATE TABLE IF NOT EXISTS badges (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    badge_id TEXT NOT NULL,
+    earned_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, badge_id)
+  );
 `);
 
 // Migration for databases created before Clerk support.
@@ -246,4 +269,187 @@ export function addFeedback({ userId = null, callsign = null, email = null, mess
     `INSERT INTO feedback (user_id, callsign, email, message, context, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
   ).run(userId, callsign, email, message, context, Date.now());
+}
+
+export function listFeedback(limit = 100) {
+  return db
+    .prepare(
+      `SELECT id, callsign, email, message, context, created_at AS createdAt
+       FROM feedback ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(limit);
+}
+
+// --- runs (analytics telemetry; leaderboards use the scores table) ---
+
+export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, mode, platform }) {
+  db.prepare(
+    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, platform, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    userId,
+    score,
+    timeSurvived,
+    kills,
+    maxMultiplier,
+    mode ?? "classic",
+    platform ?? "",
+    Date.now(),
+  );
+}
+
+/** Nth-percentile of a runs column (0..1), by sorted offset. */
+function runPercentile(column, p, total) {
+  if (!total) return 0;
+  const offset = Math.min(total - 1, Math.max(0, Math.floor((total - 1) * p)));
+  return (
+    db.prepare(`SELECT ${column} AS v FROM runs ORDER BY ${column} LIMIT 1 OFFSET ?`).get(offset)
+      ?.v ?? 0
+  );
+}
+
+/** Everything the admin dashboard shows, in one call. */
+export function adminStats() {
+  const now = Date.now();
+  const day = 24 * 3600 * 1000;
+
+  const totals = db
+    .prepare(
+      `SELECT COUNT(*) AS runs,
+              COUNT(DISTINCT user_id) AS signedInPlayers,
+              SUM(user_id IS NULL) AS anonRuns,
+              AVG(time_survived) AS avgTime,
+              MIN(time_survived) AS minTime,
+              MAX(time_survived) AS maxTime,
+              AVG(score) AS avgScore,
+              MIN(score) AS minScore,
+              MAX(score) AS maxScore,
+              AVG(kills) AS avgKills,
+              AVG(max_multiplier) AS avgMaxMultiplier,
+              MAX(max_multiplier) AS bestMultiplier
+       FROM runs`,
+    )
+    .get();
+  const n = totals.runs ?? 0;
+
+  const bucket = (lo, hi) =>
+    db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM runs WHERE time_survived >= ? AND time_survived < ?`,
+      )
+      .get(lo, hi).c;
+
+  const perDay = db
+    .prepare(
+      `SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS runs,
+              COUNT(DISTINCT user_id) AS players
+       FROM runs GROUP BY day ORDER BY day DESC LIMIT 14`,
+    )
+    .all();
+
+  const modeSplit = db
+    .prepare(`SELECT mode, COUNT(*) AS runs FROM runs GROUP BY mode`)
+    .all();
+  const platformSplit = db
+    .prepare(`SELECT platform, COUNT(*) AS runs FROM runs GROUP BY platform`)
+    .all();
+
+  const users = db
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(created_at > ?) AS newToday,
+              SUM(created_at > ?) AS newThisWeek
+       FROM users`,
+    )
+    .get(now - day, now - 7 * day);
+
+  const returning = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM (
+         SELECT user_id FROM runs WHERE user_id IS NOT NULL
+         GROUP BY user_id HAVING COUNT(*) > 1
+       )`,
+    )
+    .get().c;
+
+  const community = {
+    feedback: db.prepare(`SELECT COUNT(*) AS c FROM feedback`).get().c,
+    feedbackWithEmail: db
+      .prepare(`SELECT COUNT(*) AS c FROM feedback WHERE email IS NOT NULL`)
+      .get().c,
+    arenas: db.prepare(`SELECT COUNT(*) AS c FROM arenas`).get().c,
+    badgesAwarded: db.prepare(`SELECT COUNT(*) AS c FROM badges`).get().c,
+    badgeCounts: db
+      .prepare(`SELECT badge_id AS badge, COUNT(*) AS holders FROM badges GROUP BY badge_id ORDER BY holders DESC`)
+      .all(),
+  };
+
+  return {
+    users: { ...users, returningPlayers: returning },
+    runs: {
+      total: n,
+      anonymous: totals.anonRuns ?? 0,
+      signedInPlayers: totals.signedInPlayers ?? 0,
+      perDay,
+      modeSplit,
+      platformSplit,
+    },
+    gameLength: {
+      avg: totals.avgTime ?? 0,
+      median: runPercentile("time_survived", 0.5, n),
+      min: totals.minTime ?? 0,
+      max: totals.maxTime ?? 0,
+      buckets: {
+        "under 30s": bucket(0, 30),
+        "30-60s": bucket(30, 60),
+        "1-2m": bucket(60, 120),
+        "2-5m": bucket(120, 300),
+        "5m+": bucket(300, Number.MAX_SAFE_INTEGER),
+      },
+    },
+    score: {
+      avg: totals.avgScore ?? 0,
+      median: runPercentile("score", 0.5, n),
+      p90: runPercentile("score", 0.9, n),
+      p99: runPercentile("score", 0.99, n),
+      min: totals.minScore ?? 0,
+      max: totals.maxScore ?? 0,
+    },
+    combat: {
+      avgKills: totals.avgKills ?? 0,
+      killsPerMinute:
+        totals.avgTime > 0 ? (totals.avgKills ?? 0) / (totals.avgTime / 60) : 0,
+      avgMaxMultiplier: totals.avgMaxMultiplier ?? 0,
+      bestMultiplier: totals.bestMultiplier ?? 0,
+    },
+    community,
+  };
+}
+
+// --- badges ---
+
+/** Award a badge; returns true if it was newly earned. */
+export function awardBadge(userId, badgeId) {
+  const r = db
+    .prepare(`INSERT OR IGNORE INTO badges (user_id, badge_id, earned_at) VALUES (?, ?, ?)`)
+    .run(userId, badgeId, Date.now());
+  return r.changes > 0;
+}
+
+export const userBadges = (userId) =>
+  db
+    .prepare(`SELECT badge_id AS id, earned_at AS earnedAt FROM badges WHERE user_id = ? ORDER BY earned_at`)
+    .all(userId);
+
+/** Career aggregates used by cumulative badges and public profiles. */
+export function userCareer(userId) {
+  return db
+    .prepare(
+      `SELECT COUNT(*) AS runs,
+              COALESCE(SUM(kills), 0) AS totalKills,
+              COALESCE(SUM(time_survived), 0) AS totalTime,
+              COALESCE(MAX(time_survived), 0) AS bestTime
+       FROM scores WHERE user_id = ?`,
+    )
+    .get(userId);
 }

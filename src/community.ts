@@ -1,7 +1,8 @@
 // Community screens: sign-in, World Arena leaderboard, private arenas.
 // Rendered into the same #ui overlay as the menu screens.
 
-import { Api, ApiError, type BoardMode, type LeaderboardEntry } from "./api";
+import { Api, ApiError, type BoardMode, type LeaderboardEntry, type PlayerProfile } from "./api";
+import { BADGES, TIER_LABEL } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 
 const BOARD_MODE_KEY = "orion.boardMode";
@@ -341,7 +342,7 @@ export class CommunityUi {
     screen.appendChild(skip);
   }
 
-  /** Profile: change callsign/country, sign out. */
+  /** Profile: change callsign/country, badge collection, sign out. */
   showProfile(): void {
     const user = this.api.user;
     if (!user) return this.showAuth(() => this.onBack());
@@ -360,6 +361,16 @@ export class CommunityUi {
         });
       }),
     );
+
+    // service record + badge collection (locked ones show how to earn them)
+    const record = this.el("div", "panel");
+    body.appendChild(record);
+    void this.guard(error, async () => {
+      const p = await this.api.playerProfile(user.callsign);
+      record.appendChild(this.statsRow(p));
+      record.appendChild(this.badgeGrid(p.badges, true));
+    });
+
     body.appendChild(
       this.button("Sign out", false, () => {
         const clerk = (window as unknown as { Clerk?: Clerk }).Clerk;
@@ -371,6 +382,83 @@ export class CommunityUi {
       }),
     );
     this.backRow(screen);
+  }
+
+  /** Public read-only pilot profile, opened from any leaderboard row. */
+  showPilot(callsign: string, onBack: () => void): void {
+    const { screen, body, error } = this.screen("PILOT RECORD");
+    body.appendChild(this.el("div", "field-hint", "Loading…"));
+    void this.guard(error, async () => {
+      const p = await this.api.playerProfile(callsign);
+      body.innerHTML = "";
+      body.appendChild(
+        this.el(
+          "div",
+          "pilot-title",
+          `${p.country ? countryFlag(p.country) + " " : ""}<b>${escapeHtml(p.callsign)}</b>`,
+        ),
+      );
+      body.appendChild(this.statsRow(p));
+      body.appendChild(this.badgeGrid(p.badges, false));
+    });
+    this.backRow(screen, onBack);
+  }
+
+  private statsRow(p: PlayerProfile): HTMLElement {
+    const fmtTime = (s: number): string =>
+      s >= 3600
+        ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+        : `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+    const cells: Array<[string, string]> = [
+      ["Best (Tilt)", p.best.tilt.toLocaleString()],
+      ["Best (Classic)", p.best.classic.toLocaleString()],
+      ["Runs", p.runs.toLocaleString()],
+      ["Kills", p.totalKills.toLocaleString()],
+      ["Longest run", fmtTime(p.bestTime)],
+    ];
+    return this.el(
+      "div",
+      "stats pilot-stats",
+      cells
+        .filter(([, v]) => v !== "0")
+        .map(([k, v]) => `<div><span class="label">${k}</span><span class="value">${v}</span></div>`)
+        .join(""),
+    );
+  }
+
+  /** Badge collection: earned bright; locked dimmed (with hints on own profile). */
+  private badgeGrid(earned: Array<{ id: string; earnedAt: number }>, showLocked: boolean): HTMLElement {
+    const earnedIds = new Set(earned.map((b) => b.id));
+    const wrap = this.el("div", "badge-wrap");
+    wrap.appendChild(
+      this.el("div", "manual-title", `BADGES — ${earnedIds.size} / ${BADGES.length}`),
+    );
+    const grid = this.el("div", "badge-grid");
+    const detail = this.el("div", "field-hint center badge-detail", "Tap a badge for details.");
+    for (const b of BADGES) {
+      const has = earnedIds.has(b.id);
+      if (!has && !showLocked) continue;
+      const cell = this.el(
+        "div",
+        `badge${has ? "" : " locked"}`,
+        `<span class="badge-icon">${has ? b.icon : "❔"}</span>` +
+          `<span class="badge-name">${has ? b.name : "???"}</span>` +
+          `<span class="badge-tier">${TIER_LABEL[b.tier]}</span>`,
+      );
+      cell.title = has ? `${b.name} — ${b.desc}` : `Locked — ${b.desc}`;
+      cell.addEventListener("click", () => {
+        detail.innerHTML = has
+          ? `${b.icon} <b>${b.name}</b> — ${b.desc}`
+          : `❔ <b>Locked</b> — ${b.desc}`;
+      });
+      grid.appendChild(cell);
+    }
+    if (!showLocked && earnedIds.size === 0) {
+      grid.appendChild(this.el("div", "field-hint", "No badges yet."));
+    }
+    wrap.appendChild(grid);
+    wrap.appendChild(detail);
+    return wrap;
   }
 
   // --- world arena ---
@@ -386,7 +474,7 @@ export class CommunityUi {
       table.innerHTML = `<div class="field-hint">Loading…</div>`;
       void this.guard(error, async () => {
         const data = await this.api.worldLeaderboard(filter.value || undefined, this.boardMode);
-        this.renderBoard(table, data.entries, data.me);
+        this.renderBoard(table, data.entries, data.me, () => this.showWorldArena());
       });
     };
     body.append(this.modeTabs(load), filter, table);
@@ -405,6 +493,7 @@ export class CommunityUi {
     table: HTMLElement,
     entries: LeaderboardEntry[],
     me: { rank: number; best: number } | null,
+    backTo: () => void,
   ): void {
     table.innerHTML = "";
     if (entries.length === 0) {
@@ -415,12 +504,13 @@ export class CommunityUi {
       const isMe = this.api.user?.callsign === e.callsign;
       const row = this.el(
         "div",
-        `board-row${isMe ? " me" : ""}`,
+        `board-row link${isMe ? " me" : ""}`,
         `<span class="rank">${i + 1}</span>` +
           `<span class="flag" title="${countryName(e.country)}">${e.country ? countryFlag(e.country) : "·"}</span>` +
           `<span class="name">${escapeHtml(e.callsign)}</span>` +
           `<span class="pts">${e.best.toLocaleString()}</span>`,
       );
+      row.addEventListener("click", () => this.showPilot(e.callsign, backTo));
       table.appendChild(row);
     });
     if (me && me.rank > entries.length) {
@@ -506,7 +596,7 @@ export class CommunityUi {
       void this.guard(error, async () => {
         const data = await this.api.arenaLeaderboard(code, this.boardMode);
         heading.textContent = data.arena.name.toUpperCase();
-        this.renderBoard(table, data.entries, data.me);
+        this.renderBoard(table, data.entries, data.me, () => this.showArenaBoard(code));
       });
     };
     body.append(this.modeTabs(load), table);

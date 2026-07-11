@@ -1,6 +1,7 @@
 import "./style.css";
 import { Api } from "./api";
 import { AudioSystem } from "./audio";
+import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
 import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_NAMES, TILT_MAX_DEG } from "./config";
 import { countryFlag, countryName } from "./countries";
@@ -345,17 +346,19 @@ function showGameOverUi(): void {
 /** Push the finished run to the leaderboards and show the resulting ranks. */
 function submitRun(): void {
   if (!api.online) return;
-  if (!api.signedIn) {
-    ui.setGameOverRank(`<span class="dim">Sign in from the menu to enter the World Arena</span>`);
-    return;
-  }
   const run = {
     score: Math.floor(world.score),
     timeSurvived: world.time,
     kills: world.kills,
     maxMultiplier: world.maxMultiplier,
     mode: runMode,
+    platform: isTouchDevice() ? "touch" : "desktop",
   };
+  if (!api.signedIn) {
+    ui.setGameOverRank(`<span class="dim">Sign in from the menu to enter the World Arena</span>`);
+    void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget
+    return;
+  }
   api
     .submitScore(run)
     .then((r) => {
@@ -365,6 +368,10 @@ function submitRun(): void {
         parts.push(`${countryFlag(country)} ${countryName(country)} <b>#${r.countryRank}</b>`);
       }
       ui.setGameOverRank(parts.join(" &nbsp;·&nbsp; "));
+      const earned = (r.newBadges ?? [])
+        .map((id) => badgeInfo(id))
+        .filter((b): b is NonNullable<typeof b> => !!b);
+      ui.showEarnedBadges(earned);
     })
     .catch(() => ui.setGameOverRank(`<span class="dim">Score submission failed</span>`));
 }

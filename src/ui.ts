@@ -615,7 +615,10 @@ export class Ui {
    */
   showTutorialMessage(html: string, onDismiss: () => void): void {
     document.querySelector(".tutorial-catcher")?.remove();
-    this.setTutorialHint(html);
+    // hide the reminder banner while the modal is up — otherwise the same
+    // text shows twice; it reappears (via setTutorialHint) on dismiss
+    const hint = document.getElementById("tutorial-hint");
+    if (hint) hint.style.display = "none";
 
     const catcher = this.el("div", "tutorial-catcher", "");
     const card = this.el("div", "tutorial-modal", html);
@@ -623,6 +626,8 @@ export class Ui {
     catcher.appendChild(card);
     catcher.addEventListener("pointerdown", () => {
       catcher.remove();
+      if (hint) hint.style.display = "";
+      this.setTutorialHint(html);
       onDismiss();
     });
     this.root.appendChild(catcher);
@@ -687,5 +692,23 @@ export class Ui {
   setGameOverRank(html: string): void {
     const line = document.getElementById("rank-line");
     if (line) line.innerHTML = html;
+  }
+
+  /** Celebrate freshly earned badges on the game-over screen. */
+  showEarnedBadges(badges: Array<{ icon: string; name: string }>): void {
+    const rank = document.getElementById("rank-line");
+    if (!rank || badges.length === 0) return;
+    const wrap = this.el("div", "badge-earned", "");
+    wrap.appendChild(this.el("div", "badge-earned-title", "BADGE EARNED"));
+    for (const b of badges) {
+      wrap.appendChild(
+        this.el(
+          "div",
+          "badge-earned-row",
+          `<span class="badge-icon">${b.icon}</span> ${b.name}`,
+        ),
+      );
+    }
+    rank.insertAdjacentElement("afterend", wrap);
   }
 }

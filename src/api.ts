@@ -35,6 +35,21 @@ export interface SubmitResult {
   best: number;
   worldRank: number | null;
   countryRank: number | null;
+  /** Badge ids earned by this run (see src/badges.ts for display data). */
+  newBadges?: string[];
+}
+
+/** Public pilot profile (GET /api/players/:callsign). */
+export interface PlayerProfile {
+  callsign: string;
+  country: string;
+  joinedAt: number;
+  best: { classic: number; tilt: number };
+  runs: number;
+  totalKills: number;
+  totalTime: number;
+  bestTime: number;
+  badges: Array<{ id: string; earnedAt: number }>;
 }
 
 export class ApiError extends Error {
@@ -170,8 +185,25 @@ export class Api {
     kills: number;
     maxMultiplier: number;
     mode: BoardMode;
+    platform: string;
   }): Promise<SubmitResult> {
     return this.request<SubmitResult>("POST", "/api/scores", run);
+  }
+
+  /** Anonymous run telemetry (analytics only — signed-in runs go via submitScore). */
+  logRun(run: {
+    score: number;
+    timeSurvived: number;
+    kills: number;
+    maxMultiplier: number;
+    mode: BoardMode;
+    platform: string;
+  }): Promise<{ ok: boolean }> {
+    return this.request("POST", "/api/runs", run);
+  }
+
+  playerProfile(callsign: string): Promise<PlayerProfile> {
+    return this.request("GET", `/api/players/${encodeURIComponent(callsign)}`);
   }
 
   worldLeaderboard(country?: string, mode: BoardMode = "classic"): Promise<LeaderboardResponse> {
