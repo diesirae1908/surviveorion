@@ -163,7 +163,7 @@ export class Ui {
 
     const rows = touchDevice
       ? [
-          ["Steer &amp; thrust", "drag on the left half"],
+          ["Fly", "drag on the left half — the ship flies where you point"],
           ["Boost", "hold the right half"],
           ["Pause", "the II button, top right"],
         ]

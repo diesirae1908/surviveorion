@@ -1,9 +1,16 @@
-import { clamp, clamp01 } from "./math";
+import { clamp01 } from "./math";
 
 export interface InputState {
   turn: number; // -1..1 (positive = turn right / clockwise)
   thrust: number; // 0..1
   boost: boolean;
+  /**
+   * Touch: desired world-space heading (rad). The ship auto-rotates toward it
+   * and `thrust` is the stick magnitude, so any drag direction accelerates —
+   * a thumb arcing sideways-and-down still means "go that way", unlike the
+   * old drag-up-to-thrust mapping. null on keyboard.
+   */
+  heading: number | null;
 }
 
 export interface TouchStickView {
@@ -16,6 +23,7 @@ export interface TouchStickView {
 }
 
 const STICK_RANGE_PX = 60;
+const STICK_DEADZONE_PX = 10;
 
 /**
  * Keyboard + touch input. Keys are sampled per fixed tick from held state, so
@@ -70,6 +78,18 @@ export class Input {
     for (const t of Array.from(e.changedTouches)) {
       if (t.identifier === this.stickTouchId) {
         this.stickPos = { x: t.clientX, y: t.clientY };
+        // follow-origin: if the finger overshoots the stick range, drag the
+        // origin along so direction changes stay instantly responsive
+        const dx = this.stickPos.x - this.stickOrigin.x;
+        const dy = this.stickPos.y - this.stickOrigin.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > STICK_RANGE_PX) {
+          const k = STICK_RANGE_PX / dist;
+          this.stickOrigin = {
+            x: this.stickPos.x - dx * k,
+            y: this.stickPos.y - dy * k,
+          };
+        }
       }
     }
   };
@@ -86,6 +106,7 @@ export class Input {
     let turn = 0;
     let thrust = 0;
     let boost = false;
+    let heading: number | null = null;
 
     if (this.keys.has("ArrowLeft") || this.keys.has("KeyA")) turn -= 1;
     if (this.keys.has("ArrowRight") || this.keys.has("KeyD")) turn += 1;
@@ -95,12 +116,19 @@ export class Input {
     if (this.stickTouchId !== null) {
       const dx = this.stickPos.x - this.stickOrigin.x;
       const dy = this.stickPos.y - this.stickOrigin.y;
-      turn = clamp(dx / STICK_RANGE_PX, -1, 1);
-      thrust = clamp01(-dy / STICK_RANGE_PX); // drag up = thrust
+      const dist = Math.hypot(dx, dy);
+      turn = 0;
+      if (dist > STICK_DEADZONE_PX) {
+        // screen y grows downward, world y grows upward
+        heading = Math.atan2(-dy, dx);
+        thrust = clamp01((dist - STICK_DEADZONE_PX) / (STICK_RANGE_PX - STICK_DEADZONE_PX));
+      } else {
+        thrust = 0;
+      }
     }
     if (this.boostTouchId !== null) boost = true;
 
-    return { turn, thrust, boost };
+    return { turn, thrust, boost, heading };
   }
 
   /** For rendering the virtual joystick overlay. */

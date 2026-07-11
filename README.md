@@ -121,8 +121,8 @@ asked to confirm their country after the first sign-in.
 
 | Action | Desktop | Touch |
 | --- | --- | --- |
-| Thrust | `W` / `↑` | drag up on left half |
-| Turn | `A` `D` / `←` `→` | drag sideways on left half |
+| Thrust | `W` / `↑` | drag on left half — the ship rotates toward the drag direction and thrusts; drag distance = power |
+| Turn | `A` `D` / `←` `→` | (same drag — direction is the heading) |
 | Boost | `Space` (hold) | hold right half |
 | Pause | `Esc` / `P` | pause button |
 

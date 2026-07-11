@@ -46,7 +46,16 @@ export function updateShip(world: World, input: InputState, dt: number): void {
     return;
   }
 
-  s.angle += -input.turn * SHIP.rotateSpeed * dt;
+  if (input.heading !== null) {
+    // touch: rotate toward the stick direction (shortest way around)
+    let diff = input.heading - s.angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    const maxTurn = SHIP.rotateSpeed * dt;
+    s.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
+  } else {
+    s.angle += -input.turn * SHIP.rotateSpeed * dt;
+  }
 
   const fx = Math.cos(s.angle);
   const fy = Math.sin(s.angle);

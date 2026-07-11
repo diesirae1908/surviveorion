@@ -371,6 +371,7 @@ Object.defineProperty(window, "__orion", {
             turn: override?.turn ?? sample.turn,
             thrust: override?.thrust ?? sample.thrust,
             boost: override?.boost ?? sample.boost,
+            heading: override ? null : sample.heading,
           },
           FIXED_DT,
         );
