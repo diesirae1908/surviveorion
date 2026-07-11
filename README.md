@@ -56,6 +56,8 @@ community buttons simply don't appear.
 ## Community
 
 - **World Arena** — global leaderboard (best run per pilot), filterable by country.
+  Runs are tagged by control scheme (`classic` = keyboard/stick, `tilt` = phone
+  tilt controls) and every leaderboard ranks the two modes separately.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
 - **Accounts** — callsign + password, Clerk sign-in (email/Google, see below),
   or direct Google sign-in. Country is guessed from the browser locale/timezone,
@@ -136,6 +138,21 @@ full-screen app with its own icon (`public/manifest.webmanifest` +
 the canvas tracks `visualViewport` resizes (iOS browser chrome, rotation),
 and the page blocks pinch/double-tap zoom.
 
+Phones default to **tilt controls** (Tilt to Live style): the first launch
+offers to enable them — lean the phone to fly, touch and hold anywhere to
+boost. Tilt maps directly to velocity (no inertia, `TILT` in `src/config.ts`),
+so tilt runs compete on their own leaderboards, separate from classic
+keyboard/stick runs. The virtual stick (drag left half to fly, hold right half
+to boost) remains as a fallback and a settings toggle, and counts as classic.
+Desktop keyboard play is unchanged. Tilt needs the motion-sensor permission on
+iOS (requested from the enable tap) and a secure context, so test it against a
+deployed build rather than plain-HTTP LAN dev.
+
+Settings also has an **Inertia** toggle for classic controls: OFF switches
+keyboard/stick to the same direct-velocity physics as tilt (no drift, instant
+stop), and those runs score on the Tilt leaderboard to keep the classic board
+honest.
+
 ## Structure
 
 All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
@@ -143,6 +160,8 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 | Module | Role (Unity counterpart) |
 | --- | --- |
 | `src/ship.ts` | Ship physics + boost (`ShipController`) |
+| `src/input.ts` | Keyboard, virtual stick, and tilt input sampling |
+| `src/tilt.ts` | Device-orientation sensor: iOS permission, calibration, axis remap |
 | `src/physics.ts` | Arena bounds clamp, circle collision |
 | `src/enemies.ts` | Drones, difficulty ramps, formations (`EnemyDrone`, `EnemySpawner`) |
 | `src/mines.ts` | Floating mines: spawning, arming, chain explosions |

@@ -26,6 +26,16 @@ export const SHIP = {
   deathKnockback: 12,
 };
 
+// Tilt controls (mobile): tilt maps directly to velocity, Tilt to Live style.
+// No inertia — the ship goes where the phone leans, so runs are tagged "tilt"
+// and ranked on their own leaderboards.
+export const TILT = {
+  deadzoneDeg: 3, // resting-hand jitter absorbed here
+  maxTiltDeg: 22, // full speed at this lean
+  response: 14, // 1/s exponential convergence of velocity to target (feels instant, not jittery)
+  rotateSpeed: (720 * Math.PI) / 180, // hull turns to face travel fast enough to track flicks
+};
+
 export const DRONE = {
   baseSpeed: 1.8,
   radius: 0.28, // scaled by drone size

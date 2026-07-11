@@ -241,28 +241,34 @@ const routes = {
       timeSurvived: body.timeSurvived,
       kills: body.kills,
       maxMultiplier: body.maxMultiplier,
+      // pre-tilt clients don't send a mode; their runs are classic by definition
+      mode: body.mode ?? "classic",
     };
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
 
     store.insertScore(user.id, run);
     json(res, 200, {
-      best: store.getUserBest(user.id),
-      worldRank: store.rankOf(user.id, {}),
-      countryRank: user.country ? store.rankOf(user.id, { country: user.country }) : null,
+      best: store.getUserBest(user.id, run.mode),
+      worldRank: store.rankOf(user.id, { mode: run.mode }),
+      countryRank: user.country
+        ? store.rankOf(user.id, { country: user.country, mode: run.mode })
+        : null,
     });
   },
 
   "GET /api/leaderboard/world": (req, res, user, url) => {
     const country = url.searchParams.get("country")?.toUpperCase() || null;
     if (country && !/^[A-Z]{2}$/.test(country)) return json(res, 400, { error: "invalid country" });
+    const mode = url.searchParams.get("mode") ?? "classic";
+    if (!["classic", "tilt"].includes(mode)) return json(res, 400, { error: "invalid mode" });
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
-    const entries = store.leaderboard({ country, limit });
+    const entries = store.leaderboard({ country, mode, limit });
     const me =
-      user && store.getUserBest(user.id)
+      user && store.getUserBest(user.id, mode)
         ? {
-            rank: store.rankOf(user.id, { country }),
-            best: store.getUserBest(user.id),
+            rank: store.rankOf(user.id, { country, mode }),
+            best: store.getUserBest(user.id, mode),
             inScope: !country || user.country === country,
           }
         : null;
@@ -298,14 +304,19 @@ const routes = {
 };
 
 // GET /api/arenas/:code/leaderboard (dynamic segment, handled separately)
-function arenaLeaderboard(req, res, user, code) {
+function arenaLeaderboard(req, res, user, code, url) {
   if (!user) return json(res, 401, { error: "not signed in" });
   const arena = store.getArenaByCode(code);
   if (!arena) return json(res, 404, { error: "arena not found" });
   if (!store.isArenaMember(arena.id, user.id)) return json(res, 403, { error: "not a member" });
-  const entries = store.leaderboard({ arenaId: arena.id, limit: 100 });
-  const me = store.getUserBest(user.id)
-    ? { rank: store.rankOf(user.id, { arenaId: arena.id }), best: store.getUserBest(user.id) }
+  const mode = url.searchParams.get("mode") ?? "classic";
+  if (!["classic", "tilt"].includes(mode)) return json(res, 400, { error: "invalid mode" });
+  const entries = store.leaderboard({ arenaId: arena.id, mode, limit: 100 });
+  const me = store.getUserBest(user.id, mode)
+    ? {
+        rank: store.rankOf(user.id, { arenaId: arena.id, mode }),
+        best: store.getUserBest(user.id, mode),
+      }
     : null;
   json(res, 200, { arena: { code: arena.code, name: arena.name }, entries, me });
 }
@@ -339,7 +350,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const arenaLb = /^\/api\/arenas\/([A-Za-z0-9]+)\/leaderboard$/.exec(url.pathname);
     if (req.method === "GET" && arenaLb) {
-      return arenaLeaderboard(req, res, authUser(req), arenaLb[1]);
+      return arenaLeaderboard(req, res, authUser(req), arenaLb[1], url);
     }
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);

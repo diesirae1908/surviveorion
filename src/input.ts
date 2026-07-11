@@ -1,4 +1,7 @@
-import { clamp01 } from "./math";
+import { clamp01, type Vec2 } from "./math";
+import { TiltControl } from "./tilt";
+
+export type ControlMode = "stick" | "tilt";
 
 export interface InputState {
   turn: number; // -1..1 (positive = turn right / clockwise)
@@ -11,6 +14,18 @@ export interface InputState {
    * old drag-up-to-thrust mapping. null on keyboard.
    */
   heading: number | null;
+  /**
+   * Tilt mode: desired velocity as a fraction of max speed, world axes.
+   * When set, the ship flies Tilt to Live style (no inertia) and
+   * turn/thrust/heading are ignored. null in classic (keyboard/stick) mode.
+   */
+  moveVector: Vec2 | null;
+  /**
+   * Classic-mode inertia toggle (settings). When false, keyboard/stick runs
+   * use direct velocity control (tilt rules) — such runs score as "tilt".
+   * Ignored in tilt mode, which is always direct.
+   */
+  inertia: boolean;
 }
 
 export interface TouchStickView {
@@ -37,6 +52,12 @@ export class Input {
   private stickPos = { x: 0, y: 0 };
   touchUsed = false;
 
+  readonly tilt = new TiltControl();
+  /** Player preference; tilt only takes effect once the sensor is ready. */
+  controlMode: ControlMode = "stick";
+  /** Mirrors the settings toggle (main.ts keeps it in sync). */
+  inertia = true;
+
   onPause: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -57,11 +78,19 @@ export class Input {
     canvas.addEventListener("touchcancel", this.onTouchEnd, { passive: false });
   }
 
+  /** Tilt steers the ship, so touch is only used for boost (and pause). */
+  get tiltActive(): boolean {
+    return this.controlMode === "tilt" && this.tilt.ready;
+  }
+
   private onTouchStart = (e: TouchEvent): void => {
     e.preventDefault();
     this.touchUsed = true;
     for (const t of Array.from(e.changedTouches)) {
-      if (t.clientX < window.innerWidth / 2) {
+      if (this.tiltActive) {
+        // tilt mode: hold anywhere on screen to boost
+        if (this.boostTouchId === null) this.boostTouchId = t.identifier;
+      } else if (t.clientX < window.innerWidth / 2) {
         if (this.stickTouchId === null) {
           this.stickTouchId = t.identifier;
           this.stickOrigin = { x: t.clientX, y: t.clientY };
@@ -107,11 +136,18 @@ export class Input {
     let thrust = 0;
     let boost = false;
     let heading: number | null = null;
+    let moveVector: Vec2 | null = null;
 
     if (this.keys.has("ArrowLeft") || this.keys.has("KeyA")) turn -= 1;
     if (this.keys.has("ArrowRight") || this.keys.has("KeyD")) turn += 1;
     if (this.keys.has("ArrowUp") || this.keys.has("KeyW")) thrust = 1;
     if (this.keys.has("Space")) boost = true;
+
+    if (this.tiltActive) {
+      moveVector = this.tilt.vector();
+      if (this.boostTouchId !== null) boost = true;
+      return { turn: 0, thrust: 0, boost, heading: null, moveVector, inertia: this.inertia };
+    }
 
     if (this.stickTouchId !== null) {
       const dx = this.stickPos.x - this.stickOrigin.x;
@@ -128,13 +164,13 @@ export class Input {
     }
     if (this.boostTouchId !== null) boost = true;
 
-    return { turn, thrust, boost, heading };
+    return { turn, thrust, boost, heading, moveVector, inertia: this.inertia };
   }
 
-  /** For rendering the virtual joystick overlay. */
+  /** For rendering the virtual joystick overlay (hidden in tilt mode). */
   getTouchView(): TouchStickView {
     return {
-      active: this.stickTouchId !== null,
+      active: !this.tiltActive && this.stickTouchId !== null,
       originX: this.stickOrigin.x,
       originY: this.stickOrigin.y,
       stickX: this.stickPos.x,

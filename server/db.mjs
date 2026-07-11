@@ -35,6 +35,7 @@ db.exec(`
     time_survived REAL NOT NULL,
     kills INTEGER NOT NULL,
     max_multiplier REAL NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'classic',
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id, score DESC);
@@ -59,6 +60,13 @@ db.exec(`
 try {
   db.exec(`ALTER TABLE users ADD COLUMN clerk_sub TEXT`);
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk ON users(clerk_sub)`);
+} catch {
+  // column already exists
+}
+
+// Migration for databases created before tilt controls (per-mode leaderboards).
+try {
+  db.exec(`ALTER TABLE scores ADD COLUMN mode TEXT NOT NULL DEFAULT 'classic'`);
 } catch {
   // column already exists
 }
@@ -128,28 +136,30 @@ export const deleteSession = (token) => db.prepare(`DELETE FROM sessions WHERE t
 
 // --- scores ---
 
-export function insertScore(userId, { score, timeSurvived, kills, maxMultiplier }) {
+export function insertScore(userId, { score, timeSurvived, kills, maxMultiplier, mode }) {
   db.prepare(
-    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(userId, score, timeSurvived, kills, maxMultiplier, Date.now());
+    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "classic", Date.now());
 }
 
-export const getUserBest = (userId) =>
-  db.prepare(`SELECT MAX(score) AS best FROM scores WHERE user_id = ?`).get(userId)?.best ?? 0;
+export const getUserBest = (userId, mode = "classic") =>
+  db
+    .prepare(`SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND mode = ?`)
+    .get(userId, mode)?.best ?? 0;
 
-/** Best score per user, ranked. Optional country filter and arena scope. */
-export function leaderboard({ country = null, arenaId = null, limit = 100 }) {
+/** Best score per user, ranked. Scoped by control mode; optional country/arena. */
+export function leaderboard({ country = null, arenaId = null, mode = "classic", limit = 100 }) {
   const joins = arenaId ? `JOIN arena_members am ON am.user_id = u.id AND am.arena_id = ?` : "";
   const where = country ? `WHERE u.country = ?` : "";
-  const params = [...(arenaId ? [arenaId] : []), ...(country ? [country] : []), limit];
+  const params = [mode, ...(arenaId ? [arenaId] : []), ...(country ? [country] : []), limit];
   return db
     .prepare(
       `SELECT u.id AS userId, u.callsign, u.country,
               MAX(s.score) AS best, COUNT(s.id) AS runs,
               MAX(s.time_survived) AS bestTime
        FROM users u
-       JOIN scores s ON s.user_id = u.id
+       JOIN scores s ON s.user_id = u.id AND s.mode = ?
        ${joins} ${where}
        GROUP BY u.id
        ORDER BY best DESC, MIN(s.created_at) ASC
@@ -159,17 +169,17 @@ export function leaderboard({ country = null, arenaId = null, limit = 100 }) {
 }
 
 /** 1-based rank of a user's best within a scope (null if no scores). */
-export function rankOf(userId, { country = null, arenaId = null }) {
-  const best = getUserBest(userId);
+export function rankOf(userId, { country = null, arenaId = null, mode = "classic" }) {
+  const best = getUserBest(userId, mode);
   if (!best) return null;
   const joins = arenaId ? `JOIN arena_members am ON am.user_id = u.id AND am.arena_id = ?` : "";
   const where = country ? `AND u.country = ?` : "";
-  const params = [...(arenaId ? [arenaId] : []), ...(country ? [country] : []), best];
+  const params = [mode, ...(arenaId ? [arenaId] : []), ...(country ? [country] : []), best];
   const row = db
     .prepare(
       `SELECT COUNT(*) AS ahead FROM (
          SELECT u.id, MAX(s.score) AS b FROM users u
-         JOIN scores s ON s.user_id = u.id
+         JOIN scores s ON s.user_id = u.id AND s.mode = ?
          ${joins}
          WHERE 1=1 ${where}
          GROUP BY u.id

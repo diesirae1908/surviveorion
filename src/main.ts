@@ -9,7 +9,15 @@ import { Input } from "./input";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
-import { loadBestScore, loadSettings, saveBestScore, saveSettings } from "./save";
+import {
+  loadBestScore,
+  loadControlPrefs,
+  loadSettings,
+  saveBestScore,
+  saveControlPrefs,
+  saveSettings,
+} from "./save";
+import { TiltControl } from "./tilt";
 import type { World } from "./types";
 import { Ui } from "./ui";
 
@@ -22,10 +30,13 @@ const audio = new AudioSystem();
 const particles = new Particles();
 const popups = new Popups();
 const settings = loadSettings();
+const controls = loadControlPrefs();
 
 let state: AppState = "menu";
 let world: World = createWorld(renderer.viewW, renderer.viewH); // menu backdrop (not ticked)
 let bestScore = loadBestScore();
+/** Control scheme locked at run start; tags the score submission. */
+let runMode: "classic" | "tilt" = "classic";
 let accumulator = 0;
 let uiTime = 0;
 let fx: TransitionFx | null = null; // cinematic overlay (warp / flash / death veil)
@@ -43,6 +54,54 @@ audio.setMusic(settings.music);
 
 const api = new Api();
 
+// --- tilt controls (mobile) ---
+
+input.controlMode = controls.mode;
+input.inertia = settings.inertia;
+if (controls.tiltNeutral) input.tilt.setNeutral(controls.tiltNeutral);
+if (controls.mode === "tilt") {
+  if (!TiltControl.needsPermission()) {
+    input.tilt.start();
+  } else {
+    // iOS requires a user gesture to (re-)confirm the motion permission
+    window.addEventListener(
+      "pointerdown",
+      () => {
+        void input.tilt.requestPermission().then((ok) => {
+          if (ok) input.tilt.start();
+          else input.controlMode = "stick"; // denied: don't leave the ship uncontrollable
+        });
+      },
+      { once: true },
+    );
+  }
+}
+
+/** Permission + sensor warm-up + neutral capture. False = fall back to stick. */
+async function enableTilt(): Promise<boolean> {
+  if (!TiltControl.supported()) return false;
+  if (!(await input.tilt.requestPermission())) return false;
+  input.tilt.start();
+  // the first sensor reading can lag the permission grant by a few frames
+  let neutral = input.tilt.calibrate();
+  for (let i = 0; i < 20 && !neutral; i++) {
+    await new Promise((r) => setTimeout(r, 50));
+    neutral = input.tilt.calibrate();
+  }
+  if (!neutral) return false;
+  controls.mode = "tilt";
+  controls.tiltNeutral = neutral;
+  input.controlMode = "tilt";
+  saveControlPrefs(controls);
+  return true;
+}
+
+function setStickMode(): void {
+  controls.mode = "stick";
+  input.controlMode = "stick";
+  saveControlPrefs(controls);
+}
+
 const ui = new Ui(settings, {
   onPlay: beginLaunch,
   onResume: resume,
@@ -54,10 +113,31 @@ const ui = new Ui(settings, {
     saveSettings(settings);
     if (key === "sound") audio.setSound(settings.sound);
     if (key === "music") audio.setMusic(settings.music);
+    if (key === "inertia") {
+      input.inertia = settings.inertia;
+      // direct control plays by tilt rules: turning it off mid-run re-tags the run
+      if (!settings.inertia) runMode = "tilt";
+    }
   },
   onWorldArena: () => community.showWorldArena(),
   onArenas: () => community.showArenas(),
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
+  onControlModeChange: async (mode) => {
+    if (mode === "tilt") {
+      if (!(await enableTilt())) setStickMode();
+    } else {
+      setStickMode();
+    }
+    return controls.mode;
+  },
+  onRecalibrate: () => {
+    const neutral = input.tilt.calibrate();
+    if (neutral) {
+      controls.tiltNeutral = neutral;
+      saveControlPrefs(controls);
+    }
+  },
+  getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
 });
 
 const community = new CommunityUi(
@@ -76,6 +156,28 @@ function showMenu(): void {
 /** Fade the menu, open the stargate, and dive into the run. */
 function beginLaunch(): void {
   if (state === "launching") return;
+  // first launch on a phone: offer tilt (the mobile default) before flying
+  if (isTouchDevice() && TiltControl.supported() && !controls.tiltPromptSeen) {
+    ui.showTiltPrompt(
+      () => {
+        controls.tiltPromptSeen = true;
+        void enableTilt().then(() => {
+          saveControlPrefs(controls);
+          doLaunch();
+        });
+      },
+      () => {
+        controls.tiltPromptSeen = true;
+        setStickMode();
+        doLaunch();
+      },
+    );
+    return;
+  }
+  doLaunch();
+}
+
+function doLaunch(): void {
   audio.unlock();
   audio.pauseMusic();
   audio.warp(WARP_SECONDS);
@@ -86,6 +188,8 @@ function beginLaunch(): void {
 
 function startRun(): void {
   audio.unlock();
+  // inertia-off classic uses tilt physics, so it competes on the tilt board
+  runMode = input.tiltActive || !settings.inertia ? "tilt" : "classic";
   world = createWorld(renderer.viewW, renderer.viewH);
   particles.clear();
   popups.clear();
@@ -159,6 +263,7 @@ function submitRun(): void {
     timeSurvived: world.time,
     kills: world.kills,
     maxMultiplier: world.maxMultiplier,
+    mode: runMode,
   };
   api
     .submitScore(run)
@@ -380,6 +485,8 @@ Object.defineProperty(window, "__orion", {
             thrust: override?.thrust ?? sample.thrust,
             boost: override?.boost ?? sample.boost,
             heading: override ? null : sample.heading,
+            moveVector: override ? null : sample.moveVector,
+            inertia: sample.inertia,
           },
           FIXED_DT,
         );

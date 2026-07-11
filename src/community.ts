@@ -1,8 +1,17 @@
 // Community screens: sign-in, World Arena leaderboard, private arenas.
 // Rendered into the same #ui overlay as the menu screens.
 
-import { Api, ApiError, type LeaderboardEntry } from "./api";
+import { Api, ApiError, type BoardMode, type LeaderboardEntry } from "./api";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
+
+const BOARD_MODE_KEY = "orion.boardMode";
+
+/** Last-viewed leaderboard tab; phones default to Tilt (their native mode). */
+function loadBoardMode(): BoardMode {
+  const saved = localStorage.getItem(BOARD_MODE_KEY);
+  if (saved === "classic" || saved === "tilt") return saved;
+  return "ontouchstart" in window ? "tilt" : "classic";
+}
 
 type Google = {
   accounts: {
@@ -25,12 +34,35 @@ type Clerk = {
 };
 
 export class CommunityUi {
+  private boardMode: BoardMode = loadBoardMode();
+
   constructor(
     private root: HTMLElement,
     private api: Api,
     private onBack: () => void,
     private onAuthChange: () => void,
   ) {}
+
+  /** Classic / Tilt leaderboard tabs — the two control schemes rank separately. */
+  private modeTabs(onChange: () => void): HTMLElement {
+    const row = this.el("div", "tabs");
+    const mk = (mode: BoardMode, label: string): HTMLButtonElement =>
+      this.button(label, false, () => {
+        this.boardMode = mode;
+        localStorage.setItem(BOARD_MODE_KEY, mode);
+        paint();
+        onChange();
+      });
+    const classic = mk("classic", "Classic");
+    const tilt = mk("tilt", "Tilt");
+    const paint = (): void => {
+      classic.classList.toggle("active", this.boardMode === "classic");
+      tilt.classList.toggle("active", this.boardMode === "tilt");
+    };
+    paint();
+    row.append(classic, tilt);
+    return row;
+  }
 
   // --- tiny DOM helpers ---
 
@@ -349,15 +381,15 @@ export class CommunityUi {
     const filter = this.countrySelect("");
     (filter.firstChild as HTMLOptionElement).textContent = "🌐 All countries";
     const table = this.el("div", "board");
-    body.append(filter, table);
 
     const load = (): void => {
       table.innerHTML = `<div class="field-hint">Loading…</div>`;
       void this.guard(error, async () => {
-        const data = await this.api.worldLeaderboard(filter.value || undefined);
+        const data = await this.api.worldLeaderboard(filter.value || undefined, this.boardMode);
         this.renderBoard(table, data.entries, data.me);
       });
     };
+    body.append(this.modeTabs(load), filter, table);
     filter.addEventListener("change", load);
     load();
 
@@ -468,13 +500,17 @@ export class CommunityUi {
     body.appendChild(
       this.el("div", "field-hint", `Invite code: <b class="mono">${escapeHtml(code.toUpperCase())}</b> — share it with friends.`),
     );
-    body.appendChild(table);
-    table.innerHTML = `<div class="field-hint">Loading…</div>`;
-    void this.guard(error, async () => {
-      const data = await this.api.arenaLeaderboard(code);
-      heading.textContent = data.arena.name.toUpperCase();
-      this.renderBoard(table, data.entries, data.me);
-    });
+
+    const load = (): void => {
+      table.innerHTML = `<div class="field-hint">Loading…</div>`;
+      void this.guard(error, async () => {
+        const data = await this.api.arenaLeaderboard(code, this.boardMode);
+        heading.textContent = data.arena.name.toUpperCase();
+        this.renderBoard(table, data.entries, data.me);
+      });
+    };
+    body.append(this.modeTabs(load), table);
+    load();
     this.backRow(screen, () => this.showArenas());
   }
 }

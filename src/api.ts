@@ -7,6 +7,9 @@ export interface UserInfo {
   country: string;
 }
 
+/** Control scheme a run was played with — each has its own leaderboards. */
+export type BoardMode = "classic" | "tilt";
+
 export interface LeaderboardEntry {
   userId: number;
   callsign: string;
@@ -166,13 +169,15 @@ export class Api {
     timeSurvived: number;
     kills: number;
     maxMultiplier: number;
+    mode: BoardMode;
   }): Promise<SubmitResult> {
     return this.request<SubmitResult>("POST", "/api/scores", run);
   }
 
-  worldLeaderboard(country?: string): Promise<LeaderboardResponse> {
-    const q = country ? `?country=${country}` : "";
-    return this.request<LeaderboardResponse>("GET", `/api/leaderboard/world${q}`);
+  worldLeaderboard(country?: string, mode: BoardMode = "classic"): Promise<LeaderboardResponse> {
+    const q = new URLSearchParams({ mode });
+    if (country) q.set("country", country);
+    return this.request<LeaderboardResponse>("GET", `/api/leaderboard/world?${q}`);
   }
 
   createArena(name: string): Promise<{ arena: ArenaInfo }> {
@@ -187,7 +192,10 @@ export class Api {
     return this.request("GET", "/api/arenas");
   }
 
-  arenaLeaderboard(code: string): Promise<LeaderboardResponse & { arena: ArenaInfo }> {
-    return this.request("GET", `/api/arenas/${code}/leaderboard`);
+  arenaLeaderboard(
+    code: string,
+    mode: BoardMode = "classic",
+  ): Promise<LeaderboardResponse & { arena: ArenaInfo }> {
+    return this.request("GET", `/api/arenas/${code}/leaderboard?mode=${mode}`);
   }
 }

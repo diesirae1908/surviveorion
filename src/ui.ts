@@ -1,4 +1,4 @@
-import type { Settings } from "./save";
+import type { ControlMode, Settings } from "./save";
 
 export interface UiCallbacks {
   onPlay: () => void;
@@ -10,6 +10,11 @@ export interface UiCallbacks {
   onWorldArena: () => void;
   onArenas: () => void;
   onProfile: () => void;
+  /** Switch control scheme; resolves with the mode actually in effect (tilt may be denied). */
+  onControlModeChange: (mode: ControlMode) => Promise<ControlMode>;
+  /** Re-capture the current phone attitude as tilt neutral. */
+  onRecalibrate: () => void;
+  getControls: () => { mode: ControlMode; tiltSupported: boolean };
 }
 
 export interface MenuCommunity {
@@ -159,28 +164,74 @@ export class Ui {
       ["sound", "Sound"],
       ["music", "Music"],
       ["screenShake", "Shake"],
+      ["inertia", "Inertia"],
     ]));
-
-    const rows = touchDevice
-      ? [
-          ["Fly", "drag on the left half — the ship flies where you point"],
-          ["Boost", "hold the right half"],
-          ["Pause", "the II button, top right"],
-        ]
-      : [
-          ["Thrust", "W or ↑"],
-          ["Turn", "A D or ← →"],
-          ["Boost", "Space"],
-          ["Pause", "Esc"],
-        ];
-    screen.appendChild(this.el("div", "manual-title", "FLIGHT MANUAL"));
     screen.appendChild(
       this.el(
         "div",
-        "manual",
-        rows.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join(""),
+        "field-hint center",
+        "Inertia OFF = direct control, no drift — those runs rank on the Tilt leaderboard.",
       ),
     );
+
+    const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
+    const manual = this.el("div", "manual", "");
+    const paintManual = (): void => {
+      const controls = this.cb.getControls();
+      const rows = touchDevice
+        ? controls.mode === "tilt"
+          ? [
+              ["Fly", "tilt your phone — the ship follows the lean"],
+              ["Boost", "touch and hold anywhere"],
+              ["Pause", "the II button, top right"],
+            ]
+          : [
+              ["Fly", "drag on the left half — the ship flies where you point"],
+              ["Boost", "hold the right half"],
+              ["Pause", "the II button, top right"],
+            ]
+        : [
+            ["Thrust", "W or ↑"],
+            ["Turn", "A D or ← →"],
+            ["Boost", "Space"],
+            ["Pause", "Esc"],
+          ];
+      manual.innerHTML = rows
+        .map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`)
+        .join("");
+    };
+    paintManual();
+
+    // control scheme picker (touch devices with a motion sensor only)
+    if (touchDevice && this.cb.getControls().tiltSupported) {
+      const row = this.el("div", "toggles", "");
+      const tiltBtn = document.createElement("button");
+      const stickBtn = document.createElement("button");
+      const recal = this.button("Recalibrate tilt", false, () => {
+        this.cb.onRecalibrate();
+        recal.textContent = "Recalibrated ✓";
+        setTimeout(() => (recal.textContent = "Recalibrate tilt"), 1200);
+      });
+      recal.classList.add("small-btn");
+      const paint = (): void => {
+        const mode = this.cb.getControls().mode;
+        tiltBtn.textContent = `Tilt: ${mode === "tilt" ? "ON" : "OFF"}`;
+        tiltBtn.classList.toggle("off", mode !== "tilt");
+        stickBtn.textContent = `Stick: ${mode === "stick" ? "ON" : "OFF"}`;
+        stickBtn.classList.toggle("off", mode !== "stick");
+        recal.style.display = mode === "tilt" ? "" : "none";
+        paintManual();
+      };
+      tiltBtn.addEventListener("click", () => void this.cb.onControlModeChange("tilt").then(paint));
+      stickBtn.addEventListener("click", () => void this.cb.onControlModeChange("stick").then(paint));
+      paint();
+      row.append(tiltBtn, stickBtn);
+      screen.appendChild(row);
+      screen.appendChild(recal);
+    }
+
+    screen.appendChild(manualTitle);
+    screen.appendChild(manual);
     screen.appendChild(
       this.el(
         "div",
@@ -209,7 +260,42 @@ export class Ui {
       ["sound", "Sound"],
       ["music", "Music"],
       ["screenShake", "Shake"],
+      ["inertia", "Inertia"],
     ]));
+    if (this.cb.getControls().mode === "tilt") {
+      const recal = this.button("Recalibrate tilt", false, () => {
+        this.cb.onRecalibrate();
+        recal.textContent = "Recalibrated ✓";
+        setTimeout(() => (recal.textContent = "Recalibrate tilt"), 1200);
+      });
+      recal.classList.add("small-btn");
+      screen.appendChild(recal);
+    }
+    this.root.appendChild(screen);
+  }
+
+  /**
+   * First-launch choice on touch devices: tilt (the mobile default) or the
+   * virtual stick. The Enable tap doubles as the calibration gesture — the
+   * player is told to hold the phone at their comfortable play angle first.
+   */
+  showTiltPrompt(onEnable: () => void, onStick: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "TILT CONTROLS"));
+    screen.appendChild(this.el("div", "divider", ""));
+    screen.appendChild(
+      this.el(
+        "div",
+        "hint",
+        "Steer by leaning your phone — the ship follows the tilt.<br/>" +
+          "Hold your phone the way you like to play, then tap Enable to set that as neutral.",
+      ),
+    );
+    screen.appendChild(this.button("Enable tilt", true, onEnable));
+    screen.appendChild(this.button("Use touch stick", false, onStick));
     this.root.appendChild(screen);
   }
 
