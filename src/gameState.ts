@@ -103,7 +103,7 @@ function handleShipDroneCollisions(world: World): void {
       continue;
     }
 
-    if (world.powers.shieldTimer > 0) {
+    if (world.powers.shieldActive) {
       killDrone(world, d);
       detonateShield(world);
       continue;
@@ -143,7 +143,7 @@ function handleShipMineCollisions(world: World): void {
       continue;
     }
 
-    if (world.powers.shieldTimer > 0) {
+    if (world.powers.shieldActive) {
       killMine(world, m);
       detonateShield(world);
       continue;

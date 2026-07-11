@@ -96,7 +96,7 @@ export interface SpawnTelegraph {
 }
 
 export interface PowersState {
-  shieldTimer: number; // >0 => shield active
+  shieldActive: boolean; // persists until it absorbs a hit (banked extra life)
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
   pulseTimer: number; // >0 => pulse charging
   magnetTimer: number;

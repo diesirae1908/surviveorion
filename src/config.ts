@@ -141,9 +141,9 @@ export type PowerId =
   | "starshell";
 
 export const POWERS = {
+  // The shield has no timer: it stays on the ship until it absorbs a hit
+  // (an extra life you can bank), then detonates, clearing nearby drones.
   shield: {
-    duration: 5,
-    flickerLastSeconds: 2,
     detonationRadius: 7,
     detonationForce: 24,
   },

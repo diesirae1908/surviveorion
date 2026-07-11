@@ -5,7 +5,7 @@ import type { Drone, Mine, PowersState, World } from "./types";
 
 export function createPowersState(): PowersState {
   return {
-    shieldTimer: 0,
+    shieldActive: false,
     starshellTimer: 0,
     pulseTimer: 0,
     magnetTimer: 0,
@@ -24,7 +24,7 @@ export function activatePower(world: World, power: PowerId): void {
   const p = world.powers;
   switch (power) {
     case "shield":
-      p.shieldTimer = POWERS.shield.duration;
+      p.shieldActive = true;
       world.events.push({ type: "shieldUp" });
       break;
     case "starshell":
@@ -204,7 +204,6 @@ function updateMissiles(world: World, dt: number): void {
 export function updatePowers(world: World, dt: number): void {
   const p = world.powers;
 
-  if (p.shieldTimer > 0) p.shieldTimer -= dt;
   if (p.starshellTimer > 0) p.starshellTimer -= dt;
   if (p.magnetTimer > 0) p.magnetTimer -= dt;
 
@@ -313,7 +312,7 @@ export function updatePowers(world: World, dt: number): void {
 /** Shield absorbed a hit: kill the attacker + detonate radially (Unity ShieldEffect.OnShieldHit). */
 export function detonateShield(world: World): void {
   const p = world.powers;
-  p.shieldTimer = 0;
+  p.shieldActive = false;
   killDronesInRadius(
     world,
     world.ship.x,

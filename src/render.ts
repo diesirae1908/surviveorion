@@ -42,6 +42,8 @@ export class Renderer {
   private stars: Star[] = [];
   private cssW = 0;
   private cssH = 0;
+  /** Notch / home-indicator insets so the HUD never hides under phone chrome. */
+  private safe = { top: 0, right: 0, bottom: 0, left: 0 };
   viewW = VIEW_MIN;
   viewH = VIEW_MIN;
 
@@ -50,8 +52,26 @@ export class Renderer {
     this.resize();
   }
 
+  /** env(safe-area-inset-*) is CSS-only, so measure it off a probe element. */
+  private measureSafeArea(): void {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:fixed;inset:0;visibility:hidden;pointer-events:none;" +
+      "padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);";
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe);
+    this.safe = {
+      top: parseFloat(cs.paddingTop) || 0,
+      right: parseFloat(cs.paddingRight) || 0,
+      bottom: parseFloat(cs.paddingBottom) || 0,
+      left: parseFloat(cs.paddingLeft) || 0,
+    };
+    probe.remove();
+  }
+
   /** Fit canvas to window; shorter axis spans VIEW_MIN world units. */
   resize(): void {
+    this.measureSafeArea();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.cssW = window.innerWidth;
     this.cssH = window.innerHeight;
@@ -422,13 +442,9 @@ export class Renderer {
       ctx.restore();
     }
 
-    // shield bubble (flickers during its final seconds)
-    if (world.powers.shieldTimer > 0) {
-      const remaining = world.powers.shieldTimer;
-      let alpha = 0.35;
-      if (remaining <= POWERS.shield.flickerLastSeconds) {
-        alpha = lerp(0.2, 0.6, pingPong(opts.uiTime * 5));
-      }
+    // shield bubble: steady (it persists until it absorbs a hit)
+    if (world.powers.shieldActive) {
+      const alpha = 0.3 + 0.08 * Math.sin(opts.uiTime * 2.5);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = alpha;
@@ -962,7 +978,8 @@ export class Renderer {
 
   private drawHud(world: World, opts: RenderOpts): void {
     const { ctx } = this;
-    const pad = 18;
+    const padTop = 18 + this.safe.top;
+    const pad = 18 + this.safe.left;
 
     ctx.textBaseline = "top";
 
@@ -970,26 +987,26 @@ export class Renderer {
     ctx.textAlign = "left";
     ctx.fillStyle = PALETTE.gold;
     ctx.font = "bold 26px Georgia, serif";
-    ctx.fillText(Math.floor(world.score).toLocaleString(), pad, pad);
+    ctx.fillText(Math.floor(world.score).toLocaleString(), pad, padTop);
 
     // multiplier (gold-hot as it climbs toward the cap)
     const m = world.multiplier;
     const heat = clamp01((m - 1) / (SCORING.multiplierMax - 1));
     ctx.font = "bold 17px Georgia, serif";
     ctx.fillStyle = heat > 0.55 ? PALETTE.gold : m > 1.01 ? PALETTE.redBright : PALETTE.bronze;
-    ctx.fillText(`x${m.toFixed(1)}`, pad, pad + 32);
+    ctx.fillText(`x${m.toFixed(1)}`, pad, padTop + 32);
 
     // active kill chain
     if (world.chainCount >= 3 && world.chainTimer > 0) {
       ctx.fillStyle = PALETTE.goldPale;
       ctx.font = "bold 13px Georgia, serif";
-      ctx.fillText(`CHAIN ×${world.chainCount}`, pad + 64, pad + 35);
+      ctx.fillText(`CHAIN ×${world.chainCount}`, pad + 64, padTop + 35);
     }
 
     // best (under the score, clear of the pause button top-right)
     ctx.fillStyle = PALETTE.bronze;
     ctx.font = "13px Georgia, serif";
-    ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, pad, pad + 58);
+    ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, pad, padTop + 58);
 
     // time (top-center)
     const mins = Math.floor(world.time / 60);
@@ -997,13 +1014,12 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.fillStyle = PALETTE.goldPale;
     ctx.font = "20px Georgia, serif";
-    ctx.fillText(`${mins}:${secs.toString().padStart(2, "0")}`, this.cssW / 2, pad);
+    ctx.fillText(`${mins}:${secs.toString().padStart(2, "0")}`, this.cssW / 2, padTop);
 
     // active power timers (bottom-left)
     const powers: Array<[string, number, number, string]> = [];
     const p = world.powers;
-    if (p.shieldTimer > 0)
-      powers.push(["SHIELD", p.shieldTimer, POWERS.shield.duration, POWER_COLORS.shield]);
+    if (p.shieldActive) powers.push(["SHIELD", 1, 1, POWER_COLORS.shield]);
     if (p.starshellTimer > 0)
       powers.push(["STARSHELL", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
     if (p.magnetTimer > 0)
@@ -1018,7 +1034,7 @@ export class Renderer {
     if (p.pulseTimer > 0)
       powers.push(["PULSE", p.pulseTimer, POWERS.pulse.chargeTime, POWER_COLORS.pulse]);
 
-    let py = this.cssH - pad - powers.length * 24;
+    let py = this.cssH - pad - this.safe.bottom - powers.length * 24;
     ctx.textAlign = "left";
     ctx.font = "12px Georgia, serif";
     for (const [name, remaining, total, color] of powers) {
@@ -1038,11 +1054,12 @@ export class Renderer {
       const frac = s.boostHeld
         ? 1 - clamp01(s.boostHoldTimer / SHIP.boost.maxHoldTime)
         : 1 - clamp01(s.boostCooldownTimer / SHIP.boost.cooldown);
+      const barY = this.cssH - 26 - this.safe.bottom;
       ctx.fillStyle = s.boostHeld ? PALETTE.goldPale : PALETTE.bronze;
       ctx.globalAlpha = 0.35;
-      ctx.fillRect(this.cssW / 2 - 60, this.cssH - 26, 120, 6);
+      ctx.fillRect(this.cssW / 2 - 60, barY, 120, 6);
       ctx.globalAlpha = 1;
-      ctx.fillRect(this.cssW / 2 - 60, this.cssH - 26, 120 * frac, 6);
+      ctx.fillRect(this.cssW / 2 - 60, barY, 120 * frac, 6);
     }
   }
 

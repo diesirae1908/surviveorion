@@ -182,10 +182,15 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden && state === "playing") pause();
 });
 
-window.addEventListener("resize", () => {
+const handleResize = (): void => {
   renderer.resize();
   resizeWorld(world, renderer.viewW, renderer.viewH);
-});
+};
+window.addEventListener("resize", handleResize);
+// iOS fires these instead of (or before) window resize when the browser
+// chrome collapses or the phone rotates; without them the canvas mis-sizes.
+window.visualViewport?.addEventListener("resize", handleResize);
+window.addEventListener("orientationchange", () => setTimeout(handleResize, 100));
 
 function isTouchDevice(): boolean {
   return input.touchUsed || "ontouchstart" in window;

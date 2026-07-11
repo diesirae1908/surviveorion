@@ -1,0 +1,15 @@
+{
+  "name": "ORION — Survive the Swarm",
+  "short_name": "ORION",
+  "description": "Inertia-based survival arcade: dodge the drone swarm, bank power-ups, climb the World Arena.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a0a12",
+  "theme_color": "#0a0a12",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

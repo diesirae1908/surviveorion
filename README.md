@@ -6,7 +6,7 @@ An inertia-based survival arcade game: pilot your ship with thrust and rotation 
 wrap-around space while drone swarms close in. No guns — survive with piloting skill and
 defensive power pickups:
 
-- **Aegis Shield** — absorbs one hit, then detonates, clearing nearby drones
+- **Aegis Shield** — stays on the ship until it absorbs a hit (a banked extra life), then detonates, clearing nearby drones
 - **Shockwave** — instantly kills every drone in a radius
 - **Pulse Shot** — charges up, then fires a piercing bolt forward
 - **Magnet** — pulls pickups toward you for a few seconds
@@ -125,6 +125,14 @@ asked to confirm their country after the first sign-in.
 | Turn | `A` `D` / `←` `→` | drag sideways on left half |
 | Boost | `Space` (hold) | hold right half |
 | Pause | `Esc` / `P` | pause button |
+
+## Mobile
+
+The game is an installable PWA: on a phone, "Add to Home Screen" gives a
+full-screen app with its own icon (`public/manifest.webmanifest` +
+`public/icons/`). The HUD and UI respect notch/home-indicator safe areas,
+the canvas tracks `visualViewport` resizes (iOS browser chrome, rotation),
+and the page blocks pinch/double-tap zoom.
 
 ## Structure
 
