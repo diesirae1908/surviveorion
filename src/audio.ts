@@ -275,6 +275,55 @@ export class AudioSystem {
     this.tone(160, 30, 1.0, "sawtooth", 0.35);
   }
 
+  /**
+   * Boot-cinematic score: a rising hyperspace swell that detonates into a
+   * cinematic braam (low brass-style stack + sub thump) with a shimmer tail.
+   * `hitAt` is when the title slams in, seconds from now.
+   */
+  intro(duration: number, hitAt: number): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const t0 = this.ctx.currentTime;
+
+    // swelling noise riser into the hit
+    const src = this.ctx.createBufferSource();
+    const len = Math.ceil(this.ctx.sampleRate * (hitAt + 0.3));
+    const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(i / len, 1.6);
+    src.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 0.9;
+    filter.frequency.setValueAtTime(140, t0);
+    filter.frequency.exponentialRampToValueAtTime(2800, t0 + hitAt);
+    const riserGain = this.ctx.createGain();
+    riserGain.gain.setValueAtTime(0.0001, t0);
+    riserGain.gain.exponentialRampToValueAtTime(0.5, t0 + hitAt);
+    riserGain.gain.exponentialRampToValueAtTime(0.0001, t0 + hitAt + 0.3);
+    src.connect(filter).connect(riserGain).connect(this.sfxGain);
+    src.start(t0);
+
+    // tension riser tones underneath
+    this.tone(40, 220, hitAt, "sawtooth", 0.12);
+    this.tone(160, 880, hitAt, "sine", 0.05, hitAt * 0.35);
+
+    // THE BRAAM: detuned low sawtooth stack + sub-bass thump
+    const braamLen = Math.min(2.2, duration - hitAt);
+    for (const [freq, vol] of [
+      [55, 0.22],
+      [55.8, 0.18],
+      [82.5, 0.12],
+      [110, 0.08],
+    ] as const) {
+      this.tone(freq, freq * 0.94, braamLen, "sawtooth", vol, hitAt);
+    }
+    this.tone(38, 30, 1.1, "sine", 0.5, hitAt);
+
+    // shimmer tail: high sparkle settling as the tagline appears
+    this.tone(1760, 880, 1.6, "sine", 0.05, hitAt + 0.25);
+    this.tone(2637, 1319, 1.9, "sine", 0.035, hitAt + 0.45);
+  }
+
   /** Rising hyperspace surge for the launch warp. */
   warp(duration: number): void {
     if (!this.ctx || !this.sfxGain) return;

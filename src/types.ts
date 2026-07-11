@@ -208,6 +208,9 @@ export interface World {
   viewW: number;
   viewH: number;
 
+  /** Tutorial sandbox: no ambient spawns, mines, or timed pickups. */
+  sandbox: boolean;
+
   phase: RunPhase;
   time: number; // seconds survived
   deathTimer: number; // time since death (for explosion -> game over transition)

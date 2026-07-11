@@ -64,7 +64,7 @@ export class Input {
   /** Player preference; tilt only takes effect once the sensor is ready. */
   controlMode: ControlMode = "stick";
   /** Mirrors the settings toggle (main.ts keeps it in sync). */
-  inertia = true;
+  inertia = false;
   /** Cruise speed for directional no-inertia mode (from directSpeed setting). */
   cruiseSpeed = DIRECT.cruiseSpeed;
   /** Remappable keyboard bindings (main.ts keeps them in sync with localStorage). */

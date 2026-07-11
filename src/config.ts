@@ -82,11 +82,13 @@ export type FormationKind =
   | "megawall";
 
 export const SPAWNER = {
-  initialBurst: 3,
+  initialBurst: 5,
   // Endless escalation (the Tetris model): fast ramp, then slow growth
   // forever so every run ends and scores measure depth, not patience.
-  spawnsPerSecond: { from: 0.5, to: 1.8, rampMinutes: 3, latePerMinute: 0.15 },
-  speedMultiplier: { from: 1.0, to: 1.3, rampMinutes: 3, latePerMinute: 0.03 },
+  // Density arrives early (the fun starts inside the first minute); raw
+  // enemy speed is the lever that keeps growing late.
+  spawnsPerSecond: { from: 0.7, to: 1.8, rampMinutes: 2, latePerMinute: 0.15 },
+  speedMultiplier: { from: 1.0, to: 1.25, rampMinutes: 4, latePerMinute: 0.045 },
   scaleClamp: [0.3, 0.9] as const,
   scaleJitter: 0.15,
   jitterStrength: 0.35, // perpendicular wobble on drone heading
@@ -103,10 +105,10 @@ export const SPAWNER = {
     edgeInset: 1.0, // keep telegraphs this far inside the view
   },
   formations: {
-    intervalRange: [10, 17] as const,
+    intervalRange: [8, 13] as const,
     // formations come faster over time, down to this floor
     intervalFloor: [6, 8] as const,
-    intervalRampMinutes: 6,
+    intervalRampMinutes: 3,
     countGrowthMinutes: 2, // formations gain +1 enemy per this many minutes...
     maxCountBonus: 6, // ...capped here
     postFormationDelay: 1.5,
@@ -124,13 +126,13 @@ export const SPAWNER = {
       megawall: 1.5,
     } as Record<FormationKind, number>,
     minMinutes: {
-      wall: 0.5,
-      swarm: 0.75,
-      serpent: 1,
-      tightring: 1,
-      corners: 1.5,
-      megawall: 1.5,
-      pincer: 2,
+      wall: 0.25,
+      swarm: 0.4,
+      serpent: 0.5,
+      tightring: 0.6,
+      corners: 0.75,
+      megawall: 1,
+      pincer: 1.25,
     } as Partial<Record<FormationKind, number>>,
     line: { count: 8, spacing: 1.6 },
     // ring closes in around the player ON-screen: telegraphed circle with
@@ -285,6 +287,7 @@ export const POWERS = {
   starshell: {
     duration: 6,
     flickerLastSeconds: 2,
+    killRadius: 0.8, // matches the drawn shell — the whole golden bubble rams
   },
   // Chain lightning: zaps the nearest enemy, then jumps to the next closest
   // within range until no more targets are close enough to continue.

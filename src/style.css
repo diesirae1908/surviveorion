@@ -123,7 +123,11 @@ body {
 
 .stats {
   display: flex;
-  gap: 36px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px 36px;
+  max-width: 92vw;
+  text-align: center;
   color: #ffee88;
   font-size: 17px;
 }
@@ -609,4 +613,89 @@ button.enlist-btn {
   pointer-events: auto;
   border-color: rgba(170, 136, 68, 0.5);
   background: rgba(26, 26, 42, 0.5);
+}
+
+/* --- tutorial overlay --- */
+
+.tutorial-hint {
+  position: absolute;
+  top: calc(52px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, 88vw);
+  padding: 14px 22px;
+  text-align: center;
+  color: #ffee88;
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: 0.06em;
+  background: rgba(10, 10, 18, 0.72);
+  border: 1px solid rgba(170, 136, 68, 0.5);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.tutorial-hint b {
+  color: #ffd700;
+  letter-spacing: 0.2em;
+}
+
+.tutorial-hint.pop {
+  animation: hintPop 0.35s ease-out;
+}
+
+@keyframes hintPop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.tutorial-skip {
+  position: absolute;
+  bottom: calc(18px + var(--safe-bottom));
+  right: calc(18px + var(--safe-right));
+  min-width: 0;
+  padding: 8px 18px;
+  font-size: 12px;
+  pointer-events: auto;
+  opacity: 0.75;
+}
+
+/* --- cinematic intro --- */
+
+.intro-gate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  pointer-events: auto;
+  cursor: pointer;
+  background: radial-gradient(ellipse at center, rgba(10, 10, 18, 0.35) 0%, rgba(5, 5, 10, 0.92) 100%);
+}
+
+.intro-gate .enter {
+  color: #ffd700;
+  font-size: 15px;
+  letter-spacing: 0.5em;
+  margin-right: -0.5em;
+  text-transform: uppercase;
+  animation: enterPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes enterPulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }

@@ -18,6 +18,7 @@ export interface UiCallbacks {
   onRestart: () => void;
   onQuitToMenu: () => void;
   onPauseRequest: () => void;
+  onTutorial: () => void;
   onToggle: (key: BooleanSetting) => void;
   /** Cycle Low/Med/High for a sensitivity setting. */
   onCycleSense: (key: "tiltSensitivity" | "directSpeed") => SenseLevel;
@@ -79,6 +80,12 @@ export class Ui {
   hideAll(): void {
     this.clear();
     this.pauseBtn.style.display = "block";
+  }
+
+  /** Remove every screen without bringing the in-game pause button back. */
+  clearScreens(): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
   }
 
   /** Fade out whatever screen is showing (used by the launch transition). */
@@ -233,6 +240,10 @@ export class Ui {
     launch.classList.add("launch");
     screen.appendChild(launch);
 
+    const howTo = this.button("How to play", false, () => this.cb.onTutorial());
+    howTo.classList.add("small-btn");
+    screen.appendChild(howTo);
+
     // community row (only when the server is reachable)
     if (community && community.callsign !== null) {
       const row = this.el("div", "menu-row", "");
@@ -290,7 +301,8 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Inertia OFF = directional WASD, two speeds (hold Space to boost) — those runs rank on the Tilt leaderboard.",
+        "Direct control is the default: the ship goes where you point. " +
+          "Inertia ON adds classic thrust-and-drift piloting — those runs rank on the Classic leaderboard.",
       ),
     );
 
@@ -346,6 +358,13 @@ export class Ui {
 
     // control scheme picker (touch devices with a motion sensor only)
     if (touchDevice && this.cb.getControls().tiltSupported) {
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Tilt steering — lean the phone to fly. A tribute to Tilt to Live.",
+        ),
+      );
       const row = this.el("div", "toggles", "");
       const tiltBtn = document.createElement("button");
       const stickBtn = document.createElement("button");
@@ -433,27 +452,66 @@ export class Ui {
   }
 
   /**
-   * First-launch choice on touch devices: tilt (the mobile default) or the
-   * virtual stick. The Enable tap doubles as the calibration gesture — the
-   * player is told to hold the phone at their comfortable play angle first.
+   * Boot gate: browsers block audio until a gesture, so the very first thing
+   * players see is a tap-to-enter splash — the tap unlocks the epic intro.
    */
-  showTiltPrompt(onEnable: () => void, onStick: () => void): void {
+  showIntroGate(onEnter: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const gate = this.el("div", "intro-gate", "");
+    gate.appendChild(this.el("div", "title", "ORION"));
+    gate.appendChild(this.el("div", "enter", "Tap to enter"));
+    gate.addEventListener("pointerdown", () => {
+      this.clear();
+      onEnter();
+    });
+    this.root.appendChild(gate);
+  }
+
+  /** Tutorial overlay: an instruction banner up top and a skip button. */
+  showTutorialHud(onSkip: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const hint = this.el("div", "tutorial-hint", "");
+    hint.id = "tutorial-hint";
+    this.root.appendChild(hint);
+
+    const skip = this.button("Skip tutorial", false, onSkip);
+    skip.className = "tutorial-skip";
+    this.root.appendChild(skip);
+  }
+
+  setTutorialHint(html: string): void {
+    const hint = document.getElementById("tutorial-hint");
+    if (!hint) return;
+    hint.innerHTML = html;
+    // retrigger the pop-in animation on every new instruction
+    hint.classList.remove("pop");
+    void hint.offsetWidth;
+    hint.classList.add("pop");
+  }
+
+  /** Post-tutorial send-off: straight into a run, or back to the menu. */
+  showTutorialEnd(onLaunch: () => void, onMenu: () => void): void {
     this.clear();
     this.pauseBtn.style.display = "none";
 
     const screen = this.el("div", "screen", "");
-    screen.appendChild(this.el("div", "heading gold small", "TILT CONTROLS"));
+    screen.appendChild(this.el("div", "heading gold small", "YOU'RE READY, PILOT"));
     screen.appendChild(this.el("div", "divider", ""));
     screen.appendChild(
       this.el(
         "div",
         "hint",
-        "Steer by leaning your phone — the ship follows the tilt.<br/>" +
-          "Hold your phone the way you like to play, then tap Enable to set that as neutral.",
+        "Score the best score. Be the best of the galaxy.<br/>And above all… survive.",
       ),
     );
-    screen.appendChild(this.button("Enable tilt", true, onEnable));
-    screen.appendChild(this.button("Use touch stick", false, onStick));
+    const launch = this.button("Launch", true, onLaunch);
+    launch.classList.add("launch");
+    screen.appendChild(launch);
+    screen.appendChild(this.button("Main menu", false, onMenu));
     this.root.appendChild(screen);
   }
 

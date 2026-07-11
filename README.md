@@ -70,8 +70,9 @@ community buttons simply don't appear.
 ## Community
 
 - **World Arena** — global leaderboard (best run per pilot), filterable by country.
-  Runs are tagged by control scheme (`classic` = keyboard/stick, `tilt` = phone
-  tilt controls) and every leaderboard ranks the two modes separately.
+  Runs are tagged by control physics (`classic` = inertia thrust-and-drift,
+  `tilt` = direct control: phone tilt or the default no-inertia mode) and every
+  leaderboard ranks the two modes separately.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
 - **Accounts** — callsign + password, Clerk sign-in (email/Google, see below),
   or direct Google sign-in. Country is guessed from the browser locale/timezone,
@@ -137,12 +138,20 @@ asked to confirm their country after the first sign-in.
 
 ## Controls
 
-| Action | Desktop | Touch |
+Direct control is the default: the ship flies the way you point, no drift.
+
+| Action | Desktop (default) | Touch (default) |
 | --- | --- | --- |
-| Thrust | `W` / `↑` | drag on left half — the ship rotates toward the drag direction and thrusts; drag distance = power |
-| Turn | `A` `D` / `←` `→` | (same drag — direction is the heading) |
-| Boost | `Space` (hold) | hold right half |
+| Fly | `WASD` / arrows — ship goes that way | drag on left half — ship goes that way |
+| Boost | hold `Space` for full speed | hold right half |
 | Pause | `Esc` / `P` | pause button |
+
+Settings has an **Inertia** toggle for classic thrust-and-drift piloting
+(`W`/`↑` thrust, `A`/`D` turn, drag heading on touch) — the original flight
+model, now the opt-in add-on. A **How to play** tutorial on the menu walks new
+pilots through flying, drones, and powers in a sandbox with static (frozen)
+enemies, and the game boots through a tap-to-enter gate into a ~5s cinematic
+intro (hyperspace rush, swarm fly-by, title slam) before the menu.
 
 ## Mobile
 
@@ -152,24 +161,20 @@ full-screen app with its own icon (`public/manifest.webmanifest` +
 the canvas tracks `visualViewport` resizes (iOS browser chrome, rotation),
 and the page blocks pinch/double-tap zoom.
 
-Phones default to **tilt controls** (Tilt to Live style): the first launch
-offers to enable them — lean the phone to fly, touch and hold anywhere to
-boost. Tilt maps directly to velocity (no inertia, `TILT` in `src/config.ts`),
-so tilt runs compete on their own leaderboards, separate from classic
-keyboard/stick runs. The virtual stick (drag left half to fly, hold right half
-to boost) remains as a fallback and a settings toggle, and counts as classic.
-Desktop keyboard play is unchanged. Tilt needs the motion-sensor permission on
-iOS (requested from the enable tap) and a secure context, so test it against a
-deployed build rather than plain-HTTP LAN dev.
+Phones default to the **virtual stick** (drag the left half to fly, hold the
+right half to boost). **Tilt controls** are a settings opt-in — a tribute to
+Tilt to Live: lean the phone to fly, touch and hold anywhere to boost. Tilt
+maps directly to velocity (`TILT` in `src/config.ts`) and needs the
+motion-sensor permission on iOS (requested from the settings toggle) and a
+secure context, so test it against a deployed build rather than plain-HTTP
+LAN dev. Tilt runs rank on the Tilt/Direct leaderboard, same as the default
+no-inertia mode.
 
-Settings also has an **Inertia** toggle for classic controls: OFF switches
-to directional WASD/arrows (ship goes the way you press, no drift) with two
-speeds — cruise normally, hold Space for full speed. Those runs score on the
-Tilt leaderboard to keep the classic board honest. **Direct speed** (Low/Med/High)
-tunes the cruise pace; on phones, **Tilt sense** tunes how much lean reaches
-full speed. Desktop Settings also has **Key bindings**: click an action, press
-a key to rebind it (a key used elsewhere is cleared from the other action), or
-Reset defaults for WASD + arrows / Space / Esc+P.
+**Direct speed** (Low/Med/High) tunes the cruise pace of direct control; on
+phones, **Tilt sense** tunes how much lean reaches full speed. Desktop
+Settings also has **Key bindings**: click an action, press a key to rebind it
+(a key used elsewhere is cleared from the other action), or Reset defaults
+for WASD + arrows / Space / Esc+P.
 
 ## Structure
 
@@ -188,9 +193,10 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 | `src/pickups.ts` | Pickup spawning + magnet pull (`PickupSpawner`, `PowerPickup`) |
 | `src/scoring.ts` | Score + kill multiplier (`GameRules`) |
 | `src/gameState.ts` | World state, fixed-timestep tick, collisions |
-| `src/render.ts` | Canvas renderer: starfield, entities, HUD |
+| `src/render.ts` | Canvas renderer: starfield, entities, HUD, cinematics (warp, intro) |
 | `src/audio.ts` | Procedural Web Audio SFX + music loop |
-| `src/ui.ts` | Menu / pause / game-over overlays |
+| `src/ui.ts` | Menu / pause / game-over / tutorial overlays |
+| `src/tutorial.ts` | Flight-school sandbox: scripted beats over a spawner-free world |
 | `src/api.ts` | Community server client (auth, scores, arenas) |
 | `src/community.ts` | World Arena / arenas / sign-in screens |
 | `src/countries.ts` | Country list, flags, offline geo guess |

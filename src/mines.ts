@@ -18,7 +18,7 @@ export function isMineArmed(m: Mine): boolean {
 
 export function updateMines(world: World, dt: number): void {
   // spawning
-  if (world.phase === "playing" && world.time >= MINES.startAfterSeconds) {
+  if (world.phase === "playing" && !world.sandbox && world.time >= MINES.startAfterSeconds) {
     world.mineTimer -= dt;
     if (world.mineTimer <= 0) {
       world.mineTimer = randRange(...MINES.intervalRange);

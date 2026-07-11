@@ -6,6 +6,7 @@ import { FIXED_DT } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
+import { Tutorial } from "../src/tutorial";
 import type { World } from "../src/types";
 
 const input: InputState = {
@@ -163,6 +164,71 @@ function activate(world: World, power: PowerId): void {
     maxScripted >= 15,
     `max ${maxScripted} scripted at once`,
   );
+}
+
+// --- 7. tutorial sandbox: no ambient spawns, and the scripted beats advance ---
+{
+  const world = createWorld(17.8, 10, true);
+  const hints: string[] = [];
+  const tut = new Tutorial(
+    world,
+    { touch: false, inertia: false, moveKeys: "W A S D", boostKeys: "Space" },
+    (h) => hints.push(h),
+  );
+
+  const stepTut = (
+    seconds: number,
+    drive?: { x: number; y: number },
+    invuln = false,
+  ): void => {
+    const steps = Math.round(seconds / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      // headless dodging is luck, so the harness banks a shield every tick
+      if (invuln) world.powers.shieldActive = true;
+      tick(
+        world,
+        { ...input, inertia: false, simpleBoost: true, moveVector: drive ?? { x: 0, y: 0 } },
+        FIXED_DT,
+      );
+      tut.update(FIXED_DT);
+      world.events.length = 0;
+    }
+  };
+
+  // sandbox stays empty while idle
+  stepTut(5);
+  check("tutorial sandbox spawns nothing on its own", world.drones.length === 0 && world.pickups.length === 0 && world.mines.length === 0);
+
+  // beat 1: fly around → static drones appear, frozen
+  stepTut(2, { x: 1, y: 0 });
+  stepTut(2, { x: -1, y: 0 });
+  check("tutorial: flying advances to the drone exhibit", world.drones.length === 5, `${world.drones.length} drones`);
+  stepTut(3);
+  check("tutorial: exhibit drones stay frozen", world.drones.every((d) => d.frozen > 0));
+
+  // beat 2: shatter one frozen drone by ramming it
+  const target = world.drones[0];
+  world.ship.x = target.x;
+  world.ship.y = target.y;
+  stepTut(0.2);
+  check("tutorial: ramming a frozen drone shatters it safely", world.phase === "playing" && world.drones.filter((d) => d.alive).length === 4);
+
+  // beat 3: survivors thaw (after the 1.4s warning beat) and hunt
+  stepTut(2);
+  check("tutorial: survivors thaw and hunt", world.drones.some((d) => d.frozen <= 0));
+  world.ship.x = -6;
+  world.ship.y = -4;
+  stepTut(6.5, { x: 1, y: 0 }, true);
+  // beat 4: the shockwave pickup appears; grab it
+  const pickupAppeared = world.pickups.length === 1 && world.pickups[0].power === "shockwave";
+  if (world.pickups.length === 1) {
+    world.ship.x = world.pickups[0].x;
+    world.ship.y = world.pickups[0].y;
+  }
+  stepTut(0.2);
+  const outroShown = hints.some((h) => h.includes("THE GOAL"));
+  stepTut(4.5);
+  check("tutorial: shockwave beat + outro reached", pickupAppeared && outroShown && tut.done, hints.length + " hints");
 }
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);

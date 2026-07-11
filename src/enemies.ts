@@ -208,7 +208,7 @@ export function initSpawner(world: World): void {
 }
 
 export function updateSpawner(world: World, dt: number): void {
-  if (world.phase !== "playing") return;
+  if (world.phase !== "playing" || world.sandbox) return;
 
   const minutes = world.time / 60;
   world.spawnAccumulator += escalate(minutes, SPAWNER.spawnsPerSecond) * dt;
@@ -284,6 +284,19 @@ function spawnAt(
   return drone;
 }
 
+/** Direct spawn for the tutorial sandbox: fixed size, fixed (gentle) speed. */
+export function spawnDroneDirect(
+  world: World,
+  x: number,
+  y: number,
+  scale = 0.6,
+  speedMultiplier = 0.8,
+): Drone {
+  const drone = createDrone(x, y, scale, speedMultiplier);
+  world.drones.push(drone);
+  return drone;
+}
+
 /** Formation distance from the ship: outside the view no matter the aspect. */
 export function spawnRadius(world: World): number {
   return Math.max(SPAWNER.minSpawnRadius, halfDiagonal(world) + 1.5);
@@ -318,9 +331,9 @@ function spawnAmbient(world: World, minutes: number): void {
 
 // --- formations ---
 
-/** Formations start at half strength and reach full size at the 3-minute mark. */
+/** Formations start big and reach full size fast (the fun shouldn't wait). */
 function formationIntensity(minutes: number): number {
-  return lerp(0.5, 1, clamp(minutes / 3, 0, 1));
+  return lerp(0.7, 1, clamp(minutes / 1.5, 0, 1));
 }
 
 /** Past the ramp, formations keep growing: +1 enemy per N minutes, capped. */

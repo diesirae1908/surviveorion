@@ -14,9 +14,9 @@ interface Star {
   brightness: number;
 }
 
-/** Full-screen cinematic overlays (launch warp, arrival flash, death veil). */
+/** Full-screen cinematic overlays (launch warp, arrival flash, death veil, boot intro). */
 export interface TransitionFx {
-  kind: "warp" | "flash" | "death";
+  kind: "warp" | "flash" | "death" | "intro";
   t: number; // 0..1 progress
 }
 
@@ -169,6 +169,7 @@ export class Renderer {
     if (opts.fx) {
       if (opts.fx.kind === "warp") this.drawWarpFx(opts.fx.t, opts.uiTime);
       else if (opts.fx.kind === "flash") this.drawFlashFx(opts.fx.t);
+      else if (opts.fx.kind === "intro") this.drawIntroFx(opts.fx.t, opts.uiTime);
       else this.drawDeathFx(opts.fx.t, opts.uiTime);
     }
   }
@@ -268,6 +269,152 @@ export class Renderer {
       ctx.fillStyle = `rgba(255, 250, 235, ${white})`;
       ctx.fillRect(0, 0, this.cssW, this.cssH);
     }
+  }
+
+  /**
+   * Boot cinematic (~5s): hyperspace streaks accelerate through the void,
+   * a drone swarm screams past, then ORION slams in on the braam with a
+   * shockwave — and the whole thing hands over to the menu.
+   */
+  private drawIntroFx(t: number, uiTime: number): void {
+    const { ctx } = this;
+    const cx = this.cssW / 2;
+    const cy = this.cssH / 2;
+    const maxR = Math.hypot(cx, cy);
+    const minDim = Math.min(this.cssW, this.cssH);
+
+    const HIT = 0.42; // the braam / title slam moment
+    const preHit = clamp01(t / HIT);
+    const postHit = clamp01((t - HIT) / (1 - HIT));
+    const fadeOut = clamp01((t - 0.9) / 0.1); // hand-over to the menu
+
+    ctx.save();
+    ctx.globalAlpha = 1 - fadeOut;
+
+    // black void over the menu backdrop
+    ctx.fillStyle = "rgb(3, 3, 9)";
+    ctx.fillRect(0, 0, this.cssW, this.cssH);
+
+    // camera shake right after the slam
+    const shakeT = clamp01((t - HIT) / 0.12);
+    const shakeAmp = (1 - shakeT) * (t >= HIT ? 1 : 0) * minDim * 0.012;
+    const sx = Math.sin(uiTime * 61) * shakeAmp;
+    const sy = Math.cos(uiTime * 53) * shakeAmp;
+    ctx.translate(sx, sy);
+
+    // hyperspace streaks: accelerate before the hit, drift after it
+    const streaks = 130;
+    const speedRamp = preHit * preHit; // slow build → violent rush
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < streaks; i++) {
+      const h = Math.sin(i * 91.7) * 43758.5453;
+      const rnd = h - Math.floor(h);
+      const ang = (i / streaks) * Math.PI * 2 + rnd * 0.4;
+      const d0 = maxR * (0.05 + rnd * 0.6);
+      const len =
+        maxR * (0.01 + rnd * 0.05 + speedRamp * (0.5 + rnd * 0.8) * (1 - postHit * 0.85));
+      const a = (0.1 + rnd * 0.5) * (0.3 + speedRamp * 0.7) * (1 - postHit * 0.6);
+      ctx.strokeStyle = rnd < 0.55 ? `rgba(255, 216, 120, ${a})` : `rgba(150, 210, 255, ${a})`;
+      ctx.lineWidth = 1 + rnd * 1.4 + speedRamp * 1.4;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ang) * d0, cy + Math.sin(ang) * d0);
+      ctx.lineTo(cx + Math.cos(ang) * (d0 + len), cy + Math.sin(ang) * (d0 + len));
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // the swarm: red drone silhouettes streaking across before the slam
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const swarmN = 26;
+    for (let i = 0; i < swarmN; i++) {
+      const h = Math.sin(i * 37.3) * 24634.63;
+      const rnd = h - Math.floor(h);
+      const h2 = Math.sin(i * 17.9) * 51424.11;
+      const rnd2 = h2 - Math.floor(h2);
+      // each drone crosses the screen once during the build-up
+      const cross = clamp01(t / HIT - rnd * 0.7) * 1.7;
+      if (cross <= 0 || cross >= 1.4) continue;
+      const px = lerp(-this.cssW * 0.15, this.cssW * 1.15, cross);
+      const py = cy + (rnd2 - 0.5) * this.cssH * 0.9 + Math.sin(cross * 9 + rnd * 7) * minDim * 0.04;
+      const size = minDim * (0.008 + rnd2 * 0.014);
+      const a = 0.5 * Math.sin(Math.min(1, cross) * Math.PI);
+      ctx.fillStyle = `rgba(230, 40, 60, ${a})`;
+      ctx.shadowColor = "rgba(230, 40, 60, 0.8)";
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(px + size * 1.8, py);
+      ctx.lineTo(px - size, py - size);
+      ctx.lineTo(px - size, py + size);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // slam shockwave ring
+    if (t >= HIT) {
+      const ringT = clamp01((t - HIT) / 0.3);
+      const ringR = lerp(minDim * 0.05, maxR * 1.2, ringT * ringT * (3 - 2 * ringT));
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = `rgba(255, 215, 0, ${0.7 * (1 - ringT)})`;
+      ctx.lineWidth = 3 + (1 - ringT) * 8;
+      ctx.shadowColor = "rgba(255, 200, 80, 0.9)";
+      ctx.shadowBlur = 26;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ORION slams in: overshooting scale, golden glow
+    if (t >= HIT) {
+      const slam = clamp01((t - HIT) / 0.14);
+      const ease = 1 - (1 - slam) * (1 - slam) * (1 - slam);
+      const scale = lerp(2.6, 1, ease);
+      const alpha = ease;
+      const titleSize = minDim * 0.17;
+
+      ctx.save();
+      ctx.translate(cx, cy - minDim * 0.02);
+      ctx.scale(scale, scale);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `bold ${titleSize}px Georgia, serif`;
+      ctx.shadowColor = "rgba(255, 200, 60, 0.85)";
+      ctx.shadowBlur = 40 + Math.sin(uiTime * 3.2) * 8;
+      ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+      ctx.fillText("O R I O N", 0, 0);
+      // hot white core pass right at the slam
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = `rgba(255, 250, 235, ${(1 - slam) * 0.85})`;
+      ctx.fillText("O R I O N", 0, 0);
+      ctx.restore();
+
+      // tagline fades in after the slam settles
+      const tagA = clamp01((t - HIT - 0.18) / 0.15);
+      if (tagA > 0) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `${minDim * 0.032}px Georgia, serif`;
+        ctx.fillStyle = `rgba(196, 30, 58, ${tagA})`;
+        ctx.shadowColor = "rgba(196, 30, 58, 0.7)";
+        ctx.shadowBlur = 14;
+        ctx.fillText("S U R V I V E   T H E   S W A R M", cx, cy + minDim * 0.11);
+        ctx.restore();
+      }
+    }
+
+    // white impact flash at the slam
+    const flash = t >= HIT ? clamp01(1 - (t - HIT) / 0.1) : 0;
+    if (flash > 0) {
+      ctx.fillStyle = `rgba(255, 250, 235, ${flash * flash * 0.9})`;
+      ctx.fillRect(-sx, -sy, this.cssW, this.cssH);
+    }
+
+    ctx.restore();
   }
 
   /** Arrival flash: the warp's white-out fading to reveal gameplay. */

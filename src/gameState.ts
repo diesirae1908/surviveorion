@@ -1,4 +1,4 @@
-import { MINES, SHIP } from "./config";
+import { MINES, POWERS, SHIP } from "./config";
 import { droneRadius, initSpawner, killDrone, updateDrones, updateSpawner } from "./enemies";
 import type { InputState } from "./input";
 import { isMineArmed, killMine, mineRadius, updateMines } from "./mines";
@@ -11,10 +11,11 @@ import type { World } from "./types";
 
 const DEATH_TO_GAMEOVER_SECONDS = 1.4;
 
-export function createWorld(viewW: number, viewH: number): World {
+export function createWorld(viewW: number, viewH: number, sandbox = false): World {
   const world: World = {
     viewW,
     viewH,
+    sandbox,
     phase: "playing",
     time: 0,
     deathTimer: 0,
@@ -41,8 +42,10 @@ export function createWorld(viewW: number, viewH: number): World {
     shake: 0,
     events: [],
   };
-  initSpawner(world);
-  initPickups(world);
+  if (!sandbox) {
+    initSpawner(world);
+    initPickups(world);
+  }
   return world;
 }
 
@@ -80,10 +83,13 @@ export function tick(world: World, input: InputState, dt: number): void {
 function handleShipDroneCollisions(world: World): void {
   if (world.phase !== "playing") return;
   const s = world.ship;
+  // the starshell rams with the whole golden bubble, not just the hull
+  const shipR =
+    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
 
   for (const d of world.drones) {
     if (!d.alive) continue;
-    if (!circlesOverlap(s.x, s.y, SHIP.radius, d.x, d.y, droneRadius(d))) continue;
+    if (!circlesOverlap(s.x, s.y, shipR, d.x, d.y, droneRadius(d))) continue;
 
     // starshell: invulnerable ram-kill shell — everything you touch dies
     if (world.powers.starshellTimer > 0) {
@@ -127,10 +133,12 @@ function handleShipDroneCollisions(world: World): void {
 function handleShipMineCollisions(world: World): void {
   if (world.phase !== "playing") return;
   const s = world.ship;
+  const shipR =
+    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
 
   for (const m of world.mines) {
     if (!m.alive || !isMineArmed(m)) continue;
-    if (!circlesOverlap(s.x, s.y, SHIP.radius, m.x, m.y, mineRadius())) continue;
+    if (!circlesOverlap(s.x, s.y, shipR, m.x, m.y, mineRadius())) continue;
 
     // starshell rams mines safely too: they detonate against the shell
     if (world.powers.starshellTimer > 0) {

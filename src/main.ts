@@ -21,14 +21,24 @@ import {
   saveKeyBindings,
   saveSettings,
   DEFAULT_KEYBINDS,
+  formatKeyCode,
   type BooleanSetting,
   type KeyBindings,
 } from "./save";
 import { TiltControl } from "./tilt";
+import { Tutorial } from "./tutorial";
 import type { World } from "./types";
 import { Ui } from "./ui";
 
-type AppState = "menu" | "launching" | "playing" | "paused" | "gameover";
+type AppState =
+  | "gate" // tap-to-enter splash (unlocks audio for the intro)
+  | "intro" // 5s boot cinematic
+  | "menu"
+  | "launching"
+  | "playing"
+  | "paused"
+  | "tutorial"
+  | "gameover";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -40,17 +50,20 @@ const settings = loadSettings();
 const controls = loadControlPrefs();
 let keybinds: KeyBindings = loadKeyBindings();
 
-let state: AppState = "menu";
+let state: AppState = "gate";
 let world: World = createWorld(renderer.viewW, renderer.viewH); // menu backdrop (not ticked)
 let bestScore = loadBestScore();
 /** Control scheme locked at run start; tags the score submission. */
 let runMode: "classic" | "tilt" = "classic";
 let accumulator = 0;
 let uiTime = 0;
-let fx: TransitionFx | null = null; // cinematic overlay (warp / flash / death veil)
+let fx: TransitionFx | null = null; // cinematic overlay (warp / flash / death veil / intro)
 let gameOverUiShown = false;
 let lastRunWasBest = false;
+let tutorial: Tutorial | null = null;
 
+const INTRO_SECONDS = 5;
+const INTRO_HIT_AT = 0.42 * INTRO_SECONDS; // when the title slams in
 const WARP_SECONDS = 2.1;
 const FLASH_SECONDS = 0.55;
 const DEATH_VEIL_SECONDS = 1.9;
@@ -119,6 +132,7 @@ const ui = new Ui(settings, {
   onRestart: beginLaunch,
   onQuitToMenu: quitToMenu,
   onPauseRequest: pause,
+  onTutorial: startTutorial,
   onToggle: (key: BooleanSetting) => {
     settings[key] = !settings[key];
     saveSettings(settings);
@@ -194,24 +208,8 @@ function showMenu(): void {
 /** Fade the menu, open the stargate, and dive into the run. */
 function beginLaunch(): void {
   if (state === "launching") return;
-  // first launch on a phone: offer tilt (the mobile default) before flying
-  if (isTouchDevice() && TiltControl.supported() && !controls.tiltPromptSeen) {
-    ui.showTiltPrompt(
-      () => {
-        controls.tiltPromptSeen = true;
-        void enableTilt().then(() => {
-          saveControlPrefs(controls);
-          doLaunch();
-        });
-      },
-      () => {
-        controls.tiltPromptSeen = true;
-        setStickMode();
-        doLaunch();
-      },
-    );
-    return;
-  }
+  // touch stick is the default everywhere; tilt is an opt-in from Settings
+  // (a tribute to Tilt to Live)
   doLaunch();
 }
 
@@ -237,6 +235,40 @@ function startRun(): void {
   audio.playTrack("game");
 }
 
+/** Flight school: a sandbox world with scripted static drones, no spawner. */
+function startTutorial(): void {
+  audio.unlock();
+  world = createWorld(renderer.viewW, renderer.viewH, true);
+  particles.clear();
+  popups.clear();
+  accumulator = 0;
+  fx = null;
+  state = "tutorial";
+  audio.playTrack("game");
+  ui.showTutorialHud(() => quitToMenu());
+  tutorial = new Tutorial(
+    world,
+    {
+      touch: isTouchDevice(),
+      inertia: settings.inertia,
+      moveKeys: [keybinds.up, keybinds.left, keybinds.down, keybinds.right]
+        .map((codes) => formatKeyCode(codes[0] ?? ""))
+        .join(" "),
+      boostKeys: formatKeyCode(keybinds.boost[0] ?? "Space"),
+    },
+    (html) => ui.setTutorialHint(html),
+  );
+}
+
+function finishTutorial(): void {
+  tutorial = null;
+  state = "menu"; // stop ticking the sandbox; the send-off screen takes over
+  ui.showTutorialEnd(
+    () => beginLaunch(),
+    () => quitToMenu(),
+  );
+}
+
 function pause(): void {
   if (state !== "playing") return;
   state = "paused";
@@ -255,6 +287,7 @@ function resume(): void {
 function quitToMenu(): void {
   state = "menu";
   fx = null;
+  tutorial = null;
   audio.setThrustLevel(0, false);
   audio.playTrack("menu");
   world = createWorld(renderer.viewW, renderer.viewH);
@@ -465,7 +498,10 @@ function frame(now: number): void {
   uiTime += dt;
 
   // cinematic transition timeline
-  if (state === "launching" && fx?.kind === "warp") {
+  if (state === "intro" && fx?.kind === "intro") {
+    fx.t += dt / INTRO_SECONDS;
+    if (fx.t >= 1) endIntro();
+  } else if (state === "launching" && fx?.kind === "warp") {
     fx.t += dt / WARP_SECONDS;
     if (fx.t >= 1) {
       startRun();
@@ -479,10 +515,11 @@ function frame(now: number): void {
     if (!gameOverUiShown && fx.t >= DEATH_UI_AT) showGameOverUi();
   }
 
-  if (state === "playing") {
+  if (state === "playing" || state === "tutorial") {
     accumulator += dt;
     while (accumulator >= FIXED_DT) {
       tick(world, input.sample(), FIXED_DT);
+      if (state === "tutorial") tutorial?.update(FIXED_DT);
       drainEvents(world);
       accumulator -= FIXED_DT;
     }
@@ -493,7 +530,13 @@ function frame(now: number): void {
       s.boostHeld,
     );
 
-    if (world.phase === "dead") onGameOver();
+    if (world.phase === "dead") {
+      // dying in flight school just restarts the lesson
+      if (state === "tutorial") startTutorial();
+      else onGameOver();
+    } else if (state === "tutorial" && tutorial?.done) {
+      finishTutorial();
+    }
   }
 
   particles.update(dt);
@@ -502,11 +545,12 @@ function frame(now: number): void {
   renderer.render(world, particles, popups, {
     alpha: state === "playing" ? accumulator / FIXED_DT : 1,
     uiTime,
-    shakeEnabled: settings.screenShake && state === "playing",
-    showHud: state === "playing" || state === "paused",
-    showShip: state !== "menu" && state !== "launching",
+    shakeEnabled: settings.screenShake && (state === "playing" || state === "tutorial"),
+    showHud: state === "playing" || state === "paused" || state === "tutorial",
+    showShip:
+      state !== "menu" && state !== "launching" && state !== "gate" && state !== "intro",
     bestScore,
-    touch: state === "playing" ? input.getTouchView() : null,
+    touch: state === "playing" || state === "tutorial" ? input.getTouchView() : null,
     fx,
   });
 
@@ -552,19 +596,42 @@ Object.defineProperty(window, "__orion", {
   },
 });
 
-showMenu();
+// --- boot: tap-to-enter gate → epic intro → menu ---
+
+/** The gate tap doubles as the audio unlock, so the intro can roar. */
+function enterFromGate(): void {
+  if (state !== "gate") return;
+  audio.unlock();
+  audio.intro(INTRO_SECONDS, INTRO_HIT_AT);
+  state = "intro";
+  fx = { kind: "intro", t: 0 };
+}
+
+function endIntro(): void {
+  fx = null;
+  state = "menu";
+  audio.playTrack("menu");
+  showMenu();
+}
+
+ui.showIntroGate(enterFromGate);
+// keyboard players can enter with any key; any input after the slam skips
+window.addEventListener("keydown", () => {
+  if (state === "gate") {
+    ui.clearScreens();
+    enterFromGate();
+  } else if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_HIT_AT + 0.4) {
+    endIntro();
+  }
+});
+window.addEventListener("pointerdown", () => {
+  if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_HIT_AT + 0.4) endIntro();
+});
+
 // Re-render the menu once the community server responds (session restore,
 // server availability) so the community buttons appear/disappear correctly.
 void api.init().then(() => {
   if (state === "menu") showMenu();
 });
-// Menu music: autoplay is blocked until the first interaction, so mark the
-// menu track current now (play fails silently) and retry on first input.
-audio.playTrack("menu");
-const tryMenuMusic = (): void => {
-  if (state === "menu") audio.playTrack("menu");
-};
-window.addEventListener("pointerdown", tryMenuMusic, { once: true });
-window.addEventListener("keydown", tryMenuMusic, { once: true });
 
 requestAnimationFrame(frame);

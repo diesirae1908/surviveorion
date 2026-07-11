@@ -34,7 +34,11 @@ export interface Settings {
   sound: boolean;
   music: boolean;
   screenShake: boolean;
-  /** Classic-mode drift. OFF = directional direct control (scores as tilt). */
+  /**
+   * Flight drift. OFF (the default) = directional direct control: the ship
+   * goes where you point, no momentum (scores on the Tilt/Direct board).
+   * ON = classic thrust-and-drift piloting (scores on the Classic board).
+   */
   inertia: boolean;
   /** Phone tilt lean range: low = more lean for full speed, high = twitchier. */
   tiltSensitivity: SenseLevel;
@@ -78,7 +82,7 @@ export function loadSettings(): Settings {
     sound: true,
     music: true,
     screenShake: true,
-    inertia: true,
+    inertia: false, // direct control by default; inertia is the opt-in add-on
     tiltSensitivity: "med",
     directSpeed: "med",
   };

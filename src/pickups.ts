@@ -28,10 +28,12 @@ function nextInterval(world: World): number {
 export function updatePickups(world: World, dt: number): void {
   if (world.phase !== "playing") return;
 
-  world.pickupTimer -= dt;
-  if (world.pickupTimer <= 0) {
-    world.pickupTimer = nextInterval(world);
-    if (world.pickups.length < PICKUPS.maxActive) spawnPickup(world);
+  if (!world.sandbox) {
+    world.pickupTimer -= dt;
+    if (world.pickupTimer <= 0) {
+      world.pickupTimer = nextInterval(world);
+      if (world.pickups.length < PICKUPS.maxActive) spawnPickup(world);
+    }
   }
 
   const ship = world.ship;
