@@ -5,6 +5,31 @@ export type { ControlMode, SenseLevel };
 
 export type BooleanSetting = "sound" | "music" | "screenShake" | "inertia";
 
+export type KeyAction = "up" | "down" | "left" | "right" | "boost" | "pause";
+
+/** KeyboardEvent.code lists per action — multiple codes = alternates (WASD + arrows). */
+export type KeyBindings = Record<KeyAction, string[]>;
+
+export const KEY_ACTIONS: KeyAction[] = ["up", "down", "left", "right", "boost", "pause"];
+
+export const KEY_ACTION_LABELS: Record<KeyAction, string> = {
+  up: "Up",
+  down: "Down",
+  left: "Left",
+  right: "Right",
+  boost: "Boost",
+  pause: "Pause",
+};
+
+export const DEFAULT_KEYBINDS: KeyBindings = {
+  up: ["KeyW", "ArrowUp"],
+  down: ["KeyS", "ArrowDown"],
+  left: ["KeyA", "ArrowLeft"],
+  right: ["KeyD", "ArrowRight"],
+  boost: ["Space"],
+  pause: ["Escape", "KeyP"],
+};
+
 export interface Settings {
   sound: boolean;
   music: boolean;
@@ -28,6 +53,7 @@ export interface ControlPrefs {
 const BEST_KEY = "orion.bestScore";
 const SETTINGS_KEY = "orion.settings";
 const CONTROLS_KEY = "orion.controls";
+const KEYBINDS_KEY = "orion.keybinds";
 
 const SENSE_LEVELS: SenseLevel[] = ["low", "med", "high"];
 
@@ -94,4 +120,97 @@ export function loadControlPrefs(): ControlPrefs {
 
 export function saveControlPrefs(prefs: ControlPrefs): void {
   localStorage.setItem(CONTROLS_KEY, JSON.stringify(prefs));
+}
+
+function cloneBinds(b: KeyBindings): KeyBindings {
+  return {
+    up: [...b.up],
+    down: [...b.down],
+    left: [...b.left],
+    right: [...b.right],
+    boost: [...b.boost],
+    pause: [...b.pause],
+  };
+}
+
+export function loadKeyBindings(): KeyBindings {
+  try {
+    const raw = localStorage.getItem(KEYBINDS_KEY);
+    if (!raw) return cloneBinds(DEFAULT_KEYBINDS);
+    const parsed = JSON.parse(raw) as Partial<Record<KeyAction, unknown>>;
+    const out = cloneBinds(DEFAULT_KEYBINDS);
+    for (const action of KEY_ACTIONS) {
+      const v = parsed[action];
+      if (Array.isArray(v) && v.length > 0 && v.every((c) => typeof c === "string")) {
+        out[action] = v as string[];
+      }
+    }
+    return out;
+  } catch {
+    return cloneBinds(DEFAULT_KEYBINDS);
+  }
+}
+
+export function saveKeyBindings(binds: KeyBindings): void {
+  localStorage.setItem(KEYBINDS_KEY, JSON.stringify(binds));
+}
+
+/**
+ * Bind `code` to `action` (replacing that action's keys). Removes the code from
+ * any other action so one key never does two jobs.
+ */
+export function assignKey(binds: KeyBindings, action: KeyAction, code: string): KeyBindings {
+  const next = cloneBinds(binds);
+  for (const a of KEY_ACTIONS) {
+    next[a] = next[a].filter((c) => c !== code);
+  }
+  next[action] = [code];
+  // never leave an action empty — fall back to default if somehow cleared
+  for (const a of KEY_ACTIONS) {
+    if (next[a].length === 0) next[a] = [...DEFAULT_KEYBINDS[a]];
+  }
+  return next;
+}
+
+/** Pretty label for a KeyboardEvent.code. */
+export function formatKeyCode(code: string): string {
+  if (code.startsWith("Key") && code.length === 4) return code.slice(3);
+  if (code.startsWith("Digit") && code.length === 6) return code.slice(5);
+  const special: Record<string, string> = {
+    Space: "Space",
+    Escape: "Esc",
+    ArrowUp: "↑",
+    ArrowDown: "↓",
+    ArrowLeft: "←",
+    ArrowRight: "→",
+    ShiftLeft: "LShift",
+    ShiftRight: "RShift",
+    ControlLeft: "LCtrl",
+    ControlRight: "RCtrl",
+    AltLeft: "LAlt",
+    AltRight: "RAlt",
+    MetaLeft: "Cmd",
+    MetaRight: "Cmd",
+    Enter: "Enter",
+    Tab: "Tab",
+    Backspace: "Backspace",
+    Minus: "-",
+    Equal: "=",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+    Backslash: "\\",
+    Backquote: "`",
+  };
+  if (special[code]) return special[code];
+  if (code.startsWith("Numpad")) return "Num" + code.slice(6);
+  return code;
+}
+
+export function formatKeyList(codes: string[]): string {
+  return codes.map(formatKeyCode).join(" / ");
 }

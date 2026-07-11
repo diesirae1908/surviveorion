@@ -296,6 +296,41 @@ button.launch {
   font-size: 14px;
 }
 
+.keybinds {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(340px, 84vw);
+}
+
+.keybind-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.keybind-row .k {
+  color: #ffee88;
+}
+
+.keybind-row .v {
+  color: #8a7a55;
+}
+
+.keybind-row.listening {
+  border-color: #ffd700;
+  color: #ffd700;
+}
+
+.keybind-row.listening .v {
+  color: #ffd700;
+}
+
 .toggles {
   display: flex;
   gap: 10px;

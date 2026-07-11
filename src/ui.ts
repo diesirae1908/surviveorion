@@ -1,4 +1,16 @@
-import type { BooleanSetting, ControlMode, SenseLevel, Settings } from "./save";
+import type {
+  BooleanSetting,
+  ControlMode,
+  KeyAction,
+  KeyBindings,
+  SenseLevel,
+  Settings,
+} from "./save";
+import {
+  KEY_ACTION_LABELS,
+  KEY_ACTIONS,
+  formatKeyList,
+} from "./save";
 
 export interface UiCallbacks {
   onPlay: () => void;
@@ -17,6 +29,10 @@ export interface UiCallbacks {
   /** Re-capture the current phone attitude as tilt neutral. */
   onRecalibrate: () => void;
   getControls: () => { mode: ControlMode; tiltSupported: boolean };
+  getKeyBindings: () => KeyBindings;
+  /** Assign a key to an action; returns the updated bindings. */
+  onRebind: (action: KeyAction, code: string) => KeyBindings;
+  onResetKeyBindings: () => KeyBindings;
 }
 
 export interface MenuCommunity {
@@ -104,6 +120,79 @@ export class Ui {
       paint();
     });
     return btn;
+  }
+
+  /**
+   * Click-to-rebind rows for each flight action. Listening mode captures the
+   * next keydown (Esc cancels unless rebinding Pause).
+   */
+  private buildKeybindEditor(onChanged: () => void): HTMLElement {
+    const wrap = this.el("div", "keybinds", "");
+    let listening: KeyAction | null = null;
+    let stopListen: (() => void) | null = null;
+
+    const cancelListen = (): void => {
+      stopListen?.();
+      stopListen = null;
+      listening = null;
+      paint();
+    };
+
+    const paint = (): void => {
+      const binds = this.cb.getKeyBindings();
+      wrap.innerHTML = "";
+      for (const action of KEY_ACTIONS) {
+        const row = document.createElement("button");
+        row.className = "keybind-row";
+        const label = KEY_ACTION_LABELS[action];
+        const value =
+          listening === action ? "Press a key…" : formatKeyList(binds[action]);
+        row.innerHTML = `<span class="k">${label}</span><span class="v">${value}</span>`;
+        if (listening === action) row.classList.add("listening");
+        row.addEventListener("click", () => {
+          if (listening === action) {
+            cancelListen();
+            return;
+          }
+          cancelListen();
+          listening = action;
+          paint();
+          const onKey = (e: KeyboardEvent): void => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Esc cancels unless the player is rebinding Pause itself
+            if (e.code === "Escape" && action !== "pause") {
+              cancelListen();
+              return;
+            }
+            // ignore bare modifiers
+            if (
+              ["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"].includes(
+                e.code,
+              )
+            ) {
+              return;
+            }
+            this.cb.onRebind(action, e.code);
+            cancelListen();
+            onChanged();
+          };
+          window.addEventListener("keydown", onKey, true);
+          stopListen = () => window.removeEventListener("keydown", onKey, true);
+        });
+        wrap.appendChild(row);
+      }
+      const reset = this.button("Reset defaults", false, () => {
+        cancelListen();
+        this.cb.onResetKeyBindings();
+        paint();
+        onChanged();
+      });
+      reset.classList.add("small-btn");
+      wrap.appendChild(reset);
+    };
+    paint();
+    return wrap;
   }
 
   private button(label: string, primary: boolean, onClick: () => void): HTMLButtonElement {
@@ -209,6 +298,7 @@ export class Ui {
     const manual = this.el("div", "manual", "");
     const paintManual = (): void => {
       const controls = this.cb.getControls();
+      const binds = this.cb.getKeyBindings();
       const rows = touchDevice
         ? controls.mode === "tilt"
           ? [
@@ -229,15 +319,18 @@ export class Ui {
               ]
         : this.settings.inertia
           ? [
-              ["Thrust", "W or ↑"],
-              ["Turn", "A D or ← →"],
-              ["Boost", "Space"],
-              ["Pause", "Esc"],
+              ["Thrust", formatKeyList(binds.up)],
+              ["Turn", `${formatKeyList(binds.left)} ${formatKeyList(binds.right)}`],
+              ["Boost", formatKeyList(binds.boost)],
+              ["Pause", formatKeyList(binds.pause)],
             ]
           : [
-              ["Fly", "WASD or arrows — ship goes that way"],
-              ["Boost", "hold Space for full speed"],
-              ["Pause", "Esc"],
+              [
+                "Fly",
+                `${formatKeyList(binds.up)} ${formatKeyList(binds.left)} ${formatKeyList(binds.down)} ${formatKeyList(binds.right)}`,
+              ],
+              ["Boost", `hold ${formatKeyList(binds.boost)} for full speed`],
+              ["Pause", formatKeyList(binds.pause)],
             ];
       manual.innerHTML = rows
         .map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`)
@@ -281,6 +374,16 @@ export class Ui {
 
     screen.appendChild(manualTitle);
     screen.appendChild(manual);
+
+    // key bindings editor (desktop / keyboard players)
+    if (!touchDevice) {
+      screen.appendChild(this.el("div", "manual-title", "KEY BINDINGS"));
+      screen.appendChild(this.buildKeybindEditor(paintManual));
+      screen.appendChild(
+        this.el("div", "field-hint center", "Click a binding, then press a key. Esc cancels."),
+      );
+    }
+
     screen.appendChild(
       this.el(
         "div",

@@ -12,12 +12,17 @@ import { Renderer, type TransitionFx } from "./render";
 import {
   loadBestScore,
   loadControlPrefs,
+  loadKeyBindings,
   loadSettings,
   nextSenseLevel,
+  assignKey,
   saveBestScore,
   saveControlPrefs,
+  saveKeyBindings,
   saveSettings,
+  DEFAULT_KEYBINDS,
   type BooleanSetting,
+  type KeyBindings,
 } from "./save";
 import { TiltControl } from "./tilt";
 import type { World } from "./types";
@@ -33,6 +38,7 @@ const particles = new Particles();
 const popups = new Popups();
 const settings = loadSettings();
 const controls = loadControlPrefs();
+let keybinds: KeyBindings = loadKeyBindings();
 
 let state: AppState = "menu";
 let world: World = createWorld(renderer.viewW, renderer.viewH); // menu backdrop (not ticked)
@@ -62,6 +68,7 @@ input.controlMode = controls.mode;
 input.inertia = settings.inertia;
 input.cruiseSpeed = DIRECT_CRUISE[settings.directSpeed];
 input.tilt.maxTiltDeg = TILT_MAX_DEG[settings.tiltSensitivity];
+input.setBindings(keybinds);
 if (controls.tiltNeutral) input.tilt.setNeutral(controls.tiltNeutral);
 if (controls.mode === "tilt") {
   if (!TiltControl.needsPermission()) {
@@ -149,6 +156,26 @@ const ui = new Ui(settings, {
     }
   },
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
+  getKeyBindings: () => keybinds,
+  onRebind: (action, code) => {
+    keybinds = assignKey(keybinds, action, code);
+    saveKeyBindings(keybinds);
+    input.setBindings(keybinds);
+    return keybinds;
+  },
+  onResetKeyBindings: () => {
+    keybinds = {
+      up: [...DEFAULT_KEYBINDS.up],
+      down: [...DEFAULT_KEYBINDS.down],
+      left: [...DEFAULT_KEYBINDS.left],
+      right: [...DEFAULT_KEYBINDS.right],
+      boost: [...DEFAULT_KEYBINDS.boost],
+      pause: [...DEFAULT_KEYBINDS.pause],
+    };
+    saveKeyBindings(keybinds);
+    input.setBindings(keybinds);
+    return keybinds;
+  },
 });
 
 const community = new CommunityUi(

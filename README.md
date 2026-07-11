@@ -153,7 +153,9 @@ to directional WASD/arrows (ship goes the way you press, no drift) with two
 speeds — cruise normally, hold Space for full speed. Those runs score on the
 Tilt leaderboard to keep the classic board honest. **Direct speed** (Low/Med/High)
 tunes the cruise pace; on phones, **Tilt sense** tunes how much lean reaches
-full speed.
+full speed. Desktop Settings also has **Key bindings**: click an action, press
+a key to rebind it (a key used elsewhere is cleared from the other action), or
+Reset defaults for WASD + arrows / Space / Esc+P.
 
 ## Structure
 

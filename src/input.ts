@@ -1,5 +1,6 @@
 import { DIRECT } from "./config";
 import { clamp01, type Vec2 } from "./math";
+import { DEFAULT_KEYBINDS, type KeyAction, type KeyBindings } from "./save";
 import { TiltControl } from "./tilt";
 
 export type ControlMode = "stick" | "tilt";
@@ -66,6 +67,15 @@ export class Input {
   inertia = true;
   /** Cruise speed for directional no-inertia mode (from directSpeed setting). */
   cruiseSpeed = DIRECT.cruiseSpeed;
+  /** Remappable keyboard bindings (main.ts keeps them in sync with localStorage). */
+  bindings: KeyBindings = {
+    up: [...DEFAULT_KEYBINDS.up],
+    down: [...DEFAULT_KEYBINDS.down],
+    left: [...DEFAULT_KEYBINDS.left],
+    right: [...DEFAULT_KEYBINDS.right],
+    boost: [...DEFAULT_KEYBINDS.boost],
+    pause: [...DEFAULT_KEYBINDS.pause],
+  };
 
   onPause: (() => void) | null = null;
 
@@ -73,8 +83,9 @@ export class Input {
     window.addEventListener("keydown", (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
-      if (e.code === "Escape" || e.code === "KeyP") this.onPause?.();
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+      if (this.pressed("pause")) this.onPause?.();
+      // stop arrows/space (and any rebound equivalents) from scrolling the page
+      if (this.isBound(e.code) || e.code.startsWith("Arrow") || e.code === "Space") {
         e.preventDefault();
       }
     });
@@ -85,6 +96,27 @@ export class Input {
     canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });
     canvas.addEventListener("touchend", this.onTouchEnd, { passive: false });
     canvas.addEventListener("touchcancel", this.onTouchEnd, { passive: false });
+  }
+
+  setBindings(b: KeyBindings): void {
+    this.bindings = {
+      up: [...b.up],
+      down: [...b.down],
+      left: [...b.left],
+      right: [...b.right],
+      boost: [...b.boost],
+      pause: [...b.pause],
+    };
+  }
+
+  private pressed(action: KeyAction): boolean {
+    return this.bindings[action].some((c) => this.keys.has(c));
+  }
+
+  private isBound(code: string): boolean {
+    return (Object.keys(this.bindings) as KeyAction[]).some((a) =>
+      this.bindings[a].includes(code),
+    );
   }
 
   /** Tilt steers the ship, so touch is only used for boost (and pause). */
@@ -160,7 +192,7 @@ export class Input {
     let moveVector: Vec2 | null = null;
     let simpleBoost = false;
 
-    if (this.keys.has("Space")) boost = true;
+    if (this.pressed("boost")) boost = true;
     if (this.boostTouchId !== null) boost = true;
 
     if (this.tiltActive) {
@@ -177,7 +209,7 @@ export class Input {
       };
     }
 
-    // Directional no-inertia: WASD/arrows (and stick) map straight to velocity
+    // Directional no-inertia: bound keys (and stick) map straight to velocity
     if (!this.inertia) {
       simpleBoost = true;
       const stick = this.stickVector();
@@ -186,10 +218,10 @@ export class Input {
       } else {
         let mx = 0;
         let my = 0;
-        if (this.keys.has("ArrowLeft") || this.keys.has("KeyA")) mx -= 1;
-        if (this.keys.has("ArrowRight") || this.keys.has("KeyD")) mx += 1;
-        if (this.keys.has("ArrowUp") || this.keys.has("KeyW")) my += 1;
-        if (this.keys.has("ArrowDown") || this.keys.has("KeyS")) my -= 1;
+        if (this.pressed("left")) mx -= 1;
+        if (this.pressed("right")) mx += 1;
+        if (this.pressed("up")) my += 1;
+        if (this.pressed("down")) my -= 1;
         const len = Math.hypot(mx, my);
         moveVector = len > 0 ? { x: mx / len, y: my / len } : { x: 0, y: 0 };
       }
@@ -205,9 +237,9 @@ export class Input {
       };
     }
 
-    if (this.keys.has("ArrowLeft") || this.keys.has("KeyA")) turn -= 1;
-    if (this.keys.has("ArrowRight") || this.keys.has("KeyD")) turn += 1;
-    if (this.keys.has("ArrowUp") || this.keys.has("KeyW")) thrust = 1;
+    if (this.pressed("left")) turn -= 1;
+    if (this.pressed("right")) turn += 1;
+    if (this.pressed("up")) thrust = 1;
 
     if (this.stickTouchId !== null) {
       const dx = this.stickPos.x - this.stickOrigin.x;
