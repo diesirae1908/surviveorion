@@ -129,7 +129,8 @@ function setStickMode(): void {
 const ui = new Ui(settings, {
   onPlay: beginLaunch,
   onResume: resume,
-  onRestart: beginLaunch,
+  // restarts keep the mode chosen at launch — no picker friction on retries
+  onRestart: doLaunch,
   onQuitToMenu: quitToMenu,
   onPauseRequest: pause,
   onTutorial: startTutorial,
@@ -169,6 +170,9 @@ const ui = new Ui(settings, {
       saveControlPrefs(controls);
     }
   },
+  onFeedback: async (message, email) => {
+    await api.sendFeedback(message, email);
+  },
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
   onRebind: (action, code) => {
@@ -204,15 +208,32 @@ function showMenu(): void {
   });
 }
 
-/** Fade the menu, open the stargate, and dive into the run. */
+/**
+ * Launch entry point: on touch devices with a motion sensor, first offer the
+ * choice between the default touch stick and tilt mode (Tilt to Live tribute).
+ * Desktop has no sensor, so it goes straight in.
+ */
 function beginLaunch(): void {
   if (state === "launching") return;
-  // touch stick is the default everywhere; tilt is an opt-in from Settings
-  // (a tribute to Tilt to Live)
+  if (isTouchDevice() && TiltControl.supported()) {
+    ui.showModeSelect(controls.mode, (mode) => {
+      if (mode === "tilt") {
+        void enableTilt().then((ok) => {
+          if (!ok) setStickMode(); // permission denied → fly with the stick
+          doLaunch();
+        });
+      } else {
+        setStickMode();
+        doLaunch();
+      }
+    });
+    return;
+  }
   doLaunch();
 }
 
 function doLaunch(): void {
+  if (state === "launching") return;
   audio.unlock();
   audio.pauseMusic();
   audio.warp(WARP_SECONDS);
@@ -243,7 +264,7 @@ function startTutorial(): void {
   accumulator = 0;
   fx = null;
   state = "tutorial";
-  audio.playTrack("game");
+  audio.playTrack("tutorial"); // generated chill-epic loop, not the battle track
   ui.showTutorialHud(() => quitToMenu());
   tutorial = new Tutorial(
     world,
@@ -254,7 +275,8 @@ function startTutorial(): void {
         .map((codes) => formatKeyCode(codes[0] ?? ""))
         .join(" "),
     },
-    (html) => ui.setTutorialHint(html),
+    // each lesson pauses the world behind a message; a tap resumes it
+    (html) => ui.showTutorialMessage(html, () => tutorial?.dismiss()),
   );
 }
 
@@ -510,7 +532,12 @@ function frame(now: number): void {
     if (!gameOverUiShown && fx.t >= DEATH_UI_AT) showGameOverUi();
   }
 
-  if (state === "playing" || state === "tutorial") {
+  if (state === "tutorial" && tutorial?.waiting) {
+    // a lesson message is up: freeze the world (and drop banked time so
+    // dismissing doesn't trigger a burst of catch-up ticks)
+    accumulator = 0;
+    audio.setThrustLevel(0);
+  } else if (state === "playing" || state === "tutorial") {
     accumulator += dt;
     while (accumulator >= FIXED_DT) {
       tick(world, input.sample(), FIXED_DT);

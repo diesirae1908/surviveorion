@@ -1,4 +1,7 @@
-export type TrackName = "menu" | "game" | "gameover";
+/** Music tracks backed by looping audio files. */
+type FileTrack = "menu" | "game" | "gameover";
+/** "tutorial" is synthesized live (chill ambient loop), the rest are files. */
+export type TrackName = FileTrack | "tutorial";
 
 /**
  * Procedural Web Audio SFX + per-screen looping music tracks. Everything
@@ -9,8 +12,12 @@ export class AudioSystem {
   private master: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private thrustGain: GainNode | null = null;
-  private tracks: Record<TrackName, HTMLAudioElement>;
+  private tracks: Record<FileTrack, HTMLAudioElement>;
   private current: TrackName | null = null;
+  // generated tutorial music (independent of the SFX chain so the Sound
+  // toggle doesn't mute it — it obeys the Music toggle like the file tracks)
+  private tutorialGain: GainNode | null = null;
+  private tutorialTimer: number | null = null;
 
   soundEnabled = true;
   musicEnabled = true;
@@ -53,6 +60,7 @@ export class AudioSystem {
     this.musicEnabled = on;
     if (!on) {
       for (const t of Object.values(this.tracks)) t.pause();
+      this.stopTutorialMusic();
     } else {
       this.resumeMusic();
     }
@@ -62,7 +70,8 @@ export class AudioSystem {
   playTrack(name: TrackName): void {
     if (this.current !== name) {
       for (const t of Object.values(this.tracks)) t.pause();
-      this.tracks[name].currentTime = 0;
+      this.stopTutorialMusic();
+      if (name !== "tutorial") this.tracks[name].currentTime = 0;
       this.current = name;
     }
     this.resumeMusic();
@@ -70,19 +79,111 @@ export class AudioSystem {
 
   /** Resume the current track (e.g. unpausing) without restarting it. */
   resumeMusic(): void {
-    if (this.musicEnabled && this.current) {
-      void this.tracks[this.current].play().catch(() => {});
-    }
+    if (!this.musicEnabled || !this.current) return;
+    if (this.current === "tutorial") this.startTutorialMusic();
+    else void this.tracks[this.current].play().catch(() => {});
   }
 
   pauseMusic(): void {
-    if (this.current) this.tracks[this.current].pause();
+    if (this.current === "tutorial") this.stopTutorialMusic();
+    else if (this.current) this.tracks[this.current].pause();
   }
 
   private applySoundSetting(): void {
     if (this.sfxGain && this.ctx) {
       this.sfxGain.gain.setValueAtTime(this.soundEnabled ? 1 : 0, this.ctx.currentTime);
     }
+  }
+
+  // --- tutorial music: generated chill-epic ambient loop ---
+  //
+  // Slow pads over an Am9 → Fmaj7 → Cmaj7 → Gsus progression with a deep
+  // bass drone and a sparse plucked arpeggio — calm enough to read the
+  // lessons, epic enough to still feel like Orion.
+
+  private startTutorialMusic(): void {
+    if (!this.ctx || !this.master || this.tutorialGain) return;
+    this.tutorialGain = this.ctx.createGain();
+    this.tutorialGain.gain.setValueAtTime(0, this.ctx.currentTime);
+    this.tutorialGain.gain.linearRampToValueAtTime(1, this.ctx.currentTime + 1.5);
+    this.tutorialGain.connect(this.master);
+    this.scheduleTutorialCycle(this.ctx.currentTime + 0.1);
+  }
+
+  private stopTutorialMusic(): void {
+    if (this.tutorialTimer !== null) {
+      clearTimeout(this.tutorialTimer);
+      this.tutorialTimer = null;
+    }
+    if (this.tutorialGain && this.ctx) {
+      const g = this.tutorialGain;
+      g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.15);
+      setTimeout(() => g.disconnect(), 800);
+      this.tutorialGain = null;
+    }
+  }
+
+  /** One voice of the tutorial loop, routed through the tutorial bus. */
+  private tutorialVoice(
+    freq: number,
+    t0: number,
+    duration: number,
+    type: OscillatorType,
+    peak: number,
+    attack: number,
+    detune = 0,
+  ): void {
+    if (!this.ctx || !this.tutorialGain) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.detune.value = detune;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(peak, t0 + attack);
+    gain.gain.setValueAtTime(peak, t0 + Math.max(attack, duration - 0.9));
+    gain.gain.linearRampToValueAtTime(0, t0 + duration);
+    osc.connect(gain).connect(this.tutorialGain);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.05);
+  }
+
+  /** Schedule one 16s pass of the progression, then chain the next. */
+  private scheduleTutorialCycle(t0: number): void {
+    if (!this.ctx || !this.tutorialGain) return;
+    const CHORD_SECONDS = 4;
+    // [bass root, ...pad tones] per chord
+    const chords: number[][] = [
+      [55, 220, 261.63, 329.63, 493.88], // Am9
+      [43.65, 174.61, 220, 261.63, 329.63], // Fmaj7
+      [65.41, 261.63, 329.63, 392, 493.88], // Cmaj7
+      [49, 196, 246.94, 293.66, 392], // Gsus feel
+    ];
+
+    chords.forEach((chord, i) => {
+      const tc = t0 + i * CHORD_SECONDS;
+      const [bass, ...pad] = chord;
+      // deep drone an octave under the pad
+      this.tutorialVoice(bass, tc, CHORD_SECONDS + 0.4, "sine", 0.09, 1.2);
+      // slow pads, gently detuned pairs for width
+      for (const f of pad) {
+        this.tutorialVoice(f, tc, CHORD_SECONDS + 0.4, "sine", 0.028, 1.6, -4);
+        this.tutorialVoice(f, tc, CHORD_SECONDS + 0.4, "triangle", 0.012, 1.6, 4);
+      }
+      // sparse pluck arpeggio an octave up — the "epic" glimmer
+      const arp = [pad[0] * 2, pad[2] * 2, pad[1] * 2, pad[2] * 2];
+      arp.forEach((f, k) => {
+        this.tutorialVoice(f, tc + 0.6 + k * 0.85, 0.8, "triangle", 0.035, 0.02);
+      });
+      // one high shimmer swell per chord
+      this.tutorialVoice(pad[1] * 4, tc + 1, CHORD_SECONDS - 1, "sine", 0.008, 1.4);
+    });
+
+    const cycle = chords.length * CHORD_SECONDS;
+    const delayMs = Math.max(500, (t0 + cycle - this.ctx.currentTime - 1) * 1000);
+    this.tutorialTimer = window.setTimeout(() => {
+      this.scheduleTutorialCycle(t0 + cycle);
+    }, delayMs);
   }
 
   // --- continuous thruster rumble ---

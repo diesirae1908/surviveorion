@@ -11,7 +11,6 @@ export interface TutorialEnv {
 
 const MOVE_DISTANCE = 12; // world units of flying before step 1 completes
 const DODGE_SECONDS = 6;
-const OUTRO_SECONDS = 4;
 
 /**
  * Scripted flight-school sequence over a sandbox world (no ambient spawns).
@@ -21,6 +20,8 @@ const OUTRO_SECONDS = 4;
 export class Tutorial {
   /** True once the outro finished; main.ts shows the "ready" screen. */
   done = false;
+  /** True while a message is up: main.ts freezes the world until dismiss(). */
+  waiting = false;
 
   private step = 0;
   private moved = 0;
@@ -32,11 +33,21 @@ export class Tutorial {
   constructor(
     private world: World,
     private env: TutorialEnv,
-    private setHint: (html: string) => void,
+    private showMessage: (html: string) => void,
   ) {
     this.lastX = world.ship.x;
     this.lastY = world.ship.y;
-    this.setHint(this.flyText());
+    this.message(this.flyText());
+  }
+
+  /** Show a blocking message; the caller resumes us via dismiss(). */
+  private message(html: string): void {
+    this.waiting = true;
+    this.showMessage(html);
+  }
+
+  dismiss(): void {
+    this.waiting = false;
   }
 
   private flyText(): string {
@@ -103,7 +114,7 @@ export class Tutorial {
         if (this.moved >= MOVE_DISTANCE) {
           this.step = 1;
           this.spawnStaticDrones();
-          this.setHint(
+          this.message(
             "<b>DRONES</b><br/>One touch and you're space dust — but these are frozen." +
               "<br/>Frozen drones shatter harmlessly. Ram one!",
           );
@@ -118,7 +129,7 @@ export class Tutorial {
           for (const d of this.staticDrones) {
             if (d.alive) d.frozen = 1.4;
           }
-          this.setHint(
+          this.message(
             "<b>THEY HUNT</b><br/>In a real run drones chase you, forever, in growing swarms." +
               `<br/>Dodge them for ${DODGE_SECONDS} seconds!`,
           );
@@ -138,7 +149,7 @@ export class Tutorial {
             power: "shockwave",
             age: 0,
           });
-          this.setHint(
+          this.message(
             "<b>POWERS</b><br/>Pickups auto-fire the instant you grab them — no button needed." +
               "<br/>Grab the shockwave and clear the pack!",
           );
@@ -148,8 +159,7 @@ export class Tutorial {
       case 3: {
         if (w.pickups.length === 0) {
           this.step = 4;
-          this.timer = OUTRO_SECONDS;
-          this.setHint(
+          this.message(
             "<b>THE GOAL</b><br/>Score the best score. Be the best of the galaxy." +
               "<br/>And above all… <b>SURVIVE</b>.",
           );
@@ -157,8 +167,8 @@ export class Tutorial {
         break;
       }
       case 4: {
-        this.timer -= dt;
-        if (this.timer <= 0) this.done = true;
+        // final message dismissed → straight to the send-off screen
+        if (!this.waiting) this.done = true;
         break;
       }
     }

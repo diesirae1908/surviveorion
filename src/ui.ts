@@ -34,6 +34,8 @@ export interface UiCallbacks {
   /** Assign a key to an action; returns the updated bindings. */
   onRebind: (action: KeyAction, code: string) => KeyBindings;
   onResetKeyBindings: () => KeyBindings;
+  /** Submit player feedback (email optional); rejects with a message on failure. */
+  onFeedback: (message: string, email: string) => Promise<void>;
 }
 
 export interface MenuCommunity {
@@ -406,6 +408,94 @@ export class Ui {
       ),
     );
 
+    const feedback = this.button("Send feedback", false, () =>
+      this.showFeedback(() => this.showSettings(touchDevice, onBack)),
+    );
+    feedback.classList.add("small-btn");
+    screen.appendChild(feedback);
+
+    const back = this.button("Back", false, onBack);
+    back.classList.add("small-btn");
+    screen.appendChild(back);
+    this.root.appendChild(screen);
+  }
+
+  /** Feedback form: message + optional email for follow-ups and rewards. */
+  private showFeedback(onBack: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "PILOT DEBRIEF"));
+    screen.appendChild(this.el("div", "divider", ""));
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Bugs, ideas, balance gripes — every report makes the arena better.",
+      ),
+    );
+
+    const message = document.createElement("textarea");
+    message.className = "field feedback-message";
+    message.placeholder = "What's on your mind, pilot?";
+    message.maxLength = 2000;
+    message.rows = 5;
+    screen.appendChild(message);
+
+    const email = document.createElement("input");
+    email.className = "field";
+    email.type = "email";
+    email.placeholder = "Email (optional)";
+    email.maxLength = 254;
+    email.autocomplete = "email";
+    screen.appendChild(email);
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Leave an email if you'd like a reply — or rewards for the best reports.",
+      ),
+    );
+
+    const error = this.el("div", "form-error", "");
+    screen.appendChild(error);
+
+    const send = this.button("Transmit", true, () => {
+      const text = message.value.trim();
+      if (text.length < 3) {
+        error.textContent = "Tell us a little more first.";
+        return;
+      }
+      send.disabled = true;
+      send.textContent = "Transmitting…";
+      error.textContent = "";
+      this.cb
+        .onFeedback(text, email.value.trim())
+        .then(() => {
+          screen.innerHTML = "";
+          screen.appendChild(this.el("div", "heading gold small", "TRANSMISSION RECEIVED"));
+          screen.appendChild(this.el("div", "divider", ""));
+          screen.appendChild(
+            this.el(
+              "div",
+              "field-hint center",
+              "Thank you, pilot — your report is in the log." +
+                (email.value.trim() ? "<br/>We'll reach out if it earns a reward." : ""),
+            ),
+          );
+          const back = this.button("Back", false, onBack);
+          back.classList.add("small-btn");
+          screen.appendChild(back);
+        })
+        .catch((e: unknown) => {
+          send.disabled = false;
+          send.textContent = "Transmit";
+          error.textContent = e instanceof Error ? e.message : "Transmission failed — try again.";
+        });
+    });
+    screen.appendChild(send);
+
     const back = this.button("Back", false, onBack);
     back.classList.add("small-btn");
     screen.appendChild(back);
@@ -464,6 +554,37 @@ export class Ui {
     this.root.appendChild(gate);
   }
 
+  /**
+   * Pre-launch control picker (touch devices with a motion sensor): the
+   * default drag-anywhere stick, or tilt as the Tilt to Live tribute.
+   */
+  showModeSelect(current: ControlMode, onPick: (mode: ControlMode) => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "CHOOSE YOUR CONTROLS"));
+    screen.appendChild(this.el("div", "divider", ""));
+
+    const stick = this.button("Touch — drag anywhere to fly", current !== "tilt", () =>
+      onPick("stick"),
+    );
+    const tilt = this.button("Tilt — lean your phone to fly", current === "tilt", () =>
+      onPick("tilt"),
+    );
+    screen.appendChild(stick);
+    screen.appendChild(tilt);
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Tilt is our tribute to Tilt to Live — hold your phone at your comfortable" +
+          " play angle before tapping, that becomes neutral.",
+      ),
+    );
+    this.root.appendChild(screen);
+  }
+
   /** Tutorial overlay: an instruction banner up top and a skip button. */
   showTutorialHud(onSkip: () => void): void {
     this.clear();
@@ -486,6 +607,25 @@ export class Ui {
     hint.classList.remove("pop");
     void hint.offsetWidth;
     hint.classList.add("pop");
+  }
+
+  /**
+   * Blocking tutorial message: the world pauses behind it, and a tap/click
+   * anywhere dismisses it (leaving the same text as the top reminder banner).
+   */
+  showTutorialMessage(html: string, onDismiss: () => void): void {
+    document.querySelector(".tutorial-catcher")?.remove();
+    this.setTutorialHint(html);
+
+    const catcher = this.el("div", "tutorial-catcher", "");
+    const card = this.el("div", "tutorial-modal", html);
+    card.appendChild(this.el("div", "tap-continue", "tap anywhere to continue"));
+    catcher.appendChild(card);
+    catcher.addEventListener("pointerdown", () => {
+      catcher.remove();
+      onDismiss();
+    });
+    this.root.appendChild(catcher);
   }
 
   /** Post-tutorial send-off: straight into a run, or back to the menu. */

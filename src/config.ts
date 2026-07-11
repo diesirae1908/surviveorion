@@ -283,8 +283,8 @@ export const POWERS = {
   // Chain lightning: zaps the nearest enemy, then jumps to the next closest
   // within range until no more targets are close enough to continue.
   arc: {
-    initialRadius: 4,
-    jumpRadius: 2.2,
+    initialRadius: 5,
+    jumpRadius: 3.5,
     jumpInterval: 0.07,
     boltLifetime: 0.25,
     fizzleLifetime: 0.5,
@@ -309,12 +309,14 @@ export const POWERS = {
     scatter: 1.4, // strike jitter around the targeted drone
     waveLifetime: 0.6,
   },
-  // Drops a singularity at the ship: pulls drones inward, then collapses
-  // and kills everything caught in the core.
+  // Drops a singularity at the ship: pulls drones inward, devouring (and
+  // scoring) everything that reaches the core, then collapses and kills
+  // whatever is still caught nearby.
   vortex: {
     pullDuration: 3,
     pullRadius: 8,
     pullSpeed: 7,
+    absorbRadius: 0.7, // drones this close to the core are eaten immediately
     killRadius: 3,
   },
 };

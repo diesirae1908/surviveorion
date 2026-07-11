@@ -526,13 +526,18 @@ function updateVortices(world: World, dt: number): void {
       continue;
     }
 
-    // drag drones toward the singularity, harder the closer they get
+    // drag drones toward the singularity, harder the closer they get;
+    // anything that reaches the core is devoured on the spot (and scores)
     for (const d of world.drones) {
       if (!d.alive) continue;
       const dx = v.x - d.x;
       const dy = v.y - d.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 0.05 || dist > cfg.pullRadius) continue;
+      if (dist > cfg.pullRadius) continue;
+      if (dist <= cfg.absorbRadius + droneRadius(d)) {
+        killDrone(world, d);
+        continue;
+      }
       const strength = 0.4 + 0.6 * (1 - dist / cfg.pullRadius);
       const pull = Math.min(dist, cfg.pullSpeed * strength * dt);
       d.x += (dx / dist) * pull;

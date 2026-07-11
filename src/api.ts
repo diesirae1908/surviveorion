@@ -198,4 +198,13 @@ export class Api {
   ): Promise<LeaderboardResponse & { arena: ArenaInfo }> {
     return this.request("GET", `/api/arenas/${code}/leaderboard?mode=${mode}`);
   }
+
+  /** Player feedback; email is optional (follow-ups / rewards). */
+  sendFeedback(message: string, email: string): Promise<{ ok: boolean }> {
+    // device context helps reproduce bugs without asking the player
+    const context =
+      `${navigator.userAgent} | ${window.screen.width}x${window.screen.height}` +
+      ` | touch:${"ontouchstart" in window}`;
+    return this.request("POST", "/api/feedback", { message, email, context });
+  }
 }

@@ -54,6 +54,16 @@ db.exec(`
     joined_at INTEGER NOT NULL,
     PRIMARY KEY (arena_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    callsign TEXT,
+    email TEXT,
+    message TEXT NOT NULL,
+    context TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migration for databases created before Clerk support.
@@ -227,4 +237,13 @@ export function userArenas(userId) {
        ORDER BY am.joined_at DESC`,
     )
     .all(userId, userId);
+}
+
+// --- feedback ---
+
+export function addFeedback({ userId = null, callsign = null, email = null, message, context = "" }) {
+  db.prepare(
+    `INSERT INTO feedback (user_id, callsign, email, message, context, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(userId, callsign, email, message, context, Date.now());
 }

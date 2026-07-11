@@ -17,7 +17,7 @@ defensive power pickups:
 - **Arc Lightning** — zaps the nearest enemy, then chain-jumps through nearby drones until nothing is close enough to continue
 - **Autocannon** — mounts a turret on the ship for ~6s that auto-fires tracer rounds at the nearest enemy in range
 - **Meteor Storm** — explosions rain down for ~4s, biased toward drone clusters, each clearing a small radius
-- **Vortex** — drops a singularity at your position that drags drones inward for ~3s, then collapses and kills everything caught in the core
+- **Vortex** — drops a singularity at your position that drags drones inward for ~3s, devouring (and scoring) everything that reaches the core, then collapses and kills whatever is still caught nearby
 
 Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`):
 shield/shockwave are common safety nets, freeze and afterburner are rarer. Every
@@ -150,7 +150,8 @@ Settings has an **Inertia** toggle for classic thrust-and-drift piloting
 (`W`/`↑` thrust, `A`/`D` turn, drag heading on touch) — the original flight
 model, now the opt-in add-on. A **How to play** tutorial on the menu walks new
 pilots through flying, drones, and powers in a sandbox with static (frozen)
-enemies, and the game boots through a tap-to-enter gate into a ~5s cinematic
+enemies — each lesson pauses the world behind a message you tap to dismiss —
+and the game boots through a tap-to-enter gate into a ~5s cinematic
 intro (hyperspace rush, swarm fly-by, title slam) before the menu.
 
 The arena gets swarmy fast: an 8-drone opening burst, the first formation
@@ -165,12 +166,14 @@ the canvas tracks `visualViewport` resizes (iOS browser chrome, rotation),
 and the page blocks pinch/double-tap zoom.
 
 Phones default to the **virtual stick** — the stick spawns wherever your
-finger lands, anywhere on the screen. **Tilt controls** are a settings opt-in
-— a tribute to Tilt to Live: lean the phone to fly. Tilt maps directly to
-velocity (`TILT` in `src/config.ts`) and needs the motion-sensor permission
-on iOS (requested from the settings toggle) and a secure context, so test it
-against a deployed build rather than plain-HTTP LAN dev. Tilt runs rank on
-the Tilt/Direct leaderboard, same as the default no-inertia mode.
+finger lands, anywhere on the screen. On devices with a motion sensor,
+tapping **Launch** first asks Touch or **Tilt** — the tribute to Tilt to
+Live: lean the phone to fly (retries keep the choice; it's also switchable
+in Settings). Tilt maps directly to velocity (`TILT` in `src/config.ts`)
+and needs the motion-sensor permission on iOS (requested when picked) and
+a secure context, so test it against a deployed build rather than
+plain-HTTP LAN dev. Tilt runs rank on the Tilt/Direct leaderboard, same
+as the default no-inertia mode.
 
 **Direct speed** (Low/Med/High) tunes the cruise pace of direct control; on
 phones, **Tilt sense** tunes how much lean reaches full speed. Desktop

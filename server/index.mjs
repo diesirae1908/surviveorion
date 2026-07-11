@@ -301,6 +301,31 @@ const routes = {
     if (!user) return json(res, 401, { error: "not signed in" });
     json(res, 200, { arenas: store.userArenas(user.id) });
   },
+
+  // Player feedback (works signed-in or anonymous; email is optional so we
+  // can reach back out with follow-ups / rewards).
+  "POST /api/feedback": async (req, res, user) => {
+    if (!rateLimit(`feedback:${clientIp(req)}`, 4)) {
+      return json(res, 429, { error: "too much feedback at once — try again in a minute" });
+    }
+    const body = await readBody(req);
+    const message = String(body.message ?? "").trim();
+    if (message.length < 3) return json(res, 400, { error: "tell us a little more" });
+    if (message.length > 2000) return json(res, 400, { error: "message too long (2000 chars max)" });
+    const email = String(body.email ?? "").trim();
+    if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))) {
+      return json(res, 400, { error: "that email doesn't look right" });
+    }
+    const context = String(body.context ?? "").slice(0, 500);
+    store.addFeedback({
+      userId: user?.id ?? null,
+      callsign: user?.callsign ?? null,
+      email: email || null,
+      message,
+      context,
+    });
+    json(res, 200, { ok: true });
+  },
 };
 
 // GET /api/arenas/:code/leaderboard (dynamic segment, handled separately)

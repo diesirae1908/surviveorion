@@ -472,6 +472,12 @@ select.field {
   cursor: pointer;
 }
 
+textarea.field {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.5;
+}
+
 .field-hint {
   color: #8a7a55;
   font-size: 12px;
@@ -664,6 +670,60 @@ button.enlist-btn {
   font-size: 12px;
   pointer-events: auto;
   opacity: 0.75;
+  z-index: 6;
+}
+
+/* blocking tutorial message: world pauses behind it, tap anywhere to dismiss */
+.tutorial-catcher {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  background: rgba(5, 5, 10, 0.55);
+}
+
+.tutorial-modal {
+  max-width: min(560px, 88vw);
+  padding: 22px 28px;
+  text-align: center;
+  color: #ffee88;
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: 0.06em;
+  background: rgba(10, 10, 18, 0.9);
+  border: 1px solid rgba(170, 136, 68, 0.6);
+  border-radius: 4px;
+  animation: modalPop 0.35s ease-out;
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tutorial-modal b {
+  color: #ffd700;
+  letter-spacing: 0.2em;
+}
+
+.tutorial-modal .tap-continue {
+  margin-top: 16px;
+  color: #ffd700;
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  margin-right: -0.4em;
+  text-transform: uppercase;
+  animation: enterPulse 1.6s ease-in-out infinite;
 }
 
 /* --- cinematic intro --- */

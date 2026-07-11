@@ -99,9 +99,27 @@ function activate(world: World, power: PowerId): void {
 
   // vortex
   const killsBeforeVortex = world.kills;
+  const scoreBeforeVortex = world.score;
   activate(world, "vortex");
   check("vortex opens", world.powers.vortices.length === 1);
-  step(world, 3.5);
+  // park a drone on the core: it must be devoured (and scored) mid-pull
+  const v = world.powers.vortices[0];
+  const victim = world.drones.find((d) => d.alive);
+  if (victim) {
+    victim.x = v.x;
+    victim.y = v.y;
+  }
+  step(world, 0.1);
+  check(
+    "vortex absorbs + scores during the pull",
+    world.powers.vortices.length === 1 &&
+      victim !== undefined &&
+      !victim.alive &&
+      world.kills > killsBeforeVortex &&
+      world.score > scoreBeforeVortex,
+    `+${world.kills - killsBeforeVortex} kills, +${Math.round(world.score - scoreBeforeVortex)} pts`,
+  );
+  step(world, 3.4);
   check("vortex collapses", world.powers.vortices.length === 0);
   check("vortex kills drones", world.kills > killsBeforeVortex, `+${world.kills - killsBeforeVortex}`);
 }
@@ -182,6 +200,7 @@ function activate(world: World, power: PowerId): void {
     { touch: false, inertia: false, moveKeys: "W A S D" },
     (h) => hints.push(h),
   );
+  check("tutorial: opening message blocks until dismissed", tut.waiting);
 
   const stepTut = (
     seconds: number,
@@ -190,6 +209,8 @@ function activate(world: World, power: PowerId): void {
   ): void => {
     const steps = Math.round(seconds / FIXED_DT);
     for (let i = 0; i < steps; i++) {
+      // in the browser each message pauses the world; the harness taps through
+      tut.dismiss();
       // headless dodging is luck, so the harness banks a shield every tick
       if (invuln) world.powers.shieldActive = true;
       tick(world, { ...input, inertia: false, moveVector: drive ?? { x: 0, y: 0 } }, FIXED_DT);
