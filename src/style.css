@@ -165,8 +165,7 @@ body {
   }
 }
 
-/* :not([class*="cl-"]) keeps the game's chunky button chrome off Clerk's modal buttons */
-button:not([class*="cl-"]) {
+button {
   font-family: inherit;
   cursor: pointer;
   border: 1px solid #aa8844;
@@ -181,8 +180,8 @@ button:not([class*="cl-"]) {
   transition: all 0.15s ease;
 }
 
-button:not([class*="cl-"]):hover,
-button:not([class*="cl-"]):active {
+button:hover,
+button:active {
   border-color: #ffd700;
   color: #ffd700;
   box-shadow: 0 0 24px rgba(255, 215, 0, 0.25);
@@ -497,8 +496,9 @@ textarea.field {
   min-height: 44px;
 }
 
-button.enlist-btn {
-  font-size: 16px;
+.google-wrap.hero {
+  min-height: 48px;
+  align-items: center;
 }
 
 .field-hint.center {

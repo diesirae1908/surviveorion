@@ -14,8 +14,6 @@ import { BADGES, TIER_LABEL } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 
 const BOARD_MODE_KEY = "orion.boardMode";
-/** Set while a Clerk sign-in is in flight; survives the OAuth full-page redirect. */
-const CLERK_PENDING_KEY = "orion.clerkPending";
 
 /** Last-viewed leaderboard tab; phones default to Tilt (their native mode). */
 function loadBoardMode(): BoardMode {
@@ -31,37 +29,6 @@ type Google = {
       renderButton(el: HTMLElement, opts: Record<string, unknown>): void;
     };
   };
-};
-
-type Clerk = {
-  load(opts?: Record<string, unknown>): Promise<void>;
-  loaded: boolean;
-  user: unknown;
-  session: { getToken(): Promise<string | null> } | null;
-  openSignIn(opts?: Record<string, unknown>): void;
-  closeSignIn(): void;
-  addListener(cb: (state: { user: unknown; session: unknown }) => void): void;
-  signOut(): Promise<void>;
-};
-
-/** Clerk modal styled to match the game's dark/gold palette (see style.css). */
-const CLERK_APPEARANCE = {
-  variables: {
-    colorPrimary: "#ffd700",
-    colorTextOnPrimaryBackground: "#0a0a12",
-    colorBackground: "#12121e",
-    colorText: "#ffee88",
-    colorTextSecondary: "#c9b26a",
-    colorInputBackground: "#1a1a2a",
-    colorInputText: "#ffee88",
-    colorNeutral: "#ffee88",
-    colorDanger: "#ff4455",
-    fontFamily: 'Georgia, "Times New Roman", serif',
-    borderRadius: "4px",
-  },
-  layout: {
-    unsafe_disableDevelopmentModeWarnings: true,
-  },
 };
 
 export class CommunityUi {
@@ -174,19 +141,17 @@ export class CommunityUi {
       this.el("div", "field-hint center", "Enter the ranks — your scores join the World Arena."),
     );
 
-    const hasClerk = Boolean(this.api.clerkPublishableKey);
+    const hasGoogle = Boolean(this.api.googleClientId);
 
-    // Primary path: Clerk (email code or Google, no password to remember)
-    if (hasClerk) {
-      const cbtn = this.button("✦ Sign in / Create account", true, () => {
-        void this.guard(error, () => this.clerkSignIn(onDone));
-      });
-      cbtn.classList.add("enlist-btn");
-      body.appendChild(cbtn);
-      body.appendChild(this.el("div", "field-hint center", "Email or Google — takes 10 seconds"));
+    // Primary path: Google's native button (one tap, no passwords, no redirects)
+    if (hasGoogle) {
+      const gwrap = this.el("div", "google-wrap hero");
+      body.appendChild(gwrap);
+      void this.mountGoogleButton(gwrap, error, onDone);
+      body.appendChild(this.el("div", "field-hint center", "One tap — takes 5 seconds"));
     }
 
-    // Legacy callsign/password path — collapsed behind a link when Clerk is the primary path.
+    // Callsign/password path — collapsed behind a link when Google is the primary path.
     const legacy = this.el("div", "legacy-auth");
     body.appendChild(legacy);
 
@@ -198,12 +163,12 @@ export class CommunityUi {
     tabs.append(tabLogin, tabRegister);
     legacy.append(tabs, form);
 
-    if (hasClerk) {
+    if (hasGoogle) {
       legacy.style.display = "none";
       const reveal = this.el(
         "button",
         "legacy-auth-link",
-        "Have a callsign &amp; password? Sign in the old way",
+        "Prefer a callsign &amp; password? Sign in the old way",
       );
       reveal.addEventListener("click", () => {
         legacy.style.display = "";
@@ -242,13 +207,6 @@ export class CommunityUi {
           });
         }),
       );
-
-      // Google sign-in (only when the server has a client id configured)
-      if (this.api.googleClientId) {
-        const gwrap = this.el("div", "google-wrap");
-        form.appendChild(gwrap);
-        void this.mountGoogleButton(gwrap, error, onDone);
-      }
     };
 
     const switchMode = (m: "login" | "register"): void => {
@@ -260,99 +218,6 @@ export class CommunityUi {
 
     switchMode("login");
     this.backRow(screen);
-  }
-
-  // --- Clerk ---
-
-  private clerkLoaded: Promise<Clerk | null> | null = null;
-
-  /** Load clerk-js from the instance's Frontend API (domain encoded in the pk). */
-  private loadClerk(): Promise<Clerk | null> {
-    this.clerkLoaded ??= new Promise((resolve) => {
-      const w = window as unknown as { Clerk?: Clerk };
-      if (w.Clerk) return resolve(w.Clerk);
-      const pk = this.api.clerkPublishableKey;
-      let frontendApi = "";
-      try {
-        frontendApi = atob(pk.replace(/^pk_(test|live)_/, "")).replace(/\$$/, "");
-      } catch {
-        return resolve(null);
-      }
-      const s = document.createElement("script");
-      s.src = `https://${frontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
-      s.async = true;
-      s.crossOrigin = "anonymous";
-      s.setAttribute("data-clerk-publishable-key", pk);
-      s.onload = async () => {
-        const clerk = (window as unknown as { Clerk?: Clerk }).Clerk ?? null;
-        if (!clerk) return resolve(null);
-        try {
-          await clerk.load({ appearance: CLERK_APPEARANCE });
-          resolve(clerk);
-        } catch {
-          resolve(null);
-        }
-      };
-      s.onerror = () => resolve(null);
-      document.head.appendChild(s);
-    });
-    return this.clerkLoaded;
-  }
-
-  /** Open the Clerk modal; once a session exists, exchange its JWT for an Orion session. */
-  private async clerkSignIn(onDone: () => void): Promise<void> {
-    const clerk = await this.loadClerk();
-    if (!clerk) throw new ApiError("Clerk failed to load — check your connection", 0);
-
-    const finish = async (): Promise<boolean> => {
-      const jwt = await clerk.session?.getToken();
-      if (!jwt) return false;
-      const isNew = await this.api.clerkSignIn(jwt, guessCountry());
-      localStorage.removeItem(CLERK_PENDING_KEY);
-      clerk.closeSignIn();
-      this.onAuthChange();
-      if (isNew) this.showConfirmCountry(onDone);
-      else onDone();
-      return true;
-    };
-
-    // Already signed in to Clerk from a previous visit: reuse the session.
-    if (await finish()) return;
-
-    // OAuth (Google) does a full-page redirect, losing this JS context; the
-    // flag lets resumeClerkSignIn() pick the flow back up after the reload.
-    localStorage.setItem(CLERK_PENDING_KEY, "1");
-    let handled = false;
-    clerk.addListener((state) => {
-      if (handled || !state.session) return;
-      handled = true;
-      void finish();
-    });
-    clerk.openSignIn({});
-  }
-
-  /**
-   * Complete a Clerk sign-in interrupted by an OAuth redirect: if the previous
-   * page load opened the Clerk modal and we now have a Clerk session, exchange
-   * it for an Orion session without the player having to click anything.
-   */
-  async resumeClerkSignIn(): Promise<"none" | "signedIn" | "newPilot"> {
-    if (!this.api.clerkPublishableKey || this.api.signedIn) {
-      localStorage.removeItem(CLERK_PENDING_KEY);
-      return "none";
-    }
-    if (localStorage.getItem(CLERK_PENDING_KEY) !== "1") return "none";
-    localStorage.removeItem(CLERK_PENDING_KEY);
-    const clerk = await this.loadClerk();
-    const jwt = await clerk?.session?.getToken();
-    if (!clerk || !jwt) return "none";
-    try {
-      const isNew = await this.api.clerkSignIn(jwt, guessCountry());
-      this.onAuthChange();
-      return isNew ? "newPilot" : "signedIn";
-    } catch {
-      return "none";
-    }
   }
 
   private googleLoaded: Promise<Google | null> | null = null;
@@ -394,7 +259,12 @@ export class CommunityUi {
         });
       },
     });
-    google.accounts.id.renderButton(wrap, { theme: "filled_black", size: "large", shape: "pill" });
+    google.accounts.id.renderButton(wrap, {
+      theme: "filled_black",
+      size: "large",
+      shape: "pill",
+      width: 300,
+    });
   }
 
   /** Post-signup step: confirm the guessed country (all-cases geo). */
@@ -452,8 +322,6 @@ export class CommunityUi {
 
     body.appendChild(
       this.button("Sign out", false, () => {
-        const clerk = (window as unknown as { Clerk?: Clerk }).Clerk;
-        if (clerk?.loaded) void clerk.signOut().catch(() => {});
         void this.api.logout().then(() => {
           this.onAuthChange();
           this.onBack();

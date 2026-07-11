@@ -21,7 +21,11 @@ import { qualifyingBadges } from "./badges.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
+// The Google OAuth client id is public by design (it ships to every browser),
+// so the production one doubles as the default — override via env if needed.
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID ??
+  "846475365993-b9nmm32pqp6pinlkm9sm3cspthvsuceq.apps.googleusercontent.com";
 const SERVE_DIST = process.env.ORION_SERVE_DIST === "1";
 // Set ORION_ADMIN_KEY to unlock /admin + /api/admin/* (analytics, feedback).
 const ADMIN_KEY = process.env.ORION_ADMIN_KEY ?? "";

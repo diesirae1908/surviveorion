@@ -100,7 +100,6 @@ export class Api {
   private token: string | null = localStorage.getItem(TOKEN_KEY);
   user: UserInfo | null = null;
   googleClientId = "";
-  clerkPublishableKey = "";
   /** Incoming friend requests awaiting an answer (menu badge). */
   pendingFriends = 0;
   /** false once a request fails to reach the server at all. */
@@ -142,12 +141,8 @@ export class Api {
   /** Load server config + restore the saved session if still valid. */
   async init(): Promise<void> {
     try {
-      const cfg = await this.request<{ googleClientId: string; clerkPublishableKey: string }>(
-        "GET",
-        "/api/config",
-      );
+      const cfg = await this.request<{ googleClientId: string }>("GET", "/api/config");
       this.googleClientId = cfg.googleClientId;
-      this.clerkPublishableKey = cfg.clerkPublishableKey ?? "";
     } catch {
       return; // server offline — community features hidden
     }
@@ -183,16 +178,6 @@ export class Api {
       password,
     });
     this.setSession(r.token, r.user);
-  }
-
-  async clerkSignIn(sessionToken: string, country: string): Promise<boolean> {
-    const r = await this.request<{ token: string; user: UserInfo; isNew: boolean }>(
-      "POST",
-      "/api/auth/clerk",
-      { sessionToken, country },
-    );
-    this.setSession(r.token, r.user);
-    return r.isNew;
   }
 
   async googleSignIn(idToken: string, country: string): Promise<boolean> {

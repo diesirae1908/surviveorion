@@ -632,20 +632,11 @@ function enterFromGate(): void {
   fx = { kind: "intro", t: 0 };
 }
 
-/** Deferred screen (e.g. post-sign-in country confirm) shown instead of the menu. */
-let pendingAfterIntro: (() => void) | null = null;
-
 function endIntro(): void {
   fx = null;
   state = "menu";
   audio.playTrack("menu");
-  if (pendingAfterIntro) {
-    const show = pendingAfterIntro;
-    pendingAfterIntro = null;
-    show();
-  } else {
-    showMenu();
-  }
+  showMenu();
 }
 
 ui.showIntroGate(enterFromGate);
@@ -664,17 +655,7 @@ window.addEventListener("pointerdown", () => {
 
 // Re-render the menu once the community server responds (session restore,
 // server availability) so the community buttons appear/disappear correctly.
-// Also finish a Clerk sign-in interrupted by an OAuth redirect (Google does a
-// full page reload) so the player lands back signed in, not on the menu.
-void api.init().then(async () => {
-  const resumed = await community.resumeClerkSignIn();
-  if (resumed === "newPilot") {
-    // new pilot mid-boot: confirm their country as soon as the menu is due
-    const confirm = (): void => community.showConfirmCountry(showMenu);
-    if (state === "menu") confirm();
-    else pendingAfterIntro = confirm;
-    return;
-  }
+void api.init().then(() => {
   if (state === "menu") showMenu();
 });
 

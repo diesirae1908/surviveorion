@@ -79,8 +79,8 @@ community buttons simply don't appear.
   leaderboard (you + friends, per mode), a recent-flights activity feed, and
   request management; the menu button shows a dot when a request is waiting
   (`pendingFriends` on `GET /api/me`, endpoints under `/api/friends/*`).
-- **Accounts** — callsign + password, Clerk sign-in (email/Google, see below),
-  or direct Google sign-in. Country is guessed from the browser locale/timezone,
+- **Accounts** — Google sign-in (native one-tap button, the primary path) or
+  callsign + password. Country is guessed from the browser locale/timezone,
   always confirmable and editable in the profile — no external geolocation service.
 - **Badges** — 17 milestone awards (definitions in `server/badges.mjs`, display
   data in `src/badges.ts`), from easy (First Flight, Space Dust — die inside
@@ -134,34 +134,27 @@ with the platform or a reverse proxy (Caddy/nginx/Cloudflare) terminating HTTPS.
 The SQLite file (`ORION_DB`, default `/data/orion.db` in Docker) is the only
 state — persist and back up that one file.
 
-### Clerk sign-in (recommended)
+### Google sign-in (the primary path)
 
-1. Grab the **Publishable key** and a **Secret key** from the
-   [Clerk dashboard](https://dashboard.clerk.com) → API keys.
-2. Put them in `server/.env` (gitignored) or the environment:
+The Pilot Login screen leads with Google's native button (Google Identity
+Services): one tap, in-page, no redirects — the smoothest path on phones.
+New Google pilots confirm their country after the first sign-in; the
+callsign + password form stays available behind a "sign in the old way" link.
 
-```
-CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-```
+The production OAuth client id is baked in as the server default (client ids
+are public by design). To use a different one, create an OAuth **Web
+application** client ID in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+(free, no billing; add your origins, e.g. `http://localhost:5173` and your
+production URL) and set `GOOGLE_CLIENT_ID` in the environment or `server/.env`.
+Setting it to an empty string disables Google sign-in.
 
-The "Sign in with Clerk" button appears automatically. The client loads
-`clerk-js` from your Clerk Frontend API and opens Clerk's modal (email code,
-Google, or whatever you enable in the dashboard). The server verifies the
-Clerk session JWT locally against the instance JWKS and issues its own Orion
-session token; the secret key is only used to fetch the display name for new
-pilots. For production, create a **live** instance in Clerk, add
-`surviveorion.com` to its allowed origins, and swap in the `pk_live_`/`sk_live_`
-keys.
+### Clerk sign-in (legacy, server-side only)
 
-### Google sign-in (optional)
-
-1. Create an OAuth **Web application** client ID in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-   (add your origins, e.g. `http://localhost:5199` and your production URL).
-2. Run the server with it: `GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com npm run server`
-
-The Google button appears automatically when configured. New Google pilots are
-asked to confirm their country after the first sign-in.
+The client no longer offers Clerk (its hosted modal meant an extra redirect
+hop through Clerk's domain — clunky on phones). The server still verifies
+Clerk session JWTs on `POST /api/auth/clerk` (`server/clerk.mjs`) when
+`CLERK_PUBLISHABLE_KEY`/`CLERK_SECRET_KEY` are set, so accounts created
+through Clerk keep working if the UI path is ever restored.
 
 ## Controls
 
