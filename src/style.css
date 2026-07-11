@@ -165,7 +165,8 @@ body {
   }
 }
 
-button {
+/* :not([class*="cl-"]) keeps the game's chunky button chrome off Clerk's modal buttons */
+button:not([class*="cl-"]) {
   font-family: inherit;
   cursor: pointer;
   border: 1px solid #aa8844;
@@ -180,8 +181,8 @@ button {
   transition: all 0.15s ease;
 }
 
-button:hover,
-button:active {
+button:not([class*="cl-"]):hover,
+button:not([class*="cl-"]):active {
   border-color: #ffd700;
   color: #ffd700;
   box-shadow: 0 0 24px rgba(255, 215, 0, 0.25);
@@ -504,23 +505,30 @@ button.enlist-btn {
   text-align: center;
 }
 
-.auth-divider {
+.legacy-auth {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
-  color: #8a7a55;
-  font-size: 11px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  margin: 4px 0;
 }
 
-.auth-divider::before,
-.auth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(170, 136, 68, 0.5), transparent);
+button.legacy-auth-link {
+  border: none;
+  background: none;
+  min-width: 0;
+  padding: 4px;
+  color: #8a7a55;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-indent: 0;
+  text-transform: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+button.legacy-auth-link:hover,
+button.legacy-auth-link:active {
+  color: #ffd700;
+  box-shadow: none;
 }
 
 .board {

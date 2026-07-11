@@ -34,6 +34,26 @@ type Clerk = {
   signOut(): Promise<void>;
 };
 
+/** Clerk modal styled to match the game's dark/gold palette (see style.css). */
+const CLERK_APPEARANCE = {
+  variables: {
+    colorPrimary: "#ffd700",
+    colorTextOnPrimaryBackground: "#0a0a12",
+    colorBackground: "#12121e",
+    colorText: "#ffee88",
+    colorTextSecondary: "#c9b26a",
+    colorInputBackground: "#1a1a2a",
+    colorInputText: "#ffee88",
+    colorNeutral: "#ffee88",
+    colorDanger: "#ff4455",
+    fontFamily: 'Georgia, "Times New Roman", serif',
+    borderRadius: "4px",
+  },
+  layout: {
+    unsafe_disableDevelopmentModeWarnings: true,
+  },
+};
+
 export class CommunityUi {
   private boardMode: BoardMode = loadBoardMode();
 
@@ -144,16 +164,21 @@ export class CommunityUi {
       this.el("div", "field-hint center", "Enter the ranks — your scores join the World Arena."),
     );
 
+    const hasClerk = Boolean(this.api.clerkPublishableKey);
+
     // Primary path: Clerk (email code or Google, no password to remember)
-    if (this.api.clerkPublishableKey) {
-      const cbtn = this.button("✦ Enlist / Sign in", true, () => {
+    if (hasClerk) {
+      const cbtn = this.button("✦ Sign in / Create account", true, () => {
         void this.guard(error, () => this.clerkSignIn(onDone));
       });
       cbtn.classList.add("enlist-btn");
       body.appendChild(cbtn);
       body.appendChild(this.el("div", "field-hint center", "Email or Google — takes 10 seconds"));
-      body.appendChild(this.el("div", "auth-divider", "<span>or use a callsign</span>"));
     }
+
+    // Legacy callsign/password path — collapsed behind a link when Clerk is the primary path.
+    const legacy = this.el("div", "legacy-auth");
+    body.appendChild(legacy);
 
     let mode: "login" | "register" = "login";
     const tabs = this.el("div", "tabs");
@@ -161,7 +186,21 @@ export class CommunityUi {
     const tabLogin = this.button("Sign in", false, () => switchMode("login"));
     const tabRegister = this.button("New pilot", false, () => switchMode("register"));
     tabs.append(tabLogin, tabRegister);
-    body.append(tabs, form);
+    legacy.append(tabs, form);
+
+    if (hasClerk) {
+      legacy.style.display = "none";
+      const reveal = this.el(
+        "button",
+        "legacy-auth-link",
+        "Have a callsign &amp; password? Sign in the old way",
+      );
+      reveal.addEventListener("click", () => {
+        legacy.style.display = "";
+        reveal.remove();
+      });
+      body.appendChild(reveal);
+    }
 
     const renderForm = (): void => {
       form.innerHTML = "";
@@ -238,7 +277,7 @@ export class CommunityUi {
         const clerk = (window as unknown as { Clerk?: Clerk }).Clerk ?? null;
         if (!clerk) return resolve(null);
         try {
-          await clerk.load();
+          await clerk.load({ appearance: CLERK_APPEARANCE });
           resolve(clerk);
         } catch {
           resolve(null);
