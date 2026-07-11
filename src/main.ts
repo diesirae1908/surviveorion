@@ -2,7 +2,7 @@ import "./style.css";
 import { Api } from "./api";
 import { AudioSystem } from "./audio";
 import { CommunityUi } from "./community";
-import { FIXED_DT, PALETTE, POWERS, POWER_COLORS, POWER_NAMES } from "./config";
+import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_NAMES, TILT_MAX_DEG } from "./config";
 import { countryFlag, countryName } from "./countries";
 import { createWorld, resizeWorld, tick } from "./gameState";
 import { Input } from "./input";
@@ -13,9 +13,11 @@ import {
   loadBestScore,
   loadControlPrefs,
   loadSettings,
+  nextSenseLevel,
   saveBestScore,
   saveControlPrefs,
   saveSettings,
+  type BooleanSetting,
 } from "./save";
 import { TiltControl } from "./tilt";
 import type { World } from "./types";
@@ -58,6 +60,8 @@ const api = new Api();
 
 input.controlMode = controls.mode;
 input.inertia = settings.inertia;
+input.cruiseSpeed = DIRECT_CRUISE[settings.directSpeed];
+input.tilt.maxTiltDeg = TILT_MAX_DEG[settings.tiltSensitivity];
 if (controls.tiltNeutral) input.tilt.setNeutral(controls.tiltNeutral);
 if (controls.mode === "tilt") {
   if (!TiltControl.needsPermission()) {
@@ -108,7 +112,7 @@ const ui = new Ui(settings, {
   onRestart: beginLaunch,
   onQuitToMenu: quitToMenu,
   onPauseRequest: pause,
-  onToggle: (key) => {
+  onToggle: (key: BooleanSetting) => {
     settings[key] = !settings[key];
     saveSettings(settings);
     if (key === "sound") audio.setSound(settings.sound);
@@ -118,6 +122,13 @@ const ui = new Ui(settings, {
       // direct control plays by tilt rules: turning it off mid-run re-tags the run
       if (!settings.inertia) runMode = "tilt";
     }
+  },
+  onCycleSense: (key) => {
+    settings[key] = nextSenseLevel(settings[key]);
+    saveSettings(settings);
+    if (key === "directSpeed") input.cruiseSpeed = DIRECT_CRUISE[settings.directSpeed];
+    if (key === "tiltSensitivity") input.tilt.maxTiltDeg = TILT_MAX_DEG[settings.tiltSensitivity];
+    return settings[key];
   },
   onWorldArena: () => community.showWorldArena(),
   onArenas: () => community.showArenas(),
@@ -487,6 +498,8 @@ Object.defineProperty(window, "__orion", {
             heading: override ? null : sample.heading,
             moveVector: override ? null : sample.moveVector,
             inertia: sample.inertia,
+            simpleBoost: override ? false : sample.simpleBoost,
+            cruiseSpeed: sample.cruiseSpeed,
           },
           FIXED_DT,
         );

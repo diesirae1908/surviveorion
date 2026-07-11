@@ -1,4 +1,4 @@
-import { POWERS, SHIP, TILT } from "./config";
+import { DIRECT, POWERS, SHIP, TILT } from "./config";
 import type { InputState } from "./input";
 import { clamp01, lerp } from "./math";
 import { clampToBounds } from "./physics";
@@ -51,8 +51,8 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   }
 
   if (input.moveVector !== null) {
-    // tilt mode: direct control, hull faces the direction of travel
-    updateShipDirect(world, input, input.moveVector, true, dt);
+    // tilt or directional no-inertia: direct velocity, hull faces travel
+    updateShipDirect(world, input, input.moveVector, dt);
     return;
   }
 
@@ -69,13 +69,6 @@ export function updateShip(world: World, input: InputState, dt: number): void {
 
   const fx = Math.cos(s.angle);
   const fy = Math.sin(s.angle);
-
-  // inertia OFF (experimental): rotate-and-thrust steering, but velocity maps
-  // directly to thrust like tilt mode — no drift, stops when thrust released.
-  if (!input.inertia) {
-    updateShipDirect(world, input, { x: fx * input.thrust, y: fy * input.thrust }, false, dt);
-    return;
-  }
 
   s.thrusting = input.thrust;
   if (input.thrust > 0) {
@@ -125,51 +118,67 @@ export function updateShip(world: World, input: InputState, dt: number): void {
 }
 
 /**
- * Direct control (Tilt to Live rules): velocity converges straight to
- * mv * maxSpeed — no thrust integration, no damping, no drift. Boost keeps its
- * hold/cooldown state machine but multiplies target speed instead of adding
- * force. Used by tilt mode (faceTravel: hull follows velocity) and by classic
- * with the inertia toggle off (hull already steered by turn keys / stick).
+ * Direct control (Tilt to Live rules): velocity converges straight to a target
+ * — no thrust integration, no damping, no drift. Hull faces travel direction.
+ *
+ * - Tilt: mv is lean strength 0..1 × SHIP.maxSpeed; boost uses ramp/cooldown.
+ * - Keyboard/stick (simpleBoost): mv is a unit direction; cruise vs boostSpeed
+ *   with a plain hold (no timers).
  */
 function updateShipDirect(
   world: World,
   input: InputState,
   mv: { x: number; y: number },
-  faceTravel: boolean,
   dt: number,
 ): void {
   const s = world.ship;
+  let tx: number;
+  let ty: number;
 
-  if (s.boostCooldownTimer > 0) s.boostCooldownTimer -= dt;
-  if (input.boost && !s.boostHeld && s.boostCooldownTimer <= 0) {
-    s.boostHeld = true;
-    s.boostHoldTimer = 0;
-    world.events.push({ type: "boostStart" });
-  } else if (!input.boost && s.boostHeld) {
-    stopBoost(s);
-  }
-  if (s.boostHeld) {
-    s.boostHoldTimer += dt;
-    if (s.boostHoldTimer >= SHIP.boost.maxHoldTime) stopBoost(s);
+  if (input.simpleBoost) {
+    // two-speed: cruise while moving, hold Space for full speed — no cooldown
+    if (input.boost && !s.boostHeld) {
+      s.boostHeld = true;
+      s.boostHoldTimer = 0;
+      world.events.push({ type: "boostStart" });
+    } else if (!input.boost && s.boostHeld) {
+      s.boostHeld = false;
+      s.boostHoldTimer = 0;
+    }
+    const speed = input.boost ? DIRECT.boostSpeed : input.cruiseSpeed;
+    tx = mv.x * speed;
+    ty = mv.y * speed;
+  } else {
+    // tilt: managed boost multiplies max speed
+    if (s.boostCooldownTimer > 0) s.boostCooldownTimer -= dt;
+    if (input.boost && !s.boostHeld && s.boostCooldownTimer <= 0) {
+      s.boostHeld = true;
+      s.boostHoldTimer = 0;
+      world.events.push({ type: "boostStart" });
+    } else if (!input.boost && s.boostHeld) {
+      stopBoost(s);
+    }
+    if (s.boostHeld) {
+      s.boostHoldTimer += dt;
+      if (s.boostHoldTimer >= SHIP.boost.maxHoldTime) stopBoost(s);
+    }
+    const speedScale = s.boostHeld ? SHIP.boost.maxSpeedMultiplier : 1;
+    tx = mv.x * SHIP.maxSpeed * speedScale;
+    ty = mv.y * SHIP.maxSpeed * speedScale;
   }
 
-  const speedScale = s.boostHeld ? SHIP.boost.maxSpeedMultiplier : 1;
-  const tx = mv.x * SHIP.maxSpeed * speedScale;
-  const ty = mv.y * SHIP.maxSpeed * speedScale;
   // tight exponential approach: reads as instant but filters sensor jitter
   const k = 1 - Math.exp(-TILT.response * dt);
   s.vx += (tx - s.vx) * k;
   s.vy += (ty - s.vy) * k;
 
-  if (faceTravel) {
-    const speed = Math.hypot(s.vx, s.vy);
-    if (speed > 0.5) {
-      let diff = Math.atan2(s.vy, s.vx) - s.angle;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      const maxTurn = TILT.rotateSpeed * dt;
-      s.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
-    }
+  const speed = Math.hypot(s.vx, s.vy);
+  if (speed > 0.5) {
+    let diff = Math.atan2(s.vy, s.vx) - s.angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    const maxTurn = TILT.rotateSpeed * dt;
+    s.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
   }
 
   s.thrusting = Math.min(1, Math.hypot(mv.x, mv.y));

@@ -31,9 +31,32 @@ export const SHIP = {
 // and ranked on their own leaderboards.
 export const TILT = {
   deadzoneDeg: 3, // resting-hand jitter absorbed here
-  maxTiltDeg: 22, // full speed at this lean
+  maxTiltDeg: 22, // full speed at this lean (overridden by tiltSensitivity setting)
   response: 14, // 1/s exponential convergence of velocity to target (feels instant, not jittery)
   rotateSpeed: (720 * Math.PI) / 180, // hull turns to face travel fast enough to track flicks
+};
+
+// Directional no-inertia (keyboard/stick with Inertia OFF): two speeds —
+// cruise while moving, hold Space/boost for full speed. No ramp/cooldown.
+export const DIRECT = {
+  cruiseSpeed: 8, // overridden by directSpeed setting
+  boostSpeed: 15, // = SHIP.maxSpeed
+};
+
+export type SenseLevel = "low" | "med" | "high";
+
+/** Full-speed lean angle: Low = more lean needed, High = twitchier. */
+export const TILT_MAX_DEG: Record<SenseLevel, number> = {
+  low: 30,
+  med: 22,
+  high: 15,
+};
+
+/** Cruise speed in directional no-inertia mode (boost always DIRECT.boostSpeed). */
+export const DIRECT_CRUISE: Record<SenseLevel, number> = {
+  low: 6.5,
+  med: 8,
+  high: 10,
 };
 
 export const DRONE = {

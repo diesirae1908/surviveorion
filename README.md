@@ -149,9 +149,11 @@ iOS (requested from the enable tap) and a secure context, so test it against a
 deployed build rather than plain-HTTP LAN dev.
 
 Settings also has an **Inertia** toggle for classic controls: OFF switches
-keyboard/stick to the same direct-velocity physics as tilt (no drift, instant
-stop), and those runs score on the Tilt leaderboard to keep the classic board
-honest.
+to directional WASD/arrows (ship goes the way you press, no drift) with two
+speeds — cruise normally, hold Space for full speed. Those runs score on the
+Tilt leaderboard to keep the classic board honest. **Direct speed** (Low/Med/High)
+tunes the cruise pace; on phones, **Tilt sense** tunes how much lean reaches
+full speed.
 
 ## Structure
 

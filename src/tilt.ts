@@ -16,6 +16,8 @@ export class TiltControl {
   private neutral: TiltReading | null = null;
   private listening = false;
   private granted = !TiltControl.needsPermission();
+  /** Full-speed lean angle; set from the tiltSensitivity setting. */
+  maxTiltDeg = TILT.maxTiltDeg;
 
   static supported(): boolean {
     return typeof DeviceOrientationEvent !== "undefined";
@@ -77,7 +79,7 @@ export class TiltControl {
 
   /**
    * Desired velocity as a fraction of max speed, in world axes (y up).
-   * Deadzone absorbs resting-hand jitter; full speed at TILT.maxTiltDeg.
+   * Deadzone absorbs resting-hand jitter; full speed at maxTiltDeg.
    */
   vector(): Vec2 | null {
     if (!this.reading || !this.neutral) return null;
@@ -108,7 +110,10 @@ export class TiltControl {
 
     const mag = Math.hypot(sx, sy);
     if (mag <= TILT.deadzoneDeg) return { x: 0, y: 0 };
-    const strength = Math.min(1, (mag - TILT.deadzoneDeg) / (TILT.maxTiltDeg - TILT.deadzoneDeg));
+    const strength = Math.min(
+      1,
+      (mag - TILT.deadzoneDeg) / (this.maxTiltDeg - TILT.deadzoneDeg),
+    );
     // screen y grows downward, world y grows upward
     return { x: (sx / mag) * strength, y: (-sy / mag) * strength };
   }

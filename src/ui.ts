@@ -1,4 +1,4 @@
-import type { ControlMode, Settings } from "./save";
+import type { BooleanSetting, ControlMode, SenseLevel, Settings } from "./save";
 
 export interface UiCallbacks {
   onPlay: () => void;
@@ -6,7 +6,9 @@ export interface UiCallbacks {
   onRestart: () => void;
   onQuitToMenu: () => void;
   onPauseRequest: () => void;
-  onToggle: (key: keyof Settings) => void;
+  onToggle: (key: BooleanSetting) => void;
+  /** Cycle Low/Med/High for a sensitivity setting. */
+  onCycleSense: (key: "tiltSensitivity" | "directSpeed") => SenseLevel;
   onWorldArena: () => void;
   onArenas: () => void;
   onProfile: () => void;
@@ -29,6 +31,12 @@ export interface GameOverStats {
   best: number;
   isNewBest: boolean;
 }
+
+const SENSE_LABEL: Record<SenseLevel, string> = {
+  low: "LOW",
+  med: "MED",
+  high: "HIGH",
+};
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
 export class Ui {
@@ -65,7 +73,7 @@ export class Ui {
     }
   }
 
-  private toggleRow(keys: Array<[keyof Settings, string]>): HTMLElement {
+  private toggleRow(keys: Array<[BooleanSetting, string]>): HTMLElement {
     const row = document.createElement("div");
     row.className = "toggles";
     for (const [key, label] of keys) {
@@ -82,6 +90,20 @@ export class Ui {
       row.appendChild(btn);
     }
     return row;
+  }
+
+  /** Cycle button for Low/Med/High sensitivity settings. */
+  private senseButton(key: "tiltSensitivity" | "directSpeed", label: string): HTMLButtonElement {
+    const btn = document.createElement("button");
+    const paint = (): void => {
+      btn.textContent = `${label}: ${SENSE_LABEL[this.settings[key]]}`;
+    };
+    paint();
+    btn.addEventListener("click", () => {
+      this.cb.onCycleSense(key);
+      paint();
+    });
+    return btn;
   }
 
   private button(label: string, primary: boolean, onClick: () => void): HTMLButtonElement {
@@ -166,11 +188,20 @@ export class Ui {
       ["screenShake", "Shake"],
       ["inertia", "Inertia"],
     ]));
+
+    // sensitivity knobs
+    const senseRow = this.el("div", "toggles", "");
+    senseRow.appendChild(this.senseButton("directSpeed", "Direct speed"));
+    if (touchDevice && this.cb.getControls().tiltSupported) {
+      senseRow.appendChild(this.senseButton("tiltSensitivity", "Tilt sense"));
+    }
+    screen.appendChild(senseRow);
+
     screen.appendChild(
       this.el(
         "div",
         "field-hint center",
-        "Inertia OFF = direct control, no drift — those runs rank on the Tilt leaderboard.",
+        "Inertia OFF = directional WASD, two speeds (hold Space to boost) — those runs rank on the Tilt leaderboard.",
       ),
     );
 
@@ -185,22 +216,40 @@ export class Ui {
               ["Boost", "touch and hold anywhere"],
               ["Pause", "the II button, top right"],
             ]
-          : [
-              ["Fly", "drag on the left half — the ship flies where you point"],
-              ["Boost", "hold the right half"],
-              ["Pause", "the II button, top right"],
+          : this.settings.inertia
+            ? [
+                ["Fly", "drag on the left half — the ship flies where you point"],
+                ["Boost", "hold the right half"],
+                ["Pause", "the II button, top right"],
+              ]
+            : [
+                ["Fly", "drag on the left half — ship goes that way"],
+                ["Boost", "hold the right half for full speed"],
+                ["Pause", "the II button, top right"],
+              ]
+        : this.settings.inertia
+          ? [
+              ["Thrust", "W or ↑"],
+              ["Turn", "A D or ← →"],
+              ["Boost", "Space"],
+              ["Pause", "Esc"],
             ]
-        : [
-            ["Thrust", "W or ↑"],
-            ["Turn", "A D or ← →"],
-            ["Boost", "Space"],
-            ["Pause", "Esc"],
-          ];
+          : [
+              ["Fly", "WASD or arrows — ship goes that way"],
+              ["Boost", "hold Space for full speed"],
+              ["Pause", "Esc"],
+            ];
       manual.innerHTML = rows
         .map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`)
         .join("");
     };
     paintManual();
+
+    // re-paint the flight manual when Inertia is flipped
+    const inertiaBtn = [...screen.querySelectorAll(".toggles button")].find((b) =>
+      (b as HTMLButtonElement).textContent?.startsWith("Inertia"),
+    );
+    inertiaBtn?.addEventListener("click", () => paintManual());
 
     // control scheme picker (touch devices with a motion sensor only)
     if (touchDevice && this.cb.getControls().tiltSupported) {
@@ -262,6 +311,12 @@ export class Ui {
       ["screenShake", "Shake"],
       ["inertia", "Inertia"],
     ]));
+    const senseRow = this.el("div", "toggles", "");
+    senseRow.appendChild(this.senseButton("directSpeed", "Direct speed"));
+    if (this.cb.getControls().mode === "tilt" || this.cb.getControls().tiltSupported) {
+      senseRow.appendChild(this.senseButton("tiltSensitivity", "Tilt sense"));
+    }
+    screen.appendChild(senseRow);
     if (this.cb.getControls().mode === "tilt") {
       const recal = this.button("Recalibrate tilt", false, () => {
         this.cb.onRecalibrate();
