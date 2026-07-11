@@ -1,6 +1,6 @@
-import { DRONE, SCORING, SHIP, SPAWNER } from "./config";
+import { DRONE, SCORING, SPAWNER } from "./config";
 import { clamp, clamp01, escalate, lerp, randDir, randInCircle, randRange, smoothNoise } from "./math";
-import { halfDiagonal, randomEdgePoint, toroidalDistance } from "./physics";
+import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
 import type { Drone, KillSource, World } from "./types";
 
@@ -31,6 +31,13 @@ function createDrone(
 
 export function droneRadius(d: Drone): number {
   return DRONE.radius * d.scale;
+}
+
+/** Speed factor from drone size: small = slower, large = faster. */
+function droneSizeSpeedFactor(scale: number): number {
+  const [minScale, maxScale] = SPAWNER.scaleClamp;
+  const t = clamp((scale - minScale) / (maxScale - minScale), 0, 1);
+  return lerp(DRONE.sizeSpeed.small, DRONE.sizeSpeed.large, t);
 }
 
 export function updateDrones(world: World, dt: number): void {
@@ -83,7 +90,7 @@ export function updateDrones(world: World, dt: number): void {
       hy /= l;
     }
 
-    const speed = DRONE.baseSpeed * d.speedMultiplier;
+    const speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale);
     d.vx = hx * speed;
     d.vy = hy * speed;
     d.x += d.vx * dt;
@@ -224,7 +231,7 @@ function spawnAmbient(world: World, minutes: number): void {
   }
 
   const shipDist = (p: { x: number; y: number }): number =>
-    toroidalDistance(world, SHIP.wrapMargin, p.x, p.y, world.ship.x, world.ship.y);
+    Math.hypot(p.x - world.ship.x, p.y - world.ship.y);
 
   let best = randomEdgePoint(world, SPAWNER.edgeMargin);
   let bestDist = shipDist(best);

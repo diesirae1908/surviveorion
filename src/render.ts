@@ -142,10 +142,12 @@ export class Renderer {
     );
 
     this.drawStars(opts.uiTime);
+    this.drawArenaBoundary(world);
     this.drawOffscreenThreats(world);
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawTrail(world, opts.uiTime);
     this.drawWaves(world);
+    this.drawArcBolts(world);
     this.drawPickups(world, opts.uiTime);
     this.drawMines(world, opts.uiTime);
     this.drawMagnetField(world, opts.uiTime);
@@ -795,6 +797,16 @@ export class Renderer {
         }
         ctx.fill();
         break;
+      case "arc":
+        ctx.moveTo(-size * 0.15, size);
+        ctx.lineTo(size * 0.35, -size * 0.05);
+        ctx.lineTo(-size * 0.05, -size * 0.05);
+        ctx.lineTo(size * 0.2, -size);
+        ctx.lineTo(-size * 0.35, size * 0.05);
+        ctx.lineTo(size * 0.05, size * 0.05);
+        ctx.closePath();
+        ctx.fill();
+        break;
     }
   }
 
@@ -969,6 +981,90 @@ export class Renderer {
       ctx.lineWidth = 0.18 * (1 - t) + 0.04;
       ctx.beginPath();
       ctx.arc(w.x, w.y, Math.max(0.01, radius), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Subtle arena walls — glow brighter near the ship so the boundary reads. */
+  private drawArenaBoundary(world: World): void {
+    const { ctx } = this;
+    const hw = world.viewW / 2;
+    const hh = world.viewH / 2;
+    const ship = world.ship;
+    const baseAlpha = 0.12;
+    const maxAlpha = 0.5;
+    const glowDist = 4;
+
+    ctx.save();
+    ctx.lineWidth = 0.08;
+    ctx.lineCap = "round";
+    ctx.globalCompositeOperation = "lighter";
+
+    const drawEdge = (x1: number, y1: number, x2: number, y2: number): void => {
+      const steps = 18;
+      for (let i = 0; i < steps; i++) {
+        const t0 = i / steps;
+        const t1 = (i + 1) / steps;
+        const mx0 = lerp(x1, x2, t0);
+        const my0 = lerp(y1, y2, t0);
+        const mx1 = lerp(x1, x2, t1);
+        const my1 = lerp(y1, y2, t1);
+        const midX = (mx0 + mx1) / 2;
+        const midY = (my0 + my1) / 2;
+        const dist = Math.hypot(midX - ship.x, midY - ship.y);
+        const glow = clamp01(1 - dist / glowDist);
+        const alpha = baseAlpha + glow * (maxAlpha - baseAlpha);
+        ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(mx0, my0);
+        ctx.lineTo(mx1, my1);
+        ctx.stroke();
+      }
+    };
+
+    drawEdge(-hw, hh, hw, hh);
+    drawEdge(-hw, -hh, hw, -hh);
+    drawEdge(-hw, -hh, -hw, hh);
+    drawEdge(hw, -hh, hw, hh);
+    ctx.restore();
+  }
+
+  /** Jagged chain-lightning bolts between arc jump points. */
+  private drawArcBolts(world: World): void {
+    const { ctx } = this;
+    const lifetime = POWERS.arc.boltLifetime;
+    for (const bolt of world.powers.arcBolts) {
+      const t = clamp01(bolt.elapsed / lifetime);
+      const alpha = (1 - t) * 0.95;
+      const dx = bolt.toX - bolt.fromX;
+      const dy = bolt.toY - bolt.fromY;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const segments = 7;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = alpha;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = PALETTE.arc;
+      ctx.lineWidth = 0.14 * (1 - t) + 0.04;
+      ctx.beginPath();
+      ctx.moveTo(bolt.fromX, bolt.fromY);
+      for (let i = 1; i <= segments; i++) {
+        const frac = i / segments;
+        const px = bolt.fromX + dx * frac;
+        const py = bolt.fromY + dy * frac;
+        const jag = i === segments ? 0 : Math.sin(bolt.seed + i * 2.7) * 0.28;
+        ctx.lineTo(px + nx * jag, py + ny * jag);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = PALETTE.white;
+      ctx.lineWidth = 0.05;
+      ctx.globalAlpha = alpha * 0.75;
       ctx.stroke();
       ctx.restore();
     }

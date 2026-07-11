@@ -3,7 +3,7 @@
 A rebuild of the Orion Unity prototype as a dependency-free TypeScript + Canvas web game.
 
 An inertia-based survival arcade game: pilot your ship with thrust and rotation through
-wrap-around space while drone swarms close in. No guns — survive with piloting skill and
+a bounded arena while drone swarms close in. No guns — survive with piloting skill and
 defensive power pickups:
 
 - **Aegis Shield** — stays on the ship until it absorbs a hit (a banked extra life), then detonates, clearing nearby drones
@@ -14,6 +14,7 @@ defensive power pickups:
 - **Cryo Field** — flash-freezes all drones in a big area; fly into frozen drones to shatter them
 - **Missile Swarm** — launches a volley of guided missiles in all directions that curve toward the nearest enemies
 - **Starshell** — a golden shell that makes you invulnerable for ~6s and ram-kills everything you touch; only appears after 2.5 minutes as a late-game pressure valve
+- **Arc Lightning** — zaps the nearest enemy, then chain-jumps through nearby drones until nothing is close enough to continue
 
 Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`):
 shield/shockwave are common safety nets, freeze and afterburner are rarer, and
@@ -24,9 +25,10 @@ pays 1.5x points and builds the multiplier twice as fast.
 
 Enemies:
 
-- **Drones** — chase you relentlessly; the swarm grows and speeds up over time,
-  and the escalation never plateaus — spawn rate, drone speed, and formation
-  frequency/size keep climbing until the run ends, so every run has an ending.
+- **Drones** — chase you relentlessly; smaller ones are slightly slower, larger ones
+  slightly faster. The swarm grows and speeds up over time, and the escalation never
+  plateaus — spawn rate, drone speed, and formation frequency/size keep climbing until
+  the run ends, so every run has an ending.
   Most spawns telegraph on-screen (a red glow warns ~1s before the drone pops,
   and the ring formation closes in around you); some still sneak in from the edges.
 - **Floating mines** (after 30s) — stationary hazards that arm after a brief fade-in and despawn after a while; lethal on contact, but destroying one with a power chain-explodes everything nearby
@@ -141,7 +143,7 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 | Module | Role (Unity counterpart) |
 | --- | --- |
 | `src/ship.ts` | Ship physics + boost (`ShipController`) |
-| `src/physics.ts` | Screen wrap, circle collision (`ScreenWrap`) |
+| `src/physics.ts` | Arena bounds clamp, circle collision |
 | `src/enemies.ts` | Drones, difficulty ramps, formations (`EnemyDrone`, `EnemySpawner`) |
 | `src/mines.ts` | Floating mines: spawning, arming, chain explosions |
 | `src/popups.ts` | Floating score / power-name text |

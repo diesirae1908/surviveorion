@@ -80,6 +80,25 @@ export interface WaveFx {
   color: string;
 }
 
+/** One jagged bolt segment in a chain-lightning arc. */
+export interface ArcBolt {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  elapsed: number;
+  seed: number;
+}
+
+/** Active chain-lightning jump state (staggered kills between targets). */
+export interface ArcChainState {
+  x: number;
+  y: number;
+  jumpTimer: number;
+  hitDrones: Set<Drone>;
+  hitMines: Set<Mine>;
+}
+
 /** A burning point left behind by the afterburner dash; lethal until it fades. */
 export interface TrailPoint {
   x: number;
@@ -107,6 +126,8 @@ export interface PowersState {
   projectiles: PulseProjectile[];
   missiles: Missile[];
   waves: WaveFx[];
+  arcBolts: ArcBolt[];
+  arcChain: ArcChainState | null;
 }
 
 export type RunPhase = "playing" | "dying" | "dead";
@@ -138,6 +159,8 @@ export type GameEvent =
   | { type: "dash" }
   | { type: "freeze"; x: number; y: number }
   | { type: "missilesFire" }
+  | { type: "arcZap"; x: number; y: number }
+  | { type: "arcFizzle"; x: number; y: number }
   | { type: "chainBonus"; x: number; y: number; points: number; count: number }
   | { type: "pulseMultiKill"; x: number; y: number; points: number; hits: number }
   | { type: "droneSpawn"; x: number; y: number }

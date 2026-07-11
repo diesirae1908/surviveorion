@@ -219,6 +219,17 @@ export class AudioSystem {
     this.tone(550, 1600, 0.25, "sawtooth", 0.08, 0.14);
   }
 
+  arcZap(): void {
+    this.noiseBurst(0.12, 0.08, 4200);
+    this.tone(880, 220, 0.08, "square", 0.18);
+    this.tone(1320, 660, 0.06, "sine", 0.1, 0.02);
+  }
+
+  arcFizzle(): void {
+    this.tone(420, 180, 0.15, "sine", 0.08);
+    this.noiseBurst(0.08, 0.1, 1800);
+  }
+
   /** Ominous two-note warning when a ring closes in around the player. */
   ringWarning(): void {
     this.tone(220, 180, 0.22, "square", 0.12);

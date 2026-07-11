@@ -1,61 +1,38 @@
 import type { World } from "./types";
 
 /**
- * Toroidal screen wrap (port of Unity ScreenWrap): the entity travels up to
- * `marginFrac` of the view size beyond the edge before reappearing opposite.
+ * Hard arena walls: stop the entity at the view edge and zero velocity into
+ * the wall so the ship slides along the boundary (inertia-friendly).
  */
-export function wrap(
-  e: { x: number; y: number; prevX: number; prevY: number },
+export function clampToBounds(
+  e: { x: number; y: number; prevX: number; prevY: number; vx: number; vy: number },
   world: World,
-  marginFrac: number,
-): void {
-  const mx = world.viewW * marginFrac;
-  const my = world.viewH * marginFrac;
-  const hw = world.viewW / 2;
-  const hh = world.viewH / 2;
-  let wrapped = false;
+  radius: number,
+): boolean {
+  const hw = world.viewW / 2 - radius;
+  const hh = world.viewH / 2 - radius;
+  let hit = false;
 
-  if (e.x < -hw - mx) {
-    e.x = hw + mx;
-    wrapped = true;
-  } else if (e.x > hw + mx) {
-    e.x = -hw - mx;
-    wrapped = true;
+  if (e.x < -hw) {
+    e.x = -hw;
+    e.vx = 0;
+    hit = true;
+  } else if (e.x > hw) {
+    e.x = hw;
+    e.vx = 0;
+    hit = true;
   }
-  if (e.y < -hh - my) {
-    e.y = hh + my;
-    wrapped = true;
-  } else if (e.y > hh + my) {
-    e.y = -hh - my;
-    wrapped = true;
+  if (e.y < -hh) {
+    e.y = -hh;
+    e.vy = 0;
+    hit = true;
+  } else if (e.y > hh) {
+    e.y = hh;
+    e.vy = 0;
+    hit = true;
   }
 
-  // avoid interpolating across the whole screen on the wrap frame
-  if (wrapped) {
-    e.prevX = e.x;
-    e.prevY = e.y;
-  }
-}
-
-/**
- * Distance accounting for the screen-wrap seam: a point just outside the right
- * edge is close to a ship about to wrap from the left edge.
- */
-export function toroidalDistance(
-  world: World,
-  marginFrac: number,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-): number {
-  const periodX = world.viewW * (1 + 2 * marginFrac);
-  const periodY = world.viewH * (1 + 2 * marginFrac);
-  let dx = Math.abs(x2 - x1);
-  let dy = Math.abs(y2 - y1);
-  dx = Math.min(dx, periodX - dx);
-  dy = Math.min(dy, periodY - dy);
-  return Math.hypot(dx, dy);
+  return hit;
 }
 
 export function circlesOverlap(

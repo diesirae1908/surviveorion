@@ -1,7 +1,7 @@
 import { MINES, PALETTE, POWERS, SCORING, type PowerId } from "./config";
 import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { isMineArmed, killMine, killMinesInRadius } from "./mines";
-import type { Drone, Mine, PowersState, World } from "./types";
+import type { ArcChainState, Drone, Mine, PowersState, World } from "./types";
 
 export function createPowersState(): PowersState {
   return {
@@ -16,6 +16,8 @@ export function createPowersState(): PowersState {
     projectiles: [],
     missiles: [],
     waves: [],
+    arcBolts: [],
+    arcChain: null,
   };
 }
 
@@ -82,6 +84,9 @@ export function activatePower(world: World, power: PowerId): void {
     case "missiles":
       fireMissileSwarm(world);
       break;
+    case "arc":
+      startArcChain(world);
+      break;
   }
 }
 
@@ -112,6 +117,165 @@ function fireMissileSwarm(world: World): void {
 
 function isTargetAlive(t: Drone | Mine | null): boolean {
   return !!t && t.alive;
+}
+
+function nearestEnemyInRadius(
+  world: World,
+  x: number,
+  y: number,
+  radius: number,
+  excludeDrones: Set<Drone>,
+  excludeMines: Set<Mine>,
+): Drone | Mine | null {
+  const rSq = radius * radius;
+  let best: Drone | Mine | null = null;
+  let bestSq = Infinity;
+
+  for (const d of world.drones) {
+    if (!d.alive || excludeDrones.has(d)) continue;
+    const dx = d.x - x;
+    const dy = d.y - y;
+    const sq = dx * dx + dy * dy;
+    if (sq <= rSq && sq < bestSq) {
+      bestSq = sq;
+      best = d;
+    }
+  }
+  for (const m of world.mines) {
+    if (!m.alive || !isMineArmed(m) || excludeMines.has(m)) continue;
+    const dx = m.x - x;
+    const dy = m.y - y;
+    const sq = dx * dx + dy * dy;
+    if (sq <= rSq && sq < bestSq) {
+      bestSq = sq;
+      best = m;
+    }
+  }
+  return best;
+}
+
+function pushArcBolt(
+  p: PowersState,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): void {
+  p.arcBolts.push({
+    fromX,
+    fromY,
+    toX,
+    toY,
+    elapsed: 0,
+    seed: Math.random() * 1000,
+  });
+}
+
+function zapTarget(
+  world: World,
+  p: PowersState,
+  fromX: number,
+  fromY: number,
+  target: Drone | Mine,
+  chain: ArcChainState,
+): void {
+  const tx = target.x;
+  const ty = target.y;
+  pushArcBolt(p, fromX, fromY, tx, ty);
+
+  if (isDroneTarget(target)) {
+    killDrone(world, target);
+    chain.hitDrones.add(target);
+  } else {
+    killMine(world, target);
+    chain.hitMines.add(target);
+  }
+
+  chain.x = tx;
+  chain.y = ty;
+  chain.jumpTimer = POWERS.arc.jumpInterval;
+  world.events.push({ type: "arcZap", x: tx, y: ty });
+  world.shake = Math.max(world.shake, 0.12);
+}
+
+/** Chain lightning: first zap on pickup, then jumps to nearby enemies. */
+function startArcChain(world: World): void {
+  const p = world.powers;
+  const cfg = POWERS.arc;
+  const ship = world.ship;
+  const first = nearestEnemyInRadius(
+    world,
+    ship.x,
+    ship.y,
+    cfg.initialRadius,
+    new Set(),
+    new Set(),
+  );
+
+  if (!first) {
+    p.waves.push({
+      x: ship.x,
+      y: ship.y,
+      elapsed: 0,
+      lifetime: cfg.fizzleLifetime,
+      maxRadius: cfg.fizzleRadius,
+      color: PALETTE.arc,
+    });
+    world.events.push({ type: "arcFizzle", x: ship.x, y: ship.y });
+    world.shake = Math.max(world.shake, 0.08);
+    return;
+  }
+
+  const chain: ArcChainState = {
+    x: first.x,
+    y: first.y,
+    jumpTimer: cfg.jumpInterval,
+    hitDrones: new Set(),
+    hitMines: new Set(),
+  };
+  p.arcChain = chain;
+  zapTarget(world, p, ship.x, ship.y, first, chain);
+  world.shake = Math.max(world.shake, 0.2);
+}
+
+function updateArcChain(world: World, dt: number): void {
+  const p = world.powers;
+  const chain = p.arcChain;
+  if (!chain) return;
+
+  chain.jumpTimer -= dt;
+  if (chain.jumpTimer > 0) return;
+
+  const cfg = POWERS.arc;
+  const next = nearestEnemyInRadius(
+    world,
+    chain.x,
+    chain.y,
+    cfg.jumpRadius,
+    chain.hitDrones,
+    chain.hitMines,
+  );
+
+  if (!next) {
+    p.arcChain = null;
+    return;
+  }
+
+  zapTarget(world, p, chain.x, chain.y, next, chain);
+}
+
+function updateArcBolts(world: World, dt: number): void {
+  const p = world.powers;
+  const lifetime = POWERS.arc.boltLifetime;
+  for (let i = p.arcBolts.length - 1; i >= 0; i--) {
+    const bolt = p.arcBolts[i];
+    bolt.elapsed += dt;
+    if (bolt.elapsed >= lifetime) p.arcBolts.splice(i, 1);
+  }
+}
+
+function isDroneTarget(t: Drone | Mine): t is Drone {
+  return "scale" in t;
 }
 
 function nearestEnemy(world: World, x: number, y: number): Drone | Mine | null {
@@ -300,6 +464,8 @@ export function updatePowers(world: World, dt: number): void {
   }
 
   updateMissiles(world, dt);
+  updateArcChain(world, dt);
+  updateArcBolts(world, dt);
 
   // expanding ring visuals
   for (let i = p.waves.length - 1; i >= 0; i--) {

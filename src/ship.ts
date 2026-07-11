@@ -1,7 +1,7 @@
 import { POWERS, SHIP } from "./config";
 import type { InputState } from "./input";
 import { clamp01, lerp } from "./math";
-import { wrap } from "./physics";
+import { clampToBounds } from "./physics";
 import type { Ship, World } from "./types";
 
 export function createShip(): Ship {
@@ -37,11 +37,15 @@ export function updateShip(world: World, input: InputState, dt: number): void {
     s.thrusting = 1;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    wrap(s, world, SHIP.wrapMargin);
+    const hitWall = clampToBounds(s, world, SHIP.radius);
     // hard brake on the last dash step so the ship exits controllable
-    if (world.powers.afterburnerDash <= dt) {
+    if (world.powers.afterburnerDash <= dt || hitWall) {
       s.vx = fx * POWERS.afterburner.exitSpeed;
       s.vy = fy * POWERS.afterburner.exitSpeed;
+      if (hitWall) {
+        world.powers.afterburnerDash = 0;
+        world.powers.afterburnerGrace = POWERS.afterburner.arrivalInvulnTime;
+      }
     }
     return;
   }
@@ -104,7 +108,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
 
   s.x += s.vx * dt;
   s.y += s.vy * dt;
-  wrap(s, world, SHIP.wrapMargin);
+  clampToBounds(s, world, SHIP.radius);
 }
 
 function stopBoost(s: Ship): void {

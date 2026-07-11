@@ -268,6 +268,14 @@ function drainEvents(w: World): void {
       case "missilesFire":
         audio.missilesFire();
         break;
+      case "arcZap":
+        particles.burst(e.x, e.y, [PALETTE.arc, PALETTE.white, "#c8f0ff"], 14, 5, 0.55, 0.1);
+        audio.arcZap();
+        break;
+      case "arcFizzle":
+        particles.burst(e.x, e.y, [PALETTE.arc, "#a8d8ff"], 10, 3, 0.35, 0.08);
+        audio.arcFizzle();
+        break;
       case "chainBonus":
         popups.spawn(e.x, e.y + 0.7, `CHAIN ×${e.count}  +${e.points}`, PALETTE.goldPale, 0.5);
         audio.chainBonus();

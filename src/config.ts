@@ -23,10 +23,6 @@ export const SHIP = {
     cooldown: 1.2,
     maxSpeedMultiplier: 1.6,
   },
-  // Fraction of view size beyond the edge before wrapping. Kept small so the
-  // ship never lingers off-screen where unseen drones spawn (Unity used 0.2,
-  // which made edge collisions invisible).
-  wrapMargin: 0.05,
   deathKnockback: 12,
 };
 
@@ -36,6 +32,8 @@ export const DRONE = {
   massMin: 0.3,
   massMax: 1.8,
   jitterFrequency: 0.8,
+  // Small drones move a bit slower; larger ones a bit faster (subtle variety).
+  sizeSpeed: { small: 0.85, large: 1.12 },
 };
 
 export const SPAWNER = {
@@ -138,7 +136,8 @@ export type PowerId =
   | "afterburner"
   | "freeze"
   | "missiles"
-  | "starshell";
+  | "starshell"
+  | "arc";
 
 export const POWERS = {
   // The shield has no timer: it stays on the ship until it absorbs a hit
@@ -198,6 +197,16 @@ export const POWERS = {
     duration: 6,
     flickerLastSeconds: 2,
   },
+  // Chain lightning: zaps the nearest enemy, then jumps to the next closest
+  // within range until no more targets are close enough to continue.
+  arc: {
+    initialRadius: 4,
+    jumpRadius: 2.2,
+    jumpInterval: 0.07,
+    boltLifetime: 0.25,
+    fizzleLifetime: 0.5,
+    fizzleRadius: 2.5,
+  },
 };
 
 export const ALL_POWER_IDS: PowerId[] = [
@@ -209,6 +218,7 @@ export const ALL_POWER_IDS: PowerId[] = [
   "freeze",
   "missiles",
   "starshell",
+  "arc",
 ];
 
 // Relative spawn frequency. Panic-button powers stay common as a safety net
@@ -223,6 +233,7 @@ export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
   freeze: 1.5,
   afterburner: 1,
   starshell: 1.5,
+  arc: 2,
 };
 
 // Powers gated to the late game: they only enter the pickup pool after this
@@ -250,6 +261,7 @@ export const PALETTE = {
   freeze: "#9fe8ff",
   missiles: "#a8ff9e",
   starshell: "#ffd24d",
+  arc: "#88eeff",
 };
 
 export const POWER_COLORS: Record<PowerId, string> = {
@@ -261,6 +273,7 @@ export const POWER_COLORS: Record<PowerId, string> = {
   freeze: PALETTE.freeze,
   missiles: PALETTE.missiles,
   starshell: PALETTE.starshell,
+  arc: PALETTE.arc,
 };
 
 export const POWER_NAMES: Record<PowerId, string> = {
@@ -272,4 +285,5 @@ export const POWER_NAMES: Record<PowerId, string> = {
   freeze: "Cryo Field",
   missiles: "Missile Swarm",
   starshell: "Starshell",
+  arc: "Arc Lightning",
 };
