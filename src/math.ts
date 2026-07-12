@@ -17,18 +17,53 @@ export const moveTowards = (current: number, target: number, maxDelta: number): 
 
 export const len = (x: number, y: number): number => Math.hypot(x, y);
 
+// --- gameplay RNG (seedable for Daily Patrol shared-seed runs) ---
+// All *gameplay* randomness (spawner, formations, pickups, powers) draws from
+// `rand` so a seeded run deals every player the same opening script. Cosmetic
+// randomness (particles, starfield, audio noise) stays on Math.random.
+
+/** mulberry32: tiny, fast, good-enough PRNG for gameplay scripting. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let gameplayRng: () => number = Math.random;
+
+/** Seed the gameplay RNG for a run (null = back to true randomness). */
+export function setRunSeed(seed: number | null): void {
+  gameplayRng = seed === null ? Math.random : mulberry32(seed);
+}
+
+/** Deterministic 32-bit hash of a string (daily seed from the UTC date). */
+export function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+export const rand = (): number => gameplayRng();
+
 export const randRange = (min: number, max: number): number =>
-  min + Math.random() * (max - min);
+  min + rand() * (max - min);
 
 export const randDir = (): Vec2 => {
-  const a = Math.random() * Math.PI * 2;
+  const a = rand() * Math.PI * 2;
   return { x: Math.cos(a), y: Math.sin(a) };
 };
 
 /** Random point inside the unit circle (like Unity's Random.insideUnitCircle). */
 export const randInCircle = (): Vec2 => {
-  const a = Math.random() * Math.PI * 2;
-  const r = Math.sqrt(Math.random());
+  const a = rand() * Math.PI * 2;
+  const r = Math.sqrt(rand());
   return { x: Math.cos(a) * r, y: Math.sin(a) * r };
 };
 

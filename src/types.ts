@@ -207,6 +207,12 @@ export interface World {
   /** Tutorial sandbox: no ambient spawns, mines, or timed pickups. */
   sandbox: boolean;
 
+  /**
+   * New-pilot grace (0..1): softens the opening burst, first-formation timing,
+   * and early ambient spawn rate for a player's first few runs. 0 = normal.
+   */
+  grace: number;
+
   phase: RunPhase;
   time: number; // seconds survived
   deathTimer: number; // time since death (for explosion -> game over transition)

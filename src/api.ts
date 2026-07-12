@@ -41,6 +41,12 @@ export interface SubmitResult {
   countryRank: number | null;
   /** Badge ids earned by this run (see src/badges.ts for display data). */
   newBadges?: string[];
+  /** Pilot directly above on the world board (gap-to-goal messaging). */
+  nextAbove?: { callsign: string; score: number } | null;
+  /** Nearest wingmate above on the world board, if any. */
+  nextWingmate?: { callsign: string; score: number } | null;
+  /** Rank on today's Daily Patrol board (daily runs only). */
+  dailyRank?: number | null;
 }
 
 /** Viewer's relationship with a pilot (null = viewing yourself / signed out). */
@@ -57,6 +63,10 @@ export interface PlayerProfile {
   totalKills: number;
   totalTime: number;
   bestTime: number;
+  /** Single-run career bests (badge progress display). */
+  bestKills: number;
+  bestScore: number;
+  bestMultiplier: number;
   history: Array<{ score: number; mode: BoardMode; createdAt: number }>;
   badges: Array<{ id: string; earnedAt: number }>;
   friendship: Friendship;
@@ -216,6 +226,8 @@ export class Api {
     maxMultiplier: number;
     mode: BoardMode;
     platform: string;
+    /** true for Daily Patrol runs (server files it on today's board too). */
+    daily?: boolean;
   }): Promise<SubmitResult> {
     return this.request<SubmitResult>("POST", "/api/scores", run);
   }
@@ -228,6 +240,7 @@ export class Api {
     maxMultiplier: number;
     mode: BoardMode;
     platform: string;
+    daily?: boolean;
   }): Promise<{ ok: boolean }> {
     return this.request("POST", "/api/runs", run);
   }
@@ -240,6 +253,11 @@ export class Api {
     const q = new URLSearchParams({ mode });
     if (country) q.set("country", country);
     return this.request<LeaderboardResponse>("GET", `/api/leaderboard/world?${q}`);
+  }
+
+  /** Today's Daily Patrol board (shared-seed runs, resets at UTC midnight). */
+  dailyLeaderboard(mode: BoardMode = "desktop"): Promise<LeaderboardResponse & { date: string }> {
+    return this.request("GET", `/api/leaderboard/daily?mode=${mode}`);
   }
 
   createArena(name: string): Promise<{ arena: ArenaInfo }> {

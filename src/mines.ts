@@ -1,5 +1,5 @@
 import { MINES } from "./config";
-import { randRange } from "./math";
+import { rand, randRange } from "./math";
 import { killDronesInRadius } from "./enemies";
 import { registerKill } from "./scoring";
 import type { Mine, World } from "./types";
@@ -62,7 +62,7 @@ function trySpawnMine(world: World): void {
       y,
       age: 0,
       lifetime: MINES.lifetime,
-      seed: Math.random() * Math.PI * 2,
+      seed: rand() * Math.PI * 2,
       alive: true,
     });
     return;

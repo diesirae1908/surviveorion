@@ -75,6 +75,9 @@ const clientIp = (req) =>
 
 const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
 
+/** Today's UTC date, 'YYYY-MM-DD' — the Daily Patrol board key. */
+const utcDate = () => new Date().toISOString().slice(0, 10);
+
 /**
  * Board mode from a submitted run. Boards are per platform: desktop keyboard,
  * phone touch stick, phone tilt. Older clients tagged runs by flight physics
@@ -281,7 +284,11 @@ const routes = {
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
 
-    store.insertScore(user.id, run);
+    // Daily Patrol: the server stamps the date itself (clients can't file
+    // scores onto past/future boards). Daily runs count all-time too.
+    const dailyDate = body.daily === true ? utcDate() : null;
+
+    store.insertScore(user.id, { ...run, dailyDate });
     store.insertRun(user.id, { ...run, platform: cleanPlatform(body.platform) });
 
     const worldRank = store.rankOf(user.id, { mode: run.mode });
@@ -297,6 +304,10 @@ const routes = {
       countryRank: user.country
         ? store.rankOf(user.id, { country: user.country, mode: run.mode })
         : null,
+      dailyRank: dailyDate ? store.rankOf(user.id, { mode: run.mode, dailyDate }) : null,
+      // gap-to-goal targets for the game-over screen
+      nextAbove: store.nextAbove(user.id, run.mode),
+      nextWingmate: store.nextWingmateAbove(user.id, run.mode),
       newBadges,
     });
   },
@@ -335,6 +346,21 @@ const routes = {
           }
         : null;
     json(res, 200, { entries, me: me?.inScope ? me : null });
+  },
+
+  // Daily Patrol: best daily-run score per pilot for today's UTC date.
+  // The board resets naturally when the date rolls over.
+  "GET /api/leaderboard/daily": (req, res, user, url) => {
+    const mode = url.searchParams.get("mode") ?? "desktop";
+    if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
+    const dailyDate = utcDate();
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
+    const entries = store.leaderboard({ mode, dailyDate, limit });
+    const myBest = user ? store.getUserDailyBest(user.id, mode, dailyDate) : 0;
+    const me = myBest
+      ? { rank: store.rankOf(user.id, { mode, dailyDate }), best: myBest }
+      : null;
+    json(res, 200, { date: dailyDate, entries, me });
   },
 
   "POST /api/arenas": async (req, res, user) => {
@@ -506,6 +532,10 @@ function playerProfile(req, res, user, callsign) {
     totalKills: career.totalKills,
     totalTime: career.totalTime,
     bestTime: career.bestTime,
+    // single-run career bests (locked-badge progress display)
+    bestKills: career.bestKills,
+    bestScore: career.bestScore,
+    bestMultiplier: career.bestMultiplier,
     history: store.scoreHistory(target.id, 40),
     badges: store.userBadges(target.id),
     friendship,

@@ -361,6 +361,15 @@ export class AudioSystem {
     this.tone(1047, 1568, 0.18, "sine", 0.18, 0.16);
   }
 
+  /** Mid-run personal-best fanfare: a bright rising major arpeggio + shimmer. */
+  newRecord(): void {
+    this.tone(523, 523, 0.14, "sine", 0.22);
+    this.tone(659, 659, 0.14, "sine", 0.22, 0.1);
+    this.tone(784, 784, 0.16, "sine", 0.22, 0.2);
+    this.tone(1047, 1568, 0.4, "sine", 0.2, 0.3);
+    this.tone(2093, 3136, 0.3, "triangle", 0.08, 0.32);
+  }
+
   mineBoom(): void {
     this.noiseBurst(0.5, 0.55, 700);
     this.tone(90, 32, 0.55, "sine", 0.4);

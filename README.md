@@ -74,6 +74,13 @@ community buttons simply don't appear.
   `touch` = phone virtual stick, `tilt` = phone tilt) and every leaderboard
   ranks the three separately. The Inertia setting is flavor only — it doesn't
   change which board a run lands on.
+- **Daily Patrol** — a shared-seed daily run: the gameplay RNG is seeded from
+  the UTC date (`setRunSeed` in `src/math.ts`), so every pilot faces the same
+  opening script that day. Daily runs land on a per-day board
+  (`GET /api/leaderboard/daily`, `daily_date` column on `scores`; the "Daily
+  Patrol" tab in the World Arena) *and* still count all-time. Unlimited
+  attempts; the board resets at UTC midnight. Launched from the menu's Daily
+  Patrol button, which shows today's leader.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
 - **Wingmates (friends)** — add pilots by callsign (mutual accept; requests can
   be sent from any pilot record too). The Wingmates screen has a squadron
@@ -176,7 +183,15 @@ and the game boots through a tap-to-enter gate into a ~5s cinematic
 intro (hyperspace rush, swarm fly-by, title slam) before the menu.
 
 The arena gets swarmy fast: an 8-drone opening burst, the first formation
-inside ~10s, and near-full-size patterns by the 20-second mark.
+inside ~10s, and near-full-size patterns by the 20-second mark. A player's
+first ~3 runs on a device get a grace curve (`grace` on `World`, run counter
+in `src/save.ts`): half the opening burst, first formation delayed ~8s, and a
+gentler ambient ramp for the first minute — scoring is untouched, and Daily
+Patrol runs never use grace. Dying is fast to leave behind: the death
+cinematic is tap/key-skippable after 0.5s, **Fly again** (and Space/Enter on
+the game-over screen) retries with a 0.5s quick warp instead of the full
+cinematic, and passing your personal best mid-run fires a NEW RECORD
+celebration.
 
 ## Mobile
 

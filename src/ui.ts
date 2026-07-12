@@ -14,6 +14,8 @@ import {
 
 export interface UiCallbacks {
   onPlay: () => void;
+  /** Launch today's Daily Patrol (shared-seed run, daily board). */
+  onDaily: () => void;
   onResume: () => void;
   onRestart: () => void;
   onQuitToMenu: () => void;
@@ -50,8 +52,15 @@ export interface GameOverStats {
   score: number;
   time: number;
   kills: number;
+  maxMultiplier: number;
   best: number;
+  /** Longest flight (seconds) before this run — 0 if none. */
+  bestTime: number;
   isNewBest: boolean;
+  isNewBestTime: boolean;
+  /** Daily Patrol run (shared-seed board). */
+  daily: boolean;
+  touchDevice: boolean;
 }
 
 const SENSE_LABEL: Record<SenseLevel, string> = {
@@ -244,6 +253,17 @@ export class Ui {
     const launch = this.button("Launch", true, () => this.cb.onPlay());
     launch.classList.add("launch");
     screen.appendChild(launch);
+
+    // Daily Patrol: everyone flies the same swarm today, one shared board
+    if (community && community.callsign !== null) {
+      const daily = document.createElement("button");
+      daily.className = "daily-btn";
+      daily.innerHTML =
+        `<span class="daily-name">☀ Daily Patrol</span>` +
+        `<span class="daily-hint" id="daily-hint">today's shared swarm — one board, resets at midnight</span>`;
+      daily.addEventListener("click", () => this.cb.onDaily());
+      screen.appendChild(daily);
+    }
 
     const howTo = this.button("How to play", false, () => this.cb.onTutorial());
     howTo.classList.add("small-btn");
@@ -667,32 +687,55 @@ export class Ui {
     this.clear();
     this.pauseBtn.style.display = "none";
 
-    const mins = Math.floor(stats.time / 60);
-    const secs = Math.floor(stats.time % 60);
+    const fmtTime = (s: number): string =>
+      `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
 
     // transparent + slow fade: the canvas death veil provides the backdrop
     const screen = this.el("div", "screen gameover-screen", "");
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
+    if (stats.daily) {
+      screen.appendChild(this.el("div", "daily-tag", "DAILY PATROL"));
+    }
     if (stats.isNewBest) {
       screen.appendChild(this.el("div", "new-best", "New best score"));
     }
     screen.appendChild(this.el("div", "divider", ""));
+    // survival time leads: it's the number players intuitively compare
     screen.appendChild(
       this.el(
         "div",
         "stats",
-        `<div><span class="label">Score</span><span class="value">${Math.floor(stats.score).toLocaleString()}</span></div>` +
-          `<div><span class="label">Survived</span><span class="value">${mins}:${secs.toString().padStart(2, "0")}</span></div>` +
+        `<div><span class="label">Survived</span><span class="value">${fmtTime(stats.time)}</span></div>` +
+          `<div><span class="label">Score</span><span class="value">${Math.floor(stats.score).toLocaleString()}</span></div>` +
+          `<div><span class="label">Peak multiplier</span><span class="value">×${stats.maxMultiplier.toFixed(1)}</span></div>` +
           `<div><span class="label">Kills</span><span class="value">${stats.kills}</span></div>` +
           `<div><span class="label">Best</span><span class="value">${Math.floor(stats.best).toLocaleString()}</span></div>`,
       ),
     );
+
+    // near-miss framing: how this flight compares to the longest one
+    if (stats.isNewBestTime && stats.bestTime > 0) {
+      screen.appendChild(this.el("div", "run-delta gold", "Your longest flight yet"));
+    } else if (stats.bestTime > 0 && stats.bestTime - stats.time >= 1) {
+      const short = Math.ceil(stats.bestTime - stats.time);
+      screen.appendChild(
+        this.el(
+          "div",
+          "run-delta",
+          `${short}s short of your longest flight (${fmtTime(stats.bestTime)})`,
+        ),
+      );
+    }
+
     const rank = this.el("div", "rank-line", "");
     rank.id = "rank-line";
     screen.appendChild(rank);
 
     screen.appendChild(this.button("Fly again", true, () => this.cb.onRestart()));
     screen.appendChild(this.button("Main menu", false, () => this.cb.onQuitToMenu()));
+    if (!stats.touchDevice) {
+      screen.appendChild(this.el("div", "field-hint center", "Space — fly again"));
+    }
     this.root.appendChild(screen);
   }
 
@@ -700,6 +743,12 @@ export class Ui {
   setGameOverRank(html: string): void {
     const line = document.getElementById("rank-line");
     if (line) line.innerHTML = html;
+  }
+
+  /** Update the Daily Patrol menu hint once today's board loads. */
+  setMenuDailyHint(html: string): void {
+    const hint = document.getElementById("daily-hint");
+    if (hint) hint.innerHTML = html;
   }
 
   /** Celebrate freshly earned badges on the game-over screen. */

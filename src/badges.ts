@@ -3,6 +3,24 @@
 
 export type BadgeTier = "easy" | "medium" | "rare" | "grind";
 
+/** Career stats a locked badge's progress is measured against. */
+export interface BadgeProgressStats {
+  runs: number;
+  totalKills: number;
+  totalTime: number;
+  bestTime: number;
+  bestKills: number;
+  bestScore: number;
+  bestMultiplier: number;
+}
+
+export interface BadgeProgress {
+  current: number;
+  goal: number;
+  /** e.g. "6:12 / 10:00" or "47 / 100" */
+  label: string;
+}
+
 export interface BadgeInfo {
   id: string;
   name: string;
@@ -10,33 +28,50 @@ export interface BadgeInfo {
   tier: BadgeTier;
   /** Shown for earned badges, and as the "how to get it" hint when locked. */
   desc: string;
+  /** Live progress toward the badge (omitted for one-shot/situational badges). */
+  progress?: (stats: BadgeProgressStats) => BadgeProgress;
 }
+
+const fmtTime = (s: number): string =>
+  `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+
+const count = (pick: (s: BadgeProgressStats) => number, goal: number) =>
+  (s: BadgeProgressStats): BadgeProgress => {
+    const current = Math.min(pick(s), goal);
+    return { current, goal, label: `${current.toLocaleString()} / ${goal.toLocaleString()}` };
+  };
+
+const duration = (pick: (s: BadgeProgressStats) => number, goal: number) =>
+  (s: BadgeProgressStats): BadgeProgress => {
+    const current = Math.min(pick(s), goal);
+    return { current, goal, label: `${fmtTime(current)} / ${fmtTime(goal)}` };
+  };
 
 export const BADGES: BadgeInfo[] = [
   // --- easy ---
   { id: "first_flight", name: "First Flight", icon: "🚀", tier: "easy", desc: "Complete your first run." },
   { id: "space_dust", name: "Space Dust", icon: "💫", tier: "easy", desc: "Perish within 10 seconds. It happens to the best of us." },
-  { id: "blooded", name: "Blooded", icon: "🩸", tier: "easy", desc: "Destroy 50 drones in a single run." },
-  { id: "staying_alive", name: "Staying Alive", icon: "🕺", tier: "easy", desc: "Survive for 2 minutes." },
+  { id: "blooded", name: "Blooded", icon: "🩸", tier: "easy", desc: "Destroy 50 drones in a single run.", progress: count((s) => s.bestKills, 50) },
+  { id: "staying_alive", name: "Staying Alive", icon: "🕺", tier: "easy", desc: "Survive for 2 minutes.", progress: duration((s) => s.bestTime, 120) },
   { id: "debriefed", name: "Debriefed", icon: "📡", tier: "easy", desc: "Send feedback to mission control while signed in." },
 
   // --- medium ---
-  { id: "centurion", name: "Centurion", icon: "🛡️", tier: "medium", desc: "Destroy 250 drones in a single run." },
-  { id: "five_alive", name: "Five Alive", icon: "⏱️", tier: "medium", desc: "Survive for 5 minutes." },
-  { id: "millionaire", name: "Millionaire", icon: "💰", tier: "medium", desc: "Score 1,000,000 points in one run." },
-  { id: "chain_reaction", name: "Chain Reaction", icon: "⚡", tier: "medium", desc: "Max out the multiplier at x10." },
+  { id: "centurion", name: "Centurion", icon: "🛡️", tier: "medium", desc: "Destroy 250 drones in a single run.", progress: count((s) => s.bestKills, 250) },
+  { id: "five_alive", name: "Five Alive", icon: "⏱️", tier: "medium", desc: "Survive for 5 minutes.", progress: duration((s) => s.bestTime, 300) },
+  { id: "millionaire", name: "Millionaire", icon: "💰", tier: "medium", desc: "Score 1,000,000 points in one run.", progress: count((s) => s.bestScore, 1_000_000) },
+  { id: "chain_reaction", name: "Chain Reaction", icon: "⚡", tier: "medium", desc: "Max out the multiplier at x10.", progress: count((s) => Math.floor(s.bestMultiplier), 10) },
   { id: "pacifist", name: "Pacifist", icon: "🕊️", tier: "medium", desc: "Survive 90 seconds without destroying a single drone." },
 
   // --- rare ---
-  { id: "swarm_reaper", name: "Swarm Reaper", icon: "☠️", tier: "rare", desc: "Destroy 1,000 drones in a single run." },
-  { id: "decade", name: "The Decade", icon: "🌌", tier: "rare", desc: "Survive for 10 minutes." },
-  { id: "ten_million", name: "Ten Million Club", icon: "👑", tier: "rare", desc: "Score 10,000,000 points in one run." },
+  { id: "swarm_reaper", name: "Swarm Reaper", icon: "☠️", tier: "rare", desc: "Destroy 1,000 drones in a single run.", progress: count((s) => s.bestKills, 1000) },
+  { id: "decade", name: "The Decade", icon: "🌌", tier: "rare", desc: "Survive for 10 minutes.", progress: duration((s) => s.bestTime, 600) },
+  { id: "ten_million", name: "Ten Million Club", icon: "👑", tier: "rare", desc: "Score 10,000,000 points in one run.", progress: count((s) => s.bestScore, 10_000_000) },
   { id: "galaxys_finest", name: "Galaxy's Finest", icon: "🏆", tier: "rare", desc: "Hold the #1 spot on the World Arena." },
 
   // --- career grinds ---
-  { id: "veteran", name: "Veteran", icon: "🎖️", tier: "grind", desc: "Complete 100 runs." },
-  { id: "harvester", name: "Harvester", icon: "🌾", tier: "grind", desc: "Destroy 10,000 drones across your career." },
-  { id: "ironclad", name: "Ironclad", icon: "⚓", tier: "grind", desc: "Survive a full hour of total flight time." },
+  { id: "veteran", name: "Veteran", icon: "🎖️", tier: "grind", desc: "Complete 100 runs.", progress: count((s) => s.runs, 100) },
+  { id: "harvester", name: "Harvester", icon: "🌾", tier: "grind", desc: "Destroy 10,000 drones across your career.", progress: count((s) => s.totalKills, 10_000) },
+  { id: "ironclad", name: "Ironclad", icon: "⚓", tier: "grind", desc: "Survive a full hour of total flight time.", progress: duration((s) => s.totalTime, 3600) },
 ];
 
 export const TIER_LABEL: Record<BadgeTier, string> = {

@@ -5,19 +5,24 @@ import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
 import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_NAMES, TILT_MAX_DEG } from "./config";
 import { countryFlag, countryName } from "./countries";
-import { createWorld, resizeWorld, tick } from "./gameState";
+import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input } from "./input";
+import { clamp01, hashString, setRunSeed } from "./math";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
 import {
   loadBestScore,
+  loadBestTime,
   loadControlPrefs,
   loadKeyBindings,
+  loadRunCount,
   loadSettings,
   nextSenseLevel,
   assignKey,
+  bumpRunCount,
   saveBestScore,
+  saveBestTime,
   saveControlPrefs,
   saveKeyBindings,
   saveSettings,
@@ -54,6 +59,7 @@ let keybinds: KeyBindings = loadKeyBindings();
 let state: AppState = "gate";
 let world: World = createWorld(renderer.viewW, renderer.viewH); // menu backdrop (not ticked)
 let bestScore = loadBestScore();
+let bestTime = loadBestTime();
 /** Board mode (platform) locked at run start; tags the score submission. */
 let runMode: BoardMode = "desktop";
 let accumulator = 0;
@@ -61,15 +67,29 @@ let uiTime = 0;
 let fx: TransitionFx | null = null; // cinematic overlay (warp / flash / death veil / intro)
 let gameOverUiShown = false;
 let lastRunWasBest = false;
+let lastRunWasBestTime = false;
+/** Longest flight before the run that just ended (for the game-over delta). */
+let prevBestTime = 0;
+/** Personal best passed mid-run (one celebration per run). */
+let recordBeaten = false;
+/** Daily Patrol: shared-seed run, files on today's board too. */
+let pendingDaily = false;
+let runIsDaily = false;
 let tutorial: Tutorial | null = null;
 
 const INTRO_SECONDS = 5;
 const INTRO_HIT_AT = 0.42 * INTRO_SECONDS; // when the title slams in
 const WARP_SECONDS = 2.1;
+/** Retries skip the ceremony: a blink of warp instead of the full cinematic. */
+const RETRY_WARP_SECONDS = 0.5;
 const FLASH_SECONDS = 0.55;
 const DEATH_VEIL_SECONDS = 1.9;
 /** Veil progress at which the game-over screen starts fading in. */
 const DEATH_UI_AT = 0.55;
+/** Any tap/key after this much death cinematic skips straight to the results. */
+const DEATH_SKIP_AFTER = 0.5;
+
+let warpSeconds = WARP_SECONDS;
 
 audio.setSound(settings.sound);
 audio.setMusic(settings.music);
@@ -128,10 +148,12 @@ function setStickMode(): void {
 }
 
 const ui = new Ui(settings, {
-  onPlay: beginLaunch,
+  onPlay: () => beginLaunch(false),
+  onDaily: () => beginLaunch(true),
   onResume: resume,
-  // restarts keep the mode chosen at launch — no picker friction on retries
-  onRestart: doLaunch,
+  // restarts keep the mode chosen at launch (no picker friction) and use the
+  // quick warp — the "one more go" loop stays under ~1.5s
+  onRestart: () => doLaunch(true),
   onQuitToMenu: quitToMenu,
   onPauseRequest: pause,
   onTutorial: startTutorial,
@@ -206,6 +228,21 @@ function showMenu(): void {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
     pendingFriends: api.pendingFriends,
   });
+  // fill the Daily Patrol hint with today's leader once the board loads
+  if (api.online) {
+    const mode: BoardMode = isTouchDevice() ? "touch" : "desktop";
+    void api
+      .dailyLeaderboard(mode)
+      .then((d) => {
+        const top = d.entries[0];
+        ui.setMenuDailyHint(
+          top
+            ? `today's leader: <b>${top.callsign.replace(/[&<>]/g, "")}</b> — ${top.best.toLocaleString()}`
+            : "today's shared swarm — no scores yet, claim it",
+        );
+      })
+      .catch(() => {});
+  }
 }
 
 /**
@@ -213,8 +250,9 @@ function showMenu(): void {
  * choice between the default touch stick and tilt mode (Tilt to Live tribute).
  * Desktop has no sensor, so it goes straight in.
  */
-function beginLaunch(): void {
+function beginLaunch(daily: boolean): void {
   if (state === "launching") return;
+  pendingDaily = daily;
   if (isTouchDevice() && TiltControl.supported()) {
     ui.showModeSelect(controls.mode, (mode) => {
       if (mode === "tilt") {
@@ -232,21 +270,33 @@ function beginLaunch(): void {
   doLaunch();
 }
 
-function doLaunch(): void {
+function doLaunch(quick = false): void {
   if (state === "launching") return;
   audio.unlock();
   audio.pauseMusic();
-  audio.warp(WARP_SECONDS);
+  warpSeconds = quick ? RETRY_WARP_SECONDS : WARP_SECONDS;
+  audio.warp(warpSeconds);
   state = "launching";
   fx = { kind: "warp", t: 0 };
   ui.fadeOutScreens();
+}
+
+/** Seed for today's Daily Patrol: same UTC date → same opening script. */
+function dailySeed(): number {
+  return hashString(`orion-daily-${new Date().toISOString().slice(0, 10)}`);
 }
 
 function startRun(): void {
   audio.unlock();
   // boards are per platform: phone tilt, phone touch stick, or desktop keys
   runMode = input.tiltActive ? "tilt" : isTouchDevice() ? "touch" : "desktop";
-  world = createWorld(renderer.viewW, renderer.viewH);
+  runIsDaily = pendingDaily;
+  // Daily Patrol deals everyone the same script (and no beginner grace);
+  // normal runs soften the opening for a player's first few flights.
+  setRunSeed(runIsDaily ? dailySeed() : null);
+  const grace = runIsDaily ? 0 : clamp01(1 - loadRunCount() / 3);
+  world = createWorld(renderer.viewW, renderer.viewH, false, grace);
+  recordBeaten = false;
   particles.clear();
   popups.clear();
   accumulator = 0;
@@ -284,7 +334,7 @@ function finishTutorial(): void {
   tutorial = null;
   state = "menu"; // stop ticking the sandbox; the send-off screen takes over
   ui.showTutorialEnd(
-    () => beginLaunch(),
+    () => beginLaunch(false),
     () => quitToMenu(),
   );
 }
@@ -323,10 +373,17 @@ function onGameOver(): void {
   gameOverUiShown = false;
   audio.setThrustLevel(0);
   audio.playTrack("gameover");
+  bumpRunCount(); // new-pilot grace fades out with completed runs
   lastRunWasBest = world.score > bestScore;
   if (lastRunWasBest) {
     bestScore = world.score;
     saveBestScore(bestScore);
+  }
+  prevBestTime = bestTime;
+  lastRunWasBestTime = world.time > bestTime;
+  if (lastRunWasBestTime) {
+    bestTime = world.time;
+    saveBestTime(bestTime);
   }
 }
 
@@ -336,8 +393,13 @@ function showGameOverUi(): void {
     score: world.score,
     time: world.time,
     kills: world.kills,
+    maxMultiplier: world.maxMultiplier,
     best: bestScore,
+    bestTime: prevBestTime,
     isNewBest: lastRunWasBest,
+    isNewBestTime: lastRunWasBestTime,
+    daily: runIsDaily,
+    touchDevice: isTouchDevice(),
   });
   submitRun();
 }
@@ -352,6 +414,7 @@ function submitRun(): void {
     maxMultiplier: world.maxMultiplier,
     mode: runMode,
     platform: isTouchDevice() ? "touch" : "desktop",
+    daily: runIsDaily || undefined,
   };
   if (!api.signedIn) {
     ui.setGameOverRank(`<span class="dim">Sign in from the menu to enter the World Arena</span>`);
@@ -361,10 +424,20 @@ function submitRun(): void {
   api
     .submitScore(run)
     .then((r) => {
-      const parts = [`World rank <b>#${r.worldRank}</b>`];
+      const parts: string[] = [];
+      if (runIsDaily && r.dailyRank) parts.push(`Daily Patrol <b>#${r.dailyRank}</b>`);
+      parts.push(`World rank <b>#${r.worldRank}</b>`);
       const country = api.user?.country;
       if (country && r.countryRank) {
         parts.push(`${countryFlag(country)} ${countryName(country)} <b>#${r.countryRank}</b>`);
+      }
+      // gap-to-goal: the next pilot to hunt (a wingmate beats a stranger)
+      const target = r.nextWingmate ?? r.nextAbove;
+      if (target && target.score > r.best) {
+        const gap = (target.score - r.best + 1).toLocaleString();
+        const who = target.callsign.replace(/[&<>]/g, "");
+        const label = r.nextWingmate ? `your wingmate <b>${who}</b>` : `<b>${who}</b>`;
+        parts.push(`<span class="dim">${gap} points to pass ${label}</span>`);
       }
       ui.setGameOverRank(parts.join(" &nbsp;·&nbsp; "));
       const earned = (r.newBadges ?? [])
@@ -525,7 +598,7 @@ function frame(now: number): void {
     fx.t += dt / INTRO_SECONDS;
     if (fx.t >= 1) endIntro();
   } else if (state === "launching" && fx?.kind === "warp") {
-    fx.t += dt / WARP_SECONDS;
+    fx.t += dt / warpSeconds;
     if (fx.t >= 1) {
       startRun();
       fx = { kind: "flash", t: 0 };
@@ -553,6 +626,29 @@ function frame(now: number): void {
     }
 
     audio.setThrustLevel(world.phase === "playing" ? world.ship.thrusting : 0);
+
+    // Devil Daggers beat: crossing the personal best mid-run is celebrated
+    // the moment it happens — the run flips from routine to all-in.
+    if (
+      state === "playing" &&
+      world.phase === "playing" &&
+      !recordBeaten &&
+      bestScore > 0 &&
+      world.score > bestScore
+    ) {
+      recordBeaten = true;
+      popups.spawn(world.ship.x, world.ship.y + 1.4, "NEW RECORD", PALETTE.gold, 0.7);
+      particles.burst(
+        world.ship.x,
+        world.ship.y,
+        [PALETTE.gold, PALETTE.goldPale, PALETTE.white],
+        40,
+        6,
+        0.9,
+        0.14,
+      );
+      audio.newRecord();
+    }
 
     if (world.phase === "dead") {
       // dying in flight school just restarts the lesson
@@ -636,18 +732,36 @@ function endIntro(): void {
   showMenu();
 }
 
+/**
+ * Skip the death ceremony: after a short beat, any tap/key fast-forwards the
+ * explosion + veil so the results (and the retry button) arrive instantly.
+ */
+function skipDeathCinematic(): void {
+  if (state === "playing" && world.phase === "dying" && world.deathTimer >= DEATH_SKIP_AFTER) {
+    world.deathTimer = DEATH_TO_GAMEOVER_SECONDS; // next tick flips to game over
+  } else if (state === "gameover" && fx?.kind === "death" && !gameOverUiShown) {
+    fx.t = Math.max(fx.t, DEATH_UI_AT);
+  }
+}
+
 ui.showIntroGate(enterFromGate);
 // keyboard players can enter with any key; any input after the slam skips
-window.addEventListener("keydown", () => {
+window.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
   if (state === "gate") {
     ui.clearScreens();
     enterFromGate();
   } else if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_HIT_AT + 0.4) {
     endIntro();
+  } else if (state === "gameover" && gameOverUiShown && (e.code === "Space" || e.code === "Enter")) {
+    doLaunch(true); // instant retry without reaching for the mouse
+  } else {
+    skipDeathCinematic();
   }
 });
 window.addEventListener("pointerdown", () => {
   if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_HIT_AT + 0.4) endIntro();
+  else skipDeathCinematic();
 });
 
 // Re-render the menu once the community server responds (session restore,

@@ -49,7 +49,6 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 18px;
   pointer-events: auto;
   background: radial-gradient(ellipse at center, rgba(10, 10, 18, 0.55) 0%, rgba(10, 10, 18, 0.88) 100%);
@@ -57,6 +56,18 @@ body {
   padding: calc(24px + var(--safe-top)) calc(24px + var(--safe-right)) calc(24px + var(--safe-bottom))
     calc(24px + var(--safe-left));
   text-align: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Flexible spacers center the content when it fits and collapse to zero when
+   it overflows — unlike justify-content: center, which clips the top of
+   overflowing content with no way to scroll to it. */
+.screen::before,
+.screen::after {
+  content: "";
+  flex: 1 0 0;
 }
 
 @keyframes fadeIn {
@@ -247,6 +258,62 @@ button.launch {
 
 .pilot-badge:hover .sub {
   color: #ffd700;
+}
+
+/* Daily Patrol menu button: the calendar hook, styled as a mission card */
+.daily-btn {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 26px;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  background: rgba(42, 34, 16, 0.55);
+  color: #ffd700;
+}
+
+.daily-btn .daily-hint {
+  color: #8a7a55;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0.08em;
+}
+
+.daily-btn:hover .daily-hint {
+  color: #ffee88;
+}
+
+.daily-btn .daily-hint b {
+  color: #ffee88;
+}
+
+/* game-over: Daily Patrol tag + best-run comparison line */
+.daily-tag {
+  color: #ffd700;
+  letter-spacing: 0.35em;
+  margin-right: -0.35em;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.run-delta {
+  color: #8a7a55;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.run-delta.gold {
+  color: #ffd700;
+}
+
+/* locked-badge progress (profile grid) */
+.badge .badge-progress {
+  color: #ccaa66;
+  font-size: 9px;
+  letter-spacing: 0.06em;
 }
 
 .corner-btn {

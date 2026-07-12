@@ -1,5 +1,5 @@
 import { DRONE, SCORING, SPAWNER, type FormationKind } from "./config";
-import { clamp, clamp01, escalate, lerp, randDir, randInCircle, randRange, smoothNoise } from "./math";
+import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, smoothNoise } from "./math";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
 import type { Drone, KillSource, World } from "./types";
@@ -22,8 +22,8 @@ function createDrone(
     scale,
     speedMultiplier,
     mass: lerp(DRONE.massMin, DRONE.massMax, clamp(scale, 0, 1)),
-    jitterSeed: Math.random() * 100,
-    spin: Math.random() * Math.PI * 2,
+    jitterSeed: rand() * 100,
+    spin: rand() * Math.PI * 2,
     frozen: 0,
     alive: true,
   };
@@ -199,19 +199,30 @@ export function killDronesInRadius(world: World, x: number, y: number, radius: n
 
 export function initSpawner(world: World): void {
   scheduleNextFormation(world);
+  // new-pilot grace: the very first runs open gentler (smaller burst, later
+  // first formation) so a brand-new player gets a moment to learn to fly
+  world.nextFormationDelay += 8 * world.grace;
+  const burst = Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace));
   // opening drones start at the far formation radius for a gentle ramp-in
-  for (let i = 0; i < SPAWNER.initialBurst; i++) {
+  for (let i = 0; i < burst; i++) {
     const dir = randDir();
     const r = spawnRadius(world);
     spawnAt(world, dir.x * r, dir.y * r, 0);
   }
 }
 
+/** Ambient-spawn damping for grace runs; fades out over the first minute. */
+function graceSpawnScale(world: World): number {
+  if (world.grace <= 0) return 1;
+  return 1 - 0.35 * world.grace * clamp01(1 - world.time / 60);
+}
+
 export function updateSpawner(world: World, dt: number): void {
   if (world.phase !== "playing" || world.sandbox) return;
 
   const minutes = world.time / 60;
-  world.spawnAccumulator += escalate(minutes, SPAWNER.spawnsPerSecond) * dt;
+  world.spawnAccumulator +=
+    escalate(minutes, SPAWNER.spawnsPerSecond) * graceSpawnScale(world) * dt;
 
   updateTelegraphs(world, dt, minutes);
   handleFormations(world, minutes, dt);
@@ -269,7 +280,7 @@ function spawnAt(
   opts?: { scale?: number; speedScale?: number },
 ): Drone | null {
   if (world.drones.length >= SPAWNER.maxDrones) return null;
-  const jitter = (Math.random() - 0.5) * 2 * SPAWNER.scaleJitter;
+  const jitter = (rand() - 0.5) * 2 * SPAWNER.scaleJitter;
   const scale =
     opts?.scale ??
     clamp(
@@ -308,7 +319,7 @@ export function spawnRadius(world: World): number {
  * keep the radar chevrons honest.
  */
 function spawnAmbient(world: World, minutes: number): void {
-  if (Math.random() < SPAWNER.telegraph.ratio) {
+  if (rand() < SPAWNER.telegraph.ratio) {
     telegraphAmbient(world);
     return;
   }
@@ -352,7 +363,7 @@ function rollFormationKind(minutes: number): FormationKind {
   let total = 0;
   for (const kind of pool) total += cfg.weights[kind];
 
-  let roll = Math.random() * total;
+  let roll = rand() * total;
   for (const kind of pool) {
     roll -= cfg.weights[kind];
     if (roll <= 0) return kind;
@@ -446,7 +457,7 @@ function spawnRingAt(
   const count =
     Math.max(3, Math.round(cfg.count * formationIntensity(minutes))) +
     formationCountBonus(minutes);
-  const startAngle = Math.random() * Math.PI * 2;
+  const startAngle = rand() * Math.PI * 2;
 
   for (let i = 0; i < count; i++) {
     const a = startAngle + (Math.PI * 2 * i) / count;
@@ -553,7 +564,7 @@ function spawnWallSpan(
 
 /** A dot wall sweeps across the arena from one random edge. */
 function spawnWallFormation(world: World, minutes: number): void {
-  const side = Math.floor(Math.random() * 4) as WallSide;
+  const side = Math.floor(rand() * 4) as WallSide;
   spawnWallSpan(world, minutes, side, SPAWNER.formations.wall);
   world.events.push({ type: "ringWarning" });
 }
@@ -561,7 +572,7 @@ function spawnWallFormation(world: World, minutes: number): void {
 /** Two walls converge from opposite edges — thread a gap or die. */
 function spawnPincerFormation(world: World, minutes: number): void {
   const cfg = SPAWNER.formations.pincer;
-  if (Math.random() < 0.5) {
+  if (rand() < 0.5) {
     spawnWallSpan(world, minutes, 0, cfg);
     spawnWallSpan(world, minutes, 1, cfg);
   } else {
@@ -617,7 +628,7 @@ function spawnSerpentFormation(world: World, minutes: number): void {
  */
 function spawnMegaWallFormation(world: World, minutes: number): void {
   const cfg = SPAWNER.formations.megawall;
-  const side = Math.floor(Math.random() * 4) as WallSide;
+  const side = Math.floor(rand() * 4) as WallSide;
   spawnWallSpan(world, minutes, side, cfg, {
     rows: cfg.rows,
     rowOffset: cfg.rowOffset,

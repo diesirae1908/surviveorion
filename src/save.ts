@@ -53,20 +53,44 @@ export interface ControlPrefs {
 }
 
 const BEST_KEY = "orion.bestScore";
+const BEST_TIME_KEY = "orion.bestTime";
+const RUN_COUNT_KEY = "orion.runCount";
 const SETTINGS_KEY = "orion.settings";
 const CONTROLS_KEY = "orion.controls";
 const KEYBINDS_KEY = "orion.keybinds";
 
 const SENSE_LEVELS: SenseLevel[] = ["low", "med", "high"];
 
-export function loadBestScore(): number {
-  const raw = localStorage.getItem(BEST_KEY);
+function loadNumber(key: string): number {
+  const raw = localStorage.getItem(key);
   const n = raw === null ? NaN : Number(raw);
   return Number.isFinite(n) ? n : 0;
 }
 
+export function loadBestScore(): number {
+  return loadNumber(BEST_KEY);
+}
+
 export function saveBestScore(score: number): void {
   localStorage.setItem(BEST_KEY, String(Math.floor(score)));
+}
+
+/** Longest survival time in seconds (personal best, local). */
+export function loadBestTime(): number {
+  return loadNumber(BEST_TIME_KEY);
+}
+
+export function saveBestTime(seconds: number): void {
+  localStorage.setItem(BEST_TIME_KEY, String(seconds));
+}
+
+/** Lifetime completed runs on this device (drives the new-pilot grace curve). */
+export function loadRunCount(): number {
+  return loadNumber(RUN_COUNT_KEY);
+}
+
+export function bumpRunCount(): void {
+  localStorage.setItem(RUN_COUNT_KEY, String(loadRunCount() + 1));
 }
 
 function parseSense(v: unknown, fallback: SenseLevel): SenseLevel {

@@ -7,7 +7,7 @@ import {
   SHIP,
   type PowerId,
 } from "./config";
-import { clamp01, lerp, randRange } from "./math";
+import { clamp01, lerp, rand, randRange } from "./math";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
 import type { World } from "./types";
@@ -99,7 +99,7 @@ function rollPowerId(world: World): PowerId {
   let total = 0;
   for (const id of pool) total += weight(id);
 
-  let roll = Math.random() * total;
+  let roll = rand() * total;
   let picked = pool[pool.length - 1];
   for (const id of pool) {
     roll -= weight(id);

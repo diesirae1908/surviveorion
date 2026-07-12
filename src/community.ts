@@ -10,7 +10,7 @@ import {
   type LeaderboardEntry,
   type PlayerProfile,
 } from "./api";
-import { BADGES, TIER_LABEL } from "./badges";
+import { BADGES, TIER_LABEL, type BadgeProgressStats } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 
 const BOARD_MODE_KEY = "orion.boardMode";
@@ -335,7 +335,7 @@ export class CommunityUi {
       record.appendChild(this.statsRow(p));
       const graph = this.historyGraph(p);
       if (graph) record.appendChild(graph);
-      record.appendChild(this.badgeGrid(p.badges, true));
+      record.appendChild(this.badgeGrid(p.badges, true, p));
     });
 
     body.appendChild(
@@ -486,7 +486,11 @@ export class CommunityUi {
   }
 
   /** Badge collection: earned bright; locked dimmed (with hints on own profile). */
-  private badgeGrid(earned: Array<{ id: string; earnedAt: number }>, showLocked: boolean): HTMLElement {
+  private badgeGrid(
+    earned: Array<{ id: string; earnedAt: number }>,
+    showLocked: boolean,
+    stats?: BadgeProgressStats,
+  ): HTMLElement {
     const earnedIds = new Set(earned.map((b) => b.id));
     const wrap = this.el("div", "badge-wrap");
     wrap.appendChild(
@@ -497,18 +501,23 @@ export class CommunityUi {
     for (const b of BADGES) {
       const has = earnedIds.has(b.id);
       if (!has && !showLocked) continue;
+      // live progress toward locked, countable badges ("47 / 100 runs")
+      const progress = !has && stats && b.progress ? b.progress(stats) : null;
       const cell = this.el(
         "div",
         `badge${has ? "" : " locked"}`,
         `<span class="badge-icon">${has ? b.icon : "❔"}</span>` +
           `<span class="badge-name">${has ? b.name : "???"}</span>` +
-          `<span class="badge-tier">${TIER_LABEL[b.tier]}</span>`,
+          (progress
+            ? `<span class="badge-progress">${progress.label}</span>`
+            : `<span class="badge-tier">${TIER_LABEL[b.tier]}</span>`),
       );
       cell.title = has ? `${b.name} — ${b.desc}` : `Locked — ${b.desc}`;
       cell.addEventListener("click", () => {
         detail.innerHTML = has
           ? `${b.icon} <b>${b.name}</b> — ${b.desc}`
-          : `❔ <b>Locked</b> — ${b.desc}`;
+          : `❔ <b>Locked</b> — ${b.desc}` +
+            (progress ? ` <b>(${progress.label})</b>` : "");
       });
       grid.appendChild(cell);
     }
@@ -522,21 +531,58 @@ export class CommunityUi {
 
   // --- world arena ---
 
+  /** World Arena board scope: all-time bests or today's Daily Patrol. */
+  private boardScope: "alltime" | "daily" = "alltime";
+
   showWorldArena(): void {
     const { screen, body, error } = this.screen("WORLD ARENA");
 
     const filter = this.countrySelect("");
     (filter.firstChild as HTMLOptionElement).textContent = "🌐 All countries";
     const table = this.el("div", "board");
+    const dailyHint = this.el(
+      "div",
+      "field-hint center",
+      "Daily Patrol — everyone flies the same swarm today. Resets at UTC midnight.",
+    );
 
     const load = (): void => {
+      const daily = this.boardScope === "daily";
+      filter.style.display = daily ? "none" : "";
+      dailyHint.style.display = daily ? "" : "none";
       table.innerHTML = `<div class="field-hint">Loading…</div>`;
       void this.guard(error, async () => {
-        const data = await this.api.worldLeaderboard(filter.value || undefined, this.boardMode);
+        const data = daily
+          ? await this.api.dailyLeaderboard(this.boardMode)
+          : await this.api.worldLeaderboard(filter.value || undefined, this.boardMode);
         this.renderBoard(table, data.entries, data.me, () => this.showWorldArena());
+        if (daily && data.entries.length === 0) {
+          table.innerHTML = `<div class="field-hint">No patrols flown yet today — be the first!</div>`;
+        }
       });
     };
-    body.append(this.modeTabs(load), filter, table);
+
+    // All-time / Today scope tabs
+    const scopeRow = this.el("div", "tabs");
+    const scopes: Array<["alltime" | "daily", string]> = [
+      ["alltime", "All-time"],
+      ["daily", "Daily Patrol"],
+    ];
+    const scopeTabs = scopes.map(([scope, label]) => {
+      const b = this.button(label, false, () => {
+        this.boardScope = scope;
+        paintScopes();
+        load();
+      });
+      return { scope, b };
+    });
+    const paintScopes = (): void => {
+      for (const { scope, b } of scopeTabs) b.classList.toggle("active", this.boardScope === scope);
+    };
+    paintScopes();
+    scopeRow.append(...scopeTabs.map((t) => t.b));
+
+    body.append(scopeRow, this.modeTabs(load), filter, dailyHint, table);
     filter.addEventListener("change", load);
     load();
 

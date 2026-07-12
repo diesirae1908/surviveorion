@@ -1,3 +1,4 @@
+import { rand } from "./math";
 import type { World } from "./types";
 
 /**
@@ -62,7 +63,7 @@ export function randomEdgePoint(world: World, margin: number): { x: number; y: n
   const hw = world.viewW / 2 + margin;
   const hh = world.viewH / 2 + margin;
   const total = 2 * (hw * 2 + hh * 2);
-  let d = Math.random() * total;
+  let d = rand() * total;
 
   if (d < hw * 2) return { x: -hw + d, y: hh }; // top
   d -= hw * 2;

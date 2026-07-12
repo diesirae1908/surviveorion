@@ -9,13 +9,14 @@ import { updateScoring } from "./scoring";
 import { createShip, updateShip } from "./ship";
 import type { World } from "./types";
 
-const DEATH_TO_GAMEOVER_SECONDS = 1.4;
+export const DEATH_TO_GAMEOVER_SECONDS = 1.4;
 
-export function createWorld(viewW: number, viewH: number, sandbox = false): World {
+export function createWorld(viewW: number, viewH: number, sandbox = false, grace = 0): World {
   const world: World = {
     viewW,
     viewH,
     sandbox,
+    grace,
     phase: "playing",
     time: 0,
     deathTimer: 0,
