@@ -28,6 +28,8 @@ export interface RenderOpts {
   /** false on the menu backdrop, where a parked ship looks odd */
   showShip: boolean;
   bestScore: number;
+  /** Daily Patrol run/launch: tags the HUD and warp so the mode is visible. */
+  daily: boolean;
   touch: TouchStickView | null;
   fx: TransitionFx | null;
 }
@@ -167,7 +169,7 @@ export class Renderer {
 
     // cinematic overlays (drawn above everything, below the DOM UI)
     if (opts.fx) {
-      if (opts.fx.kind === "warp") this.drawWarpFx(opts.fx.t, opts.uiTime);
+      if (opts.fx.kind === "warp") this.drawWarpFx(opts.fx.t, opts.uiTime, opts.daily);
       else if (opts.fx.kind === "flash") this.drawFlashFx(opts.fx.t);
       else if (opts.fx.kind === "intro") this.drawIntroFx(opts.fx.t, opts.uiTime);
       else this.drawDeathFx(opts.fx.t, opts.uiTime);
@@ -180,7 +182,7 @@ export class Renderer {
    * Launch warp: a golden stargate ring forms in the void, star lines
    * stretch into a hyperspace tunnel, and the view plunges into the core.
    */
-  private drawWarpFx(t: number, uiTime: number): void {
+  private drawWarpFx(t: number, uiTime: number, daily: boolean): void {
     const { ctx } = this;
     const cx = this.cssW / 2;
     const cy = this.cssH / 2;
@@ -262,6 +264,28 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
     ctx.fill();
+
+    // Daily Patrol briefing: name the mission during the jump so launching
+    // the daily never feels like a plain launch
+    if (daily) {
+      const minDim = Math.min(this.cssW, this.cssH);
+      const a = clamp01(t / 0.25) * (1 - clamp01((t - 0.75) / 0.15));
+      if (a > 0) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `bold ${minDim * 0.05}px Georgia, serif`;
+        ctx.fillStyle = `rgba(255, 215, 0, ${a})`;
+        ctx.shadowColor = "rgba(255, 200, 60, 0.85)";
+        ctx.shadowBlur = 24;
+        ctx.fillText("D A I L Y   P A T R O L", cx, cy - minDim * 0.16);
+        ctx.font = `${minDim * 0.022}px Georgia, serif`;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = `rgba(255, 238, 136, ${a * 0.85})`;
+        ctx.fillText("same swarm for every pilot — today's board", cx, cy - minDim * 0.105);
+        ctx.restore();
+      }
+    }
 
     // white-out at the very end, handing over to the arrival flash
     const white = clamp01((t - 0.86) / 0.14);
@@ -1431,6 +1455,13 @@ export class Renderer {
     ctx.fillStyle = PALETTE.goldPale;
     ctx.font = "20px Georgia, serif";
     ctx.fillText(`${mins}:${secs.toString().padStart(2, "0")}`, this.cssW / 2, padTop);
+
+    // daily runs wear their colors the whole flight
+    if (opts.daily) {
+      ctx.fillStyle = PALETTE.gold;
+      ctx.font = "bold 11px Georgia, serif";
+      ctx.fillText("☀ D A I L Y   P A T R O L", this.cssW / 2, padTop + 26);
+    }
 
     // active power timers (bottom-left)
     const powers: Array<[string, number, number, string]> = [];

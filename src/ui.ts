@@ -260,7 +260,8 @@ export class Ui {
       daily.className = "daily-btn";
       daily.innerHTML =
         `<span class="daily-name">☀ Daily Patrol</span>` +
-        `<span class="daily-hint" id="daily-hint">today's shared swarm — one board, resets at midnight</span>`;
+        `<span class="daily-sub">everyone flies the same swarm — its own board, resets daily</span>` +
+        `<span class="daily-hint" id="daily-hint"></span>`;
       daily.addEventListener("click", () => this.cb.onDaily());
       screen.appendChild(daily);
     }
@@ -731,7 +732,12 @@ export class Ui {
     rank.id = "rank-line";
     screen.appendChild(rank);
 
-    screen.appendChild(this.button("Fly again", true, () => this.cb.onRestart()));
+    // retries keep the mode picked at launch, so say which run comes next
+    screen.appendChild(
+      this.button(stats.daily ? "Fly again — Daily Patrol" : "Fly again", true, () =>
+        this.cb.onRestart(),
+      ),
+    );
     screen.appendChild(this.button("Main menu", false, () => this.cb.onQuitToMenu()));
     if (!stats.touchDevice) {
       screen.appendChild(this.el("div", "field-hint center", "Space — fly again"));

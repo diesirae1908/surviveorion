@@ -275,11 +275,22 @@ button.launch {
   color: #ffd700;
 }
 
-.daily-btn .daily-hint {
+.daily-btn .daily-sub {
   color: #8a7a55;
   font-size: 11px;
   text-transform: none;
   letter-spacing: 0.08em;
+}
+
+.daily-btn .daily-hint {
+  color: #ffee88;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0.08em;
+}
+
+.daily-btn .daily-hint:empty {
+  display: none;
 }
 
 .daily-btn:hover .daily-hint {

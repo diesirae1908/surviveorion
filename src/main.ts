@@ -238,7 +238,7 @@ function showMenu(): void {
         ui.setMenuDailyHint(
           top
             ? `today's leader: <b>${top.callsign.replace(/[&<>]/g, "")}</b> — ${top.best.toLocaleString()}`
-            : "today's shared swarm — no scores yet, claim it",
+            : "no patrols flown yet today — be the first",
         );
       })
       .catch(() => {});
@@ -670,6 +670,10 @@ function frame(now: number): void {
     showShip:
       state !== "menu" && state !== "launching" && state !== "gate" && state !== "intro",
     bestScore,
+    daily:
+      state === "launching"
+        ? pendingDaily
+        : (state === "playing" || state === "paused") && runIsDaily,
     touch: state === "playing" || state === "tutorial" ? input.getTouchView() : null,
     fx,
   });
