@@ -6,7 +6,7 @@ import { CommunityUi } from "./community";
 import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_NAMES, TILT_MAX_DEG } from "./config";
 import { countryFlag, countryName } from "./countries";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
-import { Input } from "./input";
+import { Input, isTypingTarget } from "./input";
 import { clamp01, hashString, setRunSeed } from "./math";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
@@ -752,6 +752,7 @@ ui.showIntroGate(enterFromGate);
 // keyboard players can enter with any key; any input after the slam skips
 window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
+  if (isTypingTarget(e.target)) return; // don't hijack keys typed into a form field
   if (state === "gate") {
     ui.clearScreens();
     enterFromGate();

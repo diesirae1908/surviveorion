@@ -41,6 +41,17 @@ export interface TouchStickView {
 const STICK_RANGE_PX = 60;
 const STICK_DEADZONE_PX = 10;
 
+/** True when the key event is headed for a text field (input/textarea/etc.). */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
+}
+
 /**
  * Keyboard + touch input. Keys are sampled per fixed tick from held state, so
  * inputs are never dropped (fixes the Unity Update/FixedUpdate race).
@@ -73,6 +84,9 @@ export class Input {
   constructor(canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
       if (e.repeat) return;
+      // typing in a form field (e.g. callsign) must not be swallowed by
+      // flight keys — preventDefault on WASD would block those letters
+      if (isTypingTarget(e.target)) return;
       this.keys.add(e.code);
       if (this.pressed("pause")) this.onPause?.();
       // stop arrows/space (and any rebound equivalents) from scrolling the page
