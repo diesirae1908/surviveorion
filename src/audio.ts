@@ -18,6 +18,8 @@ export class AudioSystem {
   // toggle doesn't mute it — it obeys the Music toggle like the file tracks)
   private tutorialGain: GainNode | null = null;
   private tutorialTimer: number | null = null;
+  /** Boot-cinematic score bus, so skipping the intro can silence it at once. */
+  private introGain: GainNode | null = null;
 
   soundEnabled = true;
   musicEnabled = true;
@@ -224,6 +226,7 @@ export class AudioSystem {
     type: OscillatorType,
     volume: number,
     delay = 0,
+    destination?: AudioNode,
   ): void {
     if (!this.ctx || !this.sfxGain) return;
     const t0 = this.ctx.currentTime + delay;
@@ -234,7 +237,7 @@ export class AudioSystem {
     osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqTo), t0 + duration);
     gain.gain.setValueAtTime(volume, t0);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-    osc.connect(gain).connect(this.sfxGain);
+    osc.connect(gain).connect(destination ?? this.sfxGain);
     osc.start(t0);
     osc.stop(t0 + duration + 0.05);
   }
@@ -389,6 +392,13 @@ export class AudioSystem {
     if (!this.ctx || !this.sfxGain) return;
     const t0 = this.ctx.currentTime;
 
+    // everything routes through a dedicated gain so an early skip can cut
+    // the whole score (including the braam still scheduled in the future)
+    this.stopIntro();
+    const out = this.ctx.createGain();
+    out.connect(this.sfxGain);
+    this.introGain = out;
+
     // swelling noise riser into the hit
     const src = this.ctx.createBufferSource();
     const len = Math.ceil(this.ctx.sampleRate * (hitAt + 0.3));
@@ -405,12 +415,12 @@ export class AudioSystem {
     riserGain.gain.setValueAtTime(0.0001, t0);
     riserGain.gain.exponentialRampToValueAtTime(0.5, t0 + hitAt);
     riserGain.gain.exponentialRampToValueAtTime(0.0001, t0 + hitAt + 0.3);
-    src.connect(filter).connect(riserGain).connect(this.sfxGain);
+    src.connect(filter).connect(riserGain).connect(out);
     src.start(t0);
 
     // tension riser tones underneath
-    this.tone(40, 220, hitAt, "sawtooth", 0.12);
-    this.tone(160, 880, hitAt, "sine", 0.05, hitAt * 0.35);
+    this.tone(40, 220, hitAt, "sawtooth", 0.12, 0, out);
+    this.tone(160, 880, hitAt, "sine", 0.05, hitAt * 0.35, out);
 
     // THE BRAAM: detuned low sawtooth stack + sub-bass thump
     const braamLen = Math.min(2.2, duration - hitAt);
@@ -420,13 +430,22 @@ export class AudioSystem {
       [82.5, 0.12],
       [110, 0.08],
     ] as const) {
-      this.tone(freq, freq * 0.94, braamLen, "sawtooth", vol, hitAt);
+      this.tone(freq, freq * 0.94, braamLen, "sawtooth", vol, hitAt, out);
     }
-    this.tone(38, 30, 1.1, "sine", 0.5, hitAt);
+    this.tone(38, 30, 1.1, "sine", 0.5, hitAt, out);
 
     // shimmer tail: high sparkle settling as the tagline appears
-    this.tone(1760, 880, 1.6, "sine", 0.05, hitAt + 0.25);
-    this.tone(2637, 1319, 1.9, "sine", 0.035, hitAt + 0.45);
+    this.tone(1760, 880, 1.6, "sine", 0.05, hitAt + 0.25, out);
+    this.tone(2637, 1319, 1.9, "sine", 0.035, hitAt + 0.45, out);
+  }
+
+  /** Silence the intro score (an early skip would otherwise leave the braam scheduled). */
+  stopIntro(): void {
+    if (!this.introGain || !this.ctx) return;
+    const g = this.introGain;
+    this.introGain = null;
+    g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+    setTimeout(() => g.disconnect(), 500);
   }
 
   /** Rising hyperspace surge for the launch warp. */

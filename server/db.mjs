@@ -175,7 +175,7 @@ export const getUserByGoogleSub = (sub) =>
 export const getUserByClerkSub = (sub) =>
   db.prepare(`SELECT * FROM users WHERE clerk_sub = ?`).get(sub);
 
-export function updateUser(id, { callsign, country }) {
+export function updateUser(id, { callsign, country, passSalt, passHash }) {
   if (callsign !== undefined) {
     db.prepare(`UPDATE users SET callsign = ?, callsign_lower = ? WHERE id = ?`).run(
       callsign,
@@ -185,6 +185,13 @@ export function updateUser(id, { callsign, country }) {
   }
   if (country !== undefined) {
     db.prepare(`UPDATE users SET country = ? WHERE id = ?`).run(country, id);
+  }
+  if (passSalt !== undefined && passHash !== undefined) {
+    db.prepare(`UPDATE users SET pass_salt = ?, pass_hash = ? WHERE id = ?`).run(
+      passSalt,
+      passHash,
+      id,
+    );
   }
   return getUserById(id);
 }

@@ -296,134 +296,289 @@ export class Renderer {
   }
 
   /**
-   * Boot cinematic (~5s): hyperspace streaks accelerate through the void,
-   * a drone swarm screams past, then ORION slams in on the braam with a
-   * shockwave — and the whole thing hands over to the menu.
+   * Boot cinematic (~5s), storyboarded like a mini-trailer: a slow push-in
+   * through deep space, the gold dart cruising across frame, a hexagonal
+   * drone swarm pouring in behind it — then on the braam the ship dashes off,
+   * a golden shockwave detonates the pursuers, and ORION slams in letter by
+   * letter before the whole thing hands over to the menu.
    */
   private drawIntroFx(t: number, uiTime: number): void {
     const { ctx } = this;
-    const cx = this.cssW / 2;
-    const cy = this.cssH / 2;
+    const W = this.cssW;
+    const H = this.cssH;
+    const cx = W / 2;
+    const cy = H / 2;
     const maxR = Math.hypot(cx, cy);
-    const minDim = Math.min(this.cssW, this.cssH);
+    const minDim = Math.min(W, H);
 
     const HIT = 0.42; // the braam / title slam moment
-    const preHit = clamp01(t / HIT);
-    const postHit = clamp01((t - HIT) / (1 - HIT));
     const fadeOut = clamp01((t - 0.9) / 0.1); // hand-over to the menu
+
+    // deterministic pseudo-random per element (stable across frames)
+    const rnd = (i: number, salt: number): number => {
+      const h = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+      return h - Math.floor(h);
+    };
+
+    // the hero flight line: a gentle weave from off-screen left to the
+    // two-thirds mark, where the slam happens
+    const pathAt = (p: number): { x: number; y: number } => ({
+      x: lerp(-W * 0.16, W * 0.62, p),
+      y: cy + Math.sin(p * 3.6 + 0.6) * H * 0.07,
+    });
+    const shipAppear = 0.1;
+    const shipP = (t - shipAppear) / (HIT - shipAppear); // >1 after the hit
 
     ctx.save();
     ctx.globalAlpha = 1 - fadeOut;
 
     // black void over the menu backdrop
     ctx.fillStyle = "rgb(3, 3, 9)";
-    ctx.fillRect(0, 0, this.cssW, this.cssH);
+    ctx.fillRect(0, 0, W, H);
 
-    // camera shake right after the slam
-    const shakeT = clamp01((t - HIT) / 0.12);
-    const shakeAmp = (1 - shakeT) * (t >= HIT ? 1 : 0) * minDim * 0.012;
+    // camera shake right after the slam (the frame itself stays stable)
+    const shakeAmp = t >= HIT ? (1 - clamp01((t - HIT) / 0.12)) * minDim * 0.012 : 0;
     const sx = Math.sin(uiTime * 61) * shakeAmp;
     const sy = Math.cos(uiTime * 53) * shakeAmp;
+    ctx.save();
     ctx.translate(sx, sy);
 
-    // hyperspace streaks: accelerate before the hit, drift after it
-    const streaks = 130;
-    const speedRamp = preHit * preHit; // slow build → violent rush
+    // faint nebulae in the palette purple / gold, barely there
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    for (let i = 0; i < streaks; i++) {
-      const h = Math.sin(i * 91.7) * 43758.5453;
-      const rnd = h - Math.floor(h);
-      const ang = (i / streaks) * Math.PI * 2 + rnd * 0.4;
-      const d0 = maxR * (0.05 + rnd * 0.6);
-      const len =
-        maxR * (0.01 + rnd * 0.05 + speedRamp * (0.5 + rnd * 0.8) * (1 - postHit * 0.85));
-      const a = (0.1 + rnd * 0.5) * (0.3 + speedRamp * 0.7) * (1 - postHit * 0.6);
-      ctx.strokeStyle = rnd < 0.55 ? `rgba(255, 216, 120, ${a})` : `rgba(150, 210, 255, ${a})`;
-      ctx.lineWidth = 1 + rnd * 1.4 + speedRamp * 1.4;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(ang) * d0, cy + Math.sin(ang) * d0);
-      ctx.lineTo(cx + Math.cos(ang) * (d0 + len), cy + Math.sin(ang) * (d0 + len));
-      ctx.stroke();
-    }
+    const neb1 = ctx.createRadialGradient(W * 0.3, H * 0.34, 0, W * 0.3, H * 0.34, maxR * 0.8);
+    neb1.addColorStop(0, "rgba(136, 119, 255, 0.07)");
+    neb1.addColorStop(1, "rgba(136, 119, 255, 0)");
+    ctx.fillStyle = neb1;
+    ctx.fillRect(0, 0, W, H);
+    const neb2 = ctx.createRadialGradient(W * 0.74, H * 0.7, 0, W * 0.74, H * 0.7, maxR * 0.7);
+    neb2.addColorStop(0, "rgba(255, 200, 80, 0.05)");
+    neb2.addColorStop(1, "rgba(255, 200, 80, 0)");
+    ctx.fillStyle = neb2;
+    ctx.fillRect(0, 0, W, H);
     ctx.restore();
 
-    // the swarm: red drone silhouettes streaking across before the slam
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    const swarmN = 26;
-    for (let i = 0; i < swarmN; i++) {
-      const h = Math.sin(i * 37.3) * 24634.63;
-      const rnd = h - Math.floor(h);
-      const h2 = Math.sin(i * 17.9) * 51424.11;
-      const rnd2 = h2 - Math.floor(h2);
-      // each drone crosses the screen once during the build-up
-      const cross = clamp01(t / HIT - rnd * 0.7) * 1.7;
-      if (cross <= 0 || cross >= 1.4) continue;
-      const px = lerp(-this.cssW * 0.15, this.cssW * 1.15, cross);
-      const py = cy + (rnd2 - 0.5) * this.cssH * 0.9 + Math.sin(cross * 9 + rnd * 7) * minDim * 0.04;
-      const size = minDim * (0.008 + rnd2 * 0.014);
-      const a = 0.5 * Math.sin(Math.min(1, cross) * Math.PI);
-      ctx.fillStyle = `rgba(230, 40, 60, ${a})`;
-      ctx.shadowColor = "rgba(230, 40, 60, 0.8)";
-      ctx.shadowBlur = 10;
+    // parallax starfield with a slow camera push-in
+    const push = t * 0.3;
+    for (let i = 0; i < 110; i++) {
+      const layer = 0.35 + rnd(i, 1) * 0.65; // depth, 1 = closest
+      const k = 1 + push * layer;
+      const x = cx + (rnd(i, 2) - 0.5) * W * 1.3 * k;
+      const y = cy + (rnd(i, 3) - 0.5) * H * 1.3 * k;
+      const tw = 0.55 + 0.45 * Math.sin(uiTime * (0.8 + rnd(i, 4) * 2.4) + rnd(i, 5) * Math.PI * 2);
+      const a = (0.2 + layer * 0.55) * tw;
+      ctx.fillStyle = rnd(i, 6) < 0.85 ? `rgba(255, 247, 224, ${a})` : `rgba(150, 210, 255, ${a})`;
       ctx.beginPath();
-      ctx.moveTo(px + size * 1.8, py);
-      ctx.lineTo(px - size, py - size);
-      ctx.lineTo(px - size, py + size);
-      ctx.closePath();
+      ctx.arc(x, y, 0.5 + layer * 1.4, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.restore();
 
-    // slam shockwave ring
-    if (t >= HIT) {
-      const ringT = clamp01((t - HIT) / 0.3);
-      const ringR = lerp(minDim * 0.05, maxR * 1.2, ringT * ringT * (3 - 2 * ringT));
+    // red threat glow building at the edges as the swarm closes in,
+    // snuffed out right after the shockwave clears them
+    const threat =
+      clamp01((t - 0.24) / (HIT - 0.24)) * (t < HIT ? 1 : 1 - clamp01((t - HIT) / 0.15));
+    if (threat > 0.01) {
+      const tg = ctx.createRadialGradient(cx, cy, maxR * 0.55, cx, cy, maxR * 1.05);
+      tg.addColorStop(0, "rgba(196, 30, 58, 0)");
+      tg.addColorStop(1, `rgba(196, 30, 58, ${0.32 * threat})`);
+      ctx.fillStyle = tg;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // hero ship: cruises along the flight line, afterburner-dashes off on the hit
+    const dashT = t >= HIT ? clamp01((t - HIT) / 0.12) : 0;
+    if (shipP > -0.05 && dashT < 1) {
+      const p = Math.min(shipP, 1);
+      let pos = pathAt(p);
+      const ahead = pathAt(p + 0.01);
+      let angle = Math.atan2(ahead.y - pos.y, ahead.x - pos.x);
+      if (dashT > 0) {
+        pos = { x: pos.x + dashT * dashT * W * 1.4, y: pos.y };
+        angle *= 1 - dashT;
+      }
+      const size = minDim * 0.1;
+
+      // fading gold wake behind the ship
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      for (let k = 1; k <= 12; k++) {
+        const tp = p - k * 0.018;
+        if (tp < -0.05) break;
+        const wp = pathAt(tp);
+        const fade = 1 - k / 12;
+        ctx.fillStyle = `rgba(255, 200, 80, ${0.16 * fade * (1 - dashT)})`;
+        ctx.beginPath();
+        ctx.arc(wp.x, wp.y, size * 0.09 * (0.4 + fade * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      this.drawIntroShip(pos.x, pos.y, angle, size, dashT > 0 ? 1 + dashT : 0.7, uiTime);
+    }
+
+    // slam shockwave, centered where the ship was when it dashed
+    const shockOrigin = pathAt(1);
+    const ringT = t >= HIT ? clamp01((t - HIT) / 0.3) : 0;
+    const ringR = lerp(minDim * 0.05, maxR * 1.2, ringT * ringT * (3 - 2 * ringT));
+
+    // the swarm: real hex drones pouring in behind the ship, gaining on it
+    for (let i = 0; i < 14; i++) {
+      const closeIn = clamp01((t - 0.24) / (HIT - 0.24)) * 0.45;
+      const lag = (0.16 + rnd(i, 7) * 0.3) * (1 - closeIn);
+      // frozen at the slam so the shockwave catches them where they stood
+      const q = Math.min(shipP, 1) - lag;
+      if (q < -0.3) continue;
+      const pos = pathAt(q);
+      pos.y +=
+        (rnd(i, 8) - 0.5) * H * 0.24 * (1 - closeIn * 0.5) +
+        Math.sin(t * 46 + i * 2.7) * H * 0.008;
+      const r = minDim * (0.016 + rnd(i, 12) * 0.018);
+      const spin = uiTime * (0.8 + rnd(i, 9) * 2) * (rnd(i, 11) < 0.5 ? -1 : 1);
+
+      // when does the expanding shockwave reach this drone?
+      let sinceDeath = -1;
+      if (t >= HIT) {
+        const dist = Math.hypot(pos.x - shockOrigin.x, pos.y - shockOrigin.y);
+        const f = clamp01((dist - minDim * 0.05) / (maxR * 1.2 - minDim * 0.05));
+        // inverse smoothstep: when the eased ring radius sweeps past `dist`
+        const invT = 0.5 - Math.sin(Math.asin(1 - 2 * f) / 3);
+        sinceDeath = t - (HIT + 0.3 * invT);
+      }
+
+      if (sinceDeath < 0) {
+        this.drawIntroDrone(pos.x, pos.y, r, spin);
+        continue;
+      }
+
+      // detonation flash as the ring passes
+      const flashA = 1 - clamp01(sinceDeath / 0.05);
+      if (flashA > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const g = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, r * 3.2);
+        g.addColorStop(0, `rgba(255, 250, 235, ${0.9 * flashA})`);
+        g.addColorStop(0.5, `rgba(255, 180, 70, ${0.5 * flashA})`);
+        g.addColorStop(1, "rgba(255, 180, 70, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r * 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // shrapnel shards flying outward
+      const shardLife = clamp01(sinceDeath / 0.11);
+      if (shardLife < 1) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.lineCap = "round";
+        for (let k = 0; k < 6; k++) {
+          const ang = rnd(i, 20 + k) * Math.PI * 2;
+          const d = minDim * (2 + rnd(i, 30 + k) * 3) * sinceDeath;
+          const px = pos.x + Math.cos(ang) * d;
+          const py = pos.y + Math.sin(ang) * d;
+          const a = (1 - shardLife) * 0.8;
+          ctx.strokeStyle =
+            rnd(i, 40 + k) < 0.5 ? `rgba(255, 120, 90, ${a})` : `rgba(255, 210, 120, ${a})`;
+          ctx.lineWidth = Math.max(1, r * 0.22 * (1 - shardLife));
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + Math.cos(ang) * r * 0.9, py + Math.sin(ang) * r * 0.9);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // drifting embers that linger through the title beat
+      const emberLife = clamp01(sinceDeath / 0.45);
+      if (emberLife < 1 && sinceDeath > 0.03) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        for (let k = 0; k < 2; k++) {
+          const ang = -Math.PI / 2 + (rnd(i, 50 + k) - 0.5) * 1.6;
+          const drift = minDim * (0.12 + rnd(i, 60 + k) * 0.18) * sinceDeath;
+          const ex = pos.x + Math.cos(ang) * drift + Math.sin(uiTime * 2 + i + k) * minDim * 0.004;
+          const ey = pos.y + Math.sin(ang) * drift;
+          const a = (1 - emberLife) * (0.4 + 0.25 * Math.sin(uiTime * 9 + i * 3 + k * 5));
+          if (a <= 0) continue;
+          ctx.fillStyle = `rgba(255, 200, 100, ${a})`;
+          ctx.beginPath();
+          ctx.arc(ex, ey, Math.max(1, r * 0.16), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    // the shockwave ring itself
+    if (t >= HIT && ringT < 1) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.strokeStyle = `rgba(255, 215, 0, ${0.7 * (1 - ringT)})`;
-      ctx.lineWidth = 3 + (1 - ringT) * 8;
+      ctx.lineWidth = 3 + (1 - ringT) * 9;
       ctx.shadowColor = "rgba(255, 200, 80, 0.9)";
       ctx.shadowBlur = 26;
       ctx.beginPath();
-      ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+      ctx.arc(shockOrigin.x, shockOrigin.y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `rgba(255, 250, 235, ${0.5 * (1 - ringT)})`;
+      ctx.lineWidth = 1.5 + (1 - ringT) * 3;
+      ctx.beginPath();
+      ctx.arc(shockOrigin.x, shockOrigin.y, ringR * 0.9, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
 
-    // ORION slams in: overshooting scale, golden glow
+    // ORION slams in letter by letter: overshooting scale, gold gradient,
+    // a hot white core pass right at each letter's impact
     if (t >= HIT) {
-      const slam = clamp01((t - HIT) / 0.14);
-      const ease = 1 - (1 - slam) * (1 - slam) * (1 - slam);
-      const scale = lerp(2.6, 1, ease);
-      const alpha = ease;
       const titleSize = minDim * 0.17;
-
+      const letters = ["O", "R", "I", "O", "N"];
       ctx.save();
-      ctx.translate(cx, cy - minDim * 0.02);
-      ctx.scale(scale, scale);
+      ctx.font = `bold ${titleSize}px Georgia, serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `bold ${titleSize}px Georgia, serif`;
-      ctx.shadowColor = "rgba(255, 200, 60, 0.85)";
-      ctx.shadowBlur = 40 + Math.sin(uiTime * 3.2) * 8;
-      ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
-      ctx.fillText("O R I O N", 0, 0);
-      // hot white core pass right at the slam
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = `rgba(255, 250, 235, ${(1 - slam) * 0.85})`;
-      ctx.fillText("O R I O N", 0, 0);
+      const spacing = titleSize * 0.24;
+      const widths = letters.map((ch) => ctx.measureText(ch).width);
+      const total = widths.reduce((a, b) => a + b, 0) + spacing * (letters.length - 1);
+      const ty = cy - minDim * 0.02;
+      // local-space gradient, painted inside each letter's translate
+      const grad = ctx.createLinearGradient(0, -titleSize * 0.5, 0, titleSize * 0.5);
+      grad.addColorStop(0, PALETTE.goldPale);
+      grad.addColorStop(0.55, PALETTE.gold);
+      grad.addColorStop(1, PALETTE.goldDark);
+      let lx = cx - total / 2;
+      for (let i = 0; i < letters.length; i++) {
+        const slam = clamp01((t - HIT - i * 0.014) / 0.09);
+        const letterX = lx + widths[i] / 2;
+        lx += widths[i] + spacing;
+        if (slam <= 0) continue;
+        const ease = 1 - (1 - slam) ** 3;
+        ctx.save();
+        ctx.translate(letterX, ty);
+        ctx.scale(lerp(2.4, 1, ease), lerp(2.4, 1, ease));
+        ctx.globalAlpha = ease * (1 - fadeOut);
+        ctx.shadowColor = "rgba(255, 200, 60, 0.85)";
+        ctx.shadowBlur = 34 + Math.sin(uiTime * 3.2) * 8;
+        ctx.fillStyle = grad;
+        ctx.fillText(letters[i], 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = `rgba(255, 250, 235, ${(1 - slam) * 0.9})`;
+        ctx.fillText(letters[i], 0, 0);
+        ctx.restore();
+      }
       ctx.restore();
 
       // tagline fades in after the slam settles
-      const tagA = clamp01((t - HIT - 0.18) / 0.15);
+      const tagA = clamp01((t - HIT - 0.22) / 0.15);
       if (tagA > 0) {
         ctx.save();
+        ctx.globalAlpha = tagA * (1 - fadeOut);
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.font = `${minDim * 0.032}px Georgia, serif`;
-        ctx.fillStyle = `rgba(196, 30, 58, ${tagA})`;
+        ctx.fillStyle = "rgb(228, 60, 84)";
         ctx.shadowColor = "rgba(196, 30, 58, 0.7)";
         ctx.shadowBlur = 14;
         ctx.fillText("S U R V I V E   T H E   S W A R M", cx, cy + minDim * 0.11);
@@ -435,9 +590,130 @@ export class Renderer {
     const flash = t >= HIT ? clamp01(1 - (t - HIT) / 0.1) : 0;
     if (flash > 0) {
       ctx.fillStyle = `rgba(255, 250, 235, ${flash * flash * 0.9})`;
-      ctx.fillRect(-sx, -sy, this.cssW, this.cssH);
+      ctx.fillRect(-sx, -sy, W, H);
     }
 
+    ctx.restore(); // end of shaken space
+
+    // vignette over everything for the filmic look
+    const vg = ctx.createRadialGradient(cx, cy, maxR * 0.45, cx, cy, maxR * 1.05);
+    vg.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vg.addColorStop(1, "rgba(0, 0, 0, 0.45)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    // letterbox bars: slide in at the start, retract during the hand-over
+    const barH = H * 0.075 * clamp01(t / 0.06) * (1 - fadeOut);
+    if (barH > 0) {
+      ctx.fillStyle = "rgb(0, 0, 0)";
+      ctx.fillRect(0, 0, W, barH);
+      ctx.fillRect(0, H - barH, W, barH);
+    }
+
+    // skip hint, resting in the bottom letterbox bar
+    const hintA = clamp01((t - 0.2) / 0.08) * (1 - fadeOut);
+    if (hintA > 0) {
+      ctx.save();
+      ctx.globalAlpha = hintA * (0.45 + 0.15 * Math.sin(uiTime * 2.4));
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `${Math.max(11, minDim * 0.016)}px Georgia, serif`;
+      ctx.fillStyle = PALETTE.goldPale;
+      ctx.fillText("tap or press any key to skip", cx, H - Math.max(barH / 2, minDim * 0.03));
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  /** The hero ship at screen scale — same silhouette as the in-game dart. */
+  private drawIntroShip(
+    x: number,
+    y: number,
+    angle: number,
+    size: number,
+    flame: number,
+    uiTime: number,
+  ): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.scale(size, size);
+
+    // engine flame (hotter and longer during the dash)
+    if (flame > 0) {
+      const flicker = 0.8 + 0.2 * Math.sin(uiTime * 40);
+      const flameLen = 0.55 * flicker * flame;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const fg = ctx.createLinearGradient(-0.35, 0, -0.35 - flameLen, 0);
+      fg.addColorStop(0, flame > 1.2 ? "#ffe9b0" : "#ffb347");
+      fg.addColorStop(1, "rgba(196,30,58,0)");
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.moveTo(-0.32, 0.14);
+      ctx.lineTo(-0.32 - flameLen, 0);
+      ctx.lineTo(-0.32, -0.14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // hull: the same sleek gold dart with red canopy as drawShip
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 0.05;
+    const hull = ctx.createLinearGradient(-0.4, 0, 0.55, 0);
+    hull.addColorStop(0, PALETTE.goldDark);
+    hull.addColorStop(0.6, PALETTE.gold);
+    hull.addColorStop(1, PALETTE.goldPale);
+    ctx.fillStyle = hull;
+    ctx.strokeStyle = "#5a4200";
+    ctx.beginPath();
+    ctx.moveTo(0.55, 0);
+    ctx.lineTo(-0.3, 0.32);
+    ctx.lineTo(-0.18, 0);
+    ctx.lineTo(-0.3, -0.32);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = PALETTE.red;
+    ctx.beginPath();
+    ctx.ellipse(0.14, 0, 0.13, 0.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /** A pursuing drone at screen scale — same hex shell as the in-game swarm. */
+  private drawIntroDrone(x: number, y: number, r: number, spin: number): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spin);
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i;
+      const px = Math.cos(a) * r;
+      const py = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const dg = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
+    dg.addColorStop(0, PALETTE.redBright);
+    dg.addColorStop(1, PALETTE.redDark);
+    ctx.fillStyle = dg;
+    ctx.fill();
+    ctx.strokeStyle = "#3d0810";
+    ctx.lineWidth = Math.max(1, r * 0.18);
+    ctx.stroke();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = "#ff8866";
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 

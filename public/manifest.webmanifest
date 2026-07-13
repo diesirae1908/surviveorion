@@ -1,7 +1,7 @@
 {
   "name": "ORION — Survive the Swarm",
   "short_name": "ORION",
-  "description": "Inertia-based survival arcade: dodge the drone swarm, bank power-ups, climb the World Arena.",
+  "description": "Inertia-based survival arcade: dodge the drone swarm, bank power-ups, climb the leaderboard.",
   "start_url": "/",
   "display": "fullscreen",
   "orientation": "any",

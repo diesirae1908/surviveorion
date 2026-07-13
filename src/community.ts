@@ -1,4 +1,4 @@
-// Community screens: sign-in, World Arena leaderboard, private arenas.
+// Community screens: sign-in, world leaderboard, private arenas.
 // Rendered into the same #ui overlay as the menu screens.
 
 import {
@@ -156,7 +156,7 @@ export class CommunityUi {
   showAuth(onDone: () => void): void {
     const { screen, body, error } = this.screen("PILOT LOGIN");
     body.appendChild(
-      this.el("div", "field-hint center", "Enter the ranks — your scores join the World Arena."),
+      this.el("div", "field-hint center", "Enter the ranks — your scores join the leaderboard."),
     );
 
     const hasGoogle = Boolean(this.api.googleClientId);
@@ -326,6 +326,31 @@ export class CommunityUi {
         });
       }),
     );
+
+    // guest / Google accounts: offer a password so the callsign works anywhere
+    if (!this.api.hasPassword) {
+      const panel = this.el("div", "panel");
+      panel.appendChild(
+        this.el(
+          "div",
+          "field-hint",
+          "Set a password to sign in with your callsign on other devices.",
+        ),
+      );
+      const password = this.input("New password", "password");
+      panel.appendChild(password);
+      panel.appendChild(
+        this.button("Set password", false, () => {
+          void this.guard(error, async () => {
+            await this.api.updateProfile({ password: password.value });
+            panel.replaceChildren(
+              this.el("div", "field-hint", "Password set — you can sign in anywhere now."),
+            );
+          });
+        }),
+      );
+      body.appendChild(panel);
+    }
 
     // service record + badge collection (locked ones show how to earn them)
     const record = this.el("div", "panel");
@@ -529,13 +554,13 @@ export class CommunityUi {
     return wrap;
   }
 
-  // --- world arena ---
+  // --- leaderboard (world board; screen was once called "World Arena") ---
 
-  /** World Arena board scope: all-time bests or today's Daily Patrol. */
+  /** Leaderboard scope: all-time bests or today's Daily Patrol. */
   private boardScope: "alltime" | "daily" = "alltime";
 
   showWorldArena(): void {
-    const { screen, body, error } = this.screen("WORLD ARENA");
+    const { screen, body, error } = this.screen("LEADERBOARD");
 
     const filter = this.countrySelect("");
     (filter.firstChild as HTMLOptionElement).textContent = "🌐 All countries";
@@ -678,7 +703,7 @@ export class CommunityUi {
         ]);
         this.renderBoard(table, board.entries, null, () => this.showFriends());
         if (mine.friends.length === 0 && board.entries.length <= 1) {
-          table.innerHTML = `<div class="field-hint">No wingmates yet — add a pilot above, or meet them in the World Arena.</div>`;
+          table.innerHTML = `<div class="field-hint">No wingmates yet — add a pilot above, or meet them on the leaderboard.</div>`;
           return;
         }
         // friends with no ranked run in this mode still deserve a row

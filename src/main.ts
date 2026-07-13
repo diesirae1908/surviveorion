@@ -1,10 +1,10 @@
 import "./style.css";
-import { Api, type BoardMode } from "./api";
+import { Api, ApiError, type BoardMode, type SubmitResult } from "./api";
 import { AudioSystem } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
 import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_NAMES, TILT_MAX_DEG } from "./config";
-import { countryFlag, countryName } from "./countries";
+import { countryFlag, countryName, guessCountry } from "./countries";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input, isTypingTarget } from "./input";
 import { clamp01, hashString, setRunSeed } from "./math";
@@ -79,6 +79,8 @@ let tutorial: Tutorial | null = null;
 
 const INTRO_SECONDS = 5;
 const INTRO_HIT_AT = 0.42 * INTRO_SECONDS; // when the title slams in
+/** Grace before a tap/key skips the intro (so the gate tap doesn't skip it). */
+const INTRO_SKIP_AFTER = 0.5;
 const WARP_SECONDS = 2.1;
 /** Retries skip the ceremony: a blink of warp instead of the full cinematic. */
 const RETRY_WARP_SECONDS = 0.5;
@@ -404,6 +406,30 @@ function showGameOverUi(): void {
   submitRun();
 }
 
+/** Paint the rank line + badge celebration from a score-submit response. */
+function renderRankResult(r: SubmitResult): void {
+  const parts: string[] = [];
+  if (runIsDaily && r.dailyRank) parts.push(`Daily Patrol <b>#${r.dailyRank}</b>`);
+  parts.push(`World rank <b>#${r.worldRank}</b>`);
+  const country = api.user?.country;
+  if (country && r.countryRank) {
+    parts.push(`${countryFlag(country)} ${countryName(country)} <b>#${r.countryRank}</b>`);
+  }
+  // gap-to-goal: the next pilot to hunt (a wingmate beats a stranger)
+  const target = r.nextWingmate ?? r.nextAbove;
+  if (target && target.score > r.best) {
+    const gap = (target.score - r.best + 1).toLocaleString();
+    const who = target.callsign.replace(/[&<>]/g, "");
+    const label = r.nextWingmate ? `your wingmate <b>${who}</b>` : `<b>${who}</b>`;
+    parts.push(`<span class="dim">${gap} points to pass ${label}</span>`);
+  }
+  ui.setGameOverRank(parts.join(" &nbsp;·&nbsp; "));
+  const earned = (r.newBadges ?? [])
+    .map((id) => badgeInfo(id))
+    .filter((b): b is NonNullable<typeof b> => !!b);
+  ui.showEarnedBadges(earned);
+}
+
 /** Push the finished run to the leaderboards and show the resulting ranks. */
 function submitRun(): void {
   if (!api.online) return;
@@ -417,34 +443,28 @@ function submitRun(): void {
     daily: runIsDaily || undefined,
   };
   if (!api.signedIn) {
-    ui.setGameOverRank(`<span class="dim">Sign in from the menu to enter the World Arena</span>`);
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget
+    // a name is enough to get on the boards: quick guest signup, then the
+    // normal score submit — the device stays signed in for future runs
+    ui.showGameOverGuestPrompt({
+      onSave: async (name) => {
+        try {
+          await api.guestSignup(name, guessCountry());
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 409)
+            throw new Error("That name is taken — sign in or pick another");
+          throw e;
+        }
+        renderRankResult(await api.submitScore(run));
+      },
+      // full sign-in: back to this screen after, where submitRun files the score
+      onSignIn: () => community.showAuth(showGameOverUi),
+    });
     return;
   }
   api
     .submitScore(run)
-    .then((r) => {
-      const parts: string[] = [];
-      if (runIsDaily && r.dailyRank) parts.push(`Daily Patrol <b>#${r.dailyRank}</b>`);
-      parts.push(`World rank <b>#${r.worldRank}</b>`);
-      const country = api.user?.country;
-      if (country && r.countryRank) {
-        parts.push(`${countryFlag(country)} ${countryName(country)} <b>#${r.countryRank}</b>`);
-      }
-      // gap-to-goal: the next pilot to hunt (a wingmate beats a stranger)
-      const target = r.nextWingmate ?? r.nextAbove;
-      if (target && target.score > r.best) {
-        const gap = (target.score - r.best + 1).toLocaleString();
-        const who = target.callsign.replace(/[&<>]/g, "");
-        const label = r.nextWingmate ? `your wingmate <b>${who}</b>` : `<b>${who}</b>`;
-        parts.push(`<span class="dim">${gap} points to pass ${label}</span>`);
-      }
-      ui.setGameOverRank(parts.join(" &nbsp;·&nbsp; "));
-      const earned = (r.newBadges ?? [])
-        .map((id) => badgeInfo(id))
-        .filter((b): b is NonNullable<typeof b> => !!b);
-      ui.showEarnedBadges(earned);
-    })
+    .then(renderRankResult)
     .catch(() => ui.setGameOverRank(`<span class="dim">Score submission failed</span>`));
 }
 
@@ -732,6 +752,7 @@ function enterFromGate(): void {
 function endIntro(): void {
   fx = null;
   state = "menu";
+  audio.stopIntro(); // cut the scheduled riser/braam if the player skipped early
   audio.playTrack("menu");
   showMenu();
 }
@@ -749,14 +770,14 @@ function skipDeathCinematic(): void {
 }
 
 ui.showIntroGate(enterFromGate);
-// keyboard players can enter with any key; any input after the slam skips
+// keyboard players can enter with any key; any input after a short beat skips
 window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
   if (isTypingTarget(e.target)) return; // don't hijack keys typed into a form field
   if (state === "gate") {
     ui.clearScreens();
     enterFromGate();
-  } else if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_HIT_AT + 0.4) {
+  } else if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_SKIP_AFTER) {
     endIntro();
   } else if (state === "gameover" && gameOverUiShown && (e.code === "Space" || e.code === "Enter")) {
     doLaunch(true); // instant retry without reaching for the mouse
@@ -765,7 +786,7 @@ window.addEventListener("keydown", (e) => {
   }
 });
 window.addEventListener("pointerdown", () => {
-  if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_HIT_AT + 0.4) endIntro();
+  if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_SKIP_AFTER) endIntro();
   else skipDeathCinematic();
 });
 

@@ -589,7 +589,8 @@ textarea.field {
   gap: 12px;
 }
 
-button.legacy-auth-link {
+button.legacy-auth-link,
+button.link-btn {
   border: none;
   background: none;
   min-width: 0;
@@ -604,7 +605,9 @@ button.legacy-auth-link {
 }
 
 button.legacy-auth-link:hover,
-button.legacy-auth-link:active {
+button.legacy-auth-link:active,
+button.link-btn:hover,
+button.link-btn:active {
   color: #ffd700;
   box-shadow: none;
 }
@@ -853,6 +856,22 @@ button.legacy-auth-link:active {
 .dim {
   color: #8a7a55;
   font-size: 13px;
+}
+
+/* game-over guest save: name field + save button in the rank-line slot */
+.guest-save-title {
+  color: #ffee88;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.guest-save-row {
+  max-width: 340px;
+  margin: 0 auto 6px;
+}
+
+.rank-line .form-error {
+  margin-bottom: 2px;
 }
 
 .small-btn {

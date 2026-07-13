@@ -69,7 +69,7 @@ community buttons simply don't appear.
 
 ## Community
 
-- **World Arena** — global leaderboard (best run per pilot), filterable by country.
+- **Leaderboard** — global board (best run per pilot), filterable by country.
   Runs are tagged by the platform they were played on (`desktop` = keyboard,
   `touch` = phone virtual stick, `tilt` = phone tilt) and every leaderboard
   ranks the three separately. The Inertia setting is flavor only — it doesn't
@@ -78,7 +78,7 @@ community buttons simply don't appear.
   the UTC date (`setRunSeed` in `src/math.ts`), so every pilot faces the same
   opening script that day. Daily runs land on a per-day board
   (`GET /api/leaderboard/daily`, `daily_date` column on `scores`; the "Daily
-  Patrol" tab in the World Arena) *and* still count all-time. Unlimited
+  Patrol" tab in the Leaderboard screen) *and* still count all-time. Unlimited
   attempts; the board resets at UTC midnight. Launched from the menu's Daily
   Patrol button, which shows today's leader.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
@@ -90,6 +90,10 @@ community buttons simply don't appear.
 - **Accounts** — Google sign-in (native one-tap button, the primary path) or
   callsign + password. Country is guessed from the browser locale/timezone,
   always confirmable and editable in the profile — no external geolocation service.
+  Unsigned players get an inline prompt on the game-over screen: entering just a
+  name creates a real passwordless account (`POST /api/auth/guest`), files the
+  finished run on the boards, and keeps the device signed in; a password can be
+  added later from the profile (`PATCH /api/me`, only while none is set).
 - **Badges** — 17 milestone awards (definitions in `server/badges.mjs`, display
   data in `src/badges.ts`), from easy (First Flight, Space Dust — die inside
   10s) through rare (Swarm Reaper — 1,000 kills in a run; Galaxy's Finest —
@@ -239,7 +243,7 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 | `src/ui.ts` | Menu / pause / game-over / tutorial overlays |
 | `src/tutorial.ts` | Flight-school sandbox: scripted beats over a spawner-free world |
 | `src/api.ts` | Community server client (auth, scores, arenas, badges) |
-| `src/community.ts` | World Arena / arenas / sign-in / pilot record screens |
+| `src/community.ts` | Leaderboard / arenas / sign-in / pilot record screens |
 | `src/badges.ts` | Badge display metadata (ids mirror `server/badges.mjs`) |
 | `src/countries.ts` | Country list, flags, offline geo guess |
 | `server/` | Zero-dependency Node community server (http + sqlite) |

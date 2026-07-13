@@ -66,7 +66,7 @@ export const BADGES: BadgeInfo[] = [
   { id: "swarm_reaper", name: "Swarm Reaper", icon: "☠️", tier: "rare", desc: "Destroy 1,000 drones in a single run.", progress: count((s) => s.bestKills, 1000) },
   { id: "decade", name: "The Decade", icon: "🌌", tier: "rare", desc: "Survive for 10 minutes.", progress: duration((s) => s.bestTime, 600) },
   { id: "ten_million", name: "Ten Million Club", icon: "👑", tier: "rare", desc: "Score 10,000,000 points in one run.", progress: count((s) => s.bestScore, 10_000_000) },
-  { id: "galaxys_finest", name: "Galaxy's Finest", icon: "🏆", tier: "rare", desc: "Hold the #1 spot on the World Arena." },
+  { id: "galaxys_finest", name: "Galaxy's Finest", icon: "🏆", tier: "rare", desc: "Hold the #1 spot on the leaderboard." },
 
   // --- career grinds ---
   { id: "veteran", name: "Veteran", icon: "🎖️", tier: "grind", desc: "Complete 100 runs.", progress: count((s) => s.runs, 100) },

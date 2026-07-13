@@ -180,6 +180,23 @@ const routes = {
     json(res, 200, { token: issueSession(user.id), user: publicUser(user) });
   },
 
+  // Quick save from the game-over screen: a name is enough to get on the
+  // boards. Creates a real (passwordless) account — the device stays signed
+  // in, and a password can be added later from the profile screen.
+  "POST /api/auth/guest": async (req, res) => {
+    if (!rateLimit(`guest:${clientIp(req)}`, 10)) return json(res, 429, { error: "slow down" });
+    const { callsign, country = "" } = await readBody(req);
+    if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
+      return json(res, 400, { error: "callsign must be 3-20 letters, digits, - or _" });
+    if (typeof country !== "string" || !COUNTRY_RE.test(country))
+      return json(res, 400, { error: "invalid country" });
+    if (store.getUserByCallsign(callsign.trim()))
+      return json(res, 409, { error: "callsign already taken" });
+
+    const user = store.createUser({ callsign: callsign.trim(), country });
+    json(res, 200, { token: issueSession(user.id), user: publicUser(user) });
+  },
+
   "POST /api/auth/login": async (req, res) => {
     if (!rateLimit(`login:${req.socket.remoteAddress}`, 15)) return json(res, 429, { error: "slow down" });
     const { callsign, password } = await readBody(req);
@@ -248,12 +265,14 @@ const routes = {
       user: publicUser(user),
       best: store.getUserBest(user.id),
       pendingFriends: store.pendingFriendCount(user.id),
+      // guest accounts have no password yet — the profile screen offers to set one
+      hasPassword: !!user.pass_hash,
     });
   },
 
   "PATCH /api/me": async (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
-    const { callsign, country } = await readBody(req);
+    const { callsign, country, password } = await readBody(req);
     const patch = {};
     if (callsign !== undefined) {
       if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
@@ -266,6 +285,15 @@ const routes = {
       if (typeof country !== "string" || !COUNTRY_RE.test(country))
         return json(res, 400, { error: "invalid country" });
       patch.country = country;
+    }
+    // Guest-account upgrade: set a password once so the pilot can sign in
+    // elsewhere. Accounts that already have one keep it (no change flow yet).
+    if (password !== undefined) {
+      if (user.pass_hash) return json(res, 400, { error: "password already set" });
+      if (typeof password !== "string" || password.length < 6)
+        return json(res, 400, { error: "password must be at least 6 characters" });
+      patch.passSalt = crypto.randomBytes(16).toString("hex");
+      patch.passHash = hashPassword(password, patch.passSalt);
     }
     json(res, 200, { user: publicUser(store.updateUser(user.id, patch)) });
   },

@@ -115,6 +115,8 @@ export class Api {
   googleClientId = "";
   /** Incoming friend requests awaiting an answer (menu badge). */
   pendingFriends = 0;
+  /** False for guest accounts until they set one from the profile screen. */
+  hasPassword = true;
   /** false once a request fails to reach the server at all. */
   online = true;
 
@@ -161,12 +163,14 @@ export class Api {
     }
     if (this.token) {
       try {
-        const me = await this.request<{ user: UserInfo; pendingFriends?: number }>(
-          "GET",
-          "/api/me",
-        );
+        const me = await this.request<{
+          user: UserInfo;
+          pendingFriends?: number;
+          hasPassword?: boolean;
+        }>("GET", "/api/me");
         this.user = me.user;
         this.pendingFriends = me.pendingFriends ?? 0;
+        this.hasPassword = me.hasPassword ?? true;
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;
@@ -183,6 +187,7 @@ export class Api {
       country,
     });
     this.setSession(r.token, r.user);
+    this.hasPassword = true;
   }
 
   async login(callsign: string, password: string): Promise<void> {
@@ -191,6 +196,17 @@ export class Api {
       password,
     });
     this.setSession(r.token, r.user);
+    this.hasPassword = true;
+  }
+
+  /** Game-over quick save: a callsign creates a real passwordless account. */
+  async guestSignup(callsign: string, country: string): Promise<void> {
+    const r = await this.request<{ token: string; user: UserInfo }>("POST", "/api/auth/guest", {
+      callsign,
+      country,
+    });
+    this.setSession(r.token, r.user);
+    this.hasPassword = false;
   }
 
   async googleSignIn(idToken: string, country: string): Promise<boolean> {
@@ -200,6 +216,7 @@ export class Api {
       { idToken, country },
     );
     this.setSession(r.token, r.user);
+    this.hasPassword = false; // Google accounts sign in via Google, no password
     return r.isNew;
   }
 
@@ -214,9 +231,15 @@ export class Api {
     localStorage.removeItem(TOKEN_KEY);
   }
 
-  async updateProfile(patch: { callsign?: string; country?: string }): Promise<void> {
+  async updateProfile(patch: {
+    callsign?: string;
+    country?: string;
+    /** Guest-account upgrade — only accepted while no password is set. */
+    password?: string;
+  }): Promise<void> {
     const r = await this.request<{ user: UserInfo }>("PATCH", "/api/me", patch);
     this.user = r.user;
+    if (patch.password !== undefined) this.hasPassword = true;
   }
 
   submitScore(run: {

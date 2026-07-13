@@ -273,7 +273,7 @@ export class Ui {
     // community row (only when the server is reachable)
     if (community && community.callsign !== null) {
       const row = this.el("div", "menu-row", "");
-      row.appendChild(this.button("World Arena", false, () => this.cb.onWorldArena()));
+      row.appendChild(this.button("Leaderboard", false, () => this.cb.onWorldArena()));
       row.appendChild(this.button("Arenas", false, () => this.cb.onArenas()));
       const friends = this.button("Wingmates", false, () => this.cb.onFriends());
       if ((community.pendingFriends ?? 0) > 0) {
@@ -433,7 +433,7 @@ export class Ui {
       this.el(
         "div",
         "hint",
-        "Powers auto-activate on pickup. Touching a drone is fatal — unless shielded.<br/>Chain kills to build your multiplier and climb the World Arena.",
+        "Powers auto-activate on pickup. Touching a drone is fatal — unless shielded.<br/>Chain kills to build your multiplier and climb the leaderboard.",
       ),
     );
 
@@ -749,6 +749,58 @@ export class Ui {
   setGameOverRank(html: string): void {
     const line = document.getElementById("rank-line");
     if (line) line.innerHTML = html;
+  }
+
+  /**
+   * Unsigned players: inline save-score form in the rank-line slot.
+   * A name is enough — the save handler creates the account and files the run.
+   */
+  showGameOverGuestPrompt(handlers: {
+    /** Rejects with a user-readable message shown under the field. */
+    onSave: (name: string) => Promise<void>;
+    onSignIn: () => void;
+  }): void {
+    const line = document.getElementById("rank-line");
+    if (!line) return;
+    line.innerHTML = "";
+
+    line.appendChild(
+      this.el("div", "guest-save-title", "Enter a name to save your score to the leaderboard"),
+    );
+    const row = this.el("div", "form-row guest-save-row", "");
+    const name = document.createElement("input");
+    name.className = "field";
+    name.placeholder = "Your name";
+    name.maxLength = 20;
+    const save = this.button("Save score", true, () => void submit());
+    row.append(name, save);
+    line.appendChild(row);
+    const error = this.el("div", "form-error", "");
+    line.appendChild(error);
+    const signIn = this.el("button", "link-btn", "Already a pilot? Sign in");
+    signIn.addEventListener("click", () => handlers.onSignIn());
+    line.appendChild(signIn);
+
+    const submit = async (): Promise<void> => {
+      const value = name.value.trim();
+      if (!/^[A-Za-z0-9_\- ]{3,20}$/.test(value)) {
+        error.textContent = "3-20 characters: letters, digits, spaces, - or _";
+        return;
+      }
+      error.textContent = "";
+      save.disabled = true;
+      save.textContent = "Saving…";
+      try {
+        await handlers.onSave(value);
+      } catch (e) {
+        error.textContent = e instanceof Error ? e.message : "couldn't save — try again";
+        save.disabled = false;
+        save.textContent = "Save score";
+      }
+    };
+    name.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void submit();
+    });
   }
 
   /** Update the Daily Patrol menu hint once today's board loads. */
