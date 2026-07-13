@@ -1744,7 +1744,7 @@ export class Renderer {
     const p = world.powers;
     if (p.shieldActive) powers.push(["SHIELD", 1, 1, POWER_COLORS.shield]);
     if (p.starshellTimer > 0)
-      powers.push(["STARSHELL", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
+      powers.push(["STARSHELL — RAM!", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
     if (p.magnetTimer > 0)
       powers.push(["MAGNET", p.magnetTimer, POWERS.magnet.duration, POWER_COLORS.magnet]);
     if (p.afterburnerCharge > 0)
@@ -1774,9 +1774,9 @@ export class Renderer {
       ctx.fillStyle = color;
       ctx.fillText(name, pad, py);
       ctx.globalAlpha = 0.3;
-      ctx.fillRect(pad + 90, py + 3, 80, 7);
+      ctx.fillRect(pad + 122, py + 3, 80, 7);
       ctx.globalAlpha = 1;
-      ctx.fillRect(pad + 90, py + 3, 80 * frac, 7);
+      ctx.fillRect(pad + 122, py + 3, 80 * frac, 7);
       py += 24;
     }
 

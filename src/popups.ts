@@ -13,8 +13,8 @@ interface Popup {
 export class Popups {
   private items: Popup[] = [];
 
-  spawn(x: number, y: number, text: string, color: string, size = 0.45): void {
-    this.items.push({ x, y, text, color, age: 0, lifetime: 0.9, size });
+  spawn(x: number, y: number, text: string, color: string, size = 0.45, lifetime = 0.9): void {
+    this.items.push({ x, y, text, color, age: 0, lifetime, size });
   }
 
   update(dt: number): void {

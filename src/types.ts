@@ -185,6 +185,7 @@ export type GameEvent =
   | { type: "pulseFire"; x: number; y: number }
   | { type: "afterburnerCharge" }
   | { type: "dash" }
+  | { type: "dashGrace" }
   | { type: "freeze"; x: number; y: number }
   | { type: "missilesFire" }
   | { type: "autocannonFire"; x: number; y: number }
@@ -225,6 +226,10 @@ export interface World {
   powers: PowersState;
 
   score: number;
+  // score components, for the game-over breakdown (they sum to score)
+  scoreKills: number;
+  scoreSurvival: number;
+  scoreBonuses: number; // chain / pulse multi-kill bonuses
   multiplier: number;
   multiplierDecayTimer: number;
   kills: number;

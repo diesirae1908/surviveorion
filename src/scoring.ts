@@ -21,7 +21,9 @@ export function updateScoring(world: World, dt: number): void {
 
   world.time += dt;
 
-  world.score += SCORING.survivalPointsPerSecond * world.multiplier * dangerFactor(world) * dt;
+  const survival = SCORING.survivalPointsPerSecond * world.multiplier * dangerFactor(world) * dt;
+  world.score += survival;
+  world.scoreSurvival += survival;
 
   // chain window
   if (world.chainTimer > 0) {
@@ -63,6 +65,7 @@ export function registerKill(
   world.multiplierDecayTimer = SCORING.multiplierDecayDelay;
 
   let points = SCORING.killPoints * (mods?.pointsScale ?? 1) * world.multiplier * dangerFactor(world);
+  world.scoreKills += points;
 
   // chain bonus: escalating payout every N kills inside the chain window
   world.chainCount += 1;
@@ -73,6 +76,7 @@ export function registerKill(
       (world.chainCount / SCORING.chainBonusEvery) *
       world.multiplier;
     points += bonus;
+    world.scoreBonuses += bonus;
     world.events.push({
       type: "chainBonus",
       x,

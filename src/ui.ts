@@ -1,3 +1,4 @@
+import { ALL_POWER_IDS, POWER_COLORS, POWER_HINTS, POWER_NAMES } from "./config";
 import type {
   BooleanSetting,
   ControlMode,
@@ -50,6 +51,10 @@ export interface MenuCommunity {
 
 export interface GameOverStats {
   score: number;
+  /** Score components (sum to score) for the "where did my points come from" line. */
+  scoreKills: number;
+  scoreSurvival: number;
+  scoreBonuses: number;
   time: number;
   kills: number;
   maxMultiplier: number;
@@ -68,6 +73,17 @@ const SENSE_LABEL: Record<SenseLevel, string> = {
   med: "MED",
   high: "HIGH",
 };
+
+/**
+ * The Daily Patrol board resets at UTC midnight — which lands mid-evening in
+ * the Americas, so scores "vanish" from today's board. Saying the reset time
+ * in the player's local clock makes that legible ("resets at 8:00 PM").
+ */
+export function dailyResetLabel(): string {
+  const next = new Date();
+  next.setUTCHours(24, 0, 0, 0); // next UTC midnight
+  return next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
 export class Ui {
@@ -260,15 +276,21 @@ export class Ui {
       daily.className = "daily-btn";
       daily.innerHTML =
         `<span class="daily-name">☀ Daily Patrol</span>` +
-        `<span class="daily-sub">everyone flies the same swarm — its own board, resets daily</span>` +
+        `<span class="daily-sub">everyone flies the same swarm — its own board, resets at ${dailyResetLabel()}</span>` +
         `<span class="daily-hint" id="daily-hint"></span>`;
       daily.addEventListener("click", () => this.cb.onDaily());
       screen.appendChild(daily);
     }
 
+    const learnRow = this.el("div", "menu-row", "");
     const howTo = this.button("How to play", false, () => this.cb.onTutorial());
     howTo.classList.add("small-btn");
-    screen.appendChild(howTo);
+    const powers = this.button("Powers", false, () =>
+      this.showPowers(() => this.showMenu(bestScore, touchDevice, community)),
+    );
+    powers.classList.add("small-btn");
+    learnRow.append(howTo, powers);
+    screen.appendChild(learnRow);
 
     // community row (only when the server is reachable)
     if (community && community.callsign !== null) {
@@ -301,6 +323,50 @@ export class Ui {
     );
     screen.appendChild(gear);
 
+    this.root.appendChild(screen);
+  }
+
+  /** Powers codex: what every pickup does, so nothing in a run is a mystery. */
+  showPowers(onBack: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "POWERS"));
+    screen.appendChild(this.el("div", "divider", ""));
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Pickups fire the instant you grab them — no button. Every power can appear from minute zero.",
+      ),
+    );
+
+    const list = this.el("div", "powers-list", "");
+    for (const id of ALL_POWER_IDS) {
+      list.appendChild(
+        this.el(
+          "div",
+          "power-row",
+          `<span class="power-dot" style="background:${POWER_COLORS[id]};box-shadow:0 0 8px ${POWER_COLORS[id]}"></span>` +
+            `<span class="power-name">${POWER_NAMES[id]}</span>` +
+            `<span class="power-desc">${POWER_HINTS[id]}</span>`,
+        ),
+      );
+    }
+    screen.appendChild(list);
+
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Skill kills pay extra: pulse shots score 2x, shattering frozen drones scores 1.5x and builds your multiplier twice as fast.",
+      ),
+    );
+
+    const back = this.button("Back", false, onBack);
+    back.classList.add("small-btn");
+    screen.appendChild(back);
     this.root.appendChild(screen);
   }
 
@@ -714,6 +780,27 @@ export class Ui {
       ),
     );
 
+    // where the points came from — scoring is opaque without this
+    if (stats.score > 0) {
+      const fmt = (n: number): string => Math.floor(n).toLocaleString();
+      screen.appendChild(
+        this.el(
+          "div",
+          "score-breakdown",
+          `<span>Kills ${fmt(stats.scoreKills)}</span> · ` +
+            `<span>Survival ${fmt(stats.scoreSurvival)}</span>` +
+            (stats.scoreBonuses >= 1 ? ` · <span>Bonuses ${fmt(stats.scoreBonuses)}</span>` : ""),
+        ),
+      );
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Everything you score is multiplied — chain kills to keep the multiplier hot.",
+        ),
+      );
+    }
+
     // near-miss framing: how this flight compares to the longest one
     if (stats.isNewBestTime && stats.bestTime > 0) {
       screen.appendChild(this.el("div", "run-delta gold", "Your longest flight yet"));
@@ -749,6 +836,19 @@ export class Ui {
   setGameOverRank(html: string): void {
     const line = document.getElementById("rank-line");
     if (line) line.innerHTML = html;
+  }
+
+  /** Submission failed: say so loudly and offer a retry (daily runs especially). */
+  showGameOverSubmitError(onRetry: () => void): void {
+    const line = document.getElementById("rank-line");
+    if (!line) return;
+    line.innerHTML = "";
+    line.appendChild(
+      this.el("div", "form-error", "Score not saved — couldn't reach the leaderboard."),
+    );
+    const retry = this.button("Retry", false, onRetry);
+    retry.classList.add("small-btn");
+    line.appendChild(retry);
   }
 
   /**

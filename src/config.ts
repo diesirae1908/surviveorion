@@ -412,3 +412,20 @@ export const POWER_NAMES: Record<PowerId, string> = {
   meteors: "Meteor Storm",
   vortex: "Vortex",
 };
+
+// One-line action hints: shown under the name on pickup and in the menu
+// Powers codex, so players learn what each power does mid-flight.
+export const POWER_HINTS: Record<PowerId, string> = {
+  shield: "banks an extra life — blocks one hit",
+  shockwave: "blasts the swarm away from you",
+  pulse: "aimed shots — kills pay double",
+  magnet: "pulls pickups to you",
+  afterburner: "warp dash — untouchable on arrival",
+  freeze: "freezes drones — shatter them for bonus",
+  missiles: "homing missiles hunt the swarm",
+  starshell: "invulnerable — ram them!",
+  arc: "lightning chains through the swarm",
+  autocannon: "turret auto-fires at the nearest drone",
+  meteors: "explosions rain on drone packs",
+  vortex: "drags drones into the singularity",
+};

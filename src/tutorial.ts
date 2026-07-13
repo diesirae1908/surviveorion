@@ -160,13 +160,24 @@ export class Tutorial {
         if (w.pickups.length === 0) {
           this.step = 4;
           this.message(
+            "<b>SCORING</b><br/>Kills heat up your multiplier — everything you score is" +
+              " multiplied, but it drains fast, so keep hunting." +
+              "<br/>And the deeper you fly, the more every second and kill pays.",
+          );
+        }
+        break;
+      }
+      case 4: {
+        if (!this.waiting) {
+          this.step = 5;
+          this.message(
             "<b>THE GOAL</b><br/>Score the best score. Be the best of the galaxy." +
               "<br/>And above all… <b>SURVIVE</b>.",
           );
         }
         break;
       }
-      case 4: {
+      case 5: {
         // final message dismissed → straight to the send-off screen
         if (!this.waiting) this.done = true;
         break;

@@ -3,7 +3,7 @@ import { Api, ApiError, type BoardMode, type SubmitResult } from "./api";
 import { AudioSystem } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
-import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_NAMES, TILT_MAX_DEG } from "./config";
+import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_HINTS, POWER_NAMES, TILT_MAX_DEG } from "./config";
 import { countryFlag, countryName, guessCountry } from "./countries";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input, isTypingTarget } from "./input";
@@ -393,6 +393,9 @@ function showGameOverUi(): void {
   gameOverUiShown = true;
   ui.showGameOver({
     score: world.score,
+    scoreKills: world.scoreKills,
+    scoreSurvival: world.scoreSurvival,
+    scoreBonuses: world.scoreBonuses,
     time: world.time,
     kills: world.kills,
     maxMultiplier: world.maxMultiplier,
@@ -448,12 +451,16 @@ function submitRun(): void {
     // normal score submit — the device stays signed in for future runs
     ui.showGameOverGuestPrompt({
       onSave: async (name) => {
-        try {
-          await api.guestSignup(name, guessCountry());
-        } catch (e) {
-          if (e instanceof ApiError && e.status === 409)
-            throw new Error("That name is taken — sign in or pick another");
-          throw e;
+        // skip signup on a retry where the account was created but the score
+        // submit failed — the session is already live
+        if (!api.signedIn) {
+          try {
+            await api.guestSignup(name, guessCountry());
+          } catch (e) {
+            if (e instanceof ApiError && e.status === 409)
+              throw new Error("That name is taken — sign in or pick another");
+            throw e;
+          }
         }
         renderRankResult(await api.submitScore(run));
       },
@@ -462,10 +469,14 @@ function submitRun(): void {
     });
     return;
   }
-  api
-    .submitScore(run)
-    .then(renderRankResult)
-    .catch(() => ui.setGameOverRank(`<span class="dim">Score submission failed</span>`));
+  // retry bypasses the api.online gate — a transient failure marks us offline
+  const trySubmit = (): void => {
+    api
+      .submitScore(run)
+      .then(renderRankResult)
+      .catch(() => ui.showGameOverSubmitError(trySubmit));
+  };
+  trySubmit();
 }
 
 input.onPause = () => {
@@ -523,6 +534,8 @@ function drainEvents(w: World): void {
       case "pickup":
         particles.burst(e.x, e.y, [POWER_COLORS[e.power], PALETTE.white], 12, 3.5, 0.5, 0.1);
         popups.spawn(e.x, e.y, POWER_NAMES[e.power].toUpperCase(), POWER_COLORS[e.power], 0.32);
+        // the hint line lingers longer so new pilots learn what they grabbed
+        popups.spawn(e.x, e.y - 0.55, POWER_HINTS[e.power], POWER_COLORS[e.power], 0.22, 1.7);
         audio.pickup();
         break;
       case "shieldUp":
@@ -530,6 +543,8 @@ function drainEvents(w: World): void {
         break;
       case "starshellUp":
         particles.burst(world.ship.x, world.ship.y, [PALETTE.starshell, PALETTE.goldPale, PALETTE.white], 20, 5, 0.6, 0.12);
+        // the shell makes ramming safe — say so, or players never dare
+        popups.spawn(world.ship.x, world.ship.y + 1.3, "RAM THEM!", PALETTE.starshell, 0.5, 1.4);
         audio.starshellUp();
         break;
       case "shieldDetonate":
@@ -552,6 +567,10 @@ function drainEvents(w: World): void {
         break;
       case "dash":
         audio.dash();
+        break;
+      case "dashGrace":
+        // the arrival second is free — tell the pilot so the dash feels safe
+        popups.spawn(world.ship.x, world.ship.y + 1.3, "UNTOUCHABLE", PALETTE.afterburner, 0.38, 1.0);
         break;
       case "freeze":
         particles.burst(e.x, e.y, [PALETTE.freeze, PALETTE.white], 24, 6, 0.7, 0.12);

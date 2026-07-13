@@ -567,6 +567,7 @@ export function updatePowers(world: World, dt: number): void {
     // arrival grace: brief invincibility so dashing into a swarm isn't lethal
     if (p.afterburnerDash <= 0) {
       p.afterburnerGrace = POWERS.afterburner.arrivalInvulnTime;
+      world.events.push({ type: "dashGrace" });
     }
   } else if (p.afterburnerGrace > 0) {
     p.afterburnerGrace -= dt;
@@ -626,6 +627,7 @@ export function updatePowers(world: World, dt: number): void {
         if (proj.hit.size >= SCORING.pulseMultiKillMin && world.phase === "playing") {
           const bonus = SCORING.pulseMultiKillPoints * world.multiplier;
           world.score += bonus;
+          world.scoreBonuses += bonus;
           world.events.push({
             type: "pulseMultiKill",
             x: d.x,

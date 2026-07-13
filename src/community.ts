@@ -12,6 +12,7 @@ import {
 } from "./api";
 import { BADGES, TIER_LABEL, type BadgeProgressStats } from "./badges";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
+import { dailyResetLabel } from "./ui";
 
 const BOARD_MODE_KEY = "orion.boardMode";
 
@@ -53,12 +54,37 @@ type Google = {
 export class CommunityUi {
   private boardMode: BoardMode = loadBoardMode();
 
+  /** Back action of the community screen currently showing (null = none). */
+  private backAction: (() => void) | null = null;
+  /** The screen element we last rendered (stale-check for popstate). */
+  private currentScreen: HTMLElement | null = null;
+  /** 1 while our sentinel history entry is pushed (system back support). */
+  private navDepth = 0;
+
   constructor(
     private root: HTMLElement,
     private api: Api,
     private onBack: () => void,
     private onAuthChange: () => void,
-  ) {}
+  ) {
+    // System back (Android gesture / browser back) navigates community
+    // screens instead of leaving the app — vital in the fullscreen PWA.
+    window.addEventListener("popstate", () => {
+      if (this.navDepth === 0) return;
+      this.navDepth = 0;
+      const act = this.backAction;
+      this.backAction = null;
+      // the player may have left for the menu or a run since we pushed —
+      // only navigate if our screen is still the one on display
+      if (act && this.currentScreen && this.root.contains(this.currentScreen)) act();
+    });
+  }
+
+  /** Route back through history when our sentinel is pushed (keeps it balanced). */
+  private goBack(): void {
+    if (this.navDepth > 0) history.back();
+    else this.backAction?.();
+  }
 
   /** Desktop / Phone / Phone tilt leaderboard tabs — each platform ranks separately. */
   private modeTabs(onChange: () => void): HTMLElement {
@@ -122,9 +148,23 @@ export class CommunityUi {
     return s;
   }
 
-  private screen(title: string): { screen: HTMLElement; body: HTMLElement; error: HTMLElement } {
+  /**
+   * Community screen scaffold. `onBack` (default: the menu) gets an
+   * always-visible corner arrow — the bottom Back row can scroll below the
+   * fold on phones. Pass null for mid-flow screens with no back.
+   */
+  private screen(
+    title: string,
+    onBack: (() => void) | null = this.onBack,
+  ): { screen: HTMLElement; body: HTMLElement; error: HTMLElement } {
     this.root.innerHTML = "";
     const screen = this.el("div", "screen");
+    if (onBack) {
+      const b = this.el("button", "corner-btn left", "←");
+      b.title = "Back";
+      b.addEventListener("click", () => this.goBack());
+      screen.appendChild(b);
+    }
     screen.appendChild(this.el("div", "heading gold small", title));
     screen.appendChild(this.el("div", "divider"));
     const body = this.el("div", "panel");
@@ -132,11 +172,19 @@ export class CommunityUi {
     const error = this.el("div", "form-error");
     screen.appendChild(error);
     this.root.appendChild(screen);
+
+    this.currentScreen = screen;
+    this.backAction = onBack;
+    if (onBack && this.navDepth === 0) {
+      history.pushState({ orion: "community" }, "");
+      this.navDepth = 1;
+    }
     return { screen, body, error };
   }
 
-  private backRow(screen: HTMLElement, onBack = this.onBack): void {
-    const b = this.button("Back", false, onBack);
+  /** Bottom Back button; uses the back action given to screen(). */
+  private backRow(screen: HTMLElement): void {
+    const b = this.button("Back", false, () => this.goBack());
     b.classList.add("small-btn");
     screen.appendChild(b);
   }
@@ -287,7 +335,7 @@ export class CommunityUi {
 
   /** Post-signup step: confirm the guessed country (all-cases geo). */
   showConfirmCountry(onDone: () => void): void {
-    const { screen, body, error } = this.screen("WHERE DO YOU FLY FROM?");
+    const { screen, body, error } = this.screen("WHERE DO YOU FLY FROM?", null);
     body.appendChild(
       this.el("div", "field-hint", "Your country places you in its arena leaderboard. You can change it anytime."),
     );
@@ -376,7 +424,7 @@ export class CommunityUi {
 
   /** Public pilot profile, opened from any leaderboard row (with friend actions). */
   showPilot(callsign: string, onBack: () => void): void {
-    const { screen, body, error } = this.screen("PILOT RECORD");
+    const { screen, body, error } = this.screen("PILOT RECORD", onBack);
     body.appendChild(this.el("div", "field-hint", "Loading…"));
     void this.guard(error, async () => {
       const p = await this.api.playerProfile(callsign);
@@ -395,7 +443,7 @@ export class CommunityUi {
       if (graph) body.appendChild(graph);
       body.appendChild(this.badgeGrid(p.badges, false));
     });
-    this.backRow(screen, onBack);
+    this.backRow(screen);
   }
 
   private statsRow(p: PlayerProfile): HTMLElement {
@@ -568,7 +616,7 @@ export class CommunityUi {
     const dailyHint = this.el(
       "div",
       "field-hint center",
-      "Daily Patrol — everyone flies the same swarm today. Resets at UTC midnight.",
+      `Daily Patrol — everyone flies the same swarm today. New board at ${dailyResetLabel()} your time (UTC midnight).`,
     );
 
     const load = (): void => {
@@ -873,7 +921,7 @@ export class CommunityUi {
   }
 
   showArenaBoard(code: string): void {
-    const { screen, body, error } = this.screen("ARENA");
+    const { screen, body, error } = this.screen("ARENA", () => this.showArenas());
     const heading = screen.querySelector(".heading")!;
     const table = this.el("div", "board");
     body.appendChild(
@@ -890,7 +938,7 @@ export class CommunityUi {
     };
     body.append(this.modeTabs(load), table);
     load();
-    this.backRow(screen, () => this.showArenas());
+    this.backRow(screen);
   }
 }
 

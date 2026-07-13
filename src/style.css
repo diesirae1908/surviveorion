@@ -346,6 +346,57 @@ button.launch {
   color: #ffd700;
 }
 
+/* back arrow variant: top-left, mirroring the settings gear. Fixed, not
+   absolute: community screens scroll, and the whole point is a back control
+   that can never be below the fold. */
+.corner-btn.left {
+  position: fixed;
+  left: calc(14px + var(--safe-left));
+  right: auto;
+  z-index: 2;
+}
+
+/* Powers codex: dot + name + one-line hint per power */
+.powers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(420px, 88vw);
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+}
+
+.power-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: rgba(26, 26, 42, 0.7);
+  border: 1px solid rgba(170, 136, 68, 0.25);
+  text-align: left;
+}
+
+.power-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.power-name {
+  color: #ffee88;
+  font-size: 14px;
+  font-weight: bold;
+  width: 108px;
+  flex-shrink: 0;
+}
+
+.power-desc {
+  color: #8a7a55;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
 .manual-title {
   color: #aa8844;
   font-size: 11px;
@@ -856,6 +907,17 @@ button.link-btn:active {
 .dim {
   color: #8a7a55;
   font-size: 13px;
+}
+
+/* game-over score breakdown: kills / survival / bonuses */
+.score-breakdown {
+  color: #aa8844;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.score-breakdown span {
+  white-space: nowrap;
 }
 
 /* game-over guest save: name field + save button in the rank-line slot */
