@@ -239,8 +239,8 @@ function showMenu(): void {
         const top = d.entries[0];
         ui.setMenuDailyHint(
           top
-            ? `today's leader: <b>${top.callsign.replace(/[&<>]/g, "")}</b> — ${top.best.toLocaleString()}`
-            : "no patrols flown yet today — be the first",
+            ? `today's leader: <b>${top.callsign.replace(/[&<>]/g, "")}</b> · ${top.best.toLocaleString()}`
+            : "no patrols flown yet today. Be the first!",
         );
       })
       .catch(() => {});
@@ -458,7 +458,7 @@ function submitRun(): void {
             await api.guestSignup(name, guessCountry());
           } catch (e) {
             if (e instanceof ApiError && e.status === 409)
-              throw new Error("That name is taken — sign in or pick another");
+              throw new Error("That name is taken. Sign in or pick another");
             throw e;
           }
         }

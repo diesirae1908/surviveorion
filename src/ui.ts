@@ -276,7 +276,7 @@ export class Ui {
       daily.className = "daily-btn";
       daily.innerHTML =
         `<span class="daily-name">☀ Daily Patrol</span>` +
-        `<span class="daily-sub">everyone flies the same swarm — its own board, resets at ${dailyResetLabel()}</span>` +
+        `<span class="daily-sub">everyone flies the same swarm. Its own board, resets at ${dailyResetLabel()}</span>` +
         `<span class="daily-hint" id="daily-hint"></span>`;
       daily.addEventListener("click", () => this.cb.onDaily());
       screen.appendChild(daily);
@@ -338,7 +338,7 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Pickups fire the instant you grab them — no button. Every power can appear from minute zero.",
+        "Pickups fire the instant you grab them, no button. Every power can appear from minute zero.",
       ),
     );
 
@@ -399,7 +399,7 @@ export class Ui {
         "div",
         "field-hint center",
         "Direct control is the default: the ship goes where you point. " +
-          "Inertia ON adds thrust-and-drift piloting for flavor — leaderboards don't care either way.",
+          "Inertia ON adds thrust-and-drift piloting for flavor. Leaderboards don't care either way.",
       ),
     );
 
@@ -411,16 +411,16 @@ export class Ui {
       const rows = touchDevice
         ? controls.mode === "tilt"
           ? [
-              ["Fly", "tilt your phone — the ship follows the lean"],
+              ["Fly", "tilt your phone, the ship follows the lean"],
               ["Pause", "the II button, top right"],
             ]
           : this.settings.inertia
             ? [
-                ["Fly", "drag anywhere — the ship flies where you point"],
+                ["Fly", "drag anywhere, the ship flies where you point"],
                 ["Pause", "the II button, top right"],
               ]
             : [
-                ["Fly", "drag anywhere — ship goes that way"],
+                ["Fly", "drag anywhere, ship goes that way"],
                 ["Pause", "the II button, top right"],
               ]
         : this.settings.inertia
@@ -454,7 +454,7 @@ export class Ui {
         this.el(
           "div",
           "field-hint center",
-          "Tilt steering — lean the phone to fly. A tribute to Tilt to Live.",
+          "Tilt steering: lean the phone to fly. A tribute to Tilt to Live.",
         ),
       );
       const row = this.el("div", "toggles", "");
@@ -499,7 +499,7 @@ export class Ui {
       this.el(
         "div",
         "hint",
-        "Powers auto-activate on pickup. Touching a drone is fatal — unless shielded.<br/>Chain kills to build your multiplier and climb the leaderboard.",
+        "Powers auto-activate on pickup. Touching a drone is fatal, unless shielded.<br/>Chain kills to build your multiplier and climb the leaderboard.",
       ),
     );
 
@@ -527,7 +527,7 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Bugs, ideas, balance gripes — every report makes the arena better.",
+        "Bugs, ideas, balance gripes: every report makes the arena better.",
       ),
     );
 
@@ -549,7 +549,7 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Leave an email if you'd like a reply — or rewards for the best reports.",
+        "Leave an email if you'd like a reply, or rewards for the best reports.",
       ),
     );
 
@@ -575,7 +575,7 @@ export class Ui {
             this.el(
               "div",
               "field-hint center",
-              "Thank you, pilot — your report is in the log." +
+              "Thank you, pilot. Your report is in the log." +
                 (email.value.trim() ? "<br/>We'll reach out if it earns a reward." : ""),
             ),
           );
@@ -586,7 +586,7 @@ export class Ui {
         .catch((e: unknown) => {
           send.disabled = false;
           send.textContent = "Transmit";
-          error.textContent = e instanceof Error ? e.message : "Transmission failed — try again.";
+          error.textContent = e instanceof Error ? e.message : "Transmission failed. Try again.";
         });
     });
     screen.appendChild(send);
@@ -661,10 +661,10 @@ export class Ui {
     screen.appendChild(this.el("div", "heading gold small", "CHOOSE YOUR CONTROLS"));
     screen.appendChild(this.el("div", "divider", ""));
 
-    const stick = this.button("Touch — drag anywhere to fly", current !== "tilt", () =>
+    const stick = this.button("Touch: drag anywhere to fly", current !== "tilt", () =>
       onPick("stick"),
     );
-    const tilt = this.button("Tilt — lean your phone to fly", current === "tilt", () =>
+    const tilt = this.button("Tilt: lean your phone to fly", current === "tilt", () =>
       onPick("tilt"),
     );
     screen.appendChild(stick);
@@ -673,7 +673,7 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Tilt is our tribute to Tilt to Live — hold your phone at your comfortable" +
+        "Tilt is our tribute to Tilt to Live. Hold your phone at your comfortable" +
           " play angle before tapping, that becomes neutral.",
       ),
     );
@@ -796,7 +796,7 @@ export class Ui {
         this.el(
           "div",
           "field-hint center",
-          "Everything you score is multiplied — chain kills to keep the multiplier hot.",
+          "Everything you score is multiplied. Chain kills to keep the multiplier hot.",
         ),
       );
     }
@@ -821,13 +821,13 @@ export class Ui {
 
     // retries keep the mode picked at launch, so say which run comes next
     screen.appendChild(
-      this.button(stats.daily ? "Fly again — Daily Patrol" : "Fly again", true, () =>
+      this.button(stats.daily ? "Fly again: Daily Patrol" : "Fly again", true, () =>
         this.cb.onRestart(),
       ),
     );
     screen.appendChild(this.button("Main menu", false, () => this.cb.onQuitToMenu()));
     if (!stats.touchDevice) {
-      screen.appendChild(this.el("div", "field-hint center", "Space — fly again"));
+      screen.appendChild(this.el("div", "field-hint center", "Space to fly again"));
     }
     this.root.appendChild(screen);
   }
@@ -844,7 +844,7 @@ export class Ui {
     if (!line) return;
     line.innerHTML = "";
     line.appendChild(
-      this.el("div", "form-error", "Score not saved — couldn't reach the leaderboard."),
+      this.el("div", "form-error", "Score not saved. Couldn't reach the leaderboard."),
     );
     const retry = this.button("Retry", false, onRetry);
     retry.classList.add("small-btn");
@@ -893,7 +893,7 @@ export class Ui {
       try {
         await handlers.onSave(value);
       } catch (e) {
-        error.textContent = e instanceof Error ? e.message : "couldn't save — try again";
+        error.textContent = e instanceof Error ? e.message : "couldn't save, try again";
         save.disabled = false;
         save.textContent = "Save score";
       }

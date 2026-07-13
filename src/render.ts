@@ -282,7 +282,7 @@ export class Renderer {
         ctx.font = `${minDim * 0.022}px Georgia, serif`;
         ctx.shadowBlur = 8;
         ctx.fillStyle = `rgba(255, 238, 136, ${a * 0.85})`;
-        ctx.fillText("same swarm for every pilot — today's board", cx, cy - minDim * 0.105);
+        ctx.fillText("same swarm for every pilot, today's board", cx, cy - minDim * 0.105);
         ctx.restore();
       }
     }
@@ -1744,7 +1744,7 @@ export class Renderer {
     const p = world.powers;
     if (p.shieldActive) powers.push(["SHIELD", 1, 1, POWER_COLORS.shield]);
     if (p.starshellTimer > 0)
-      powers.push(["STARSHELL — RAM!", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
+      powers.push(["STARSHELL: RAM!", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
     if (p.magnetTimer > 0)
       powers.push(["MAGNET", p.magnetTimer, POWERS.magnet.duration, POWER_COLORS.magnet]);
     if (p.afterburnerCharge > 0)

@@ -482,7 +482,7 @@ const routes = {
   // can reach back out with follow-ups / rewards).
   "POST /api/feedback": async (req, res, user) => {
     if (!rateLimit(`feedback:${clientIp(req)}`, 4)) {
-      return json(res, 429, { error: "too much feedback at once — try again in a minute" });
+      return json(res, 429, { error: "too much feedback at once, try again in a minute" });
     }
     const body = await readBody(req);
     const message = String(body.message ?? "").trim();
@@ -596,7 +596,7 @@ const ADMIN_PAGE = /* html */ `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>ORION — mission control</title>
+<title>ORION mission control</title>
 <style>
   body { margin: 0; padding: 24px; background: #08080f; color: #ffee88;
          font: 14px/1.5 Georgia, serif; }

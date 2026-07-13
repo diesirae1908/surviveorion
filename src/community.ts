@@ -204,7 +204,7 @@ export class CommunityUi {
   showAuth(onDone: () => void): void {
     const { screen, body, error } = this.screen("PILOT LOGIN");
     body.appendChild(
-      this.el("div", "field-hint center", "Enter the ranks — your scores join the leaderboard."),
+      this.el("div", "field-hint center", "Enter the ranks. Your scores join the leaderboard."),
     );
 
     const hasGoogle = Boolean(this.api.googleClientId);
@@ -214,7 +214,7 @@ export class CommunityUi {
       const gwrap = this.el("div", "google-wrap hero");
       body.appendChild(gwrap);
       void this.mountGoogleButton(gwrap, error, onDone);
-      body.appendChild(this.el("div", "field-hint center", "One tap — takes 5 seconds"));
+      body.appendChild(this.el("div", "field-hint center", "One tap, takes 5 seconds"));
     }
 
     // Callsign/password path — collapsed behind a link when Google is the primary path.
@@ -257,7 +257,7 @@ export class CommunityUi {
           "div",
           "field-hint",
           guess
-            ? `We guessed your country — change it if we got it wrong.`
+            ? `We guessed your country. Change it if we got it wrong.`
             : `Pick your country to appear in its leaderboard.`,
         );
         form.append(country, label);
@@ -392,7 +392,7 @@ export class CommunityUi {
           void this.guard(error, async () => {
             await this.api.updateProfile({ password: password.value });
             panel.replaceChildren(
-              this.el("div", "field-hint", "Password set — you can sign in anywhere now."),
+              this.el("div", "field-hint", "Password set. You can sign in anywhere now."),
             );
           });
         }),
@@ -567,7 +567,7 @@ export class CommunityUi {
     const earnedIds = new Set(earned.map((b) => b.id));
     const wrap = this.el("div", "badge-wrap");
     wrap.appendChild(
-      this.el("div", "manual-title", `BADGES — ${earnedIds.size} / ${BADGES.length}`),
+      this.el("div", "manual-title", `BADGES · ${earnedIds.size} / ${BADGES.length}`),
     );
     const grid = this.el("div", "badge-grid");
     const detail = this.el("div", "field-hint center badge-detail", "Tap a badge for details.");
@@ -585,11 +585,11 @@ export class CommunityUi {
             ? `<span class="badge-progress">${progress.label}</span>`
             : `<span class="badge-tier">${TIER_LABEL[b.tier]}</span>`),
       );
-      cell.title = has ? `${b.name} — ${b.desc}` : `Locked — ${b.desc}`;
+      cell.title = has ? `${b.name}: ${b.desc}` : `Locked: ${b.desc}`;
       cell.addEventListener("click", () => {
         detail.innerHTML = has
-          ? `${b.icon} <b>${b.name}</b> — ${b.desc}`
-          : `❔ <b>Locked</b> — ${b.desc}` +
+          ? `${b.icon} <b>${b.name}</b> · ${b.desc}`
+          : `❔ <b>Locked</b> · ${b.desc}` +
             (progress ? ` <b>(${progress.label})</b>` : "");
       });
       grid.appendChild(cell);
@@ -616,7 +616,7 @@ export class CommunityUi {
     const dailyHint = this.el(
       "div",
       "field-hint center",
-      `Daily Patrol — everyone flies the same swarm today. New board at ${dailyResetLabel()} your time (UTC midnight).`,
+      `Daily Patrol: everyone flies the same swarm today. New board at ${dailyResetLabel()} your time (UTC midnight).`,
     );
 
     const load = (): void => {
@@ -630,7 +630,7 @@ export class CommunityUi {
           : await this.api.worldLeaderboard(filter.value || undefined, this.boardMode);
         this.renderBoard(table, data.entries, data.me, () => this.showWorldArena());
         if (daily && data.entries.length === 0) {
-          table.innerHTML = `<div class="field-hint">No patrols flown yet today — be the first!</div>`;
+          table.innerHTML = `<div class="field-hint">No patrols flown yet today. Be the first!</div>`;
         }
       });
     };
@@ -675,7 +675,7 @@ export class CommunityUi {
   ): void {
     table.innerHTML = "";
     if (entries.length === 0) {
-      table.appendChild(this.el("div", "field-hint", "No scores yet — be the first!"));
+      table.appendChild(this.el("div", "field-hint", "No scores yet. Be the first!"));
       return;
     }
     entries.forEach((e, i) => {
@@ -711,7 +711,7 @@ export class CommunityUi {
     const { screen, body, error } = this.screen("WINGMATES");
 
     body.appendChild(
-      this.el("div", "field-hint center", "Add pilots by callsign — race their best runs and see their latest flights."),
+      this.el("div", "field-hint center", "Add pilots by callsign to race their best runs and see their latest flights."),
     );
 
     const addInput = this.input("Pilot callsign");
@@ -724,7 +724,7 @@ export class CommunityUi {
         note.textContent =
           r.status === "accepted"
             ? `You and ${callsign} are now wingmates!`
-            : `Request sent — ${callsign} can accept it from their Wingmates screen.`;
+            : `Request sent. ${callsign} can accept it from their Wingmates screen.`;
         refresh();
       });
     });
@@ -751,7 +751,7 @@ export class CommunityUi {
         ]);
         this.renderBoard(table, board.entries, null, () => this.showFriends());
         if (mine.friends.length === 0 && board.entries.length <= 1) {
-          table.innerHTML = `<div class="field-hint">No wingmates yet — add a pilot above, or meet them on the leaderboard.</div>`;
+          table.innerHTML = `<div class="field-hint">No wingmates yet. Add a pilot above, or meet them on the leaderboard.</div>`;
           return;
         }
         // friends with no ranked run in this mode still deserve a row
@@ -870,7 +870,7 @@ export class CommunityUi {
     const { screen, body, error } = this.screen("ARENAS");
 
     body.appendChild(
-      this.el("div", "field-hint", "Create a private arena and share its code with friends — everyone's best run counts."),
+      this.el("div", "field-hint", "Create a private arena and share its code with friends. Everyone's best run counts."),
     );
 
     const list = this.el("div", "board");
@@ -925,7 +925,7 @@ export class CommunityUi {
     const heading = screen.querySelector(".heading")!;
     const table = this.el("div", "board");
     body.appendChild(
-      this.el("div", "field-hint", `Invite code: <b class="mono">${escapeHtml(code.toUpperCase())}</b> — share it with friends.`),
+      this.el("div", "field-hint", `Invite code: <b class="mono">${escapeHtml(code.toUpperCase())}</b>. Share it with friends.`),
     );
 
     const load = (): void => {
