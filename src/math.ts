@@ -18,9 +18,20 @@ export const moveTowards = (current: number, target: number, maxDelta: number): 
 export const len = (x: number, y: number): number => Math.hypot(x, y);
 
 // --- gameplay RNG (seedable for Daily Patrol shared-seed runs) ---
-// All *gameplay* randomness (spawner, formations, pickups, powers) draws from
-// `rand` so a seeded run deals every player the same opening script. Cosmetic
-// randomness (particles, starfield, audio noise) stays on Math.random.
+// Seeded gameplay randomness is split into two independent streams so every
+// player on today's seed gets the same run script no matter how they fly:
+//
+// - `scheduleRand`: WHAT spawns and WHEN — formation kinds + intervals,
+//   pickup intervals + power rolls, mine intervals. Only ever advanced by
+//   time-driven events with a fixed number of draws each, so the sequence is
+//   identical for everyone regardless of play.
+// - `rand` (layout): WHERE things are placed — formation directions/gaps,
+//   telegraph/ambient/pickup/mine positions, drone size jitter. Every code
+//   path consumes a constant number of draws per event to stay aligned.
+//
+// Player-triggered randomness (power effects like meteor targeting) and pure
+// cosmetics (particles, starfield, audio noise) stay on Math.random so they
+// can never desync the shared streams.
 
 /** mulberry32: tiny, fast, good-enough PRNG for gameplay scripting. */
 function mulberry32(seed: number): () => number {
@@ -33,11 +44,18 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-let gameplayRng: () => number = Math.random;
+let layoutRng: () => number = Math.random;
+let scheduleRng: () => number = Math.random;
 
-/** Seed the gameplay RNG for a run (null = back to true randomness). */
+/** Seed the gameplay RNG streams for a run (null = back to true randomness). */
 export function setRunSeed(seed: number | null): void {
-  gameplayRng = seed === null ? Math.random : mulberry32(seed);
+  if (seed === null) {
+    layoutRng = Math.random;
+    scheduleRng = Math.random;
+  } else {
+    layoutRng = mulberry32(seed);
+    scheduleRng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
+  }
 }
 
 /** Deterministic 32-bit hash of a string (daily seed from the UTC date). */
@@ -50,10 +68,16 @@ export function hashString(s: string): number {
   return h >>> 0;
 }
 
-export const rand = (): number => gameplayRng();
+export const rand = (): number => layoutRng();
 
 export const randRange = (min: number, max: number): number =>
   min + rand() * (max - min);
+
+/** Schedule-stream draw: what spawns and when (see stream notes above). */
+export const scheduleRand = (): number => scheduleRng();
+
+export const scheduleRange = (min: number, max: number): number =>
+  min + scheduleRand() * (max - min);
 
 export const randDir = (): Vec2 => {
   const a = rand() * Math.PI * 2;

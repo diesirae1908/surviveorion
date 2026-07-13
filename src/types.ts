@@ -177,6 +177,7 @@ export type GameEvent =
     }
   | { type: "mineExploded"; x: number; y: number; points: number }
   | { type: "pickup"; power: import("./config").PowerId; x: number; y: number }
+  | { type: "formation"; kind: import("./config").FormationKind }
   | { type: "shieldUp" }
   | { type: "starshellUp" }
   | { type: "shieldDetonate"; x: number; y: number }

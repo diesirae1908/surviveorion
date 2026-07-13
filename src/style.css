@@ -397,6 +397,29 @@ button.launch {
   line-height: 1.35;
 }
 
+/* compact suggest-a-power form at the bottom of the codex */
+.power-suggest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(420px, 88vw);
+}
+
+.power-suggest textarea.field {
+  min-height: 0;
+  font-size: 13px;
+  padding: 9px 12px;
+}
+
+.power-suggest .form-error {
+  min-height: 0;
+}
+
+.power-suggest .form-error:empty {
+  display: none;
+}
+
 .manual-title {
   color: #aa8844;
   font-size: 11px;

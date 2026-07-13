@@ -7,7 +7,7 @@ import {
   SHIP,
   type PowerId,
 } from "./config";
-import { clamp01, lerp, rand, randRange } from "./math";
+import { clamp01, lerp, randRange, scheduleRand, scheduleRange } from "./math";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
 import type { World } from "./types";
@@ -22,7 +22,7 @@ function nextInterval(world: World): number {
   const t = clamp01(world.time / 60 / PICKUPS.intervalRampMinutes);
   const min = lerp(PICKUPS.secondsBetweenRange[0], PICKUPS.secondsBetweenAtPeak[0], t);
   const max = lerp(PICKUPS.secondsBetweenRange[1], PICKUPS.secondsBetweenAtPeak[1], t);
-  return randRange(min, max);
+  return scheduleRange(min, max);
 }
 
 export function updatePickups(world: World, dt: number): void {
@@ -32,7 +32,7 @@ export function updatePickups(world: World, dt: number): void {
     world.pickupTimer -= dt;
     if (world.pickupTimer <= 0) {
       world.pickupTimer = nextInterval(world);
-      if (world.pickups.length < PICKUPS.maxActive) spawnPickup(world);
+      spawnPickup(world);
     }
   }
 
@@ -70,16 +70,27 @@ function spawnPickup(world: World): void {
   const hw = world.viewW / 2 - PICKUPS.edgeInset;
   const hh = world.viewH / 2 - PICKUPS.edgeInset;
 
+  // fixed number of draws (ship position must not advance the seeded stream
+  // differently per player); take the first candidate far enough away
   let x = 0;
   let y = 0;
+  let found = false;
   for (let attempt = 0; attempt < 12; attempt++) {
-    x = randRange(-hw, hw);
-    y = randRange(-hh, hh);
-    const dist = Math.hypot(x - world.ship.x, y - world.ship.y);
-    if (dist >= PICKUPS.minDistanceFromShip) break;
+    const cx = randRange(-hw, hw);
+    const cy = randRange(-hh, hh);
+    if (found) continue;
+    x = cx;
+    y = cy;
+    const dist = Math.hypot(cx - world.ship.x, cy - world.ship.y);
+    if (dist >= PICKUPS.minDistanceFromShip) found = true;
   }
 
-  world.pickups.push({ x, y, power: rollPowerId(world), age: 0 });
+  // roll before the cap check: how many pickups float uncollected is
+  // player-dependent, and a seeded run must consume the same draws (and the
+  // same bad-luck demotions) for everyone. At the cap the drop is discarded.
+  const power = rollPowerId(world);
+  if (world.pickups.length >= PICKUPS.maxActive) return;
+  world.pickups.push({ x, y, power, age: 0 });
 }
 
 /**
@@ -99,7 +110,7 @@ function rollPowerId(world: World): PowerId {
   let total = 0;
   for (const id of pool) total += weight(id);
 
-  let roll = rand() * total;
+  let roll = scheduleRand() * total;
   let picked = pool[pool.length - 1];
   for (const id of pool) {
     roll -= weight(id);

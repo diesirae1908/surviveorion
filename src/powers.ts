@@ -1,6 +1,8 @@
 import { MINES, PALETTE, POWERS, SCORING, type PowerId } from "./config";
 import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
-import { rand, randInCircle } from "./math";
+// Power effects are player-triggered (when a pickup is grabbed), so their
+// randomness stays on Math.random — drawing from the seeded daily streams
+// here would desync the shared spawn script between players.
 import { isMineArmed, killMine, killMinesInRadius } from "./mines";
 import type { ArcChainState, Drone, Mine, PowersState, World } from "./types";
 
@@ -192,7 +194,7 @@ function pushArcBolt(
     toX,
     toY,
     elapsed: 0,
-    seed: rand() * 1000,
+    seed: Math.random() * 1000,
   });
 }
 
@@ -477,13 +479,14 @@ function updateMeteors(world: World, dt: number): void {
   let y: number;
   const alive = world.drones.filter((d) => d.alive);
   if (alive.length > 0) {
-    const target = alive[Math.floor(rand() * alive.length)];
-    const off = randInCircle();
-    x = target.x + off.x * cfg.scatter;
-    y = target.y + off.y * cfg.scatter;
+    const target = alive[Math.floor(Math.random() * alive.length)];
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random());
+    x = target.x + Math.cos(a) * r * cfg.scatter;
+    y = target.y + Math.sin(a) * r * cfg.scatter;
   } else {
-    x = (rand() - 0.5) * world.viewW * 0.8;
-    y = (rand() - 0.5) * world.viewH * 0.8;
+    x = (Math.random() - 0.5) * world.viewW * 0.8;
+    y = (Math.random() - 0.5) * world.viewH * 0.8;
   }
 
   killDronesInRadius(world, x, y, cfg.radius);

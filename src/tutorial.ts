@@ -157,7 +157,10 @@ export class Tutorial {
         break;
       }
       case 3: {
-        if (w.pickups.length === 0) {
+        // wait for the shockwave blast to fully play out (ring gone, shake
+        // settled) — freezing the world mid-explosion makes the message
+        // backdrop ugly and leaves the screen jittering
+        if (w.pickups.length === 0 && w.powers.waves.length === 0 && w.shake < 0.03) {
           this.step = 4;
           this.message(
             "<b>SCORING</b><br/>Kills heat up your multiplier, and everything you score is" +

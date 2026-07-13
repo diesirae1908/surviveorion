@@ -6,6 +6,7 @@ import { FIXED_DT } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
+import { setRunSeed } from "../src/math";
 import { Tutorial } from "../src/tutorial";
 import type { World } from "../src/types";
 
@@ -191,7 +192,69 @@ function activate(world: World, power: PowerId): void {
   );
 }
 
-// --- 7. tutorial sandbox: no ambient spawns, and the scripted beats advance ---
+// --- 7. Daily Patrol determinism: same seed → same script, however you fly ---
+{
+  interface Script {
+    formations: string[];
+    powers: string[];
+    mines: string[];
+  }
+
+  /** Play 3 seeded minutes in a given style and record the spawn script. */
+  const record = (style: "ram" | "drift"): Script => {
+    setRunSeed(1234567);
+    const world = createWorld(17.8, 10);
+    const script: Script = { formations: [], powers: [], mines: [] };
+    let t = 0;
+    const steps = Math.round(180 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      t += FIXED_DT;
+      // two very different runs: a stationary starshell ram-killer vs a
+      // circling shield pilot — kills, drone counts, and positions all differ
+      let drive = { x: 0, y: 0 };
+      if (style === "ram") {
+        world.powers.starshellTimer = 9999;
+      } else {
+        world.powers.shieldActive = true;
+        drive = { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
+      }
+      tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
+
+      for (const e of world.events) {
+        if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+      }
+      world.events.length = 0;
+      // log + clear drops so neither style ever hits the pickup/mine caps
+      // (whether a capped drop is discarded is legitimately player-dependent)
+      for (const pu of world.pickups) script.powers.push(`${world.time.toFixed(2)}:${pu.power}`);
+      world.pickups.length = 0;
+      for (const m of world.mines) script.mines.push(world.time.toFixed(2));
+      world.mines.length = 0;
+    }
+    setRunSeed(null);
+    return script;
+  };
+
+  const a = record("ram");
+  const b = record("drift");
+  check(
+    "daily seed: formation script identical across play styles",
+    a.formations.length > 10 && a.formations.join("|") === b.formations.join("|"),
+    `${a.formations.length} formations`,
+  );
+  check(
+    "daily seed: power drop script identical across play styles",
+    a.powers.length > 5 && a.powers.join("|") === b.powers.join("|"),
+    `${a.powers.length} drops`,
+  );
+  check(
+    "daily seed: mine schedule identical across play styles",
+    a.mines.length > 3 && a.mines.join("|") === b.mines.join("|"),
+    `${a.mines.length} mines`,
+  );
+}
+
+// --- 8. tutorial sandbox: no ambient spawns, and the scripted beats advance ---
 {
   const world = createWorld(17.8, 10, true);
   const hints: string[] = [];
@@ -249,9 +312,10 @@ function activate(world: World, power: PowerId): void {
     world.ship.x = world.pickups[0].x;
     world.ship.y = world.pickups[0].y;
   }
-  stepTut(0.2);
-  const outroShown = hints.some((h) => h.includes("THE GOAL"));
+  // the SCORING beat waits for the blast to fully play out (~1.2s of wave)
   stepTut(4.5);
+  const outroShown = hints.some((h) => h.includes("THE GOAL"));
+  stepTut(1);
   check("tutorial: shockwave beat + outro reached", pickupAppeared && outroShown && tut.done, hints.length + " hints");
 }
 

@@ -1,5 +1,5 @@
 import { DRONE, SCORING, SPAWNER, type FormationKind } from "./config";
-import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, smoothNoise } from "./math";
+import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
 import type { Drone, KillSource, World } from "./types";
@@ -22,15 +22,18 @@ function createDrone(
     scale,
     speedMultiplier,
     mass: lerp(DRONE.massMin, DRONE.massMax, clamp(scale, 0, 1)),
-    jitterSeed: rand() * 100,
-    spin: rand() * Math.PI * 2,
+    // per-drone flavor (wobble phase, sprite spin) stays off the seeded
+    // streams: drone counts differ per player, so drawing here would desync
+    jitterSeed: Math.random() * 100,
+    spin: Math.random() * Math.PI * 2,
     frozen: 0,
     alive: true,
   };
 }
 
 export function droneRadius(d: Drone): number {
-  return DRONE.radius * d.scale;
+  // frozen drones grow an ice shell: bigger to see and easier to shatter
+  return DRONE.radius * d.scale * (d.frozen > 0 ? DRONE.frozenScale : 1);
 }
 
 /** Speed factor from drone size: small = slower, large = faster. */
@@ -260,14 +263,20 @@ function telegraphAmbient(world: World): void {
   const cfg = SPAWNER.telegraph;
   const hw = world.viewW / 2 - cfg.edgeInset;
   const hh = world.viewH / 2 - cfg.edgeInset;
+  // fixed number of draws (ship position must not advance the seeded stream
+  // differently per player); take the first candidate far enough away
   let x = 0;
   let y = 0;
+  let found = false;
   for (let attempt = 0; attempt < 10; attempt++) {
-    x = randRange(-hw, hw);
-    y = randRange(-hh, hh);
-    const dx = x - world.ship.x;
-    const dy = y - world.ship.y;
-    if (dx * dx + dy * dy >= cfg.minDistanceFromShip ** 2) break;
+    const cx = randRange(-hw, hw);
+    const cy = randRange(-hh, hh);
+    if (found) continue;
+    x = cx;
+    y = cy;
+    const dx = cx - world.ship.x;
+    const dy = cy - world.ship.y;
+    if (dx * dx + dy * dy >= cfg.minDistanceFromShip ** 2) found = true;
   }
   telegraphAt(world, x, y, cfg.duration);
 }
@@ -279,8 +288,9 @@ function spawnAt(
   minutes: number,
   opts?: { scale?: number; speedScale?: number },
 ): Drone | null {
-  if (world.drones.length >= SPAWNER.maxDrones) return null;
+  // draw before the cap check so a capped run consumes the same layout rolls
   const jitter = (rand() - 0.5) * 2 * SPAWNER.scaleJitter;
+  if (world.drones.length >= SPAWNER.maxDrones) return null;
   const scale =
     opts?.scale ??
     clamp(
@@ -327,10 +337,13 @@ function spawnAmbient(world: World, minutes: number): void {
   const shipDist = (p: { x: number; y: number }): number =>
     Math.hypot(p.x - world.ship.x, p.y - world.ship.y);
 
+  // fixed number of draws (see telegraphAmbient); keep the farthest candidate
+  // once one clears the minimum ship distance
   let best = randomEdgePoint(world, SPAWNER.edgeMargin);
   let bestDist = shipDist(best);
-  for (let attempt = 0; attempt < 8 && bestDist < SPAWNER.minDistanceFromShip; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const p = randomEdgePoint(world, SPAWNER.edgeMargin);
+    if (bestDist >= SPAWNER.minDistanceFromShip) continue;
     const dist = shipDist(p);
     if (dist > bestDist) {
       best = p;
@@ -363,7 +376,7 @@ function rollFormationKind(minutes: number): FormationKind {
   let total = 0;
   for (const kind of pool) total += cfg.weights[kind];
 
-  let roll = rand() * total;
+  let roll = scheduleRand() * total;
   for (const kind of pool) {
     roll -= cfg.weights[kind];
     if (roll <= 0) return kind;
@@ -376,6 +389,7 @@ function handleFormations(world: World, minutes: number, dt: number): void {
   if (world.formationTimer < world.nextFormationDelay) return;
 
   const kind = rollFormationKind(minutes);
+  world.events.push({ type: "formation", kind });
   switch (kind) {
     case "line":
       spawnLineFormation(world, minutes);
@@ -421,7 +435,7 @@ function scheduleNextFormation(world: World): void {
   const t = clamp01(world.time / 60 / cfg.intervalRampMinutes);
   const min = lerp(cfg.intervalRange[0], cfg.intervalFloor[0], t);
   const max = lerp(cfg.intervalRange[1], cfg.intervalFloor[1], t);
-  world.nextFormationDelay = randRange(min, max);
+  world.nextFormationDelay = scheduleRange(min, max);
 }
 
 /** A sweeping line of drones approaching from one off-screen direction. */

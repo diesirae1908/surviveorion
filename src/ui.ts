@@ -364,6 +364,51 @@ export class Ui {
       ),
     );
 
+    // suggest-a-power mini form: ideas land in the regular feedback log
+    const suggest = this.el("div", "power-suggest", "");
+    suggest.appendChild(
+      this.el("div", "field-hint center", "Got an idea for a new power? Beam it in."),
+    );
+    const idea = document.createElement("textarea");
+    idea.className = "field";
+    idea.placeholder = "Name it, describe what it does…";
+    idea.maxLength = 500;
+    idea.rows = 2;
+    suggest.appendChild(idea);
+    const error = this.el("div", "form-error", "");
+    suggest.appendChild(error);
+    const send = this.button("Suggest power", false, () => {
+      const text = idea.value.trim();
+      if (text.length < 3) {
+        error.textContent = "Tell us a little more first.";
+        return;
+      }
+      send.disabled = true;
+      send.textContent = "Transmitting…";
+      error.textContent = "";
+      this.cb
+        .onFeedback(`[Power idea] ${text}`, "")
+        .then(() => {
+          suggest.innerHTML = "";
+          suggest.appendChild(
+            this.el(
+              "div",
+              "field-hint center",
+              "Received, pilot. Best ideas make it into the arena.",
+            ),
+          );
+        })
+        .catch((e: unknown) => {
+          send.disabled = false;
+          send.textContent = "Suggest power";
+          error.textContent =
+            e instanceof Error ? e.message : "Transmission failed. Try again.";
+        });
+    });
+    send.classList.add("small-btn");
+    suggest.appendChild(send);
+    screen.appendChild(suggest);
+
     const back = this.button("Back", false, onBack);
     back.classList.add("small-btn");
     screen.appendChild(back);

@@ -56,6 +56,8 @@ export const DRONE = {
   massMin: 0.3,
   massMax: 1.8,
   jitterFrequency: 0.8,
+  // Frozen drones puff up (ice shell): easier targets to ram and shatter.
+  frozenScale: 1.5,
   // Small drones move a bit slower; larger ones a bit faster (subtle variety).
   sizeSpeed: { small: 0.85, large: 1.12 },
 };

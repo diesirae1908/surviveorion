@@ -1,4 +1,7 @@
-import { randRange } from "./math";
+// Cosmetic randomness only: particles fire on player-dependent events
+// (kills, pickups), so they must never draw from the seeded gameplay streams.
+const cosmeticRange = (min: number, max: number): number =>
+  min + Math.random() * (max - min);
 
 interface Particle {
   x: number;
@@ -25,15 +28,15 @@ export class Particles {
   ): void {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
-      const v = randRange(speed * 0.3, speed);
+      const v = cosmeticRange(speed * 0.3, speed);
       this.pool.push({
         x,
         y,
         vx: Math.cos(a) * v,
         vy: Math.sin(a) * v,
-        life: randRange(life * 0.5, life),
+        life: cosmeticRange(life * 0.5, life),
         maxLife: life,
-        size: randRange(size * 0.5, size),
+        size: cosmeticRange(size * 0.5, size),
         color: colors[Math.floor(Math.random() * colors.length)],
       });
     }
