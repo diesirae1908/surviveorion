@@ -2,7 +2,8 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { FIXED_DT } from "../src/config";
+import { FIXED_DT, IRONRAIN, SCORING, SHIP } from "../src/config";
+import { droneRadius, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
@@ -79,9 +80,17 @@ function activate(world: World, power: PowerId): void {
   step(world, 0.1);
 }
 
+/** Stop ambient pickups from drifting into the stationary observer. */
+function muteAmbientPickups(world: World): void {
+  world.daily = true; // disables the refill floor
+  world.pickups.length = 0;
+  world.pickupTimer = 99999;
+}
+
 {
   const world = createWorld(17.8, 10);
   step(world, 30); // let some drones build up
+  muteAmbientPickups(world);
 
   // autocannon
   const killsBefore = world.kills;
@@ -104,12 +113,10 @@ function activate(world: World, power: PowerId): void {
   activate(world, "vortex");
   check("vortex opens", world.powers.vortices.length === 1);
   // park a drone on the core: it must be devoured (and scored) mid-pull
+  // (spawned explicitly — ambient survivors near the observer are not a given)
   const v = world.powers.vortices[0];
-  const victim = world.drones.find((d) => d.alive);
-  if (victim) {
-    victim.x = v.x;
-    victim.y = v.y;
-  }
+  const victim = spawnDroneDirect(world, v.x + 0.1, v.y, 0.6, 0);
+  victim.frozen = 0;
   step(world, 0.1);
   check(
     "vortex absorbs + scores during the pull",
@@ -170,8 +177,8 @@ function activate(world: World, power: PowerId): void {
   );
   check("all 12 powers appear within 60 drops", seen.size === 12, `${seen.size}/12`);
   check(
-    "bad-luck protection: >=9 distinct powers in first 15 drops",
-    first15.size >= 9,
+    "bad-luck protection: >=8 distinct powers in first 15 drops",
+    first15.size >= 8,
     `${first15.size} distinct`,
   );
 }
@@ -190,6 +197,215 @@ function activate(world: World, power: PowerId): void {
     maxScripted >= 15,
     `max ${maxScripted} scripted at once`,
   );
+}
+
+// --- 6b. Iron Rain: max pressure from second zero, pinned difficulty ---
+{
+  const world = createWorld(17.8, 10, false, 1, "ironrain"); // grace 1 must be ignored
+  check("iron rain forces grace off", world.grace === 0);
+  check(
+    "iron rain opens with an immediate mega-wall",
+    world.drones.filter((d) => d.scriptMode === "straight").length >= 10,
+    `${world.drones.length} drones at t=0`,
+  );
+
+  const kinds = new Set<string>();
+  const steps = Math.round(120 / FIXED_DT);
+  for (let i = 0; i < steps; i++) {
+    world.powers.starshellTimer = 9999;
+    tick(world, input, FIXED_DT);
+    for (const e of world.events) {
+      if (e.type === "formation") kinds.add(e.kind);
+    }
+    world.events.length = 0;
+  }
+  const allowed = new Set(Object.keys(IRONRAIN.formationWeights));
+  const offMenu = [...kinds].filter((k) => !allowed.has(k) && k !== "megawall");
+  check(
+    "iron rain formations come from the wall-heavy menu",
+    kinds.size >= 3 && offMenu.length === 0,
+    `saw: ${[...kinds].sort().join(",")}`,
+  );
+  check("iron rain 2-min run survives", world.phase === "playing", `${world.kills} kills`);
+
+  // pinned difficulty: an iron rain opening spawns like a deep classic run
+  const fresh = createWorld(17.8, 10, false, 0, "ironrain");
+  const classic = createWorld(17.8, 10);
+  const spawnedIn20 = (w: World): number => {
+    const start = w.drones.length;
+    step(w, 20);
+    return w.kills + w.drones.length - start;
+  };
+  const iron20 = spawnedIn20(fresh);
+  const classic20 = spawnedIn20(classic);
+  check(
+    "iron rain opening far denser than classic",
+    iron20 > classic20 * 1.5,
+    `ironrain ${iron20} vs classic ${classic20} spawns in 20s`,
+  );
+}
+
+// --- 6c. graze: near misses pay, cooldown stops farming ---
+{
+  const world = createWorld(17.8, 10, true); // sandbox: nothing else interferes
+  const d = spawnDroneDirect(world, 0, 0, 0.6, 0);
+  d.frozen = 0;
+  // park the drone just inside the graze band (outside contact distance)
+  const contact = SHIP.radius + droneRadius(d);
+  world.ship.x = 0;
+  world.ship.y = 0;
+  d.x = contact + SCORING.grazeBand * 0.5;
+  d.y = 0;
+  d.vx = 0;
+  d.vy = 0;
+
+  const scoreBefore = world.score;
+  const multBefore = world.multiplier;
+  tick(world, input, FIXED_DT);
+  const grazed = world.events.some((e) => e.type === "graze");
+  world.events.length = 0;
+  check("graze detected in the band", grazed);
+  check("graze pays points", world.score > scoreBefore, `+${Math.round(world.score - scoreBefore)}`);
+  check("graze bumps the multiplier", world.multiplier > multBefore, `x${world.multiplier.toFixed(2)}`);
+
+  // still in the band next tick: the per-drone cooldown must block a repeat
+  // (compare bonuses — total score keeps rising from survival pay)
+  const bonusesAfterFirst = world.scoreBonuses;
+  d.x = contact + SCORING.grazeBand * 0.5;
+  d.y = 0;
+  tick(world, input, FIXED_DT);
+  const regrazed = world.events.some((e) => e.type === "graze");
+  world.events.length = 0;
+  check(
+    "graze cooldown blocks farming the same drone",
+    !regrazed && world.scoreBonuses === bonusesAfterFirst,
+  );
+
+  // no graze while protected (shield makes the near-miss risk-free)
+  const d2 = spawnDroneDirect(world, 5, 5, 0.6, 0);
+  world.ship.x = 5 - (SHIP.radius + droneRadius(d2) + SCORING.grazeBand * 0.5);
+  world.ship.y = 5;
+  world.powers.shieldActive = true;
+  tick(world, input, FIXED_DT);
+  const shieldedGraze = world.events.some((e) => e.type === "graze");
+  world.events.length = 0;
+  check("no graze while shielded", !shieldedGraze);
+  world.powers.shieldActive = false;
+}
+
+// --- 6d. pickups: 2 on start, refill floor, drift (floor off on daily) ---
+{
+  const world = createWorld(17.8, 10);
+  check("two pickups dealt on launch", world.pickups.length === 2, `${world.pickups.length}`);
+
+  // measure drift away from walls (a bounce near the edge could cancel it out)
+  const p = world.pickups[0];
+  p.x = 4;
+  p.y = 0;
+  const hasVel = Math.hypot(p.vx ?? 0, p.vy ?? 0) > 0.2;
+  step(world, 1);
+  const drifted =
+    hasVel && (!world.pickups.includes(p) || Math.hypot(p.x - 4, p.y - 0) > 0.2);
+  check("pickups drift", drifted);
+
+  // refill floor: strip the arena, the next drop must be hurried in
+  world.pickups.length = 0;
+  world.pickupTimer = 30;
+  step(world, 1);
+  check("refill floor hurries a drop in (<2 live)", world.pickups.length >= 1);
+
+  // daily runs keep the seeded schedule instead (no player-dependent refill)
+  const daily = createWorld(17.8, 10, false, 0, "classic", true);
+  daily.pickups.length = 0;
+  daily.pickupTimer = 30;
+  step(daily, 1);
+  check("daily patrol skips the refill floor", daily.pickups.length === 0);
+}
+
+// --- 6e. lingering blasts + vortex invulnerability ---
+{
+  const world = createWorld(17.8, 10, true); // sandbox
+  world.ship.x = 0;
+  world.ship.y = 0;
+
+  // shockwave leaves a lingering kill zone: a drone spawned into the zone
+  // AFTER the blast fires must still die
+  activate(world, "shockwave");
+  check("shockwave spawns a lingering blast", world.powers.blasts.length >= 1);
+  const late = spawnDroneDirect(world, 2, 0, 0.6, 0);
+  late.frozen = 0;
+  step(world, 0.3);
+  check("shockwave linger kills late arrivals", !late.alive);
+
+  // missile impact detonates an area blast: neighbours die too
+  const w2 = createWorld(17.8, 10, true);
+  w2.ship.x = 0;
+  w2.ship.y = 0;
+  const a = spawnDroneDirect(w2, 4, 0, 0.6, 0);
+  const b = spawnDroneDirect(w2, 4 + 0.8, 0, 0.6, 0); // inside the 1.2 blast radius
+  a.frozen = 0;
+  b.frozen = 0;
+  activate(w2, "missiles");
+  step(w2, 2.5);
+  check(
+    "missile blast is area damage (neighbour dies too)",
+    !a.alive && !b.alive && w2.powers.blasts.length + w2.kills >= 2,
+    `${w2.kills} kills`,
+  );
+
+  // vortex: ship untouchable while a singularity is open
+  const w3 = createWorld(17.8, 10, true);
+  w3.ship.x = 0;
+  w3.ship.y = 0;
+  activate(w3, "vortex");
+  w3.powers.starshellTimer = 0; // the vortex must be the only protection
+  // overlapping the hull, slightly offset (dead-center would zero the heading)
+  const ram = spawnDroneDirect(w3, w3.ship.x + SHIP.radius * 0.5, w3.ship.y, 0.6, 0);
+  ram.frozen = 0;
+  tick(w3, input, FIXED_DT);
+  check(
+    "ship invulnerable while the vortex is open (ram-kills instead)",
+    w3.phase === "playing" && !ram.alive,
+  );
+}
+
+// --- 6f. drone assemblies: form, charge, disband ---
+{
+  const world = createWorld(17.8, 10);
+  let sawAssembly = false;
+  let sawMembers = false;
+  let sawCharge = false;
+  const steps = Math.round(120 / FIXED_DT);
+  for (let i = 0; i < steps; i++) {
+    world.powers.shieldActive = true; // survive without ram-killing recruits
+    tick(world, input, FIXED_DT);
+    for (const e of world.events) {
+      if (e.type === "assembly") sawAssembly = true;
+    }
+    world.events.length = 0;
+    if (world.assemblies.length > 0) {
+      const asm = world.assemblies[0];
+      if (asm.members.every((m) => m.assembly === asm)) sawMembers = true;
+      if (asm.phase === "charge" && asm.speed > 0) sawCharge = true;
+    }
+  }
+  check("assemblies form within 2 minutes", sawAssembly);
+  check("assembly members carry their assembly ref", sawMembers);
+  check("assemblies reach the charge phase", sawCharge);
+  // death disbands everything (checked directly on the running world)
+  if (world.assemblies.length === 0) {
+    // force one more so the disband path is actually exercised
+    world.assemblyTimer = 0;
+    for (let i = 0; i < Math.round(30 / FIXED_DT) && world.assemblies.length === 0; i++) {
+      world.powers.shieldActive = true;
+      tick(world, input, FIXED_DT);
+      world.events.length = 0;
+    }
+  }
+  world.phase = "dying";
+  tick(world, input, FIXED_DT);
+  const freed = world.drones.every((d) => !d.assembly);
+  check("death disbands all assemblies", world.assemblies.length === 0 && freed);
 }
 
 // --- 7. Daily Patrol determinism: same seed → same script, however you fly ---

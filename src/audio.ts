@@ -301,6 +301,22 @@ export class AudioSystem {
     this.noiseBurst(0.25, 0.25, 2200);
   }
 
+  /** Soft high tick for a graze — audible reward without cluttering the mix. */
+  graze(): void {
+    this.tone(1560, 2080, 0.06, "sine", 0.1);
+  }
+
+  missileBlast(): void {
+    this.noiseBurst(0.22, 0.22, 1200);
+    this.tone(190, 60, 0.22, "sine", 0.18);
+  }
+
+  /** Low warning drone when a swarm locks into an assembly shape. */
+  assemblyForm(): void {
+    this.tone(180, 320, 0.35, "square", 0.1);
+    this.tone(120, 240, 0.45, "sawtooth", 0.08, 0.08);
+  }
+
   dash(): void {
     this.noiseBurst(0.4, 0.4, 2600);
     this.tone(180, 640, 0.35, "sawtooth", 0.22);

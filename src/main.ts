@@ -3,7 +3,7 @@ import { Api, ApiError, type BoardMode, type SubmitResult } from "./api";
 import { AudioSystem } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
-import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_HINTS, POWER_NAMES, TILT_MAX_DEG } from "./config";
+import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_HINTS, POWER_NAMES, TILT_MAX_DEG, type GameMode } from "./config";
 import { countryFlag, countryName, guessCountry } from "./countries";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input, isTypingTarget } from "./input";
@@ -15,9 +15,11 @@ import {
   loadBestScore,
   loadBestTime,
   loadControlPrefs,
+  loadGameMode,
   loadKeyBindings,
   loadRunCount,
   loadSettings,
+  saveGameMode,
   nextSenseLevel,
   assignKey,
   bumpRunCount,
@@ -75,6 +77,9 @@ let recordBeaten = false;
 /** Daily Patrol: shared-seed run, files on today's board too. */
 let pendingDaily = false;
 let runIsDaily = false;
+/** Game mode picked on the menu; retries reuse it (Daily is always Classic). */
+let pendingGameMode: GameMode = loadGameMode();
+let runGameMode: GameMode = "classic";
 let tutorial: Tutorial | null = null;
 
 const INTRO_SECONDS = 5;
@@ -150,7 +155,7 @@ function setStickMode(): void {
 }
 
 const ui = new Ui(settings, {
-  onPlay: () => beginLaunch(false),
+  onPlay: (gameMode) => beginLaunch(false, gameMode),
   onDaily: () => beginLaunch(true),
   onResume: resume,
   // restarts keep the mode chosen at launch (no picker friction) and use the
@@ -226,6 +231,8 @@ const community = new CommunityUi(
 );
 
 function showMenu(): void {
+  bestScore = loadBestScore(pendingGameMode);
+  bestTime = loadBestTime(pendingGameMode);
   ui.showMenu(bestScore, isTouchDevice(), {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
     pendingFriends: api.pendingFriends,
@@ -252,9 +259,13 @@ function showMenu(): void {
  * choice between the default touch stick and tilt mode (Tilt to Live tribute).
  * Desktop has no sensor, so it goes straight in.
  */
-function beginLaunch(daily: boolean): void {
+function beginLaunch(daily: boolean, gameMode: GameMode = "classic"): void {
   if (state === "launching") return;
   pendingDaily = daily;
+  if (!daily) {
+    pendingGameMode = gameMode;
+    saveGameMode(gameMode); // the menu remembers the last mode flown
+  }
   if (isTouchDevice() && TiltControl.supported()) {
     ui.showModeSelect(controls.mode, (mode) => {
       if (mode === "tilt") {
@@ -293,11 +304,15 @@ function startRun(): void {
   // boards are per platform: phone tilt, phone touch stick, or desktop keys
   runMode = input.tiltActive ? "tilt" : isTouchDevice() ? "touch" : "desktop";
   runIsDaily = pendingDaily;
+  runGameMode = runIsDaily ? "classic" : pendingGameMode;
+  // PBs are per game mode — the NEW RECORD beat compares like-for-like
+  bestScore = loadBestScore(runGameMode);
+  bestTime = loadBestTime(runGameMode);
   // Daily Patrol deals everyone the same script (and no beginner grace);
   // normal runs soften the opening for a player's first few flights.
   setRunSeed(runIsDaily ? dailySeed() : null);
   const grace = runIsDaily ? 0 : clamp01(1 - loadRunCount() / 3);
-  world = createWorld(renderer.viewW, renderer.viewH, false, grace);
+  world = createWorld(renderer.viewW, renderer.viewH, false, grace, runGameMode, runIsDaily);
   recordBeaten = false;
   particles.clear();
   popups.clear();
@@ -379,13 +394,13 @@ function onGameOver(): void {
   lastRunWasBest = world.score > bestScore;
   if (lastRunWasBest) {
     bestScore = world.score;
-    saveBestScore(bestScore);
+    saveBestScore(bestScore, runGameMode);
   }
   prevBestTime = bestTime;
   lastRunWasBestTime = world.time > bestTime;
   if (lastRunWasBestTime) {
     bestTime = world.time;
-    saveBestTime(bestTime);
+    saveBestTime(bestTime, runGameMode);
   }
 }
 
@@ -404,6 +419,7 @@ function showGameOverUi(): void {
     isNewBest: lastRunWasBest,
     isNewBestTime: lastRunWasBestTime,
     daily: runIsDaily,
+    gameMode: runGameMode,
     touchDevice: isTouchDevice(),
   });
   submitRun();
@@ -442,6 +458,7 @@ function submitRun(): void {
     kills: world.kills,
     maxMultiplier: world.maxMultiplier,
     mode: runMode,
+    gameMode: runGameMode,
     platform: isTouchDevice() ? "touch" : "desktop",
     daily: runIsDaily || undefined,
   };
@@ -578,6 +595,21 @@ function drainEvents(w: World): void {
         break;
       case "missilesFire":
         audio.missilesFire();
+        break;
+      case "missileBlast":
+        particles.burst(e.x, e.y, [PALETTE.missiles, PALETTE.gold, "#ff9966"], 14, 4.5, 0.5, 0.11);
+        audio.missileBlast();
+        break;
+      case "graze":
+        // near-miss payoff: a spark at the drone plus the points, no fanfare
+        particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
+        popups.spawn(e.x, e.y, `+${e.points}`, PALETTE.goldPale, 0.2);
+        audio.graze();
+        break;
+      case "assembly":
+        // a swarm just locked into formation — make the threat legible
+        popups.spawn(e.x, e.y, "ASSEMBLY", PALETTE.redBright, 0.4, 1.0);
+        audio.assemblyForm();
         break;
       case "autocannonFire":
         audio.autocannonFire();

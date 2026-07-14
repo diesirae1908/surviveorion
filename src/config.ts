@@ -4,6 +4,21 @@
 
 export const FIXED_DT = 1 / 60;
 
+/**
+ * Game modes (each ranks on its own leaderboards):
+ * - classic: the standard run — slow, deliberate opening that escalates forever.
+ * - ironrain: starts pinned at a late-game difficulty and stays there — a flat
+ *   endurance gauntlet for pilots who want to skip the warm-up.
+ */
+export type GameMode = "classic" | "ironrain";
+
+export const GAME_MODES: GameMode[] = ["classic", "ironrain"];
+
+export const GAME_MODE_LABEL: Record<GameMode, string> = {
+  classic: "Classic",
+  ironrain: "Iron Rain",
+};
+
 // World is measured in "units"; the shorter screen axis spans VIEW_MIN units
 // (Unity used an orthographic camera of half-height 5 => 10 units tall).
 export const VIEW_MIN = 10;
@@ -51,7 +66,9 @@ export const DIRECT_CRUISE: Record<SenseLevel, number> = {
 };
 
 export const DRONE = {
-  baseSpeed: 1.8,
+  // Deliberately unhurried: pressure comes from density and patterns, not raw
+  // chase speed — the game is about threading gaps, not out-twitching drones.
+  baseSpeed: 1.55,
   radius: 0.28, // scaled by drone size
   massMin: 0.3,
   massMax: 1.8,
@@ -75,13 +92,16 @@ export type FormationKind =
   | "megawall";
 
 export const SPAWNER = {
-  initialBurst: 8,
-  // Endless escalation (the Tetris model): fast ramp, then slow growth
-  // forever so every run ends and scores measure depth, not patience.
-  // Density arrives early (swarmy by ~20s); raw enemy speed is the lever
-  // that keeps growing late.
-  spawnsPerSecond: { from: 1.0, to: 1.8, rampMinutes: 1.5, latePerMinute: 0.15 },
-  speedMultiplier: { from: 1.0, to: 1.25, rampMinutes: 4, latePerMinute: 0.045 },
+  initialBurst: 5,
+  // Endless escalation (the Tetris model): ramp, then slow growth forever so
+  // every run ends and scores measure depth, not patience. Classic opens
+  // gently on purpose (Iron Rain exists to skip the warm-up); the speed ramp
+  // is soft — density and patterns are the late-game pressure, not chase speed.
+  spawnsPerSecond: { from: 1.0, to: 1.8, rampMinutes: 2.5, latePerMinute: 0.15 },
+  speedMultiplier: { from: 1.0, to: 1.15, rampMinutes: 4, latePerMinute: 0.03 },
+  // Classic only: the first formation arrives this much later than the normal
+  // formation cadence, so brand-new runs get a beat to breathe.
+  firstFormationExtraDelay: 2,
   scaleClamp: [0.3, 0.9] as const,
   scaleJitter: 0.15,
   jitterStrength: 0.35, // perpendicular wobble on drone heading
@@ -152,6 +172,54 @@ export const SPAWNER = {
   },
 };
 
+// Iron Rain: flat endurance mode. The spawner behaves as if the run were
+// already `pinnedMinutes` deep — and stays there. No ramp, no growth; score
+// still climbs with time (danger pay is real-time based) so longer survival
+// ranks higher.
+export const IRONRAIN = {
+  pinnedMinutes: 6,
+  // opens with an immediate mega-wall instead of the ambient burst
+  firstFormationDelay: 3,
+  // wall-heavy pattern diet: the mode is about threading tight lines
+  formationWeights: {
+    line: 1,
+    ring: 1,
+    burst: 1,
+    wall: 3,
+    serpent: 1,
+    pincer: 2.5,
+    corners: 1,
+    tightring: 2,
+    swarm: 1,
+    megawall: 3,
+  } as Record<FormationKind, number>,
+  // walls pack tighter and their escape gaps shrink
+  wallSpacingScale: 0.75,
+  wallGapScale: 0.8,
+  // some walls spawn with NO gap at all — survivable only via powers
+  // (shockwave, starshell, shield, afterburner). Iron Rain only.
+  gaplessWallChance: 0.15,
+};
+
+// Drone assemblies: free ambient drones periodically conscript into a shape
+// (line or vee "ship"), hold formation briefly, then charge the player at
+// boosted speed before disbanding back to normal homing. Assembly timing and
+// shape ride the seeded schedule stream (fixed draws per event) so Daily
+// Patrol scripts stay shared; member selection is position/Math.random based
+// (player-dependent by design, like power effects).
+export const ASSEMBLY = {
+  minMinutes: 0.5,
+  intervalRange: [14, 20] as const,
+  countRange: [6, 10] as const,
+  gatherRadius: 7, // conscripts must be this close to the seed drone
+  minMembers: 4, // fewer free drones than this → the event fizzles
+  spacing: 0.7, // slot spacing inside the shape
+  formTime: 1.8, // seconds steering into the shape (the telegraph)
+  formSpeedScale: 1.6,
+  chargeTime: 3.5, // seconds the shape charges before disbanding
+  chargeSpeedScale: 1.5,
+};
+
 // Stationary hazards that deny space. Capped low and spawned away from the
 // ship so the arena never turns into a minefield mess.
 export const MINES = {
@@ -194,19 +262,33 @@ export const SCORING = {
   pulseMultiKillPoints: 150, // ...of this * (hits - min + 1) * multiplier
   frozenPointsScale: 1.5, // shattering a frozen drone pays extra...
   frozenMultiplierScale: 2, // ...and builds the multiplier twice as fast
+  // Graze rewards: shaving past a live drone (within grazeBand beyond actual
+  // contact) pays points, bumps the multiplier, and resets its decay delay —
+  // threading a tight gap is a scoring strategy, not just survival. Per-drone
+  // cooldown stops orbiting one drone for infinite pay. No graze while any
+  // protection (shield/starshell/dash/vortex) makes the near-miss risk-free.
+  grazeBand: 0.5,
+  grazePoints: 15,
+  grazeMultiplier: 0.1,
+  grazeCooldown: 1.5,
 };
 
 export const PICKUPS = {
-  secondsBetweenRange: [3.0, 5.0] as const,
+  secondsBetweenRange: [2.5, 4.0] as const,
   // support scales with pressure: intervals shrink to this range over the ramp
-  secondsBetweenAtPeak: [2.2, 3.5] as const,
+  secondsBetweenAtPeak: [2.0, 3.0] as const,
   intervalRampMinutes: 4,
   maxActive: 6,
-  spawnOnStart: true,
+  spawnOnStart: 2, // pickups dealt the moment the run starts
+  // Refill floor: below this many live pickups the next drop is hurried in.
+  // Disabled on Daily Patrol (refill timing depends on when the player
+  // collects, which would desync the shared seed).
+  minActive: 2,
   radius: 0.45,
   minDistanceFromShip: 3,
   edgeInset: 1.0, // keep pickups this far inside the view bounds
   bobSpeed: 2.2,
+  driftSpeed: 0.35, // pickups drift slowly and bounce softly off the walls
 };
 
 export type PowerId =
@@ -231,13 +313,16 @@ export const POWERS = {
     detonationForce: 24,
   },
   shockwave: {
-    radius: 7,
+    radius: 7, // instant kill zone on detonation
     push: 14,
     waveLifetime: 1.2,
     waveMaxRadius: 14,
+    // nuclear linger: the expanding wave is lethal for its whole sweep, then
+    // the full-radius zone stays hot for this long
+    blastLifetime: 1.0,
   },
   pulse: {
-    chargeTime: 2,
+    chargeTime: 1,
     projectileSpeed: 16,
     projectileLifetime: 1.6,
     projectileRadius: 1.6,
@@ -266,7 +351,8 @@ export const POWERS = {
     freezeDuration: 5,
   },
   // Launches a volley of guided missiles in all directions that curve toward
-  // the nearest enemies.
+  // the nearest enemies. Each impact detonates a small area blast that stays
+  // lethal for a beat, so one missile can clear a small cluster.
   missiles: {
     count: 6,
     maxAlive: 12, // cap if two pickups stack
@@ -274,6 +360,8 @@ export const POWERS = {
     turnRate: 6, // rad/s steering limit (makes them curve, not snap)
     lifetime: 4,
     radius: 0.15,
+    blastRadius: 1.2,
+    blastLifetime: 1.0,
   },
   // Late-game pressure valve (Tilt to Live's Spike Shield): a golden shell
   // that makes the ship invulnerable and ram-kill everything it touches.
@@ -296,7 +384,8 @@ export const POWERS = {
   // enemy in range for the duration; each bullet kills one drone.
   autocannon: {
     duration: 6,
-    fireInterval: 0.25,
+    fireInterval: 0.12, // ~8 rounds/s — tuned for the denser swarms
+
     range: 8,
     bulletSpeed: 22,
     bulletLifetime: 0.6,
@@ -310,10 +399,12 @@ export const POWERS = {
     radius: 1.8,
     scatter: 1.4, // strike jitter around the targeted drone
     waveLifetime: 0.6,
+    blastLifetime: 1.0, // each crater stays lethal for this long
   },
   // Drops a singularity at the ship: pulls drones inward, devouring (and
   // scoring) everything that reaches the core, then collapses and kills
-  // whatever is still caught nearby.
+  // whatever is still caught nearby. While any vortex is open the ship is
+  // untouchable — contact ram-kills the drone instead.
   vortex: {
     pullDuration: 3,
     pullRadius: 8,
@@ -353,7 +444,7 @@ export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
   arc: 2,
   autocannon: 2,
   meteors: 2,
-  vortex: 1.5,
+  vortex: 0.75, // rare: invulnerability + a screen-clearing pull is a jackpot
 };
 
 // Powers gated to the late game: they only enter the pickup pool after this
@@ -424,10 +515,10 @@ export const POWER_HINTS: Record<PowerId, string> = {
   magnet: "pulls pickups to you",
   afterburner: "warp dash, untouchable on arrival",
   freeze: "freezes drones, shatter them for bonus",
-  missiles: "homing missiles hunt the swarm",
+  missiles: "homing missiles blast the swarm",
   starshell: "invulnerable, ram them!",
   arc: "lightning chains through the swarm",
   autocannon: "turret auto-fires at the nearest drone",
   meteors: "explosions rain on drone packs",
-  vortex: "drags drones into the singularity",
+  vortex: "drags drones in — you're untouchable",
 };

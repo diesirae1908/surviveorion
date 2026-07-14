@@ -1,8 +1,16 @@
-import { DRONE, SCORING, SPAWNER, type FormationKind } from "./config";
+import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
-import type { Drone, KillSource, World } from "./types";
+import type { Assembly, Drone, KillSource, World } from "./types";
+
+/**
+ * Difficulty clock: Classic escalates with real time; Iron Rain is pinned at
+ * a late-game depth from second zero (flat endurance — no ramp, no growth).
+ */
+export function difficultyMinutes(world: World): number {
+  return world.gameMode === "ironrain" ? IRONRAIN.pinnedMinutes : world.time / 60;
+}
 
 // --- drones ---
 
@@ -51,6 +59,8 @@ export function updateDrones(world: World, dt: number): void {
     d.prevX = d.x;
     d.prevY = d.y;
 
+    if (d.grazeTimer && d.grazeTimer > 0) d.grazeTimer -= dt;
+
     if (d.frozen > 0) {
       d.frozen -= dt;
       d.vx = 0;
@@ -59,6 +69,9 @@ export function updateDrones(world: World, dt: number): void {
     }
 
     d.spin += dt * 1.5;
+
+    // assembly members are steered by updateAssemblies, not homing/scripts
+    if (d.assembly) continue;
 
     // scripted formation movement releases back to homing when its timer ends
     if (d.scriptMode) {
@@ -202,9 +215,21 @@ export function killDronesInRadius(world: World, x: number, y: number, radius: n
 
 export function initSpawner(world: World): void {
   scheduleNextFormation(world);
-  // new-pilot grace: the very first runs open gentler (smaller burst, later
-  // first formation) so a brand-new player gets a moment to learn to fly
-  world.nextFormationDelay += 8 * world.grace;
+  world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
+
+  // Iron Rain: no gentle burst — the run opens with an immediate mega-wall
+  // and the first regular formation lands seconds later.
+  if (world.gameMode === "ironrain") {
+    world.nextFormationDelay = IRONRAIN.firstFormationDelay;
+    spawnMegaWallFormation(world, IRONRAIN.pinnedMinutes);
+    world.events.push({ type: "formation", kind: "megawall" });
+    world.sustainedSpawnCooldown = SPAWNER.formations.postFormationDelay;
+    return;
+  }
+
+  // Classic breathes before the first formation; new-pilot grace opens even
+  // gentler (smaller burst, later first formation) for the first few runs.
+  world.nextFormationDelay += SPAWNER.firstFormationExtraDelay + 8 * world.grace;
   const burst = Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace));
   // opening drones start at the far formation radius for a gentle ramp-in
   for (let i = 0; i < burst; i++) {
@@ -223,7 +248,7 @@ function graceSpawnScale(world: World): number {
 export function updateSpawner(world: World, dt: number): void {
   if (world.phase !== "playing" || world.sandbox) return;
 
-  const minutes = world.time / 60;
+  const minutes = difficultyMinutes(world);
   world.spawnAccumulator +=
     escalate(minutes, SPAWNER.spawnsPerSecond) * graceSpawnScale(world) * dt;
 
@@ -366,19 +391,25 @@ function formationCountBonus(minutes: number): number {
   return Math.min(cfg.maxCountBonus, Math.floor(minutes / cfg.countGrowthMinutes));
 }
 
-/** Weighted formation pick; heavier patterns only enter the pool later. */
-function rollFormationKind(minutes: number): FormationKind {
+/**
+ * Weighted formation pick; heavier patterns only enter the pool later.
+ * Iron Rain uses its own wall-heavy weights (and its pinned minutes unlock
+ * the whole roster from second zero).
+ */
+function rollFormationKind(world: World, minutes: number): FormationKind {
   const cfg = SPAWNER.formations;
-  const pool = (Object.keys(cfg.weights) as FormationKind[]).filter(
+  const weights =
+    world.gameMode === "ironrain" ? IRONRAIN.formationWeights : cfg.weights;
+  const pool = (Object.keys(weights) as FormationKind[]).filter(
     (kind) => minutes >= (cfg.minMinutes[kind] ?? 0),
   );
 
   let total = 0;
-  for (const kind of pool) total += cfg.weights[kind];
+  for (const kind of pool) total += weights[kind];
 
   let roll = scheduleRand() * total;
   for (const kind of pool) {
-    roll -= cfg.weights[kind];
+    roll -= weights[kind];
     if (roll <= 0) return kind;
   }
   return pool[pool.length - 1];
@@ -388,7 +419,7 @@ function handleFormations(world: World, minutes: number, dt: number): void {
   world.formationTimer += dt;
   if (world.formationTimer < world.nextFormationDelay) return;
 
-  const kind = rollFormationKind(minutes);
+  const kind = rollFormationKind(world, minutes);
   world.events.push({ type: "formation", kind });
   switch (kind) {
     case "line":
@@ -432,7 +463,7 @@ function handleFormations(world: World, minutes: number, dt: number): void {
 function scheduleNextFormation(world: World): void {
   world.formationTimer = 0;
   const cfg = SPAWNER.formations;
-  const t = clamp01(world.time / 60 / cfg.intervalRampMinutes);
+  const t = clamp01(difficultyMinutes(world) / cfg.intervalRampMinutes);
   const min = lerp(cfg.intervalRange[0], cfg.intervalFloor[0], t);
   const max = lerp(cfg.intervalRange[1], cfg.intervalFloor[1], t);
   world.nextFormationDelay = scheduleRange(min, max);
@@ -526,8 +557,13 @@ function spawnWallSpan(
   const hh = world.viewH / 2;
   const alongX = side >= 2; // bottom/top walls span the x axis
   const span = alongX ? world.viewW : world.viewH;
+  // Iron Rain packs walls tighter and shrinks the escape gaps
+  const ironrain = world.gameMode === "ironrain";
+  const spacingScale = ironrain ? IRONRAIN.wallSpacingScale : 1;
+  const gapScale = ironrain ? IRONRAIN.wallGapScale : 1;
   // early walls are sparser, tightening to full density by the 3-minute mark
-  const spacing = cfg.spacing / formationIntensity(minutes);
+  const spacing = (cfg.spacing * spacingScale) / formationIntensity(minutes);
+  const gapSize = cfg.gapSize * gapScale;
 
   // player-sized escape gaps, spread across the span (shared by every row so
   // multi-row walls stay threadable)
@@ -563,7 +599,7 @@ function spawnWallSpan(
     const sideStagger = (row % 2) * spacing * 0.5;
     for (let i = 0; i < count; i++) {
       const off = (i - half) * spacing + sideStagger;
-      if (gaps.some((g) => Math.abs(off - g) < cfg.gapSize / 2)) continue;
+      if (gaps.some((g) => Math.abs(off - g) < gapSize / 2)) continue;
       const x = alongX ? off : startX - dirX * back;
       const y = alongX ? startY - dirY * back : off;
       const d = spawnAt(world, x, y, minutes, { scale: cfg.scale, speedScale: cfg.speedScale });
@@ -576,10 +612,21 @@ function spawnWallSpan(
   }
 }
 
+/**
+ * Iron Rain only: occasionally a wall spawns with NO escape gap — the only
+ * way through is a power (shockwave, starshell, shield, afterburner). Iron
+ * Rain never runs seeded (Daily Patrol is Classic-only), so Math.random is
+ * safe here.
+ */
+function rollGapless(world: World): { gapCount: number } | undefined {
+  if (world.gameMode !== "ironrain") return undefined;
+  return Math.random() < IRONRAIN.gaplessWallChance ? { gapCount: 0 } : undefined;
+}
+
 /** A dot wall sweeps across the arena from one random edge. */
 function spawnWallFormation(world: World, minutes: number): void {
   const side = Math.floor(rand() * 4) as WallSide;
-  spawnWallSpan(world, minutes, side, SPAWNER.formations.wall);
+  spawnWallSpan(world, minutes, side, SPAWNER.formations.wall, rollGapless(world));
   world.events.push({ type: "ringWarning" });
 }
 
@@ -646,7 +693,7 @@ function spawnMegaWallFormation(world: World, minutes: number): void {
   spawnWallSpan(world, minutes, side, cfg, {
     rows: cfg.rows,
     rowOffset: cfg.rowOffset,
-    gapCount: 1,
+    gapCount: rollGapless(world) ? 0 : 1,
   });
   world.events.push({ type: "ringWarning" });
 }
@@ -691,6 +738,181 @@ function spawnSwarmFormation(world: World, minutes: number): void {
     d.scriptDirY = Math.sin(a);
     d.scriptTimer = timer * randRange(0.9, 1.1);
     d.scriptWander = cfg.wander;
+  }
+}
+
+// --- drone assemblies (ambient drones conscript into a charging shape) ---
+
+/** Current drone speed baseline for assembly steering/charging. */
+function assemblyBaseSpeed(world: World): number {
+  return (
+    DRONE.baseSpeed *
+    Math.max(0.1, escalate(difficultyMinutes(world), SPAWNER.speedMultiplier))
+  );
+}
+
+function disbandAssembly(world: World, a: Assembly): void {
+  for (const m of a.members) m.assembly = null;
+  const i = world.assemblies.indexOf(a);
+  if (i >= 0) world.assemblies.splice(i, 1);
+}
+
+/**
+ * Conscript free ambient drones near a random seed into a line or vee.
+ * Member selection depends on the local drone layout (player-dependent), so
+ * it uses positions + Math.random and never touches the seeded streams.
+ */
+function tryFormAssembly(world: World, count: number, vee: boolean): void {
+  const free = world.drones.filter(
+    (d) => d.alive && !d.scriptMode && !d.assembly && d.frozen <= 0,
+  );
+  if (free.length < ASSEMBLY.minMembers) return;
+
+  const seed = free[Math.floor(Math.random() * free.length)];
+  const members = free
+    .filter((d) => Math.hypot(d.x - seed.x, d.y - seed.y) <= ASSEMBLY.gatherRadius)
+    .sort(
+      (a, b) =>
+        Math.hypot(a.x - seed.x, a.y - seed.y) - Math.hypot(b.x - seed.x, b.y - seed.y),
+    )
+    .slice(0, count);
+  if (members.length < ASSEMBLY.minMembers) return;
+
+  let cx = 0;
+  let cy = 0;
+  for (const m of members) {
+    cx += m.x;
+    cy += m.y;
+  }
+  cx /= members.length;
+  cy /= members.length;
+
+  const aimLen = Math.hypot(world.ship.x - cx, world.ship.y - cy) || 1;
+  const aimX = (world.ship.x - cx) / aimLen;
+  const aimY = (world.ship.y - cy) / aimLen;
+  const perpX = -aimY;
+  const perpY = aimX;
+
+  const assembly: Assembly = {
+    phase: "form",
+    timer: ASSEMBLY.formTime,
+    members,
+    x: cx,
+    y: cy,
+    dirX: aimX,
+    dirY: aimY,
+    speed: 0,
+  };
+
+  const half = (members.length - 1) / 2;
+  members.forEach((d, i) => {
+    let ox: number;
+    let oy: number;
+    if (vee) {
+      // arrowhead pointing at the ship: tip first, arms sweeping back
+      const row = Math.ceil(i / 2);
+      const side = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
+      ox = -aimX * row * ASSEMBLY.spacing * 0.9 + perpX * side * row * ASSEMBLY.spacing * 0.75;
+      oy = -aimY * row * ASSEMBLY.spacing * 0.9 + perpY * side * row * ASSEMBLY.spacing * 0.75;
+    } else {
+      // broadside line, perpendicular to the approach
+      const off = (i - half) * ASSEMBLY.spacing;
+      ox = perpX * off;
+      oy = perpY * off;
+    }
+    d.assembly = assembly;
+    d.slotX = ox;
+    d.slotY = oy;
+  });
+
+  world.assemblies.push(assembly);
+  world.events.push({ type: "assembly", x: cx, y: cy });
+}
+
+/** Move a member toward its slot, capped at `speed`; updates vx/vy. */
+function steerMemberToSlot(a: Assembly, d: Drone, speed: number, dt: number): void {
+  const tx = a.x + (d.slotX ?? 0) - d.x;
+  const ty = a.y + (d.slotY ?? 0) - d.y;
+  const dist = Math.hypot(tx, ty);
+  const step = Math.min(dist, speed * dt);
+  if (dist > 0.001) {
+    d.x += (tx / dist) * step;
+    d.y += (ty / dist) * step;
+    d.vx = (tx / dist) * (step / dt);
+    d.vy = (ty / dist) * (step / dt);
+  } else {
+    d.vx = a.speed * a.dirX;
+    d.vy = a.speed * a.dirY;
+  }
+}
+
+/**
+ * Assembly lifecycle. The event timer + shape/count rolls ride the seeded
+ * schedule stream with a fixed number of draws per event (gated after the
+ * draws), so Daily Patrol runs fire identical assembly events for everyone.
+ */
+export function updateAssemblies(world: World, dt: number): void {
+  if (world.sandbox) return;
+
+  if (world.phase !== "playing") {
+    // death: release everyone so the swarm drifts naturally during the cinematic
+    while (world.assemblies.length > 0) disbandAssembly(world, world.assemblies[0]);
+    return;
+  }
+
+  world.assemblyTimer -= dt;
+  if (world.assemblyTimer <= 0) {
+    world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
+    // fixed draws per event — consumed even when the event fizzles
+    const count = Math.round(scheduleRange(...ASSEMBLY.countRange));
+    const vee = scheduleRand() < 0.5;
+    if (difficultyMinutes(world) >= ASSEMBLY.minMinutes) {
+      tryFormAssembly(world, count, vee);
+    }
+  }
+
+  const hw = world.viewW / 2;
+  const hh = world.viewH / 2;
+
+  for (let i = world.assemblies.length - 1; i >= 0; i--) {
+    const a = world.assemblies[i];
+    // dead members drop out; frozen members are released back to the swarm
+    // (so they resume normal homing when they thaw)
+    a.members = a.members.filter((m) => {
+      if (m.alive && m.frozen <= 0) return true;
+      m.assembly = null;
+      return false;
+    });
+    if (a.members.length < 3) {
+      disbandAssembly(world, a);
+      continue;
+    }
+
+    a.timer -= dt;
+
+    if (a.phase === "form") {
+      const speed = assemblyBaseSpeed(world) * ASSEMBLY.formSpeedScale;
+      for (const m of a.members) steerMemberToSlot(a, m, speed, dt);
+      if (a.timer <= 0) {
+        a.phase = "charge";
+        a.timer = ASSEMBLY.chargeTime;
+        const len = Math.hypot(world.ship.x - a.x, world.ship.y - a.y) || 1;
+        a.dirX = (world.ship.x - a.x) / len;
+        a.dirY = (world.ship.y - a.y) / len;
+        a.speed = assemblyBaseSpeed(world) * ASSEMBLY.chargeSpeedScale;
+      }
+      continue;
+    }
+
+    // charge: the anchor barrels ahead; members hold their slots rigidly
+    a.x += a.dirX * a.speed * dt;
+    a.y += a.dirY * a.speed * dt;
+    const memberSpeed = a.speed * 1.6; // catches up, then tracks the shape
+    for (const m of a.members) steerMemberToSlot(a, m, memberSpeed, dt);
+
+    const out =
+      Math.abs(a.x) > hw + ASSEMBLY.gatherRadius || Math.abs(a.y) > hh + ASSEMBLY.gatherRadius;
+    if (a.timer <= 0 || out) disbandAssembly(world, a);
   }
 }
 

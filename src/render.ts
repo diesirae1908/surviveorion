@@ -2,6 +2,7 @@ import { MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP, VIEW_MIN,
 import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
+import { blastRadius } from "./powers";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
 import type { World } from "./types";
@@ -148,6 +149,7 @@ export class Renderer {
     this.drawOffscreenThreats(world);
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawTrail(world, opts.uiTime);
+    this.drawBlasts(world, opts.uiTime);
     this.drawWaves(world);
     this.drawVortices(world, opts.uiTime);
     this.drawArcBolts(world);
@@ -912,6 +914,28 @@ export class Renderer {
       ctx.restore();
     }
 
+    // vortex shimmer: while a singularity is open the ship is untouchable
+    if (world.powers.vortices.length > 0) {
+      const alpha = 0.22 + 0.1 * Math.sin(opts.uiTime * 6);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = alpha;
+      const vg = ctx.createRadialGradient(x, y, 0.2, x, y, 0.65);
+      vg.addColorStop(0, "rgba(155,102,255,0)");
+      vg.addColorStop(0.8, "rgba(155,102,255,0.3)");
+      vg.addColorStop(1, PALETTE.vortex);
+      ctx.fillStyle = vg;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.65, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = PALETTE.vortex;
+      ctx.lineWidth = 0.04;
+      ctx.setLineDash([0.12, 0.14]);
+      ctx.lineDashOffset = -opts.uiTime * 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // starshell: golden ram-kill shell with rotating star points
     if (world.powers.starshellTimer > 0) {
       const remaining = world.powers.starshellTimer;
@@ -1089,6 +1113,22 @@ export class Renderer {
 
       ctx.save();
       ctx.translate(x, y);
+
+      // assembled drones glow hot orange so the formation reads as one threat
+      if (d.assembly) {
+        ctx.globalCompositeOperation = "lighter";
+        const ag = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.9);
+        ag.addColorStop(0, "#ffaa33");
+        ag.addColorStop(1, "rgba(255,120,20,0)");
+        ctx.globalAlpha = d.assembly.phase === "charge" ? 0.55 : 0.35;
+        ctx.fillStyle = ag;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+      }
+
       ctx.rotate(d.spin);
 
       // hexagonal shell
@@ -1583,6 +1623,38 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /** Lingering kill zones: a hot disc that stays visibly lethal, then fades. */
+  private drawBlasts(world: World, time: number): void {
+    if (world.powers.blasts.length === 0) return;
+    const { ctx } = this;
+    for (const b of world.powers.blasts) {
+      const r = blastRadius(b);
+      if (r <= 0.01) continue;
+      const life = b.expandTime + b.holdTime;
+      const fade = 1 - clamp01((b.elapsed - b.expandTime) / Math.max(0.01, b.holdTime)) * 0.6;
+      const flicker = 0.85 + 0.15 * Math.sin(time * 18 + b.x * 3.1 + b.y * 1.7);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.28 * fade * flicker * clamp01((life - b.elapsed) / 0.25 + 0.4);
+      const g = ctx.createRadialGradient(b.x, b.y, r * 0.1, b.x, b.y, r);
+      g.addColorStop(0, "#ffffff");
+      g.addColorStop(0.4, b.color);
+      g.addColorStop(1, "rgba(255,120,40,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      // rim so the lethal edge is readable
+      ctx.globalAlpha = 0.5 * fade * flicker;
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 0.06;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     }
   }

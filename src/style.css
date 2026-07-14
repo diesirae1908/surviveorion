@@ -260,6 +260,37 @@ button.launch {
   color: #ffd700;
 }
 
+/* Iron Rain menu button: the hard-mode card, steel instead of gold */
+.menu-mode-btn.ironrain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 26px;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  border: 1px solid rgba(170, 190, 220, 0.45);
+  background: rgba(22, 28, 40, 0.6);
+  color: #aecbee;
+}
+
+.menu-mode-btn.ironrain .daily-name {
+  color: #cfe2ff;
+}
+
+.menu-mode-btn.ironrain .daily-sub {
+  color: #6d7f99;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0.08em;
+}
+
+.menu-mode-btn.ironrain:hover {
+  box-shadow: 0 0 24px rgba(170, 200, 255, 0.28);
+  border-color: rgba(200, 220, 255, 0.7);
+}
+
 /* Daily Patrol menu button: the calendar hook, styled as a mission card */
 .daily-btn {
   min-width: 0;
@@ -299,6 +330,14 @@ button.launch {
 
 .daily-btn .daily-hint b {
   color: #ffee88;
+}
+
+/* game-over: Iron Rain tag (steel counterpart of the daily tag) */
+.ironrain-tag {
+  color: #aecbee;
+  letter-spacing: 0.35em;
+  margin-right: -0.35em;
+  font-size: 12px;
 }
 
 /* game-over: Daily Patrol tag + best-run comparison line */
@@ -579,6 +618,17 @@ button.launch {
   opacity: 1;
   border-color: #ffd700;
   color: #ffd700;
+}
+
+/* leaderboard filter dropdowns (game mode + platform) side by side */
+.filter-row {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-row .field {
+  flex: 1;
+  min-width: 0;
 }
 
 .form {

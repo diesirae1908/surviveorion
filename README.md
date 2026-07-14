@@ -7,33 +7,43 @@ a bounded arena while drone swarms close in. No guns — survive with piloting s
 defensive power pickups:
 
 - **Aegis Shield** — stays on the ship until it absorbs a hit (a banked extra life), then detonates, clearing nearby drones
-- **Shockwave** — instantly kills every drone in a radius
-- **Pulse Shot** — charges up, then fires a piercing bolt forward
+- **Shockwave** — kills every drone in a radius, and the blast zone stays lethal for ~1s after (a nuclear linger)
+- **Pulse Shot** — charges up (~1s), then fires a piercing bolt forward
 - **Magnet** — pulls pickups toward you for a few seconds
 - **Afterburner** — charges, then dashes you forward through enemies, leaving a burning trail that stays lethal for ~2.5s; you get a 1s invincibility grace on arrival
 - **Cryo Field** — flash-freezes all drones in a big area; fly into frozen drones to shatter them
-- **Missile Swarm** — launches a volley of guided missiles in all directions that curve toward the nearest enemies
+- **Missile Swarm** — launches a volley of guided missiles in all directions; each impact detonates a small area blast that lingers ~1s
 - **Starshell** — a golden shell that makes you invulnerable for ~6s and ram-kills everything you touch
 - **Arc Lightning** — zaps the nearest enemy, then chain-jumps through nearby drones until nothing is close enough to continue
-- **Autocannon** — mounts a turret on the ship for ~6s that auto-fires tracer rounds at the nearest enemy in range
-- **Meteor Storm** — explosions rain down for ~4s, biased toward drone clusters, each clearing a small radius
-- **Vortex** — drops a singularity at your position that drags drones inward for ~3s, devouring (and scoring) everything that reaches the core, then collapses and kills whatever is still caught nearby
+- **Autocannon** — mounts a turret on the ship for ~6s that auto-fires tracer rounds (~8/s) at the nearest enemy in range
+- **Meteor Storm** — explosions rain down for ~4s, biased toward drone clusters, each leaving a crater that stays lethal for ~1s
+- **Vortex** — drops a singularity at your position that drags drones inward for ~3s, devouring (and scoring) everything that reaches the core, then collapses and kills whatever is still caught nearby; the ship is invulnerable while any vortex is open (rare drop for that reason)
 
 Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`):
 shield/shockwave are common safety nets, freeze and afterburner are rarer. Every
 power can spawn from minute zero (`POWER_MIN_MINUTES` is empty), and bad-luck
 protection demotes a power's weight each time it drops so the whole roster
-appears over a run. Pickup drops come faster as the difficulty climbs. Skill kills pay more: pulse kills are
+appears over a run. Pickups drift slowly across the arena (soft wall bounces),
+two are dealt at launch, drops come faster as the difficulty climbs, and a
+refill floor hurries the next drop whenever fewer than two are live (disabled
+on Daily Patrol to protect the shared seed). Skill kills pay more: pulse kills are
 worth 2x points (with an escalating bonus when one bolt kills 3+), and
 shattering frozen drones pays 1.5x points and builds the multiplier twice as
-fast.
+fast. **Grazing** pays too: shaving past a live drone (or threading a tight
+wall gap) scores points, bumps the multiplier, and resets its decay — a
+skill-based scoring lane alongside kills. Each drone can only be grazed once
+per ~1.5s, and no graze pays while a protection (shield, starshell, dash,
+vortex) makes the near-miss risk-free.
 
 Enemies:
 
 - **Drones** — chase you relentlessly; smaller ones are slightly slower, larger ones
-  slightly faster. The swarm grows and speeds up over time, and the escalation never
-  plateaus — spawn rate, drone speed, and formation frequency/size keep climbing until
-  the run ends, so every run has an ending.
+  slightly faster. Individual drones are deliberately slow-ish — the pressure comes
+  from density and patterns, not chase speed. The swarm grows over time and the
+  escalation never plateaus — spawn rate and formation frequency/size keep climbing
+  until the run ends, so every run has an ending. Free drones also periodically
+  **assemble**: a handful steer into a line or vee "ship", hold the shape for a
+  beat (glowing hot orange), then charge you at boosted speed before disbanding.
   Most spawns telegraph on-screen (a red glow warns ~1s before the drone pops,
   and the ring formation closes in around you); some still sneak in from the edges.
   Formations are weighted (`SPAWNER.formations.weights`) and heavier patterns
@@ -54,6 +64,23 @@ and kill chains pay escalating bonuses. All scoring also scales with **danger pa
 every second and every kill is worth. High scores come from aggressive, risky
 play deep into the run.
 
+## Game modes
+
+- **Classic** — the normal run: a gentle opening (5-drone burst, first
+  formation delayed a beat, density ramps over ~2.5 min) that escalates
+  forever.
+- **Iron Rain** — flat endurance at max difficulty from second zero: the
+  spawner behaves as if the run were already ~6 minutes deep and stays there.
+  Opens with an immediate mega-wall, leans hard on walls / pincers / tight
+  rings with tighter spacing and smaller escape gaps, and ~15% of walls spawn
+  with **no gap at all** (survivable only via powers). New-pilot grace never
+  applies. Built to skip the warm-up.
+
+Both modes have their own launch button on the menu (the pick persists across
+retries), their own leaderboards, and their own local PBs — the NEW RECORD
+celebration and PB delta always compare like-for-like. Daily Patrol is always
+Classic.
+
 ## Run
 
 ```bash
@@ -69,11 +96,15 @@ community buttons simply don't appear.
 
 ## Community
 
-- **Leaderboard** — global board (best run per pilot), filterable by country.
-  Runs are tagged by the platform they were played on (`desktop` = keyboard,
-  `touch` = phone virtual stick, `tilt` = phone tilt) and every leaderboard
-  ranks the three separately. The Inertia setting is flavor only — it doesn't
-  change which board a run lands on.
+- **Leaderboard** — global board (best run per pilot), filterable with
+  dropdowns by game mode (Classic / Iron Rain), platform, and country. Runs
+  are tagged by the platform they were played on (`desktop` = keyboard,
+  `touch` = phone virtual stick, `tilt` = phone tilt) and by game mode
+  (`game_mode` column on `scores`/`runs`, `?gameMode=` on the leaderboard
+  endpoints); ranks, PB deltas, and the game-over gap-to-goal are all scoped
+  per game mode. Pilot records grow an Iron Rain section once a pilot has
+  Iron Rain runs. The Inertia setting is flavor only — it doesn't change
+  which board a run lands on.
 - **Daily Patrol** — a shared-seed daily run: the gameplay RNG is seeded from
   the UTC date (`setRunSeed` in `src/math.ts`), so every pilot faces the same
   opening script that day. Daily runs land on a per-day board
@@ -186,12 +217,13 @@ enemies — each lesson pauses the world behind a message you tap to dismiss —
 and the game boots through a tap-to-enter gate into a ~5s cinematic
 intro (hyperspace rush, swarm fly-by, title slam) before the menu.
 
-The arena gets swarmy fast: an 8-drone opening burst, the first formation
-inside ~10s, and near-full-size patterns by the 20-second mark. A player's
+Classic opens gently (a 5-drone burst, the first formation after a breath)
+and ramps up over the first couple of minutes; Iron Rain skips straight to
+the deep end. A player's
 first ~3 runs on a device get a grace curve (`grace` on `World`, run counter
 in `src/save.ts`): half the opening burst, first formation delayed ~8s, and a
 gentler ambient ramp for the first minute — scoring is untouched, and Daily
-Patrol runs never use grace. Dying is fast to leave behind: the death
+Patrol and Iron Rain runs never use grace. Dying is fast to leave behind: the death
 cinematic is tap/key-skippable after 0.5s, **Fly again** (and Space/Enter on
 the game-over screen) retries with a 0.5s quick warp instead of the full
 cinematic, and passing your personal best mid-run fires a NEW RECORD

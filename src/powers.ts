@@ -5,6 +5,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 // here would desync the shared spawn script between players.
 import { isMineArmed, killMine, killMinesInRadius } from "./mines";
 import type { ArcChainState, Drone, Mine, PowersState, World } from "./types";
+import { clamp01 } from "./math";
 
 export function createPowersState(): PowersState {
   return {
@@ -19,6 +20,7 @@ export function createPowersState(): PowersState {
     projectiles: [],
     missiles: [],
     waves: [],
+    blasts: [],
     arcBolts: [],
     arcChain: null,
     autocannonTimer: 0,
@@ -29,6 +31,52 @@ export function createPowersState(): PowersState {
     meteorCooldown: 0,
     vortices: [],
   };
+}
+
+/**
+ * Drop a lingering kill zone: lethal to anything inside for its whole life.
+ * expandTime > 0 makes the zone sweep outward first (shockwave), otherwise
+ * it lands at full radius instantly (missile impacts, meteor craters).
+ */
+export function spawnBlast(
+  world: World,
+  x: number,
+  y: number,
+  maxRadius: number,
+  opts: { expandTime?: number; holdTime: number; color: string },
+): void {
+  world.powers.blasts.push({
+    x,
+    y,
+    elapsed: 0,
+    expandTime: opts.expandTime ?? 0,
+    holdTime: opts.holdTime,
+    maxRadius,
+    color: opts.color,
+  });
+}
+
+/** Current lethal radius of a blast (grows during the expand phase). */
+export function blastRadius(b: { elapsed: number; expandTime: number; maxRadius: number }): number {
+  if (b.expandTime <= 0) return b.maxRadius;
+  return b.maxRadius * clamp01(b.elapsed / b.expandTime);
+}
+
+function updateBlasts(world: World, dt: number): void {
+  const p = world.powers;
+  for (let i = p.blasts.length - 1; i >= 0; i--) {
+    const b = p.blasts[i];
+    b.elapsed += dt;
+    if (b.elapsed >= b.expandTime + b.holdTime) {
+      p.blasts.splice(i, 1);
+      continue;
+    }
+    const r = blastRadius(b);
+    if (r > 0) {
+      killDronesInRadius(world, b.x, b.y, r);
+      killMinesInRadius(world, b.x, b.y, r);
+    }
+  }
 }
 
 /** Auto-activate on pickup (port of Unity PowerManager.Trigger). */
@@ -44,8 +92,15 @@ export function activatePower(world: World, power: PowerId): void {
       world.events.push({ type: "starshellUp" });
       break;
     case "shockwave":
+      // instant core kill, then the sweep stays lethal out to the full wave
+      // and lingers there — the "nuclear" afterglow
       killDronesInRadius(world, world.ship.x, world.ship.y, POWERS.shockwave.radius);
       killMinesInRadius(world, world.ship.x, world.ship.y, POWERS.shockwave.radius);
+      spawnBlast(world, world.ship.x, world.ship.y, POWERS.shockwave.waveMaxRadius, {
+        expandTime: POWERS.shockwave.waveLifetime,
+        holdTime: POWERS.shockwave.blastLifetime,
+        color: PALETTE.gold,
+      });
       p.waves.push({
         x: world.ship.x,
         y: world.ship.y,
@@ -362,7 +417,9 @@ function updateMissiles(world: World, dt: number): void {
     ms.x += Math.cos(ms.angle) * cfg.speed * dt;
     ms.y += Math.sin(ms.angle) * cfg.speed * dt;
 
-    // impact: single-target, missile dies with its kill
+    // impact: the missile detonates a small lingering blast — area damage
+    // instead of a single-target kill (the blast pass clears everything
+    // caught inside, including the drone/mine that triggered it)
     let exploded = false;
     for (const d of world.drones) {
       if (!d.alive) continue;
@@ -370,7 +427,6 @@ function updateMissiles(world: World, dt: number): void {
       const dy = d.y - ms.y;
       const r = cfg.radius + droneRadius(d);
       if (dx * dx + dy * dy <= r * r) {
-        killDrone(world, d);
         exploded = true;
         break;
       }
@@ -382,13 +438,20 @@ function updateMissiles(world: World, dt: number): void {
         const dy = m.y - ms.y;
         const r = cfg.radius + MINES.radius;
         if (dx * dx + dy * dy <= r * r) {
-          killMine(world, m);
           exploded = true;
           break;
         }
       }
     }
-    if (exploded) p.missiles.splice(i, 1);
+    if (exploded) {
+      spawnBlast(world, ms.x, ms.y, cfg.blastRadius, {
+        holdTime: cfg.blastLifetime,
+        color: PALETTE.missiles,
+      });
+      world.events.push({ type: "missileBlast", x: ms.x, y: ms.y });
+      world.shake = Math.max(world.shake, 0.12);
+      p.missiles.splice(i, 1);
+    }
   }
 }
 
@@ -491,6 +554,11 @@ function updateMeteors(world: World, dt: number): void {
 
   killDronesInRadius(world, x, y, cfg.radius);
   killMinesInRadius(world, x, y, cfg.radius);
+  // the crater stays lethal for a beat — drones walking into it still die
+  spawnBlast(world, x, y, cfg.radius, {
+    holdTime: cfg.blastLifetime,
+    color: PALETTE.meteors,
+  });
   p.waves.push({
     x,
     y,
@@ -655,6 +723,7 @@ export function updatePowers(world: World, dt: number): void {
   updateAutocannon(world, dt);
   updateMeteors(world, dt);
   updateVortices(world, dt);
+  updateBlasts(world, dt);
 
   // expanding ring visuals
   for (let i = p.waves.length - 1; i >= 0; i--) {

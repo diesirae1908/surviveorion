@@ -1,4 +1,4 @@
-import type { PowerId } from "./config";
+import type { GameMode, PowerId } from "./config";
 
 export interface Ship {
   x: number;
@@ -33,6 +33,29 @@ export interface Drone {
   scriptTimer?: number; // seconds until the drone releases to homing
   scriptWander?: number; // rad/s curve amplitude for straight movers (serpent head)
   followTarget?: Drone | null; // previous segment in a train
+  /** Seconds until this drone can pay another graze reward. */
+  grazeTimer?: number;
+  /** Assembly this drone is conscripted into (null/undefined = free). */
+  assembly?: Assembly | null;
+  /** Slot offset from the assembly anchor (world units). */
+  slotX?: number;
+  slotY?: number;
+}
+
+/**
+ * A conscripted shape of ambient drones: they steer into formation ("form"),
+ * then the whole shape charges the ship at boosted speed ("charge") before
+ * disbanding back to normal homing.
+ */
+export interface Assembly {
+  phase: "form" | "charge";
+  timer: number; // seconds left in the current phase
+  members: Drone[];
+  x: number; // anchor position
+  y: number;
+  dirX: number; // charge heading (set when the charge starts)
+  dirY: number;
+  speed: number; // charge speed (units/s)
 }
 
 /** Stationary hazard: lethal to the ship, chain-explodes when destroyed. */
@@ -61,6 +84,9 @@ export interface Pickup {
   y: number;
   power: PowerId;
   age: number;
+  /** Slow drift velocity (bounces softly off arena edges). */
+  vx?: number;
+  vy?: number;
 }
 
 export interface PulseProjectile {
@@ -72,6 +98,22 @@ export interface PulseProjectile {
   dirY: number;
   elapsed: number;
   hit: Set<Drone>;
+}
+
+/**
+ * A lingering kill zone: everything inside dies for as long as it stays hot.
+ * Optionally expands from zero to full radius first (shockwave sweep).
+ */
+export interface Blast {
+  x: number;
+  y: number;
+  elapsed: number;
+  /** Seconds to expand from 0 to maxRadius (0 = full size instantly). */
+  expandTime: number;
+  /** Seconds the zone stays lethal at full radius after expanding. */
+  holdTime: number;
+  maxRadius: number;
+  color: string;
 }
 
 /** Expanding ring visual (shockwave / shield detonation). */
@@ -148,6 +190,7 @@ export interface PowersState {
   projectiles: PulseProjectile[];
   missiles: Missile[];
   waves: WaveFx[];
+  blasts: Blast[];
   arcBolts: ArcBolt[];
   arcChain: ArcChainState | null;
   autocannonTimer: number; // >0 => turret active
@@ -197,6 +240,9 @@ export type GameEvent =
   | { type: "arcFizzle"; x: number; y: number }
   | { type: "chainBonus"; x: number; y: number; points: number; count: number }
   | { type: "pulseMultiKill"; x: number; y: number; points: number; hits: number }
+  | { type: "graze"; x: number; y: number; points: number }
+  | { type: "missileBlast"; x: number; y: number }
+  | { type: "assembly"; x: number; y: number }
   | { type: "droneSpawn"; x: number; y: number }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };
@@ -208,6 +254,12 @@ export interface World {
 
   /** Tutorial sandbox: no ambient spawns, mines, or timed pickups. */
   sandbox: boolean;
+
+  /** Classic (escalating) or Iron Rain (pinned at peak difficulty). */
+  gameMode: GameMode;
+
+  /** Daily Patrol run (shared seed): player-dependent extras (pickup refill floor) off. */
+  daily: boolean;
 
   /**
    * New-pilot grace (0..1): softens the opening burst, first-formation timing,
@@ -247,6 +299,9 @@ export interface World {
   /** Times each power spawned this run (bad-luck protection in the roll). */
   powerSpawnCounts: Partial<Record<PowerId, number>>;
   mineTimer: number;
+  /** Countdown to the next drone-assembly event (schedule stream). */
+  assemblyTimer: number;
+  assemblies: Assembly[];
 
   shake: number; // screen shake amplitude (world units)
 

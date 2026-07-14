@@ -7,14 +7,14 @@ import {
   SHIP,
   type PowerId,
 } from "./config";
-import { clamp01, lerp, randRange, scheduleRand, scheduleRange } from "./math";
+import { clamp01, lerp, rand, randRange, scheduleRand, scheduleRange } from "./math";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
 import type { World } from "./types";
 
 export function initPickups(world: World): void {
   world.pickupTimer = nextInterval(world);
-  if (PICKUPS.spawnOnStart) spawnPickup(world);
+  for (let i = 0; i < PICKUPS.spawnOnStart; i++) spawnPickup(world);
 }
 
 /** Support scales with pressure: drops come faster as the escalation climbs. */
@@ -29,6 +29,12 @@ export function updatePickups(world: World, dt: number): void {
   if (world.phase !== "playing") return;
 
   if (!world.sandbox) {
+    // refill floor: never leave the arena short on support. Skipped on Daily
+    // Patrol — refill timing depends on when the player collects, which
+    // would desync the shared seed (the faster baseline covers dailies).
+    if (!world.daily && world.pickups.length < PICKUPS.minActive) {
+      world.pickupTimer = Math.min(world.pickupTimer, 0.5);
+    }
     world.pickupTimer -= dt;
     if (world.pickupTimer <= 0) {
       world.pickupTimer = nextInterval(world);
@@ -38,10 +44,22 @@ export function updatePickups(world: World, dt: number): void {
 
   const ship = world.ship;
   const magnetActive = world.powers.magnetTimer > 0;
+  const hw = world.viewW / 2 - PICKUPS.edgeInset;
+  const hh = world.viewH / 2 - PICKUPS.edgeInset;
 
   for (let i = world.pickups.length - 1; i >= 0; i--) {
     const p = world.pickups[i];
     p.age += dt;
+
+    // slow drift, bouncing softly off the arena edges
+    p.x += (p.vx ?? 0) * dt;
+    p.y += (p.vy ?? 0) * dt;
+    if (p.vx !== undefined && ((p.x < -hw && p.vx < 0) || (p.x > hw && p.vx > 0))) {
+      p.vx = -p.vx;
+    }
+    if (p.vy !== undefined && ((p.y < -hh && p.vy < 0) || (p.y > hh && p.vy > 0))) {
+      p.vy = -p.vy;
+    }
 
     if (magnetActive) {
       const dx = ship.x - p.x;
@@ -88,9 +106,17 @@ function spawnPickup(world: World): void {
   // roll before the cap check: how many pickups float uncollected is
   // player-dependent, and a seeded run must consume the same draws (and the
   // same bad-luck demotions) for everyone. At the cap the drop is discarded.
+  const driftAngle = rand() * Math.PI * 2; // drift heading (fixed draw too)
   const power = rollPowerId(world);
   if (world.pickups.length >= PICKUPS.maxActive) return;
-  world.pickups.push({ x, y, power, age: 0 });
+  world.pickups.push({
+    x,
+    y,
+    power,
+    age: 0,
+    vx: Math.cos(driftAngle) * PICKUPS.driftSpeed,
+    vy: Math.sin(driftAngle) * PICKUPS.driftSpeed,
+  });
 }
 
 /**

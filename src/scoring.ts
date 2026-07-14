@@ -42,6 +42,28 @@ export function updateScoring(world: World, dt: number): void {
   }
 }
 
+/**
+ * Credit a graze (near-miss on a live drone): pays points, bumps the
+ * multiplier a notch, and resets its decay delay — threading a tight gap
+ * keeps the multiplier alive between kills. Returns the points paid.
+ */
+export function registerGraze(world: World, x = 0, y = 0): number {
+  if (world.phase !== "playing") return 0;
+
+  world.multiplier = Math.min(
+    SCORING.multiplierMax,
+    world.multiplier + SCORING.grazeMultiplier,
+  );
+  world.maxMultiplier = Math.max(world.maxMultiplier, world.multiplier);
+  world.multiplierDecayTimer = SCORING.multiplierDecayDelay;
+
+  const points = SCORING.grazePoints * world.multiplier * dangerFactor(world);
+  world.score += points;
+  world.scoreBonuses += points;
+  world.events.push({ type: "graze", x, y, points: Math.round(points) });
+  return Math.round(points);
+}
+
 /** Optional scaling for skill kills (pulse shots, frozen shatters, ...). */
 export interface KillModifiers {
   pointsScale?: number; // multiplies the base kill points

@@ -2,6 +2,8 @@
 // (vite dev proxy or the production server serving dist/). Failures surface as
 // thrown ApiError with a user-readable message.
 
+import type { GameMode } from "./config";
+
 export interface UserInfo {
   callsign: string;
   country: string;
@@ -70,6 +72,11 @@ export interface PlayerProfile {
   history: Array<{ score: number; mode: BoardMode; createdAt: number }>;
   badges: Array<{ id: string; earnedAt: number }>;
   friendship: Friendship;
+  /** Iron Rain bests/ranks — null until the pilot has flown Iron Rain. */
+  ironRain: {
+    best: Record<BoardMode, number>;
+    rank: Record<BoardMode, number | null>;
+  } | null;
 }
 
 export interface FriendInfo {
@@ -248,6 +255,8 @@ export class Api {
     kills: number;
     maxMultiplier: number;
     mode: BoardMode;
+    /** Which board the run files on (classic / ironrain). */
+    gameMode: GameMode;
     platform: string;
     /** true for Daily Patrol runs (server files it on today's board too). */
     daily?: boolean;
@@ -262,6 +271,7 @@ export class Api {
     kills: number;
     maxMultiplier: number;
     mode: BoardMode;
+    gameMode: GameMode;
     platform: string;
     daily?: boolean;
   }): Promise<{ ok: boolean }> {
@@ -272,8 +282,12 @@ export class Api {
     return this.request("GET", `/api/players/${encodeURIComponent(callsign)}`);
   }
 
-  worldLeaderboard(country?: string, mode: BoardMode = "desktop"): Promise<LeaderboardResponse> {
-    const q = new URLSearchParams({ mode });
+  worldLeaderboard(
+    country?: string,
+    mode: BoardMode = "desktop",
+    gameMode: GameMode = "classic",
+  ): Promise<LeaderboardResponse> {
+    const q = new URLSearchParams({ mode, gameMode });
     if (country) q.set("country", country);
     return this.request<LeaderboardResponse>("GET", `/api/leaderboard/world?${q}`);
   }
@@ -298,8 +312,9 @@ export class Api {
   arenaLeaderboard(
     code: string,
     mode: BoardMode = "desktop",
+    gameMode: GameMode = "classic",
   ): Promise<LeaderboardResponse & { arena: ArenaInfo }> {
-    return this.request("GET", `/api/arenas/${code}/leaderboard?mode=${mode}`);
+    return this.request("GET", `/api/arenas/${code}/leaderboard?mode=${mode}&gameMode=${gameMode}`);
   }
 
   // --- friends ---
@@ -322,8 +337,11 @@ export class Api {
     await this.request("POST", "/api/friends/remove", { callsign });
   }
 
-  friendsLeaderboard(mode: BoardMode = "desktop"): Promise<LeaderboardResponse> {
-    return this.request("GET", `/api/friends/leaderboard?mode=${mode}`);
+  friendsLeaderboard(
+    mode: BoardMode = "desktop",
+    gameMode: GameMode = "classic",
+  ): Promise<LeaderboardResponse> {
+    return this.request("GET", `/api/friends/leaderboard?mode=${mode}&gameMode=${gameMode}`);
   }
 
   friendActivity(): Promise<{ activity: FriendActivityEntry[] }> {

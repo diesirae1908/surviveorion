@@ -125,6 +125,21 @@ try {
   // column already exists
 }
 
+// Migration for game modes (Classic / Iron Rain). game_mode is a separate
+// column from mode (platform) — every board is scoped by both. Pre-modes rows
+// were all Classic, which the DEFAULT covers.
+try {
+  db.exec(`ALTER TABLE scores ADD COLUMN game_mode TEXT NOT NULL DEFAULT 'classic'`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_scores_gamemode ON scores(game_mode, mode)`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE runs ADD COLUMN game_mode TEXT NOT NULL DEFAULT 'classic'`);
+} catch {
+  // column already exists
+}
+
 // One-time migration to platform-based boards (desktop / touch / tilt). The
 // old modes were flight-physics tags ('classic' = inertia, 'tilt' = direct
 // control); inertia is a flavor setting now, so old rows are refiled by the
@@ -220,19 +235,19 @@ export const deleteSession = (token) => db.prepare(`DELETE FROM sessions WHERE t
 
 // --- scores ---
 
-export function insertScore(userId, { score, timeSurvived, kills, maxMultiplier, mode, dailyDate = null }) {
+export function insertScore(userId, { score, timeSurvived, kills, maxMultiplier, mode, gameMode, dailyDate = null }) {
   db.prepare(
-    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, daily_date, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "desktop", dailyDate, Date.now());
+    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, daily_date, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "desktop", gameMode ?? "classic", dailyDate, Date.now());
 }
 
-export const getUserBest = (userId, mode = "desktop") =>
+export const getUserBest = (userId, mode = "desktop", gameMode = "classic") =>
   db
-    .prepare(`SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND mode = ?`)
-    .get(userId, mode)?.best ?? 0;
+    .prepare(`SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND mode = ? AND game_mode = ?`)
+    .get(userId, mode, gameMode)?.best ?? 0;
 
-/** Best daily-run score for one user on a given UTC date. */
+/** Best daily-run score for one user on a given UTC date (dailies are Classic). */
 export const getUserDailyBest = (userId, mode, dailyDate) =>
   db
     .prepare(
@@ -241,15 +256,17 @@ export const getUserDailyBest = (userId, mode, dailyDate) =>
     .get(userId, mode, dailyDate)?.best ?? 0;
 
 /**
- * Best score per user, ranked. Scoped by board mode (platform); optional
- * country/arena, or a Daily Patrol date (daily runs only, that UTC day).
+ * Best score per user, ranked. Scoped by board mode (platform) and game mode
+ * (Classic / Iron Rain); optional country/arena, or a Daily Patrol date
+ * (daily runs only, that UTC day — dailies are always Classic).
  */
-export function leaderboard({ country = null, arenaId = null, mode = "desktop", dailyDate = null, limit = 100 }) {
+export function leaderboard({ country = null, arenaId = null, mode = "desktop", gameMode = "classic", dailyDate = null, limit = 100 }) {
   const joins = arenaId ? `JOIN arena_members am ON am.user_id = u.id AND am.arena_id = ?` : "";
   const daily = dailyDate ? `AND s.daily_date = ?` : "";
   const where = country ? `WHERE u.country = ?` : "";
   const params = [
     mode,
+    gameMode,
     ...(dailyDate ? [dailyDate] : []),
     ...(arenaId ? [arenaId] : []),
     ...(country ? [country] : []),
@@ -261,7 +278,7 @@ export function leaderboard({ country = null, arenaId = null, mode = "desktop", 
               MAX(s.score) AS best, COUNT(s.id) AS runs,
               MAX(s.time_survived) AS bestTime
        FROM users u
-       JOIN scores s ON s.user_id = u.id AND s.mode = ? ${daily}
+       JOIN scores s ON s.user_id = u.id AND s.mode = ? AND s.game_mode = ? ${daily}
        ${joins} ${where}
        GROUP BY u.id
        ORDER BY best DESC, MIN(s.created_at) ASC
@@ -271,14 +288,17 @@ export function leaderboard({ country = null, arenaId = null, mode = "desktop", 
 }
 
 /** 1-based rank of a user's best within a scope (null if no scores). */
-export function rankOf(userId, { country = null, arenaId = null, mode = "desktop", dailyDate = null }) {
-  const best = dailyDate ? getUserDailyBest(userId, mode, dailyDate) : getUserBest(userId, mode);
+export function rankOf(userId, { country = null, arenaId = null, mode = "desktop", gameMode = "classic", dailyDate = null }) {
+  const best = dailyDate
+    ? getUserDailyBest(userId, mode, dailyDate)
+    : getUserBest(userId, mode, gameMode);
   if (!best) return null;
   const joins = arenaId ? `JOIN arena_members am ON am.user_id = u.id AND am.arena_id = ?` : "";
   const daily = dailyDate ? `AND s.daily_date = ?` : "";
   const where = country ? `AND u.country = ?` : "";
   const params = [
     mode,
+    gameMode,
     ...(dailyDate ? [dailyDate] : []),
     ...(arenaId ? [arenaId] : []),
     ...(country ? [country] : []),
@@ -288,7 +308,7 @@ export function rankOf(userId, { country = null, arenaId = null, mode = "desktop
     .prepare(
       `SELECT COUNT(*) AS ahead FROM (
          SELECT u.id, MAX(s.score) AS b FROM users u
-         JOIN scores s ON s.user_id = u.id AND s.mode = ? ${daily}
+         JOIN scores s ON s.user_id = u.id AND s.mode = ? AND s.game_mode = ? ${daily}
          ${joins}
          WHERE 1=1 ${where}
          GROUP BY u.id
@@ -302,27 +322,27 @@ export function rankOf(userId, { country = null, arenaId = null, mode = "desktop
  * The pilot directly above a user on the world board for a mode —
  * the gap-to-goal target shown on the game-over screen.
  */
-export function nextAbove(userId, mode = "desktop") {
-  const best = getUserBest(userId, mode);
+export function nextAbove(userId, mode = "desktop", gameMode = "classic") {
+  const best = getUserBest(userId, mode, gameMode);
   if (!best) return null;
   return (
     db
       .prepare(
         `SELECT u.callsign, MAX(s.score) AS score
-         FROM users u JOIN scores s ON s.user_id = u.id AND s.mode = ?
+         FROM users u JOIN scores s ON s.user_id = u.id AND s.mode = ? AND s.game_mode = ?
          WHERE u.id != ?
          GROUP BY u.id
          HAVING score > ?
          ORDER BY score ASC
          LIMIT 1`,
       )
-      .get(mode, userId, best) ?? null
+      .get(mode, gameMode, userId, best) ?? null
   );
 }
 
 /** Nearest wingmate above a user on the world board (friendly rivalry hook). */
-export function nextWingmateAbove(userId, mode = "desktop") {
-  const best = getUserBest(userId, mode);
+export function nextWingmateAbove(userId, mode = "desktop", gameMode = "classic") {
+  const best = getUserBest(userId, mode, gameMode);
   if (!best) return null;
   const ids = friendIdsOf(userId);
   if (ids.length === 0) return null;
@@ -331,14 +351,14 @@ export function nextWingmateAbove(userId, mode = "desktop") {
     db
       .prepare(
         `SELECT u.callsign, MAX(s.score) AS score
-         FROM users u JOIN scores s ON s.user_id = u.id AND s.mode = ?
+         FROM users u JOIN scores s ON s.user_id = u.id AND s.mode = ? AND s.game_mode = ?
          WHERE u.id IN (${marks})
          GROUP BY u.id
          HAVING score > ?
          ORDER BY score ASC
          LIMIT 1`,
       )
-      .get(mode, ...ids, best) ?? null
+      .get(mode, gameMode, ...ids, best) ?? null
   );
 }
 
@@ -473,7 +493,7 @@ export const pendingFriendCount = (userId) =>
     .get(userId).c;
 
 /** Best score per pilot among the user and their friends, ranked. */
-export function friendsLeaderboard(userId, mode = "desktop") {
+export function friendsLeaderboard(userId, mode = "desktop", gameMode = "classic") {
   const ids = [userId, ...friendIdsOf(userId)];
   const marks = ids.map(() => "?").join(",");
   return db
@@ -482,12 +502,12 @@ export function friendsLeaderboard(userId, mode = "desktop") {
               MAX(s.score) AS best, COUNT(s.id) AS runs,
               MAX(s.time_survived) AS bestTime
        FROM users u
-       JOIN scores s ON s.user_id = u.id AND s.mode = ?
+       JOIN scores s ON s.user_id = u.id AND s.mode = ? AND s.game_mode = ?
        WHERE u.id IN (${marks})
        GROUP BY u.id
        ORDER BY best DESC, MIN(s.created_at) ASC`,
     )
-    .all(mode, ...ids);
+    .all(mode, gameMode, ...ids);
 }
 
 /** Recent runs by friends (activity feed). */
@@ -527,10 +547,10 @@ export function listFeedback(limit = 100) {
 
 // --- runs (analytics telemetry; leaderboards use the scores table) ---
 
-export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, mode, platform }) {
+export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, mode, gameMode, platform }) {
   db.prepare(
-    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, platform, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, platform, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     userId,
     score,
@@ -538,6 +558,7 @@ export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, m
     kills,
     maxMultiplier,
     mode ?? "desktop",
+    gameMode ?? "classic",
     platform ?? "",
     Date.now(),
   );
@@ -598,6 +619,9 @@ export function adminStats() {
   const platformSplit = db
     .prepare(`SELECT platform, COUNT(*) AS runs FROM runs GROUP BY platform`)
     .all();
+  const gameModeSplit = db
+    .prepare(`SELECT game_mode AS gameMode, COUNT(*) AS runs FROM runs GROUP BY game_mode`)
+    .all();
 
   const users = db
     .prepare(
@@ -638,6 +662,7 @@ export function adminStats() {
       perDay,
       modeSplit,
       platformSplit,
+      gameModeSplit,
     },
     gameLength: {
       avg: totals.avgTime ?? 0,

@@ -1,4 +1,4 @@
-import { ALL_POWER_IDS, POWER_COLORS, POWER_HINTS, POWER_NAMES } from "./config";
+import { ALL_POWER_IDS, POWER_COLORS, POWER_HINTS, POWER_NAMES, type GameMode } from "./config";
 import type {
   BooleanSetting,
   ControlMode,
@@ -14,8 +14,8 @@ import {
 } from "./save";
 
 export interface UiCallbacks {
-  onPlay: () => void;
-  /** Launch today's Daily Patrol (shared-seed run, daily board). */
+  onPlay: (gameMode: GameMode) => void;
+  /** Launch today's Daily Patrol (shared-seed run, daily board — always Classic). */
   onDaily: () => void;
   onResume: () => void;
   onRestart: () => void;
@@ -65,6 +65,8 @@ export interface GameOverStats {
   isNewBestTime: boolean;
   /** Daily Patrol run (shared-seed board). */
   daily: boolean;
+  /** Which board this run files on (Classic / Iron Rain). */
+  gameMode: GameMode;
   touchDevice: boolean;
 }
 
@@ -266,9 +268,17 @@ export class Ui {
       );
     }
 
-    const launch = this.button("Launch", true, () => this.cb.onPlay());
+    const launch = this.button("Launch — Classic", true, () => this.cb.onPlay("classic"));
     launch.classList.add("launch");
     screen.appendChild(launch);
+
+    // Iron Rain: flat max-difficulty endurance for pilots past the warm-up
+    const ironRain = this.el("button", "menu-mode-btn ironrain", "");
+    ironRain.innerHTML =
+      `<span class="daily-name">⚙ Iron Rain</span>` +
+      `<span class="daily-sub">max difficulty from second zero. Skip the warm-up — its own board</span>`;
+    ironRain.addEventListener("click", () => this.cb.onPlay("ironrain"));
+    screen.appendChild(ironRain);
 
     // Daily Patrol: everyone flies the same swarm today, one shared board
     if (community && community.callsign !== null) {
@@ -807,6 +817,8 @@ export class Ui {
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
     if (stats.daily) {
       screen.appendChild(this.el("div", "daily-tag", "DAILY PATROL"));
+    } else if (stats.gameMode === "ironrain") {
+      screen.appendChild(this.el("div", "ironrain-tag", "IRON RAIN"));
     }
     if (stats.isNewBest) {
       screen.appendChild(this.el("div", "new-best", "New best score"));
@@ -865,11 +877,12 @@ export class Ui {
     screen.appendChild(rank);
 
     // retries keep the mode picked at launch, so say which run comes next
-    screen.appendChild(
-      this.button(stats.daily ? "Fly again: Daily Patrol" : "Fly again", true, () =>
-        this.cb.onRestart(),
-      ),
-    );
+    const retryLabel = stats.daily
+      ? "Fly again: Daily Patrol"
+      : stats.gameMode === "ironrain"
+        ? "Fly again: Iron Rain"
+        : "Fly again";
+    screen.appendChild(this.button(retryLabel, true, () => this.cb.onRestart()));
     screen.appendChild(this.button("Main menu", false, () => this.cb.onQuitToMenu()));
     if (!stats.touchDevice) {
       screen.appendChild(this.el("div", "field-hint center", "Space to fly again"));

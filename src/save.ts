@@ -1,4 +1,4 @@
-import type { SenseLevel } from "./config";
+import { GAME_MODES, type GameMode, type SenseLevel } from "./config";
 import type { ControlMode } from "./input";
 
 export type { ControlMode, SenseLevel };
@@ -58,6 +58,7 @@ const RUN_COUNT_KEY = "orion.runCount";
 const SETTINGS_KEY = "orion.settings";
 const CONTROLS_KEY = "orion.controls";
 const KEYBINDS_KEY = "orion.keybinds";
+const GAME_MODE_KEY = "orion.gameMode";
 
 const SENSE_LEVELS: SenseLevel[] = ["low", "med", "high"];
 
@@ -67,21 +68,39 @@ function loadNumber(key: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function loadBestScore(): number {
-  return loadNumber(BEST_KEY);
+/**
+ * PBs are kept per game mode so NEW RECORD and PB deltas compare like-for-like.
+ * Classic reuses the historic keys, so pre-modes bests migrate for free.
+ */
+function modeKey(base: string, mode: GameMode): string {
+  return mode === "classic" ? base : `${base}.${mode}`;
 }
 
-export function saveBestScore(score: number): void {
-  localStorage.setItem(BEST_KEY, String(Math.floor(score)));
+export function loadBestScore(mode: GameMode = "classic"): number {
+  return loadNumber(modeKey(BEST_KEY, mode));
 }
 
-/** Longest survival time in seconds (personal best, local). */
-export function loadBestTime(): number {
-  return loadNumber(BEST_TIME_KEY);
+export function saveBestScore(score: number, mode: GameMode = "classic"): void {
+  localStorage.setItem(modeKey(BEST_KEY, mode), String(Math.floor(score)));
 }
 
-export function saveBestTime(seconds: number): void {
-  localStorage.setItem(BEST_TIME_KEY, String(seconds));
+/** Longest survival time in seconds (personal best, local, per game mode). */
+export function loadBestTime(mode: GameMode = "classic"): number {
+  return loadNumber(modeKey(BEST_TIME_KEY, mode));
+}
+
+export function saveBestTime(seconds: number, mode: GameMode = "classic"): void {
+  localStorage.setItem(modeKey(BEST_TIME_KEY, mode), String(seconds));
+}
+
+/** Last game mode launched (Classic / Iron Rain) — the menu remembers it. */
+export function loadGameMode(): GameMode {
+  const raw = localStorage.getItem(GAME_MODE_KEY);
+  return GAME_MODES.includes(raw as GameMode) ? (raw as GameMode) : "classic";
+}
+
+export function saveGameMode(mode: GameMode): void {
+  localStorage.setItem(GAME_MODE_KEY, mode);
 }
 
 /** Lifetime completed runs on this device (drives the new-pilot grace curve). */

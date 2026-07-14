@@ -11,10 +11,12 @@ import {
   type PlayerProfile,
 } from "./api";
 import { BADGES, TIER_LABEL, type BadgeProgressStats } from "./badges";
+import { GAME_MODES, GAME_MODE_LABEL, type GameMode } from "./config";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 import { dailyResetLabel } from "./ui";
 
 const BOARD_MODE_KEY = "orion.boardMode";
+const BOARD_GAME_MODE_KEY = "orion.boardGameMode";
 
 /**
  * Board display names. Runs are tagged by the platform they were played on:
@@ -42,6 +44,12 @@ function loadBoardMode(): BoardMode {
   return isTouchDevice() ? "touch" : "desktop";
 }
 
+/** Last-viewed game-mode filter (Classic / Iron Rain). */
+function loadBoardGameMode(): GameMode {
+  const saved = localStorage.getItem(BOARD_GAME_MODE_KEY);
+  return (GAME_MODES as string[]).includes(saved ?? "") ? (saved as GameMode) : "classic";
+}
+
 type Google = {
   accounts: {
     id: {
@@ -53,6 +61,7 @@ type Google = {
 
 export class CommunityUi {
   private boardMode: BoardMode = loadBoardMode();
+  private boardGameMode: GameMode = loadBoardGameMode();
 
   /** Back action of the community screen currently showing (null = none). */
   private backAction: (() => void) | null = null;
@@ -86,24 +95,53 @@ export class CommunityUi {
     else this.backAction?.();
   }
 
-  /** Desktop / Phone / Phone tilt leaderboard tabs — each platform ranks separately. */
-  private modeTabs(onChange: () => void): HTMLElement {
-    const row = this.el("div", "tabs");
-    const tabs = BOARD_MODES.map((mode) => {
-      const b = this.button(MODE_TAB_LABEL[mode], false, () => {
-        this.boardMode = mode;
-        localStorage.setItem(BOARD_MODE_KEY, mode);
-        paint();
-        onChange();
-      });
-      return { mode, b };
+  /** Platform dropdown (Desktop / Phone / Phone tilt) — each ranks separately. */
+  private modeSelect(onChange: () => void): HTMLSelectElement {
+    const s = document.createElement("select");
+    s.className = "field";
+    for (const mode of BOARD_MODES) {
+      const o = document.createElement("option");
+      o.value = mode;
+      o.textContent = MODE_TAB_LABEL[mode];
+      if (mode === this.boardMode) o.selected = true;
+      s.appendChild(o);
+    }
+    s.addEventListener("change", () => {
+      this.boardMode = s.value as BoardMode;
+      localStorage.setItem(BOARD_MODE_KEY, this.boardMode);
+      onChange();
     });
-    const paint = (): void => {
-      for (const { mode, b } of tabs) b.classList.toggle("active", this.boardMode === mode);
-    };
-    paint();
-    row.append(...tabs.map((t) => t.b));
-    return row;
+    return s;
+  }
+
+  /** Game-mode dropdown (Classic / Iron Rain) — separate boards per mode. */
+  private gameModeSelect(onChange: () => void): HTMLSelectElement {
+    const s = document.createElement("select");
+    s.className = "field";
+    for (const gm of GAME_MODES) {
+      const o = document.createElement("option");
+      o.value = gm;
+      o.textContent = GAME_MODE_LABEL[gm];
+      if (gm === this.boardGameMode) o.selected = true;
+      s.appendChild(o);
+    }
+    s.addEventListener("change", () => {
+      this.boardGameMode = s.value as GameMode;
+      localStorage.setItem(BOARD_GAME_MODE_KEY, this.boardGameMode);
+      onChange();
+    });
+    return s;
+  }
+
+  /** Game mode + platform dropdown filters, side by side. */
+  private boardFilters(onChange: () => void): {
+    row: HTMLElement;
+    gameModeFilter: HTMLSelectElement;
+  } {
+    const row = this.el("div", "filter-row");
+    const gameModeFilter = this.gameModeSelect(onChange);
+    row.append(gameModeFilter, this.modeSelect(onChange));
+    return { row, gameModeFilter };
   }
 
   // --- tiny DOM helpers ---
@@ -406,6 +444,8 @@ export class CommunityUi {
     void this.guard(error, async () => {
       const p = await this.api.playerProfile(user.callsign);
       record.appendChild(this.statsRow(p));
+      const iron = this.ironRainRow(p);
+      if (iron) record.appendChild(iron);
       const graph = this.historyGraph(p);
       if (graph) record.appendChild(graph);
       record.appendChild(this.badgeGrid(p.badges, true, p));
@@ -439,11 +479,43 @@ export class CommunityUi {
       const action = this.friendAction(p, error, () => this.showPilot(callsign, onBack));
       if (action) body.appendChild(action);
       body.appendChild(this.statsRow(p));
+      const iron = this.ironRainRow(p);
+      if (iron) body.appendChild(iron);
       const graph = this.historyGraph(p);
       if (graph) body.appendChild(graph);
       body.appendChild(this.badgeGrid(p.badges, false));
     });
     this.backRow(screen);
+  }
+
+  /** Iron Rain bests/ranks — only rendered once the pilot has flown it. */
+  private ironRainRow(p: PlayerProfile): HTMLElement | null {
+    const ir = p.ironRain;
+    if (!ir) return null;
+    const cells: Array<[string, string]> = [
+      ...BOARD_MODES.map(
+        (m): [string, string] => [`Best (${MODE_LABEL[m]})`, ir.best[m].toLocaleString()],
+      ),
+      ...BOARD_MODES.map(
+        (m): [string, string] => [
+          `World rank (${MODE_LABEL[m]})`,
+          ir.rank?.[m] ? `#${ir.rank[m]}` : "0",
+        ],
+      ),
+    ];
+    const wrap = this.el("div", "ironrain-record");
+    wrap.appendChild(this.el("div", "manual-title", "IRON RAIN"));
+    wrap.appendChild(
+      this.el(
+        "div",
+        "stats pilot-stats",
+        cells
+          .filter(([, v]) => v !== "0")
+          .map(([k, v]) => `<div><span class="label">${k}</span><span class="value">${v}</span></div>`)
+          .join(""),
+      ),
+    );
+    return wrap;
   }
 
   private statsRow(p: PlayerProfile): HTMLElement {
@@ -622,18 +694,25 @@ export class CommunityUi {
     const load = (): void => {
       const daily = this.boardScope === "daily";
       filter.style.display = daily ? "none" : "";
+      // Daily Patrol is Classic-only — the game-mode filter disappears there
+      filters.gameModeFilter.style.display = daily ? "none" : "";
       dailyHint.style.display = daily ? "" : "none";
       table.innerHTML = `<div class="field-hint">Loading…</div>`;
       void this.guard(error, async () => {
         const data = daily
           ? await this.api.dailyLeaderboard(this.boardMode)
-          : await this.api.worldLeaderboard(filter.value || undefined, this.boardMode);
+          : await this.api.worldLeaderboard(
+              filter.value || undefined,
+              this.boardMode,
+              this.boardGameMode,
+            );
         this.renderBoard(table, data.entries, data.me, () => this.showWorldArena());
         if (daily && data.entries.length === 0) {
           table.innerHTML = `<div class="field-hint">No patrols flown yet today. Be the first!</div>`;
         }
       });
     };
+    const filters = this.boardFilters(() => load());
 
     // All-time / Today scope tabs
     const scopeRow = this.el("div", "tabs");
@@ -655,7 +734,7 @@ export class CommunityUi {
     paintScopes();
     scopeRow.append(...scopeTabs.map((t) => t.b));
 
-    body.append(scopeRow, this.modeTabs(load), filter, dailyHint, table);
+    body.append(scopeRow, filters.row, filter, dailyHint, table);
     filter.addEventListener("change", load);
     load();
 
@@ -746,7 +825,7 @@ export class CommunityUi {
       table.innerHTML = `<div class="field-hint">Loading…</div>`;
       void this.guard(error, async () => {
         const [board, mine] = await Promise.all([
-          this.api.friendsLeaderboard(this.boardMode),
+          this.api.friendsLeaderboard(this.boardMode, this.boardGameMode),
           this.api.myFriends(),
         ]);
         this.renderBoard(table, board.entries, null, () => this.showFriends());
@@ -771,7 +850,7 @@ export class CommunityUi {
         }
       });
     };
-    const tabs = this.modeTabs(loadBoard);
+    const { row: tabs } = this.boardFilters(loadBoard);
 
     const refresh = (): void => {
       loadBoard();
@@ -931,12 +1010,12 @@ export class CommunityUi {
     const load = (): void => {
       table.innerHTML = `<div class="field-hint">Loading…</div>`;
       void this.guard(error, async () => {
-        const data = await this.api.arenaLeaderboard(code, this.boardMode);
+        const data = await this.api.arenaLeaderboard(code, this.boardMode, this.boardGameMode);
         heading.textContent = data.arena.name.toUpperCase();
         this.renderBoard(table, data.entries, data.me, () => this.showArenaBoard(code));
       });
     };
-    body.append(this.modeTabs(load), table);
+    body.append(this.boardFilters(load).row, table);
     load();
     this.backRow(screen);
   }

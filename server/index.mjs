@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "./env.mjs"; // loads server/.env before other modules read process.env
 import * as store from "./db.mjs";
-import { validateRun, MODES } from "./validate.mjs";
+import { validateRun, MODES, GAME_MODES } from "./validate.mjs";
 import { qualifyingBadges } from "./badges.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 
@@ -88,6 +88,16 @@ function boardMode(body) {
   const mode = body.mode ?? "desktop";
   if (MODES.includes(mode)) return mode;
   return cleanPlatform(body.platform) === "touch" ? "touch" : "desktop";
+}
+
+/** Game mode from a submitted run; older clients send none → Classic. */
+const bodyGameMode = (body) =>
+  GAME_MODES.includes(body.gameMode) ? body.gameMode : "classic";
+
+/** Game mode from a leaderboard query (?gameMode=); null = invalid. */
+function queryGameMode(url) {
+  const gm = url.searchParams.get("gameMode") ?? "classic";
+  return GAME_MODES.includes(gm) ? gm : null;
 }
 
 /** Admin key check: Bearer header or ?key= param. 404s when no key is set. */
@@ -302,12 +312,15 @@ const routes = {
     if (!user) return json(res, 401, { error: "not signed in" });
     if (!rateLimit(`score:${user.id}`, 6)) return json(res, 429, { error: "too many submissions" });
     const body = await readBody(req);
+    // Daily Patrol is always Classic — the server enforces it.
+    const gameMode = body.daily === true ? "classic" : bodyGameMode(body);
     const run = {
       score: body.score,
       timeSurvived: body.timeSurvived,
       kills: body.kills,
       maxMultiplier: body.maxMultiplier,
       mode: boardMode(body),
+      gameMode,
     };
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
@@ -319,7 +332,7 @@ const routes = {
     store.insertScore(user.id, { ...run, dailyDate });
     store.insertRun(user.id, { ...run, platform: cleanPlatform(body.platform) });
 
-    const worldRank = store.rankOf(user.id, { mode: run.mode });
+    const worldRank = store.rankOf(user.id, { mode: run.mode, gameMode });
     // badge sweep: qualifying badges the pilot doesn't have yet
     const career = store.userCareer(user.id);
     const newBadges = qualifyingBadges(run, career, worldRank).filter((id) =>
@@ -327,15 +340,15 @@ const routes = {
     );
 
     json(res, 200, {
-      best: store.getUserBest(user.id, run.mode),
+      best: store.getUserBest(user.id, run.mode, gameMode),
       worldRank,
       countryRank: user.country
-        ? store.rankOf(user.id, { country: user.country, mode: run.mode })
+        ? store.rankOf(user.id, { country: user.country, mode: run.mode, gameMode })
         : null,
       dailyRank: dailyDate ? store.rankOf(user.id, { mode: run.mode, dailyDate }) : null,
-      // gap-to-goal targets for the game-over screen
-      nextAbove: store.nextAbove(user.id, run.mode),
-      nextWingmate: store.nextWingmateAbove(user.id, run.mode),
+      // gap-to-goal targets for the game-over screen (same game mode's board)
+      nextAbove: store.nextAbove(user.id, run.mode, gameMode),
+      nextWingmate: store.nextWingmateAbove(user.id, run.mode, gameMode),
       newBadges,
     });
   },
@@ -351,6 +364,7 @@ const routes = {
       kills: body.kills,
       maxMultiplier: body.maxMultiplier,
       mode: boardMode(body),
+      gameMode: bodyGameMode(body),
     };
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
@@ -363,13 +377,15 @@ const routes = {
     if (country && !/^[A-Z]{2}$/.test(country)) return json(res, 400, { error: "invalid country" });
     const mode = url.searchParams.get("mode") ?? "desktop";
     if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
+    const gameMode = queryGameMode(url);
+    if (!gameMode) return json(res, 400, { error: "invalid game mode" });
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
-    const entries = store.leaderboard({ country, mode, limit });
+    const entries = store.leaderboard({ country, mode, gameMode, limit });
     const me =
-      user && store.getUserBest(user.id, mode)
+      user && store.getUserBest(user.id, mode, gameMode)
         ? {
-            rank: store.rankOf(user.id, { country, mode }),
-            best: store.getUserBest(user.id, mode),
+            rank: store.rankOf(user.id, { country, mode, gameMode }),
+            best: store.getUserBest(user.id, mode, gameMode),
             inScope: !country || user.country === country,
           }
         : null;
@@ -470,7 +486,9 @@ const routes = {
     if (!user) return json(res, 401, { error: "not signed in" });
     const mode = url.searchParams.get("mode") ?? "desktop";
     if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
-    json(res, 200, { entries: store.friendsLeaderboard(user.id, mode), me: null });
+    const gameMode = queryGameMode(url);
+    if (!gameMode) return json(res, 400, { error: "invalid game mode" });
+    json(res, 200, { entries: store.friendsLeaderboard(user.id, mode, gameMode), me: null });
   },
 
   "GET /api/friends/activity": (req, res, user) => {
@@ -542,6 +560,15 @@ function playerProfile(req, res, user, callsign) {
           : "incoming";
   }
 
+  // Classic keeps the legacy best/rank shape; Iron Rain rides alongside and
+  // is only included once the pilot has actually flown it.
+  const ironBest = {
+    desktop: store.getUserBest(target.id, "desktop", "ironrain"),
+    touch: store.getUserBest(target.id, "touch", "ironrain"),
+    tilt: store.getUserBest(target.id, "tilt", "ironrain"),
+  };
+  const hasIronRain = ironBest.desktop > 0 || ironBest.touch > 0 || ironBest.tilt > 0;
+
   json(res, 200, {
     callsign: target.callsign,
     country: target.country,
@@ -556,6 +583,16 @@ function playerProfile(req, res, user, callsign) {
       touch: store.rankOf(target.id, { mode: "touch" }),
       tilt: store.rankOf(target.id, { mode: "tilt" }),
     },
+    ironRain: hasIronRain
+      ? {
+          best: ironBest,
+          rank: {
+            desktop: store.rankOf(target.id, { mode: "desktop", gameMode: "ironrain" }),
+            touch: store.rankOf(target.id, { mode: "touch", gameMode: "ironrain" }),
+            tilt: store.rankOf(target.id, { mode: "tilt", gameMode: "ironrain" }),
+          },
+        }
+      : null,
     runs: career.runs,
     totalKills: career.totalKills,
     totalTime: career.totalTime,
@@ -578,11 +615,13 @@ function arenaLeaderboard(req, res, user, code, url) {
   if (!store.isArenaMember(arena.id, user.id)) return json(res, 403, { error: "not a member" });
   const mode = url.searchParams.get("mode") ?? "desktop";
   if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
-  const entries = store.leaderboard({ arenaId: arena.id, mode, limit: 100 });
-  const me = store.getUserBest(user.id, mode)
+  const gameMode = queryGameMode(url);
+  if (!gameMode) return json(res, 400, { error: "invalid game mode" });
+  const entries = store.leaderboard({ arenaId: arena.id, mode, gameMode, limit: 100 });
+  const me = store.getUserBest(user.id, mode, gameMode)
     ? {
-        rank: store.rankOf(user.id, { arenaId: arena.id, mode }),
-        best: store.getUserBest(user.id, mode),
+        rank: store.rankOf(user.id, { arenaId: arena.id, mode, gameMode }),
+        best: store.getUserBest(user.id, mode, gameMode),
       }
     : null;
   json(res, 200, { arena: { code: arena.code, name: arena.name }, entries, me });
@@ -660,6 +699,7 @@ async function go() {
       stat("signed-in players", fmt(s.runs.signedInPlayers)) +
       s.runs.modeSplit.map((m) => stat(m.mode + " runs", fmt(m.runs))).join("") +
       s.runs.platformSplit.map((p) => stat((p.platform || "unknown") + " runs", fmt(p.runs))).join("") +
+      (s.runs.gameModeSplit ?? []).map((g) => stat((g.gameMode || "classic") + " runs", fmt(g.runs))).join("") +
     "</div>" +
     "<h2>Game length</h2><div class='grid'>" +
       stat("average", secs(s.gameLength.avg)) +
