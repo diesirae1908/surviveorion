@@ -27,7 +27,7 @@ export const SHIP = {
   thrust: 12,
   rotateSpeed: (320 * Math.PI) / 180, // rad/s
   maxSpeed: 15,
-  radius: 0.16, // forgiving hitbox, much smaller than the drawn hull (arcade-fair)
+  radius: 0.12, // bullet-hell-tiny hitbox (~the canopy), way under the drawn hull
   visualScale: 0.8, // hull drawn smaller for more perceived flying room
   linearDamping: 0.12, // gentle drag so the ship eventually settles
   deathKnockback: 12,
@@ -69,15 +69,15 @@ export const DRONE = {
   // Zombie-horde pacing: individual drones shamble, the threat is the crowd.
   // The game is about reading the swarm and finding the way out, not
   // out-twitching drones.
-  baseSpeed: 1.0,
+  baseSpeed: 0.85,
   radius: 0.28, // scaled by drone size
   massMin: 0.3,
   massMax: 1.8,
   jitterFrequency: 0.8,
   // Frozen drones puff up (ice shell): easier targets to ram and shatter.
   frozenScale: 1.5,
-  // Small drones move a bit slower; larger ones a bit faster (subtle variety).
-  sizeSpeed: { small: 0.85, large: 1.12 },
+  // Most of the horde is slow; only the big bruisers keep some pace.
+  sizeSpeed: { small: 0.7, large: 1.25 },
 };
 
 export type FormationKind =
@@ -100,7 +100,8 @@ export const SPAWNER = {
   // is soft — density and patterns are the late-game pressure, not chase speed.
   // Tilt to Live density target: the late game should be a sea of dots.
   spawnsPerSecond: { from: 1.3, to: 4.0, rampMinutes: 3, latePerMinute: 0.35 },
-  speedMultiplier: { from: 1.0, to: 1.1, rampMinutes: 4, latePerMinute: 0.02 },
+  // near-flat: Iron Rain's pinned depth must not turn the horde quick
+  speedMultiplier: { from: 1.0, to: 1.05, rampMinutes: 4, latePerMinute: 0.01 },
   // Classic only: the first formation arrives this much later than the normal
   // formation cadence, so brand-new runs get a beat to breathe.
   firstFormationExtraDelay: 2,
@@ -166,7 +167,7 @@ export const SPAWNER = {
     // pace over the slow zombie baseline — the crowd shambles, the walls sweep.
     wall: { spacing: 1.0, gapSize: 2.6, scale: 0.55, speedScale: 1.25 },
     // A dotted train: the head wanders on a curved path, the body follows.
-    serpent: { count: 14, spacing: 0.55, duration: 7, wander: 1.7, scale: 0.5, speedScale: 1.55 },
+    serpent: { count: 14, spacing: 0.55, duration: 7, wander: 1.7, scale: 0.5, speedScale: 1.35 },
     // Two walls converging from opposite edges (each with an escape gap).
     pincer: { spacing: 1.5, gapSize: 2.8, scale: 0.55, speedScale: 1.05 },
     // Simultaneous bursts from all four corners.
@@ -175,7 +176,7 @@ export const SPAWNER = {
     tightring: { count: 20, radius: 2.9, telegraphDuration: 2.2 },
     // A loose school of drones drifting across the arena as one organic blob,
     // released to homing as it passes the player.
-    swarm: { count: 32, spreadRadius: 3.0, scale: 0.5, speedScale: 1.35, wander: 0.5 },
+    swarm: { count: 32, spreadRadius: 3.0, scale: 0.5, speedScale: 1.2, wander: 0.5 },
     // The big one: a slow 3-row-thick wall spanning the whole arena with a
     // single narrow gap — thread it or blast through with a power.
     megawall: { spacing: 0.9, gapSize: 2.2, scale: 0.55, speedScale: 0.85, rows: 3, rowOffset: 0.9 },
