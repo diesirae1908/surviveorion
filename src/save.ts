@@ -122,7 +122,8 @@ export function loadSettings(): Settings {
   const defaults: Settings = {
     sound: true,
     music: true,
-    screenShake: true,
+    // off by default: with Tilt to Live density the shake hurts readability
+    screenShake: false,
     inertia: false, // direct control by default; inertia is the opt-in add-on
     tiltSensitivity: "med",
     directSpeed: "med",

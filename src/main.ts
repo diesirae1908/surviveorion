@@ -531,21 +531,13 @@ function drainEvents(w: World): void {
         } else {
           particles.burst(e.x, e.y, [PALETTE.redBright, PALETTE.gold, "#ff8866"], 14, 5, 0.6, 0.12);
         }
-        if (e.points > 0) {
-          // bonus kills get their power's color so players learn what pays more
-          const color = e.wasFrozen
-            ? PALETTE.freeze
-            : e.source === "pulse"
-              ? PALETTE.pulse
-              : PALETTE.gold;
-          popups.spawn(e.x, e.y, `+${e.points}`, color);
-        }
+        // no floating +points: with the dense swarm the numbers cluttered the
+        // view — the HUD score and the kill burst are feedback enough
         audio.droneKill();
         break;
       }
       case "mineExploded":
         particles.burst(e.x, e.y, ["#ff8844", PALETTE.gold, PALETTE.redBright], 26, 7, 0.8, 0.15);
-        if (e.points > 0) popups.spawn(e.x, e.y, `+${e.points}`, "#ff8844");
         audio.mineBoom();
         break;
       case "pickup":
@@ -601,9 +593,8 @@ function drainEvents(w: World): void {
         audio.missileBlast();
         break;
       case "graze":
-        // near-miss payoff: a spark at the drone plus the points, no fanfare
+        // near-miss payoff: a gold spark + tick, no number (keeps the view clean)
         particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
-        popups.spawn(e.x, e.y, `+${e.points}`, PALETTE.goldPale, 0.2);
         audio.graze();
         break;
       case "assembly":
@@ -635,11 +626,11 @@ function drainEvents(w: World): void {
         audio.arcFizzle();
         break;
       case "chainBonus":
-        popups.spawn(e.x, e.y + 0.7, `CHAIN ×${e.count}  +${e.points}`, PALETTE.goldPale, 0.5);
+        popups.spawn(e.x, e.y + 0.7, `CHAIN ×${e.count}`, PALETTE.goldPale, 0.5);
         audio.chainBonus();
         break;
       case "pulseMultiKill":
-        popups.spawn(e.x, e.y + 0.7, `PULSE ×${e.hits}  +${e.points}`, PALETTE.pulse, 0.5);
+        popups.spawn(e.x, e.y + 0.7, `PULSE ×${e.hits}`, PALETTE.pulse, 0.5);
         audio.chainBonus();
         break;
       case "droneSpawn":
