@@ -13,7 +13,7 @@ const CHAIN_POINTS = 100; // chainBonusPoints
 const PULSE_MULTI_POINTS = 150; // pulseMultiKillPoints (paid per kill past the threshold)
 const GRAZE_POINTS = 15; // grazePoints
 const MAX_GRAZES_PER_SEC = 8; // generous ceiling (per-drone 1.5s cooldown in practice)
-const MAX_KILLS_PER_SEC = 10; // generous physical ceiling
+const MAX_KILLS_PER_SEC = 12; // generous physical ceiling (spawn rate reaches ~8/s late)
 const MAX_TIME_SECONDS = 4 * 3600;
 
 // Board modes (one leaderboard each): desktop keyboard, phone touch stick,

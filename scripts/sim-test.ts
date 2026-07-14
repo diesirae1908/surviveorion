@@ -2,7 +2,7 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { FIXED_DT, IRONRAIN, SCORING, SHIP } from "../src/config";
+import { FIXED_DT, IRONRAIN, SCORING, SHIP, SPAWNABLE_POWER_IDS } from "../src/config";
 import { droneRadius, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
@@ -172,10 +172,14 @@ function muteAmbientPickups(world: World): void {
   }
   check(
     "starshell + new powers spawn at minute zero",
-    seen.has("starshell") && seen.has("autocannon") && seen.has("meteors") && seen.has("vortex"),
+    seen.has("starshell") && seen.has("autocannon") && seen.has("meteors"),
     [...seen].sort().join(","),
   );
-  check("all 12 powers appear within 60 drops", seen.size === 12, `${seen.size}/12`);
+  check(
+    "all spawnable powers appear within 60 drops (benched ones never)",
+    seen.size === SPAWNABLE_POWER_IDS.length && !seen.has("magnet") && !seen.has("vortex"),
+    `${seen.size}/${SPAWNABLE_POWER_IDS.length}`,
+  );
   check(
     "bad-luck protection: >=8 distinct powers in first 15 drops",
     first15.size >= 8,

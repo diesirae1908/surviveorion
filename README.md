@@ -9,7 +9,6 @@ defensive power pickups:
 - **Aegis Shield** — stays on the ship until it absorbs a hit (a banked extra life), then detonates, clearing nearby drones
 - **Shockwave** — kills every drone in a radius, and the blast zone stays lethal for ~1s after (a nuclear linger)
 - **Pulse Shot** — charges up (~1s), then fires a piercing bolt forward
-- **Magnet** — pulls pickups toward you for a few seconds
 - **Afterburner** — charges, then dashes you forward through enemies, leaving a burning trail that stays lethal for ~2.5s; you get a 1s invincibility grace on arrival
 - **Cryo Field** — flash-freezes all drones in a big area; fly into frozen drones to shatter them
 - **Missile Swarm** — launches a volley of guided missiles in all directions; each impact detonates a small area blast that lingers ~1s
@@ -17,7 +16,10 @@ defensive power pickups:
 - **Arc Lightning** — zaps the nearest enemy, then chain-jumps through nearby drones until nothing is close enough to continue
 - **Autocannon** — mounts a turret on the ship for ~6s that auto-fires tracer rounds (~8/s) at the nearest enemy in range
 - **Meteor Storm** — explosions rain down for ~4s, biased toward drone clusters, each leaving a crater that stays lethal for ~1s
-- **Vortex** — drops a singularity at your position that drags drones inward for ~3s, devouring (and scoring) everything that reaches the core, then collapses and kills whatever is still caught nearby; the ship is invulnerable while any vortex is open (rare drop for that reason)
+
+(Magnet and Vortex exist in the code but are benched from the drop rotation
+for now — `BENCHED_POWER_IDS` in `src/config.ts`; vortex's open-vortex
+invulnerability made it too strong even as a rare drop.)
 
 Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`):
 shield/shockwave are common safety nets, freeze and afterburner are rarer. Every
@@ -38,10 +40,12 @@ vortex) makes the near-miss risk-free.
 Enemies:
 
 - **Drones** — chase you relentlessly; smaller ones are slightly slower, larger ones
-  slightly faster. Individual drones are deliberately slow-ish — the pressure comes
-  from density and patterns, not chase speed. The swarm grows over time and the
-  escalation never plateaus — spawn rate and formation frequency/size keep climbing
-  until the run ends, so every run has an ending. Free drones also periodically
+  slightly faster. Individual drones shamble like zombies — the threat is the
+  crowd, and the game is about reading the swarm and finding the way out, not
+  out-running anything. The swarm grows dense fast and the escalation never
+  plateaus — spawn rate and formation frequency/size keep climbing until the
+  run ends, so every run has an ending. (Scripted walls and serpents keep a
+  brisker marching pace over the slow baseline, so sweeps still sweep.) Free drones also periodically
   **assemble**: a handful steer into a line or vee "ship", hold the shape for a
   beat (glowing hot orange), then charge you at boosted speed before disbanding.
   Most spawns telegraph on-screen (a red glow warns ~1s before the drone pops,

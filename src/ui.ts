@@ -1,4 +1,4 @@
-import { ALL_POWER_IDS, POWER_COLORS, POWER_HINTS, POWER_NAMES, type GameMode } from "./config";
+import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
 import type {
   BooleanSetting,
   ControlMode,
@@ -353,7 +353,7 @@ export class Ui {
     );
 
     const list = this.el("div", "powers-list", "");
-    for (const id of ALL_POWER_IDS) {
+    for (const id of SPAWNABLE_POWER_IDS) {
       list.appendChild(
         this.el(
           "div",

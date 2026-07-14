@@ -1,10 +1,10 @@
 import {
-  ALL_POWER_IDS,
   PICKUPS,
   POWERS,
   POWER_MIN_MINUTES,
   POWER_SPAWN_WEIGHTS,
   SHIP,
+  SPAWNABLE_POWER_IDS,
   type PowerId,
 } from "./config";
 import { clamp01, lerp, rand, randRange, scheduleRand, scheduleRange } from "./math";
@@ -128,7 +128,7 @@ function spawnPickup(world: World): void {
  */
 function rollPowerId(world: World): PowerId {
   const minutes = world.time / 60;
-  const pool = ALL_POWER_IDS.filter((id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0));
+  const pool = SPAWNABLE_POWER_IDS.filter((id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0));
 
   const weight = (id: PowerId): number =>
     POWER_SPAWN_WEIGHTS[id] / (1 + 1.5 * (world.powerSpawnCounts[id] ?? 0));

@@ -66,9 +66,10 @@ export const DIRECT_CRUISE: Record<SenseLevel, number> = {
 };
 
 export const DRONE = {
-  // Deliberately unhurried: pressure comes from density and patterns, not raw
-  // chase speed — the game is about threading gaps, not out-twitching drones.
-  baseSpeed: 1.55,
+  // Zombie-horde pacing: individual drones shamble, the threat is the crowd.
+  // The game is about reading the swarm and finding the way out, not
+  // out-twitching drones.
+  baseSpeed: 1.2,
   radius: 0.28, // scaled by drone size
   massMin: 0.3,
   massMax: 1.8,
@@ -97,8 +98,8 @@ export const SPAWNER = {
   // every run ends and scores measure depth, not patience. Classic opens
   // gently on purpose (Iron Rain exists to skip the warm-up); the speed ramp
   // is soft — density and patterns are the late-game pressure, not chase speed.
-  spawnsPerSecond: { from: 1.0, to: 1.8, rampMinutes: 2.5, latePerMinute: 0.15 },
-  speedMultiplier: { from: 1.0, to: 1.15, rampMinutes: 4, latePerMinute: 0.03 },
+  spawnsPerSecond: { from: 1.3, to: 2.6, rampMinutes: 2.5, latePerMinute: 0.2 },
+  speedMultiplier: { from: 1.0, to: 1.1, rampMinutes: 4, latePerMinute: 0.02 },
   // Classic only: the first formation arrives this much later than the normal
   // formation cadence, so brand-new runs get a beat to breathe.
   firstFormationExtraDelay: 2,
@@ -109,7 +110,7 @@ export const SPAWNER = {
   edgeMargin: 1.0, // ambient spawns appear this far beyond the view edge
   minDistanceFromShip: 7, // edge spawns keep at least this distance from the ship
   // Soft safety cap: no pooling/partitioning, so guard frame rate in marathon runs.
-  maxDrones: 250,
+  maxDrones: 350,
   // Telegraphed on-screen spawns: a red glow fades in, then the drone pops.
   telegraph: {
     ratio: 0.7, // fraction of ambient spawns that appear on-screen (rest sneak from edges)
@@ -154,21 +155,23 @@ export const SPAWNER = {
     burst: { count: 18, spreadRadius: 2.5 },
     // Tilt to Live-style dot wall: spans one arena edge (minus 1-2 escape
     // gaps) and marches straight across before releasing to homing.
-    wall: { spacing: 1.15, gapSize: 2.6, scale: 0.55, speedScale: 1.0 },
+    // Scripted patterns keep speedScales high so walls hold their marching
+    // pace over the slow zombie baseline — the crowd shambles, the walls sweep.
+    wall: { spacing: 1.15, gapSize: 2.6, scale: 0.55, speedScale: 1.25 },
     // A dotted train: the head wanders on a curved path, the body follows.
-    serpent: { count: 14, spacing: 0.55, duration: 7, wander: 1.7, scale: 0.5, speedScale: 1.25 },
+    serpent: { count: 14, spacing: 0.55, duration: 7, wander: 1.7, scale: 0.5, speedScale: 1.55 },
     // Two walls converging from opposite edges (each with an escape gap).
-    pincer: { spacing: 1.5, gapSize: 2.8, scale: 0.55, speedScale: 0.85 },
+    pincer: { spacing: 1.5, gapSize: 2.8, scale: 0.55, speedScale: 1.05 },
     // Simultaneous bursts from all four corners.
     corners: { countPerCorner: 5, spreadRadius: 1.8 },
     // A much tighter, denser ring: less room, more drones, slightly more warning.
     tightring: { count: 20, radius: 2.9, telegraphDuration: 2.2 },
     // A loose school of drones drifting across the arena as one organic blob,
     // released to homing as it passes the player.
-    swarm: { count: 26, spreadRadius: 3.5, scale: 0.5, speedScale: 1.1, wander: 0.5 },
+    swarm: { count: 32, spreadRadius: 3.8, scale: 0.5, speedScale: 1.35, wander: 0.5 },
     // The big one: a slow 3-row-thick wall spanning the whole arena with a
     // single narrow gap — thread it or blast through with a power.
-    megawall: { spacing: 1.0, gapSize: 2.2, scale: 0.55, speedScale: 0.7, rows: 3, rowOffset: 0.9 },
+    megawall: { spacing: 1.0, gapSize: 2.2, scale: 0.55, speedScale: 0.85, rows: 3, rowOffset: 0.9 },
   },
 };
 
@@ -215,9 +218,9 @@ export const ASSEMBLY = {
   minMembers: 4, // fewer free drones than this → the event fizzles
   spacing: 0.7, // slot spacing inside the shape
   formTime: 1.8, // seconds steering into the shape (the telegraph)
-  formSpeedScale: 1.6,
+  formSpeedScale: 1.8,
   chargeTime: 3.5, // seconds the shape charges before disbanding
-  chargeSpeedScale: 1.5,
+  chargeSpeedScale: 1.9, // charge reads fast against the slow zombie baseline
 };
 
 // Stationary hazards that deny space. Capped low and spawned away from the
@@ -429,6 +432,15 @@ export const ALL_POWER_IDS: PowerId[] = [
   "vortex",
 ];
 
+// Benched for now (code stays intact so they're easy to bring back):
+// vortex is too strong even as a rare drop, magnet is off with it.
+export const BENCHED_POWER_IDS: PowerId[] = ["magnet", "vortex"];
+
+/** Powers that can actually drop (and that the codex shows). */
+export const SPAWNABLE_POWER_IDS: PowerId[] = ALL_POWER_IDS.filter(
+  (id) => !BENCHED_POWER_IDS.includes(id),
+);
+
 // Relative spawn frequency. Panic-button powers stay common as a safety net
 // for new players; the high-skill, high-reward powers (see SCORING bonuses)
 // show up less often so they feel special without being a crutch.
@@ -444,7 +456,7 @@ export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
   arc: 2,
   autocannon: 2,
   meteors: 2,
-  vortex: 0.75, // rare: invulnerability + a screen-clearing pull is a jackpot
+  vortex: 0.75,
 };
 
 // Powers gated to the late game: they only enter the pickup pool after this
