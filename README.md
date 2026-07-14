@@ -21,28 +21,33 @@ defensive power pickups:
 for now — `BENCHED_POWER_IDS` in `src/config.ts`; vortex's open-vortex
 invulnerability made it too strong even as a rare drop.)
 
-Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`):
-shield/shockwave are common safety nets, freeze and afterburner are rarer. Every
-power can spawn from minute zero (`POWER_MIN_MINUTES` is empty), and bad-luck
-protection demotes a power's weight each time it drops so the whole roster
-appears over a run. Pickups drift slowly across the arena (soft wall bounces),
-two are dealt at launch, drops come faster as the difficulty climbs, and a
-refill floor hurries the next drop whenever fewer than two are live (disabled
-on Daily Patrol to protect the shared seed). Skill kills pay more: pulse kills are
+Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`)
+in a deliberate pecking order: Pulse Shot first, then shield, freeze,
+afterburner, shockwave, then the rest. Every power can spawn from minute zero
+(`POWER_MIN_MINUTES` is empty), and bad-luck protection demotes a power's
+weight each time it drops so the whole roster appears over a run. Pickups
+drift slowly across the arena (soft wall bounces), one is dealt at launch,
+drops land every ~6-10 seconds (a touch faster as difficulty climbs), the
+board holds at most 3 at once, and a refill hurries one in only if the arena
+goes completely dry (disabled on Daily Patrol to protect the shared seed).
+Skill kills pay more: pulse kills are
 worth 2x points (with an escalating bonus when one bolt kills 3+), and
 shattering frozen drones pays 1.5x points and builds the multiplier twice as
 fast. **Grazing** pays too: shaving past a live drone (or threading a tight
 wall gap) scores points, bumps the multiplier, and resets its decay — a
 skill-based scoring lane alongside kills. Each drone can only be grazed once
-per ~1.5s, and no graze pays while a protection (shield, starshell, dash,
-vortex) makes the near-miss risk-free.
+per ~1.5s, and no graze pays while you're truly invulnerable (starshell, dash,
+vortex) — a banked shield still grazes, since contact would cost the extra
+life.
 
 Enemies:
 
-- **Drones** — chase you relentlessly; smaller ones are slightly slower, larger ones
-  slightly faster. Individual drones shamble like zombies — the threat is the
-  crowd, and the game is about reading the swarm and finding the way out, not
-  out-running anything. The swarm grows dense fast and the escalation never
+- **Drones** — chase you relentlessly; sizes vary widely from runts to
+  bruisers (smaller = slower, larger = faster). Individual drones shamble like
+  zombies — the threat is the crowd, and the game is about reading the swarm
+  and finding the way out, not out-running anything. Ambient drones arrive in
+  packs of 1-3 gathered around a point, so the crowd forms blobs with lanes
+  between them. The swarm grows dense fast and the escalation never
   plateaus — spawn rate and formation frequency/size keep climbing until the
   run ends, so every run has an ending. (Scripted walls and serpents keep a
   brisker marching pace over the slow baseline, so sweeps still sweep.) Free drones also periodically
@@ -64,7 +69,7 @@ Enemies:
 Kills feed the score multiplier (up to **x10**) — the ship glows brighter gold the
 higher it climbs: it climbs fast on streaks but drains faster the higher it is,
 and kill chains pay escalating bonuses. All scoring also scales with **danger pay**
-(uncapped, `1 + 0.5/min`): the deeper into the escalation you survive, the more
+(uncapped, `1 + 0.25/min`): the deeper into the escalation you survive, the more
 every second and every kill is worth. High scores come from aggressive, risky
 play deep into the run.
 

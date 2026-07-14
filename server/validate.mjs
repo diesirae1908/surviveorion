@@ -2,16 +2,16 @@
 // src/config.ts SCORING — keep the two in sync. This is honest-effort
 // anti-cheat: it rejects impossible runs, not sophisticated forgeries.
 
-const SURVIVAL_PER_SEC = 5; // survivalPointsPerSecond
-const DANGER_PER_MINUTE = 0.5; // dangerPerMinute (uncapped linear danger pay)
+const SURVIVAL_PER_SEC = 2; // survivalPointsPerSecond
+const DANGER_PER_MINUTE = 0.25; // dangerPerMinute (uncapped linear danger pay)
 const MULT_MAX = 10; // multiplierMax
-const KILL_POINTS = 40; // killPoints
+const KILL_POINTS = 15; // killPoints
 // Max per-kill scale: a pulse kill (x2) on a frozen drone (x1.5) stacks to x3.
 const MAX_KILL_SCALE = 3; // pulsePointsScale * frozenPointsScale
 const CHAIN_EVERY = 5; // chainBonusEvery
-const CHAIN_POINTS = 100; // chainBonusPoints
-const PULSE_MULTI_POINTS = 150; // pulseMultiKillPoints (paid per kill past the threshold)
-const GRAZE_POINTS = 15; // grazePoints
+const CHAIN_POINTS = 40; // chainBonusPoints
+const PULSE_MULTI_POINTS = 60; // pulseMultiKillPoints (paid per kill past the threshold)
+const GRAZE_POINTS = 10; // grazePoints
 const MAX_GRAZES_PER_SEC = 8; // generous ceiling (per-drone 1.5s cooldown in practice)
 const MAX_KILLS_PER_SEC = 12; // generous physical ceiling (spawn rate reaches ~8/s late)
 const MAX_TIME_SECONDS = 4 * 3600;

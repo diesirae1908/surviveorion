@@ -2,7 +2,7 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { FIXED_DT, IRONRAIN, SCORING, SHIP, SPAWNABLE_POWER_IDS } from "../src/config";
+import { FIXED_DT, IRONRAIN, PICKUPS, SCORING, SHIP, SPAWNABLE_POWER_IDS } from "../src/config";
 import { droneRadius, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
@@ -285,7 +285,8 @@ function muteAmbientPickups(world: World): void {
     !regrazed && world.scoreBonuses === bonusesAfterFirst,
   );
 
-  // no graze while protected (shield makes the near-miss risk-free)
+  // a banked shield does NOT block grazes (contact would still cost it),
+  // but true invulnerability (starshell) does
   const d2 = spawnDroneDirect(world, 5, 5, 0.6, 0);
   world.ship.x = 5 - (SHIP.radius + droneRadius(d2) + SCORING.grazeBand * 0.5);
   world.ship.y = 5;
@@ -293,14 +294,28 @@ function muteAmbientPickups(world: World): void {
   tick(world, input, FIXED_DT);
   const shieldedGraze = world.events.some((e) => e.type === "graze");
   world.events.length = 0;
-  check("no graze while shielded", !shieldedGraze);
+  check("graze still pays while the shield is banked", shieldedGraze);
   world.powers.shieldActive = false;
+
+  const d3 = spawnDroneDirect(world, -5, 5, 0.6, 0);
+  world.ship.x = -5 - (SHIP.radius + droneRadius(d3) + SCORING.grazeBand * 0.5);
+  world.ship.y = 5;
+  world.powers.starshellTimer = 3;
+  tick(world, input, FIXED_DT);
+  const invulnGraze = world.events.some((e) => e.type === "graze");
+  world.events.length = 0;
+  check("no graze while truly invulnerable (starshell)", !invulnGraze);
+  world.powers.starshellTimer = 0;
 }
 
-// --- 6d. pickups: 2 on start, refill floor, drift (floor off on daily) ---
+// --- 6d. pickups: 1 on start, cap of 3, refill floor, drift (floor off on daily) ---
 {
   const world = createWorld(17.8, 10);
-  check("two pickups dealt on launch", world.pickups.length === 2, `${world.pickups.length}`);
+  check(
+    "one pickup dealt on launch",
+    world.pickups.length === PICKUPS.spawnOnStart,
+    `${world.pickups.length}`,
+  );
 
   // measure drift away from walls (a bounce near the edge could cancel it out)
   const p = world.pickups[0];
@@ -316,7 +331,17 @@ function muteAmbientPickups(world: World): void {
   world.pickups.length = 0;
   world.pickupTimer = 30;
   step(world, 1);
-  check("refill floor hurries a drop in (<2 live)", world.pickups.length >= 1);
+  check("refill floor hurries a drop in (arena dry)", world.pickups.length >= 1);
+
+  // cap: never more than maxActive on the board
+  world.pickupTimer = 0.01;
+  let maxSeen = 0;
+  for (let i = 0; i < 40; i++) {
+    world.pickupTimer = 0.01;
+    step(world, 0.05);
+    maxSeen = Math.max(maxSeen, world.pickups.length);
+  }
+  check("pickup cap holds (max 3 on the board)", maxSeen <= PICKUPS.maxActive, `${maxSeen}`);
 
   // daily runs keep the seeded schedule instead (no player-dependent refill)
   const daily = createWorld(17.8, 10, false, 0, "classic", true);

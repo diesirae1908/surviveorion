@@ -69,7 +69,7 @@ export const DRONE = {
   // Zombie-horde pacing: individual drones shamble, the threat is the crowd.
   // The game is about reading the swarm and finding the way out, not
   // out-twitching drones.
-  baseSpeed: 1.2,
+  baseSpeed: 1.0,
   radius: 0.28, // scaled by drone size
   massMin: 0.3,
   massMax: 1.8,
@@ -103,8 +103,14 @@ export const SPAWNER = {
   // Classic only: the first formation arrives this much later than the normal
   // formation cadence, so brand-new runs get a beat to breathe.
   firstFormationExtraDelay: 2,
-  scaleClamp: [0.3, 0.9] as const,
-  scaleJitter: 0.15,
+  // Wide size spread: runts to bruisers in the same crowd (bigger = faster).
+  scaleClamp: [0.25, 1.05] as const,
+  scaleJitter: 0.35,
+  // Zombie clumping: ambient drones arrive in packs of 1..clumpMax gathered
+  // around one point (the average spawn rate is unchanged — packs just group
+  // the same budget), so the crowd reads as blobs with lanes between them.
+  clumpMax: 3,
+  clumpRadius: 1.1,
   jitterStrength: 0.35, // perpendicular wobble on drone heading
   minSpawnRadius: 12, // Unity's spawnRadius; formations use max(this, view half-diagonal)
   edgeMargin: 1.0, // ambient spawns appear this far beyond the view edge
@@ -148,30 +154,30 @@ export const SPAWNER = {
       megawall: 0.75,
       pincer: 1,
     } as Partial<Record<FormationKind, number>>,
-    line: { count: 8, spacing: 1.6 },
+    line: { count: 8, spacing: 1.2 },
     // ring closes in around the player ON-screen: telegraphed circle with
     // enough warning time to fly through a gap before it pops
-    ring: { count: 14, radius: 4.2, telegraphDuration: 2.0 },
-    burst: { count: 18, spreadRadius: 2.5 },
+    ring: { count: 16, radius: 4.2, telegraphDuration: 2.0 },
+    burst: { count: 18, spreadRadius: 2.0 },
     // Tilt to Live-style dot wall: spans one arena edge (minus 1-2 escape
     // gaps) and marches straight across before releasing to homing.
     // Scripted patterns keep speedScales high so walls hold their marching
     // pace over the slow zombie baseline — the crowd shambles, the walls sweep.
-    wall: { spacing: 1.15, gapSize: 2.6, scale: 0.55, speedScale: 1.25 },
+    wall: { spacing: 1.0, gapSize: 2.6, scale: 0.55, speedScale: 1.25 },
     // A dotted train: the head wanders on a curved path, the body follows.
     serpent: { count: 14, spacing: 0.55, duration: 7, wander: 1.7, scale: 0.5, speedScale: 1.55 },
     // Two walls converging from opposite edges (each with an escape gap).
     pincer: { spacing: 1.5, gapSize: 2.8, scale: 0.55, speedScale: 1.05 },
     // Simultaneous bursts from all four corners.
-    corners: { countPerCorner: 5, spreadRadius: 1.8 },
+    corners: { countPerCorner: 5, spreadRadius: 1.4 },
     // A much tighter, denser ring: less room, more drones, slightly more warning.
     tightring: { count: 20, radius: 2.9, telegraphDuration: 2.2 },
     // A loose school of drones drifting across the arena as one organic blob,
     // released to homing as it passes the player.
-    swarm: { count: 32, spreadRadius: 3.8, scale: 0.5, speedScale: 1.35, wander: 0.5 },
+    swarm: { count: 32, spreadRadius: 3.0, scale: 0.5, speedScale: 1.35, wander: 0.5 },
     // The big one: a slow 3-row-thick wall spanning the whole arena with a
     // single narrow gap — thread it or blast through with a power.
-    megawall: { spacing: 1.0, gapSize: 2.2, scale: 0.55, speedScale: 0.85, rows: 3, rowOffset: 0.9 },
+    megawall: { spacing: 0.9, gapSize: 2.2, scale: 0.55, speedScale: 0.85, rows: 3, rowOffset: 0.9 },
   },
 };
 
@@ -244,13 +250,13 @@ export const MINES = {
 // and survival pay rises the longer the run goes ("danger pay").
 // NOTE: server/validate.mjs mirrors these caps for score sanity checks.
 export const SCORING = {
-  survivalPointsPerSecond: 5,
+  survivalPointsPerSecond: 2,
   // Danger pay: all scoring scales by 1 + minutes * dangerPerMinute, uncapped
   // (like Tetris points-per-line growing with level). Late-game survival and
   // kills dominate the score, so the easy opening is never worth grinding.
   // Linear, not exponential, so early mistakes don't force insta-resets.
-  dangerPerMinute: 0.5,
-  killPoints: 40,
+  dangerPerMinute: 0.25,
+  killPoints: 15,
   multiplierPerKill: 0.5,
   multiplierMax: 10,
   multiplierDecayRate: 0.4, // base drain per second...
@@ -258,35 +264,36 @@ export const SCORING = {
   multiplierDecayDelay: 2.0,
   chainWindow: 2.0, // kills within this window keep the chain alive
   chainBonusEvery: 5, // every N chained kills...
-  chainBonusPoints: 100, // ...award this * multiplier
+  chainBonusPoints: 40, // ...award this * multiplier
   // Skill-kill bonuses: risky/deliberate kills pay more than passive ones.
   pulsePointsScale: 2, // pulse projectile kills are worth double
   pulseMultiKillMin: 3, // one projectile killing >= this many drones pays a bonus...
-  pulseMultiKillPoints: 150, // ...of this * (hits - min + 1) * multiplier
+  pulseMultiKillPoints: 60, // ...of this * (hits - min + 1) * multiplier
   frozenPointsScale: 1.5, // shattering a frozen drone pays extra...
   frozenMultiplierScale: 2, // ...and builds the multiplier twice as fast
   // Graze rewards: shaving past a live drone (within grazeBand beyond actual
   // contact) pays points, bumps the multiplier, and resets its decay delay —
   // threading a tight gap is a scoring strategy, not just survival. Per-drone
-  // cooldown stops orbiting one drone for infinite pay. No graze while any
-  // protection (shield/starshell/dash/vortex) makes the near-miss risk-free.
-  grazeBand: 0.5,
-  grazePoints: 15,
+  // cooldown stops orbiting one drone for infinite pay. No graze while truly
+  // invulnerable (starshell/dash/vortex); a banked shield still grazes since
+  // contact would cost the extra life.
+  grazeBand: 0.65,
+  grazePoints: 10,
   grazeMultiplier: 0.1,
   grazeCooldown: 1.5,
 };
 
 export const PICKUPS = {
-  secondsBetweenRange: [2.5, 4.0] as const,
+  secondsBetweenRange: [6, 10] as const,
   // support scales with pressure: intervals shrink to this range over the ramp
-  secondsBetweenAtPeak: [2.0, 3.0] as const,
+  secondsBetweenAtPeak: [5, 8] as const,
   intervalRampMinutes: 4,
-  maxActive: 6,
-  spawnOnStart: 2, // pickups dealt the moment the run starts
+  maxActive: 3,
+  spawnOnStart: 1, // pickups dealt the moment the run starts
   // Refill floor: below this many live pickups the next drop is hurried in.
   // Disabled on Daily Patrol (refill timing depends on when the player
   // collects, which would desync the shared seed).
-  minActive: 2,
+  minActive: 1,
   radius: 0.45,
   minDistanceFromShip: 3,
   edgeInset: 1.0, // keep pickups this far inside the view bounds
@@ -316,10 +323,10 @@ export const POWERS = {
     detonationForce: 24,
   },
   shockwave: {
-    radius: 7, // instant kill zone on detonation
+    radius: 3.5, // instant kill zone on detonation
     push: 14,
     waveLifetime: 1.2,
-    waveMaxRadius: 14,
+    waveMaxRadius: 7,
     // nuclear linger: the expanding wave is lethal for its whole sweep, then
     // the full-radius zone stays hot for this long
     blastLifetime: 1.0,
@@ -441,22 +448,22 @@ export const SPAWNABLE_POWER_IDS: PowerId[] = ALL_POWER_IDS.filter(
   (id) => !BENCHED_POWER_IDS.includes(id),
 );
 
-// Relative spawn frequency. Panic-button powers stay common as a safety net
-// for new players; the high-skill, high-reward powers (see SCORING bonuses)
-// show up less often so they feel special without being a crutch.
+// Relative spawn frequency, in the intended pecking order: pulse first
+// (the skill weapon), then shield, freeze, afterburner, shockwave, then the
+// rest evenly. Bad-luck demotion still gets the whole roster seen.
 export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
+  pulse: 4,
   shield: 3,
-  shockwave: 3,
-  pulse: 2,
-  magnet: 2,
-  missiles: 2,
-  freeze: 1.5,
-  afterburner: 1,
-  starshell: 1.5,
-  arc: 2,
-  autocannon: 2,
-  meteors: 2,
-  vortex: 0.75,
+  freeze: 2.5,
+  afterburner: 2,
+  shockwave: 1.5,
+  missiles: 1,
+  starshell: 1,
+  arc: 1,
+  autocannon: 1,
+  meteors: 1,
+  magnet: 1, // benched (see BENCHED_POWER_IDS)
+  vortex: 1, // benched
 };
 
 // Powers gated to the late game: they only enter the pickup pool after this

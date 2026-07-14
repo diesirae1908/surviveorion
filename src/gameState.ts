@@ -204,8 +204,10 @@ function handleShipMineCollisions(world: World): void {
 /**
  * Graze pass: shaving past a live drone (inside the band beyond actual
  * contact) pays points and keeps the multiplier alive. Only counts when the
- * near-miss is genuinely risky — any active protection disables it, as do
- * frozen drones (they shatter harmlessly anyway).
+ * near-miss is genuinely risky — true invulnerability (starshell, dash,
+ * open vortex) disables it, as do frozen drones (they shatter harmlessly
+ * anyway). A banked shield does NOT disable grazes: contact would still cost
+ * the extra life, so the near-miss is a real risk.
  */
 function handleGrazes(world: World): void {
   if (world.phase !== "playing") return;
@@ -214,7 +216,6 @@ function handleGrazes(world: World): void {
     p.starshellTimer > 0 ||
     p.afterburnerDash > 0 ||
     p.afterburnerGrace > 0 ||
-    p.shieldActive ||
     p.vortices.length > 0
   ) {
     return;

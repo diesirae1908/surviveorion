@@ -261,8 +261,12 @@ export function updateSpawner(world: World, dt: number): void {
   }
 
   while (world.spawnAccumulator >= 1) {
-    world.spawnAccumulator -= 1;
-    spawnAmbient(world, minutes);
+    // Zombie clumping: spend 1..clumpMax of the spawn budget on one pack.
+    // The accumulator may dip negative — average rate is unchanged, arrivals
+    // just group. Fixed rand draws per pack keep Daily Patrol shared.
+    const clump = 1 + Math.floor(rand() * SPAWNER.clumpMax);
+    world.spawnAccumulator -= clump;
+    spawnAmbient(world, minutes, clump);
   }
 }
 
@@ -284,7 +288,7 @@ function telegraphAt(world: World, x: number, y: number, duration: number): void
   world.spawnTelegraphs.push({ x, y, timer: duration, duration });
 }
 
-function telegraphAmbient(world: World): void {
+function telegraphAmbient(world: World, count = 1): void {
   const cfg = SPAWNER.telegraph;
   const hw = world.viewW / 2 - cfg.edgeInset;
   const hh = world.viewH / 2 - cfg.edgeInset;
@@ -304,6 +308,14 @@ function telegraphAmbient(world: World): void {
     if (dx * dx + dy * dy >= cfg.minDistanceFromShip ** 2) found = true;
   }
   telegraphAt(world, x, y, cfg.duration);
+  // pack members glow in around the anchor (clamped inside the view)
+  for (let i = 1; i < count; i++) {
+    const a = rand() * Math.PI * 2;
+    const r = SPAWNER.clumpRadius * (0.4 + 0.6 * rand());
+    const px = clamp(x + Math.cos(a) * r, -hw, hw);
+    const py = clamp(y + Math.sin(a) * r, -hh, hh);
+    telegraphAt(world, px, py, cfg.duration);
+  }
 }
 
 function spawnAt(
@@ -351,11 +363,12 @@ export function spawnRadius(world: World): number {
 /**
  * Ambient spawns: most telegraph on-screen (red fade-in, then pop) so danger
  * is visible and dodgeable; the rest sneak in from just past the view edge to
- * keep the radar chevrons honest.
+ * keep the radar chevrons honest. Packs (count > 1) gather around one anchor
+ * so the crowd arrives in blobs with lanes between them.
  */
-function spawnAmbient(world: World, minutes: number): void {
+function spawnAmbient(world: World, minutes: number, count = 1): void {
   if (rand() < SPAWNER.telegraph.ratio) {
-    telegraphAmbient(world);
+    telegraphAmbient(world, count);
     return;
   }
 
@@ -376,6 +389,11 @@ function spawnAmbient(world: World, minutes: number): void {
     }
   }
   spawnAt(world, best.x, best.y, minutes);
+  for (let i = 1; i < count; i++) {
+    const a = rand() * Math.PI * 2;
+    const r = SPAWNER.clumpRadius * (0.4 + 0.6 * rand());
+    spawnAt(world, best.x + Math.cos(a) * r, best.y + Math.sin(a) * r, minutes);
+  }
 }
 
 // --- formations ---
