@@ -2,7 +2,7 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { FIXED_DT, IRONRAIN, PICKUPS, SCORING, SHIP, SPAWNABLE_POWER_IDS } from "../src/config";
+import { FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS } from "../src/config";
 import { droneRadius, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
@@ -361,9 +361,10 @@ function muteAmbientPickups(world: World): void {
   // AFTER the blast fires must still die
   activate(world, "shockwave");
   check("shockwave spawns a lingering blast", world.powers.blasts.length >= 1);
-  const late = spawnDroneDirect(world, 2, 0, 0.6, 0);
+  // inside the (now much smaller) wave radius, after the blast fired
+  const late = spawnDroneDirect(world, POWERS.shockwave.waveMaxRadius * 0.5, 0, 0.6, 0);
   late.frozen = 0;
-  step(world, 0.3);
+  step(world, 1.2);
   check("shockwave linger kills late arrivals", !late.alive);
 
   // missile impact detonates an area blast: neighbours die too

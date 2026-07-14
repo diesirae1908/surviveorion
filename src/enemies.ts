@@ -775,12 +775,15 @@ function disbandAssembly(world: World, a: Assembly): void {
   if (i >= 0) world.assemblies.splice(i, 1);
 }
 
+type AssemblyShape = "line" | "vee" | "ring" | "block";
+
 /**
- * Conscript free ambient drones near a random seed into a line or vee.
+ * Conscript free ambient drones near a random seed into a shape (broadside
+ * line, arrowhead vee, rolling ring, or solid block slab).
  * Member selection depends on the local drone layout (player-dependent), so
  * it uses positions + Math.random and never touches the seeded streams.
  */
-function tryFormAssembly(world: World, count: number, vee: boolean): void {
+function tryFormAssembly(world: World, count: number, shape: AssemblyShape): void {
   const free = world.drones.filter(
     (d) => d.alive && !d.scriptMode && !d.assembly && d.frozen <= 0,
   );
@@ -823,20 +826,42 @@ function tryFormAssembly(world: World, count: number, vee: boolean): void {
   };
 
   const half = (members.length - 1) / 2;
+  const ringRadius = Math.max(1.1, (members.length * ASSEMBLY.spacing) / (Math.PI * 2));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(members.length)));
   members.forEach((d, i) => {
     let ox: number;
     let oy: number;
-    if (vee) {
-      // arrowhead pointing at the ship: tip first, arms sweeping back
-      const row = Math.ceil(i / 2);
-      const side = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
-      ox = -aimX * row * ASSEMBLY.spacing * 0.9 + perpX * side * row * ASSEMBLY.spacing * 0.75;
-      oy = -aimY * row * ASSEMBLY.spacing * 0.9 + perpY * side * row * ASSEMBLY.spacing * 0.75;
-    } else {
-      // broadside line, perpendicular to the approach
-      const off = (i - half) * ASSEMBLY.spacing;
-      ox = perpX * off;
-      oy = perpY * off;
+    switch (shape) {
+      case "vee": {
+        // arrowhead pointing at the ship: tip first, arms sweeping back
+        const row = Math.ceil(i / 2);
+        const side = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
+        ox = -aimX * row * ASSEMBLY.spacing * 0.9 + perpX * side * row * ASSEMBLY.spacing * 0.75;
+        oy = -aimY * row * ASSEMBLY.spacing * 0.9 + perpY * side * row * ASSEMBLY.spacing * 0.75;
+        break;
+      }
+      case "ring": {
+        // a rolling ring that bowls at the ship
+        const a = (i / members.length) * Math.PI * 2;
+        ox = Math.cos(a) * ringRadius;
+        oy = Math.sin(a) * ringRadius;
+        break;
+      }
+      case "block": {
+        // a solid slab, columns across the approach, rows stacked behind
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const colOff = (col - (cols - 1) / 2) * ASSEMBLY.spacing;
+        ox = perpX * colOff - aimX * row * ASSEMBLY.spacing * 0.85;
+        oy = perpY * colOff - aimY * row * ASSEMBLY.spacing * 0.85;
+        break;
+      }
+      default: {
+        // broadside line, perpendicular to the approach
+        const off = (i - half) * ASSEMBLY.spacing;
+        ox = perpX * off;
+        oy = perpY * off;
+      }
     }
     d.assembly = assembly;
     d.slotX = ox;
@@ -883,9 +908,10 @@ export function updateAssemblies(world: World, dt: number): void {
     world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
     // fixed draws per event — consumed even when the event fizzles
     const count = Math.round(scheduleRange(...ASSEMBLY.countRange));
-    const vee = scheduleRand() < 0.5;
+    const shapes: AssemblyShape[] = ["line", "vee", "ring", "block"];
+    const shape = shapes[Math.min(shapes.length - 1, Math.floor(scheduleRand() * shapes.length))];
     if (difficultyMinutes(world) >= ASSEMBLY.minMinutes) {
-      tryFormAssembly(world, count, vee);
+      tryFormAssembly(world, count, shape);
     }
   }
 

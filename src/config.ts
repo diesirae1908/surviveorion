@@ -98,7 +98,8 @@ export const SPAWNER = {
   // every run ends and scores measure depth, not patience. Classic opens
   // gently on purpose (Iron Rain exists to skip the warm-up); the speed ramp
   // is soft — density and patterns are the late-game pressure, not chase speed.
-  spawnsPerSecond: { from: 1.3, to: 2.6, rampMinutes: 2.5, latePerMinute: 0.2 },
+  // Tilt to Live density target: the late game should be a sea of dots.
+  spawnsPerSecond: { from: 1.3, to: 4.0, rampMinutes: 3, latePerMinute: 0.35 },
   speedMultiplier: { from: 1.0, to: 1.1, rampMinutes: 4, latePerMinute: 0.02 },
   // Classic only: the first formation arrives this much later than the normal
   // formation cadence, so brand-new runs get a beat to breathe.
@@ -109,14 +110,14 @@ export const SPAWNER = {
   // Zombie clumping: ambient drones arrive in packs of 1..clumpMax gathered
   // around one point (the average spawn rate is unchanged — packs just group
   // the same budget), so the crowd reads as blobs with lanes between them.
-  clumpMax: 3,
+  clumpMax: 4,
   clumpRadius: 1.1,
   jitterStrength: 0.35, // perpendicular wobble on drone heading
   minSpawnRadius: 12, // Unity's spawnRadius; formations use max(this, view half-diagonal)
   edgeMargin: 1.0, // ambient spawns appear this far beyond the view edge
   minDistanceFromShip: 7, // edge spawns keep at least this distance from the ship
   // Soft safety cap: no pooling/partitioning, so guard frame rate in marathon runs.
-  maxDrones: 350,
+  maxDrones: 550,
   // Telegraphed on-screen spawns: a red glow fades in, then the drone pops.
   telegraph: {
     ratio: 0.7, // fraction of ambient spawns that appear on-screen (rest sneak from edges)
@@ -125,12 +126,12 @@ export const SPAWNER = {
     edgeInset: 1.0, // keep telegraphs this far inside the view
   },
   formations: {
-    intervalRange: [6, 10] as const,
+    intervalRange: [5, 8] as const,
     // formations come faster over time, down to this floor
-    intervalFloor: [5, 7] as const,
+    intervalFloor: [3.5, 5.5] as const,
     intervalRampMinutes: 2,
-    countGrowthMinutes: 2, // formations gain +1 enemy per this many minutes...
-    maxCountBonus: 6, // ...capped here
+    countGrowthMinutes: 1.5, // formations gain +1 enemy per this many minutes...
+    maxCountBonus: 10, // ...capped here
     postFormationDelay: 1.5,
     // Relative pick frequency per pattern; heavy patterns unlock later.
     weights: {
@@ -186,7 +187,7 @@ export const SPAWNER = {
 // still climbs with time (danger pay is real-time based) so longer survival
 // ranks higher.
 export const IRONRAIN = {
-  pinnedMinutes: 6,
+  pinnedMinutes: 9,
   // opens with an immediate mega-wall instead of the ambient burst
   firstFormationDelay: 3,
   // wall-heavy pattern diet: the mode is about threading tight lines
@@ -218,8 +219,8 @@ export const IRONRAIN = {
 // (player-dependent by design, like power effects).
 export const ASSEMBLY = {
   minMinutes: 0.5,
-  intervalRange: [14, 20] as const,
-  countRange: [6, 10] as const,
+  intervalRange: [9, 14] as const,
+  countRange: [8, 14] as const,
   gatherRadius: 7, // conscripts must be this close to the seed drone
   minMembers: 4, // fewer free drones than this → the event fizzles
   spacing: 0.7, // slot spacing inside the shape
@@ -323,10 +324,10 @@ export const POWERS = {
     detonationForce: 24,
   },
   shockwave: {
-    radius: 3.5, // instant kill zone on detonation
-    push: 14,
-    waveLifetime: 1.2,
-    waveMaxRadius: 7,
+    radius: 1.75, // instant kill zone on detonation
+    push: 10,
+    waveLifetime: 1.0,
+    waveMaxRadius: 3.5,
     // nuclear linger: the expanding wave is lethal for its whole sweep, then
     // the full-radius zone stays hot for this long
     blastLifetime: 1.0,

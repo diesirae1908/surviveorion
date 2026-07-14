@@ -46,13 +46,14 @@ Enemies:
   bruisers (smaller = slower, larger = faster). Individual drones shamble like
   zombies — the threat is the crowd, and the game is about reading the swarm
   and finding the way out, not out-running anything. Ambient drones arrive in
-  packs of 1-3 gathered around a point, so the crowd forms blobs with lanes
-  between them. The swarm grows dense fast and the escalation never
-  plateaus — spawn rate and formation frequency/size keep climbing until the
-  run ends, so every run has an ending. (Scripted walls and serpents keep a
-  brisker marching pace over the slow baseline, so sweeps still sweep.) Free drones also periodically
-  **assemble**: a handful steer into a line or vee "ship", hold the shape for a
-  beat (glowing hot orange), then charge you at boosted speed before disbanding.
+  packs gathered around a point, so the crowd forms blobs with lanes
+  between them. The late game is a Tilt to Live-style sea of dots — spawn
+  rate and formation frequency/size keep climbing until the run ends, so
+  every run has an ending. (Scripted walls and serpents keep a brisker
+  marching pace over the slow baseline, so sweeps still sweep.) Free drones
+  also frequently **assemble** into deliberate threats — a broadside line, a
+  vee "ship", a rolling ring, or a solid block — hold the shape for a beat
+  (glowing hot orange), then charge you at boosted speed before disbanding.
   Most spawns telegraph on-screen (a red glow warns ~1s before the drone pops,
   and the ring formation closes in around you); some still sneak in from the edges.
   Formations are weighted (`SPAWNER.formations.weights`) and heavier patterns
