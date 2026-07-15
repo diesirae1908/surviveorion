@@ -206,14 +206,20 @@ export class Api {
     this.hasPassword = true;
   }
 
-  /** Game-over quick save: a callsign creates a real passwordless account. */
-  async guestSignup(callsign: string, country: string): Promise<void> {
-    const r = await this.request<{ token: string; user: UserInfo }>("POST", "/api/auth/guest", {
-      callsign,
-      country,
-    });
+  /**
+   * Game-over quick save: a callsign creates a real passwordless account.
+   * Returns true when the name already existed as a guest pilot — the caller
+   * signs into that pilot and should warn the player the name is shared.
+   */
+  async guestSignup(callsign: string, country: string): Promise<boolean> {
+    const r = await this.request<{ token: string; user: UserInfo; existing?: boolean }>(
+      "POST",
+      "/api/auth/guest",
+      { callsign, country },
+    );
     this.setSession(r.token, r.user);
     this.hasPassword = false;
+    return !!r.existing;
   }
 
   async googleSignIn(idToken: string, country: string): Promise<boolean> {

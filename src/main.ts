@@ -591,16 +591,22 @@ function submitRun(): void {
       onSave: async (name) => {
         // skip signup on a retry where the account was created but the score
         // submit failed — the session is already live
+        let reusedName = false;
         if (!api.signedIn) {
           try {
-            await api.guestSignup(name, guessCountry());
+            reusedName = await api.guestSignup(name, guessCountry());
           } catch (e) {
+            // only names locked by a password / Google / Clerk are refused —
+            // plain guest names sign back into the same pilot
             if (e instanceof ApiError && e.status === 409)
-              throw new Error("That name is taken. Sign in or pick another");
+              throw new Error("That name belongs to a registered pilot. Sign in or pick another");
             throw e;
           }
         }
         renderRankResult(await api.submitScore(run));
+        // heads-up for whoever typed a name that was already on the boards:
+        // scores merge into that pilot (shared honor-system handle)
+        if (reusedName) ui.appendGameOverRankNote(`“${name.trim()}” was already on the boards — your scores now count for that pilot. Not you? Sign in with a different name next time.`);
       },
       // full sign-in: back to this screen after, where submitRun files the score
       onSignIn: () => community.showAuth(showGameOverUi),

@@ -70,6 +70,13 @@ body {
   flex: 1 0 0;
 }
 
+/* Never compress children to fit: a flex column that overflows must scroll,
+   not shrink its items into each other (buttons were overlapping on phones,
+   especially landscape). */
+.screen > * {
+  flex-shrink: 0;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -1139,6 +1146,15 @@ button.link-btn:active {
 
 .rank-line .form-error {
   margin-bottom: 2px;
+}
+
+/* heads-up under the rank line (shared guest name notice) */
+.rank-note {
+  color: #ccaa66;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 380px;
+  margin: 8px auto 0;
 }
 
 .small-btn {

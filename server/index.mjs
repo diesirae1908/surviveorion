@@ -193,6 +193,11 @@ const routes = {
   // Quick save from the game-over screen: a name is enough to get on the
   // boards. Creates a real (passwordless) account — the device stays signed
   // in, and a password can be added later from the profile screen.
+  // Re-entering an existing passwordless name signs back into that pilot
+  // (by design: guest names are shared honor-system handles, so a player can
+  // keep updating their score from any device — the client shows a heads-up
+  // that the name was already in use). Names protected by a password, Google,
+  // or Clerk stay locked to their owner.
   "POST /api/auth/guest": async (req, res) => {
     if (!rateLimit(`guest:${clientIp(req)}`, 10)) return json(res, 429, { error: "slow down" });
     const { callsign, country = "" } = await readBody(req);
@@ -200,11 +205,20 @@ const routes = {
       return json(res, 400, { error: "callsign must be 3-20 letters, digits, - or _" });
     if (typeof country !== "string" || !COUNTRY_RE.test(country))
       return json(res, 400, { error: "invalid country" });
-    if (store.getUserByCallsign(callsign.trim()))
-      return json(res, 409, { error: "callsign already taken" });
+
+    const existing = store.getUserByCallsign(callsign.trim());
+    if (existing) {
+      if (existing.pass_hash || existing.google_sub || existing.clerk_sub)
+        return json(res, 409, { error: "that callsign belongs to a registered pilot" });
+      return json(res, 200, {
+        token: issueSession(existing.id),
+        user: publicUser(existing),
+        existing: true,
+      });
+    }
 
     const user = store.createUser({ callsign: callsign.trim(), country });
-    json(res, 200, { token: issueSession(user.id), user: publicUser(user) });
+    json(res, 200, { token: issueSession(user.id), user: publicUser(user), existing: false });
   },
 
   "POST /api/auth/login": async (req, res) => {

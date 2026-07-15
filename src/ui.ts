@@ -1082,6 +1082,12 @@ export class Ui {
     if (line) line.innerHTML = html;
   }
 
+  /** Small note under the rank line (e.g. "name already in use" heads-up). */
+  appendGameOverRankNote(text: string): void {
+    const line = document.getElementById("rank-line");
+    if (line) line.appendChild(this.el("div", "rank-note", text));
+  }
+
   /** Submission failed: say so loudly and offer a retry (daily runs especially). */
   showGameOverSubmitError(onRetry: () => void): void {
     const line = document.getElementById("rank-line");
