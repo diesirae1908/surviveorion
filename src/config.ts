@@ -228,12 +228,16 @@ export const TRAINING = {
   speedScale: 0.85, // a touch slower than even a minute-zero classic run
 };
 
-// Drone assemblies: free ambient drones periodically conscript into a shape
-// (line or vee "ship"), hold formation briefly, then charge the player at
-// boosted speed before disbanding back to normal homing. Assembly timing and
-// shape ride the seeded schedule stream (fixed draws per event) so Daily
-// Patrol scripts stay shared; member selection is position/Math.random based
-// (player-dependent by design, like power effects).
+// Drone evolutions ("assemblies"): when the crowd thickens, free ambient
+// drones fuse into a creature with its own movement style — not just faster
+// drones. Lance: a rigid bar that flies straight and bounces off the walls.
+// Wheel: a spinning ring that rolls across the arena and bounces. Hunter: a
+// vee that tracks the ship with a slow turn rate, like a big ship. Bomb: a
+// tight slab that drifts, pulses, then detonates its members outward as fast
+// shrapnel. Event timing/kind ride the seeded schedule stream (fixed draws
+// per event) so Daily Patrol scripts stay shared; member selection and the
+// crowd-pressure trigger use positions/Math.random (player-dependent by
+// design, like power effects).
 export const ASSEMBLY = {
   minMinutes: 0.5,
   intervalRange: [6, 10] as const,
@@ -241,17 +245,28 @@ export const ASSEMBLY = {
   gatherRadius: 9, // conscripts must be this close to the seed drone
   minMembers: 4, // fewer free drones than this → the event fizzles
   spacing: 0.7, // slot spacing inside the shape
-  // Crowd-pressure valve: when the loose swarm gets thick, conscript an
-  // extra assembly immediately instead of waiting for the timer. Rolls use
-  // Math.random only (player-dependent, like member selection) — the seeded
-  // schedule stream is never touched, so Daily Patrol stays shared.
+  // Crowd-pressure valve: when the loose swarm gets thick, an extra evolution
+  // fires immediately instead of waiting for the timer (Math.random only —
+  // the seeded schedule stream is never touched, so Daily Patrol stays shared).
   crowdTrigger: 60, // free homing drones that count as "too thick"
-  crowdCooldown: 4, // seconds between crowd-triggered conscriptions
+  crowdCooldown: 4, // seconds between crowd-triggered evolutions
   maxConcurrent: 3,
   formTime: 1.8, // seconds steering into the shape (the telegraph)
   formSpeedScale: 1.8,
-  chargeTime: 3.5, // seconds the shape charges before disbanding
-  chargeSpeedScale: 1.9, // charge reads fast against the slow zombie baseline
+  // Lance/wheel death: members scatter outward briefly before homing again.
+  shatterSpeedScale: 2.8,
+  shatterTime: 0.5,
+  // Per-kind behavior once formed. speedScale multiplies the drone baseline.
+  kinds: {
+    // a broadside bar sweeping the arena in straight lines, wall to wall
+    lance: { speedScale: 2.6, duration: 8, maxBounces: 2 },
+    // a rolling ring that bowls across and rebounds like a ball
+    wheel: { speedScale: 2.2, duration: 9, maxBounces: 3 },
+    // hunts the ship with a limited turn rate — outfly it, don't outrun it
+    hunter: { speedScale: 2.0, duration: 6, turnRate: 1.1 },
+    // slow drift, burning fuse, then shrapnel in every direction
+    bomb: { speedScale: 0.8, fuse: 2.6, shrapnelSpeedScale: 5.5, shrapnelTime: 1.1 },
+  },
 };
 
 // Stationary hazards that deny space. Capped low and spawned away from the

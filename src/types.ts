@@ -35,27 +35,45 @@ export interface Drone {
   followTarget?: Drone | null; // previous segment in a train
   /** Seconds until this drone can pay another graze reward. */
   grazeTimer?: number;
+  /** Speed multiplier while scripted (e.g. bomb shrapnel flies fast). */
+  scriptSpeedScale?: number;
   /** Assembly this drone is conscripted into (null/undefined = free). */
   assembly?: Assembly | null;
-  /** Slot offset from the assembly anchor (world units). */
+  /**
+   * Slot offset in the assembly's local frame: slotX along the travel
+   * direction, slotY perpendicular — the shape rotates with its heading.
+   */
   slotX?: number;
   slotY?: number;
 }
 
 /**
- * A conscripted shape of ambient drones: they steer into formation ("form"),
- * then the whole shape charges the ship at boosted speed ("charge") before
- * disbanding back to normal homing.
+ * Evolved swarm creatures: when the crowd thickens, free drones fuse into a
+ * shape that behaves nothing like loose drones —
+ * - lance: a spear-oriented line that flies straight, fast, and BOUNCES off
+ *   the arena walls, then shatters back into drones;
+ * - wheel: a rolling, spinning ring that travels straight and bounces;
+ * - hunter: a vee that tracks the ship like a slow-turning ship;
+ * - bomb: a tight slab that drifts, pulses, then detonates — flinging its
+ *   drones outward as fast shrapnel.
  */
+export type AssemblyKind = "lance" | "wheel" | "hunter" | "bomb";
+
 export interface Assembly {
-  phase: "form" | "charge";
+  kind: AssemblyKind;
+  phase: "form" | "active";
   timer: number; // seconds left in the current phase
   members: Drone[];
   x: number; // anchor position
   y: number;
-  dirX: number; // charge heading (set when the charge starts)
+  dirX: number; // travel heading (unit vector)
   dirY: number;
-  speed: number; // charge speed (units/s)
+  speed: number; // anchor speed while active (units/s)
+  /** Shape half-extent, for wall bounces. */
+  radius: number;
+  bounces: number;
+  /** Wheel only: rotation of the slot frame (the ring visibly rolls). */
+  spin: number;
 }
 
 /** Stationary hazard: lethal to the ship, chain-explodes when destroyed. */
@@ -242,7 +260,8 @@ export type GameEvent =
   | { type: "pulseMultiKill"; x: number; y: number; points: number; hits: number }
   | { type: "graze"; x: number; y: number; points: number }
   | { type: "missileBlast"; x: number; y: number }
-  | { type: "assembly"; x: number; y: number }
+  | { type: "assembly"; x: number; y: number; kind: AssemblyKind }
+  | { type: "assemblyBurst"; x: number; y: number; kind: AssemblyKind }
   | { type: "droneSpawn"; x: number; y: number }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };
@@ -306,8 +325,10 @@ export interface World {
   /** Times each power spawned this run (bad-luck protection in the roll). */
   powerSpawnCounts: Partial<Record<PowerId, number>>;
   mineTimer: number;
-  /** Countdown to the next drone-assembly event (schedule stream). */
+  /** Countdown to the next drone-evolution event (schedule stream). */
   assemblyTimer: number;
+  /** Cooldown for crowd-pressure evolutions (Math.random side, off-stream). */
+  crowdAssemblyTimer: number;
   assemblies: Assembly[];
 
   shake: number; // screen shake amplitude (world units)

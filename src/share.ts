@@ -26,7 +26,7 @@ export interface ShareStats {
   attempt: number;
 }
 
-export const SHARE_URL = "daily.surviveorion.com";
+export const SHARE_URL = "surviveorion.com";
 
 export function buildShareText(s: ShareStats): string {
   const mins = Math.floor(s.time / 60);

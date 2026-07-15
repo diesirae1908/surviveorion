@@ -399,29 +399,37 @@ function muteAmbientPickups(world: World): void {
   );
 }
 
-// --- 6f. drone assemblies: form, charge, disband ---
+// --- 6f. drone evolutions: form, go active, burst/disband ---
 {
   const world = createWorld(17.8, 10);
   let sawAssembly = false;
   let sawMembers = false;
-  let sawCharge = false;
-  const steps = Math.round(120 / FIXED_DT);
+  let sawActive = false;
+  let sawBurst = false;
+  const kindsSeen = new Set<string>();
+  const steps = Math.round(240 / FIXED_DT);
   for (let i = 0; i < steps; i++) {
     world.powers.shieldActive = true; // survive without ram-killing recruits
     tick(world, input, FIXED_DT);
     for (const e of world.events) {
-      if (e.type === "assembly") sawAssembly = true;
+      if (e.type === "assembly") {
+        sawAssembly = true;
+        kindsSeen.add(e.kind);
+      }
+      if (e.type === "assemblyBurst") sawBurst = true;
     }
     world.events.length = 0;
     if (world.assemblies.length > 0) {
       const asm = world.assemblies[0];
       if (asm.members.every((m) => m.assembly === asm)) sawMembers = true;
-      if (asm.phase === "charge" && asm.speed > 0) sawCharge = true;
+      if (asm.phase === "active" && asm.speed > 0) sawActive = true;
     }
   }
-  check("assemblies form within 2 minutes", sawAssembly);
-  check("assembly members carry their assembly ref", sawMembers);
-  check("assemblies reach the charge phase", sawCharge);
+  check("evolutions form within 4 minutes", sawAssembly);
+  check("evolution members carry their assembly ref", sawMembers);
+  check("evolutions reach the active phase", sawActive);
+  check("lances/wheels/bombs burst back into drones", sawBurst);
+  check("multiple evolution kinds appear", kindsSeen.size >= 2, [...kindsSeen].join(","));
   // death disbands everything (checked directly on the running world)
   if (world.assemblies.length === 0) {
     // force one more so the disband path is actually exercised
@@ -435,7 +443,7 @@ function muteAmbientPickups(world: World): void {
   world.phase = "dying";
   tick(world, input, FIXED_DT);
   const freed = world.drones.every((d) => !d.assembly);
-  check("death disbands all assemblies", world.assemblies.length === 0 && freed);
+  check("death disbands all evolutions", world.assemblies.length === 0 && freed);
 }
 
 // --- 6g. Training Ground: capped trickle, no formations/assemblies/mines ---

@@ -2,7 +2,7 @@ import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKi
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
-import type { Assembly, Drone, KillSource, World } from "./types";
+import type { Assembly, AssemblyKind, Drone, KillSource, World } from "./types";
 
 /**
  * Difficulty clock: Classic escalates with real time; Iron Rain is pinned at
@@ -89,6 +89,7 @@ export function updateDrones(world: World, dt: number): void {
       if (d.scriptTimer <= 0) {
         d.scriptMode = undefined;
         d.followTarget = null;
+        d.scriptSpeedScale = undefined;
       }
     }
 
@@ -174,7 +175,8 @@ export function updateDrones(world: World, dt: number): void {
       hy /= l;
     }
 
-    const speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale);
+    let speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale);
+    if (scripted && d.scriptSpeedScale) speed *= d.scriptSpeedScale;
     d.vx = hx * speed;
     d.vy = hy * speed;
     d.x += d.vx * dt;
@@ -798,9 +800,9 @@ function spawnSwarmFormation(world: World, minutes: number): void {
   }
 }
 
-// --- drone assemblies (ambient drones conscript into a charging shape) ---
+// --- drone evolutions (crowded drones fuse into creatures with new behavior) ---
 
-/** Current drone speed baseline for assembly steering/charging. */
+/** Current drone speed baseline for evolution steering/travel. */
 function assemblyBaseSpeed(world: World): number {
   return (
     DRONE.baseSpeed *
@@ -814,15 +816,52 @@ function disbandAssembly(world: World, a: Assembly): void {
   if (i >= 0) world.assemblies.splice(i, 1);
 }
 
-type AssemblyShape = "line" | "vee" | "ring" | "block";
+/**
+ * Violent end: the creature bursts back into ordinary drones, flung outward
+ * from the anchor as brief straight-line shrapnel before resuming homing.
+ */
+function burstAssembly(
+  world: World,
+  a: Assembly,
+  speedScale: number,
+  scatterTime: number,
+): void {
+  for (const m of a.members) {
+    m.assembly = null;
+    const dx = m.x - a.x;
+    const dy = m.y - a.y;
+    const len = Math.hypot(dx, dy);
+    const dir = len > 0.05 ? { x: dx / len, y: dy / len } : randDir();
+    m.scriptMode = "straight";
+    m.scriptDirX = dir.x;
+    m.scriptDirY = dir.y;
+    m.scriptTimer = scatterTime * randRange(0.85, 1.15);
+    m.scriptSpeedScale = speedScale;
+    m.scriptWander = 0;
+  }
+  a.members.length = 0;
+  world.events.push({ type: "assemblyBurst", x: a.x, y: a.y, kind: a.kind });
+  const i = world.assemblies.indexOf(a);
+  if (i >= 0) world.assemblies.splice(i, 1);
+}
+
+/** A member's world-space slot: local (slotX along heading, slotY perp) rotated into the travel frame. */
+function slotWorldOffset(a: Assembly, d: Drone): { x: number; y: number } {
+  const theta = Math.atan2(a.dirY, a.dirX) + (a.kind === "wheel" ? a.spin : 0);
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const sx = d.slotX ?? 0;
+  const sy = d.slotY ?? 0;
+  return { x: sx * cos - sy * sin, y: sx * sin + sy * cos };
+}
 
 /**
- * Conscript free ambient drones near a random seed into a shape (broadside
- * line, arrowhead vee, rolling ring, or solid block slab).
+ * Conscript free ambient drones near a random seed into an evolved creature
+ * (lance bar, rolling wheel, hunter vee, or bomb slab).
  * Member selection depends on the local drone layout (player-dependent), so
  * it uses positions + Math.random and never touches the seeded streams.
  */
-function tryFormAssembly(world: World, count: number, shape: AssemblyShape): void {
+function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void {
   const free = world.drones.filter(
     (d) => d.alive && !d.scriptMode && !d.assembly && d.frozen <= 0,
   );
@@ -850,10 +889,9 @@ function tryFormAssembly(world: World, count: number, shape: AssemblyShape): voi
   const aimLen = Math.hypot(world.ship.x - cx, world.ship.y - cy) || 1;
   const aimX = (world.ship.x - cx) / aimLen;
   const aimY = (world.ship.y - cy) / aimLen;
-  const perpX = -aimY;
-  const perpY = aimX;
 
   const assembly: Assembly = {
+    kind,
     phase: "form",
     timer: ASSEMBLY.formTime,
     members,
@@ -862,59 +900,78 @@ function tryFormAssembly(world: World, count: number, shape: AssemblyShape): voi
     dirX: aimX,
     dirY: aimY,
     speed: 0,
+    radius: 1,
+    bounces: 0,
+    spin: 0,
   };
 
+  // slots in the travel frame: slotX along the heading, slotY perpendicular —
+  // the whole shape rotates with its heading (a lance flips broadside after a
+  // wall bounce, the wheel's spin rides on top of this frame)
   const half = (members.length - 1) / 2;
   const ringRadius = Math.max(1.1, (members.length * ASSEMBLY.spacing) / (Math.PI * 2));
   const cols = Math.max(2, Math.ceil(Math.sqrt(members.length)));
+  const rows = Math.ceil(members.length / cols);
   members.forEach((d, i) => {
-    let ox: number;
-    let oy: number;
-    switch (shape) {
-      case "vee": {
-        // arrowhead pointing at the ship: tip first, arms sweeping back
+    let sx: number;
+    let sy: number;
+    switch (kind) {
+      case "hunter": {
+        // arrowhead pointing along the travel direction: tip first
         const row = Math.ceil(i / 2);
         const side = i === 0 ? 0 : i % 2 === 1 ? 1 : -1;
-        ox = -aimX * row * ASSEMBLY.spacing * 0.9 + perpX * side * row * ASSEMBLY.spacing * 0.75;
-        oy = -aimY * row * ASSEMBLY.spacing * 0.9 + perpY * side * row * ASSEMBLY.spacing * 0.75;
+        sx = -row * ASSEMBLY.spacing * 0.9;
+        sy = side * row * ASSEMBLY.spacing * 0.75;
         break;
       }
-      case "ring": {
-        // a rolling ring that bowls at the ship
+      case "wheel": {
         const a = (i / members.length) * Math.PI * 2;
-        ox = Math.cos(a) * ringRadius;
-        oy = Math.sin(a) * ringRadius;
+        sx = Math.cos(a) * ringRadius;
+        sy = Math.sin(a) * ringRadius;
         break;
       }
-      case "block": {
-        // a solid slab, columns across the approach, rows stacked behind
+      case "bomb": {
+        // a dense slab, packed tighter than any other shape
         const col = i % cols;
         const row = Math.floor(i / cols);
-        const colOff = (col - (cols - 1) / 2) * ASSEMBLY.spacing;
-        ox = perpX * colOff - aimX * row * ASSEMBLY.spacing * 0.85;
-        oy = perpY * colOff - aimY * row * ASSEMBLY.spacing * 0.85;
+        sx = (row - (rows - 1) / 2) * ASSEMBLY.spacing * 0.7;
+        sy = (col - (cols - 1) / 2) * ASSEMBLY.spacing * 0.7;
         break;
       }
       default: {
-        // broadside line, perpendicular to the approach
-        const off = (i - half) * ASSEMBLY.spacing;
-        ox = perpX * off;
-        oy = perpY * off;
+        // lance: broadside bar, perpendicular to the travel direction
+        sx = 0;
+        sy = (i - half) * ASSEMBLY.spacing;
       }
     }
     d.assembly = assembly;
-    d.slotX = ox;
-    d.slotY = oy;
+    d.slotX = sx;
+    d.slotY = sy;
   });
 
+  switch (kind) {
+    case "wheel":
+      assembly.radius = ringRadius;
+      break;
+    case "hunter":
+      assembly.radius = Math.ceil((members.length - 1) / 2) * ASSEMBLY.spacing * 0.9;
+      break;
+    case "bomb":
+      assembly.radius = (Math.max(cols, rows) / 2) * ASSEMBLY.spacing * 0.7;
+      break;
+    default:
+      assembly.radius = half * ASSEMBLY.spacing;
+  }
+
   world.assemblies.push(assembly);
-  world.events.push({ type: "assembly", x: cx, y: cy });
+  world.events.push({ type: "assembly", x: cx, y: cy, kind });
 }
 
-/** Move a member toward its slot, capped at `speed`; updates vx/vy. */
+/** Move a member toward its (rotated) slot, capped at `speed`; updates vx/vy. */
 function steerMemberToSlot(a: Assembly, d: Drone, speed: number, dt: number): void {
-  const tx = a.x + (d.slotX ?? 0) - d.x;
-  const ty = a.y + (d.slotY ?? 0) - d.y;
+  const off = slotWorldOffset(a, d);
+  const tx = a.x + off.x - d.x;
+  const ty = a.y + off.y - d.y;
   const dist = Math.hypot(tx, ty);
   const step = Math.min(dist, speed * dt);
   if (dist > 0.001) {
@@ -928,10 +985,28 @@ function steerMemberToSlot(a: Assembly, d: Drone, speed: number, dt: number): vo
   }
 }
 
+/** Reflect the anchor heading off the arena walls; returns true on a bounce. */
+function bounceAssembly(world: World, a: Assembly, margin: number): boolean {
+  const hw = world.viewW / 2 - margin;
+  const hh = world.viewH / 2 - margin;
+  let bounced = false;
+  if ((a.x < -hw && a.dirX < 0) || (a.x > hw && a.dirX > 0)) {
+    a.dirX = -a.dirX;
+    bounced = true;
+  }
+  if ((a.y < -hh && a.dirY < 0) || (a.y > hh && a.dirY > 0)) {
+    a.dirY = -a.dirY;
+    bounced = true;
+  }
+  if (bounced) a.bounces++;
+  return bounced;
+}
+
 /**
- * Assembly lifecycle. The event timer + shape/count rolls ride the seeded
+ * Evolution lifecycle. The event timer + kind/count rolls ride the seeded
  * schedule stream with a fixed number of draws per event (gated after the
- * draws), so Daily Patrol runs fire identical assembly events for everyone.
+ * draws), so Daily Patrol runs fire identical evolution events for everyone.
+ * The crowd-pressure trigger below is Math.random-only (player-dependent).
  */
 export function updateAssemblies(world: World, dt: number): void {
   if (world.sandbox || world.training) return;
@@ -942,20 +1017,42 @@ export function updateAssemblies(world: World, dt: number): void {
     return;
   }
 
+  const kinds: AssemblyKind[] = ["lance", "wheel", "hunter", "bomb"];
+
   world.assemblyTimer -= dt;
   if (world.assemblyTimer <= 0) {
     world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
     // fixed draws per event — consumed even when the event fizzles
     const count = Math.round(scheduleRange(...ASSEMBLY.countRange));
-    const shapes: AssemblyShape[] = ["line", "vee", "ring", "block"];
-    const shape = shapes[Math.min(shapes.length - 1, Math.floor(scheduleRand() * shapes.length))];
-    if (difficultyMinutes(world) >= ASSEMBLY.minMinutes) {
-      tryFormAssembly(world, count, shape);
+    const kind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
+    if (
+      difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
+      world.assemblies.length < ASSEMBLY.maxConcurrent
+    ) {
+      tryFormAssembly(world, count, kind);
     }
+  }
+
+  // Crowd-pressure valve: too many loose homing drones → an extra evolution
+  // fires now, thinning the swarm into one readable creature.
+  world.crowdAssemblyTimer -= dt;
+  if (
+    world.crowdAssemblyTimer <= 0 &&
+    world.assemblies.length < ASSEMBLY.maxConcurrent &&
+    difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
+    countFreeDrones(world) >= ASSEMBLY.crowdTrigger
+  ) {
+    world.crowdAssemblyTimer = ASSEMBLY.crowdCooldown;
+    const count = Math.round(
+      ASSEMBLY.countRange[0] +
+        Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0]),
+    );
+    tryFormAssembly(world, count, kinds[Math.floor(Math.random() * kinds.length)]);
   }
 
   const hw = world.viewW / 2;
   const hh = world.viewH / 2;
+  const K = ASSEMBLY.kinds;
 
   for (let i = world.assemblies.length - 1; i >= 0; i--) {
     const a = world.assemblies[i];
@@ -977,25 +1074,90 @@ export function updateAssemblies(world: World, dt: number): void {
       const speed = assemblyBaseSpeed(world) * ASSEMBLY.formSpeedScale;
       for (const m of a.members) steerMemberToSlot(a, m, speed, dt);
       if (a.timer <= 0) {
-        a.phase = "charge";
-        a.timer = ASSEMBLY.chargeTime;
-        const len = Math.hypot(world.ship.x - a.x, world.ship.y - a.y) || 1;
-        a.dirX = (world.ship.x - a.x) / len;
-        a.dirY = (world.ship.y - a.y) / len;
-        a.speed = assemblyBaseSpeed(world) * ASSEMBLY.chargeSpeedScale;
+        a.phase = "active";
+        const base = assemblyBaseSpeed(world);
+        // launch heading: at the ship for everything but the bomb, which
+        // keeps drifting the way the crowd was already leaning
+        if (a.kind !== "bomb") {
+          const len = Math.hypot(world.ship.x - a.x, world.ship.y - a.y) || 1;
+          a.dirX = (world.ship.x - a.x) / len;
+          a.dirY = (world.ship.y - a.y) / len;
+        }
+        switch (a.kind) {
+          case "lance":
+            a.timer = K.lance.duration;
+            a.speed = base * K.lance.speedScale;
+            break;
+          case "wheel":
+            a.timer = K.wheel.duration;
+            a.speed = base * K.wheel.speedScale;
+            break;
+          case "hunter":
+            a.timer = K.hunter.duration;
+            a.speed = base * K.hunter.speedScale;
+            break;
+          case "bomb":
+            a.timer = K.bomb.fuse;
+            a.speed = base * K.bomb.speedScale;
+            break;
+        }
       }
       continue;
     }
 
-    // charge: the anchor barrels ahead; members hold their slots rigidly
+    // --- active: each kind moves like a different creature ---
+
+    if (a.kind === "hunter") {
+      // limited turn rate: it tracks the ship but can be outflown, not outrun
+      const desired = Math.atan2(world.ship.y - a.y, world.ship.x - a.x);
+      const current = Math.atan2(a.dirY, a.dirX);
+      let delta = desired - current;
+      while (delta > Math.PI) delta -= Math.PI * 2;
+      while (delta < -Math.PI) delta += Math.PI * 2;
+      const turn = clamp(delta, -K.hunter.turnRate * dt, K.hunter.turnRate * dt);
+      const heading = current + turn;
+      a.dirX = Math.cos(heading);
+      a.dirY = Math.sin(heading);
+    }
+
     a.x += a.dirX * a.speed * dt;
     a.y += a.dirY * a.speed * dt;
+
+    if (a.kind === "wheel") {
+      // roll rate matches travel speed so the ring visibly rolls, not slides
+      a.spin += (a.speed / Math.max(0.5, a.radius)) * dt;
+    }
+
     const memberSpeed = a.speed * 1.6; // catches up, then tracks the shape
     for (const m of a.members) steerMemberToSlot(a, m, memberSpeed, dt);
 
+    // lance/wheel rebound off the walls; enough hits shatters them
+    if (a.kind === "lance" || a.kind === "wheel") {
+      const cfg = a.kind === "lance" ? K.lance : K.wheel;
+      const margin = a.kind === "wheel" ? a.radius : 0.4;
+      bounceAssembly(world, a, margin);
+      if (a.bounces > cfg.maxBounces || a.timer <= 0) {
+        burstAssembly(world, a, ASSEMBLY.shatterSpeedScale, ASSEMBLY.shatterTime);
+        continue;
+      }
+    }
+
+    if (a.kind === "bomb" && a.timer <= 0) {
+      // detonation: members become fast straight-line shrapnel
+      burstAssembly(world, a, K.bomb.shrapnelSpeedScale, K.bomb.shrapnelTime);
+      continue;
+    }
+
+    if (a.kind === "hunter" && a.timer <= 0) {
+      // the vee tires out and dissolves back into the swarm
+      disbandAssembly(world, a);
+      continue;
+    }
+
+    // safety valve: anything that somehow leaves the arena dissolves
     const out =
       Math.abs(a.x) > hw + ASSEMBLY.gatherRadius || Math.abs(a.y) > hh + ASSEMBLY.gatherRadius;
-    if (a.timer <= 0 || out) disbandAssembly(world, a);
+    if (out) disbandAssembly(world, a);
   }
 }
 

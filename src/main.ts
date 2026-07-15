@@ -55,14 +55,19 @@ type AppState =
   | "gameover";
 
 /**
- * Daily-only variant ("Orion Daily", served on daily.surviveorion.com or via
- * ?dailyonly=1 anywhere): the site boots straight into a Daily Patrol lobby —
- * 3 attempts per UTC day (local budget, incognito bypass accepted), a free
- * Training Ground, and a shareable result card. The main site is untouched.
+ * The site's two personalities, one build:
+ * - the root (surviveorion.com) is "Orion Daily" — boots straight into a
+ *   Daily Patrol lobby, 3 attempts per UTC day (local budget, incognito
+ *   bypass accepted), a free Training Ground, and a shareable result card;
+ * - /fullgame (or ?fullgame=1) is the full arcade game — Classic, Iron Rain,
+ *   arenas, wingmates, pilot login, the works.
+ * The server SPA-fallbacks every unknown path to index.html, so /fullgame
+ * needs no server-side route.
  */
-const DAILY_ONLY =
-  location.hostname.startsWith("daily.") ||
-  new URLSearchParams(location.search).has("dailyonly");
+const FULL_GAME =
+  location.pathname.replace(/\/+$/, "") === "/fullgame" ||
+  new URLSearchParams(location.search).has("fullgame");
+const DAILY_ONLY = !FULL_GAME;
 
 if (DAILY_ONLY) document.title = "ORION Daily";
 
@@ -398,6 +403,8 @@ function startRun(): void {
   state = "playing";
   ui.hideAll();
   audio.playTrack("game");
+  // dev-only console handle for manual playtesting (never in prod builds)
+  if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
 }
 
 /** Flight school: a sandbox world with scripted static drones, no spawner. */
@@ -711,10 +718,27 @@ function drainEvents(w: World): void {
         particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
         audio.graze();
         break;
-      case "assembly":
-        // a swarm just locked into formation — make the threat legible
-        popups.spawn(e.x, e.y, "ASSEMBLY", PALETTE.redBright, 0.4, 1.0);
+      case "assembly": {
+        // crowded drones just fused into a creature — name the threat
+        const label = { lance: "LANCE", wheel: "WHEEL", hunter: "HUNTER", bomb: "BOMB" }[e.kind];
+        popups.spawn(e.x, e.y, label, PALETTE.redBright, 0.4, 1.0);
         audio.assemblyForm();
+        break;
+      }
+      case "assemblyBurst":
+        // a creature shattered/detonated back into loose drones
+        particles.burst(
+          e.x,
+          e.y,
+          e.kind === "bomb"
+            ? ["#ffee55", PALETTE.gold, PALETTE.white]
+            : [PALETTE.redBright, "#ffaa33", PALETTE.white],
+          e.kind === "bomb" ? 40 : 22,
+          e.kind === "bomb" ? 8 : 5,
+          0.7,
+          0.13,
+        );
+        audio.mineBoom();
         break;
       case "autocannonFire":
         audio.autocannonFire();

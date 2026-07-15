@@ -55,6 +55,7 @@ export function createWorld(
     powerSpawnCounts: {},
     mineTimer: MINES.intervalRange[0],
     assemblyTimer: 0, // set by initSpawner (schedule stream)
+    crowdAssemblyTimer: 0,
     assemblies: [],
     shake: 0,
     events: [],

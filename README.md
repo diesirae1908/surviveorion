@@ -51,9 +51,12 @@ Enemies:
   rate and formation frequency/size keep climbing until the run ends, so
   every run has an ending. (Scripted walls and serpents keep a brisker
   marching pace over the slow baseline, so sweeps still sweep.) Free drones
-  also frequently **assemble** into deliberate threats — a broadside line, a
-  vee "ship", a rolling ring, or a solid block — hold the shape for a beat
-  (glowing hot orange), then charge you at boosted speed before disbanding.
+  also **evolve** when the crowd gets thick: they fuse into a creature with
+  its own behavior — a **lance** (broadside bar that flies straight, bounces
+  off the walls, then shatters back into drones), a **wheel** (spinning ring
+  that rolls and rebounds), a **hunter** (vee that tracks you with a slow
+  turn rate), or a **bomb** (dense slab that drifts, strobes, then detonates
+  into fast shrapnel). Each glows its own color while fused.
   Most spawns telegraph on-screen (a red glow warns ~1s before the drone pops,
   and the ring formation closes in around you); some still sneak in from the edges.
   Formations are weighted (`SPAWNER.formations.weights`) and heavier patterns
@@ -164,19 +167,21 @@ touch-vs-desktop splits, badge holder counts, and all player feedback. The
 same data is available as JSON at `GET /api/admin/stats` and
 `GET /api/admin/feedback` (Bearer key or `?key=`).
 
-## Daily-only site ("Orion Daily")
+## The daily front door ("Orion Daily")
 
-The same build has a second personality: a Wordle-style daily-only variant,
-activated purely by hostname (`daily.*`) or the `?dailyonly=1` query param
-(`DAILY_ONLY` in `src/main.ts`). No separate build or deploy — one bundle,
-one server, one database.
+**The root of surviveorion.com is the Wordle-style daily game.** The full
+arcade game (Classic, Iron Rain, arenas, wingmates, pilot login) lives at
+**`/fullgame`** (`FULL_GAME`/`DAILY_ONLY` in `src/main.ts`; `?fullgame=1`
+works anywhere too, handy in dev). One bundle, one server, one database —
+the server SPA-fallbacks unknown paths to `index.html`, so `/fullgame`
+needs no route. The daily lobby carries a quiet "Full game" footer link.
 
-On the daily site:
+On the daily front door:
 
 - The tap-to-enter gate skips the 5s cinematic and lands on a minimal
   **Daily Patrol lobby** (`showDailyLobby` in `src/ui.ts`): patrol number,
   attempt pips, today's leader, one Launch button. No Classic / Iron Rain /
-  Arenas — those stay on the main site (and, later, the mobile app).
+  Arenas — those live at `/fullgame` (and, later, the mobile app).
 - **3 attempts per UTC day** (`orion.dailyAttempts` in `src/save.ts`, same
   day boundary as the daily seed). The budget is client-side by design —
   incognito resets it, and that's accepted. An attempt is spent when a daily
@@ -192,19 +197,11 @@ On the daily site:
   x/3) via the native share sheet on phones and the clipboard on desktop.
   Offered on the daily game-over screen and on the locked-out lobby.
 
-Daily scores submitted from either site land on the same daily leaderboard.
+Daily scores submitted from either side land on the same daily leaderboard.
 
-### Deploying daily.surviveorion.com (Render)
-
-The daily site is just a second domain on the existing Render service:
-
-1. Render dashboard → the surviveorion service → **Settings → Custom
-   Domains → Add** `daily.surviveorion.com`. Render issues the TLS
-   certificate automatically once DNS resolves.
-2. At the DNS provider, add a **CNAME**: host `daily` → the service's
-   `*.onrender.com` hostname (the same target `surviveorion.com` points at).
-3. Done — the client detects the `daily.` hostname at boot. To preview
-   before DNS exists, open `https://surviveorion.com/?dailyonly=1`.
+No extra deploy step: the split is a client-side path check, so pushing to
+`main` updates both faces at once. (If a `daily.surviveorion.com` CNAME was
+ever added, it can be removed — the root is the daily site now.)
 
 ## Deploy (surviveorion.com)
 

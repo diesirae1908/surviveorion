@@ -455,6 +455,13 @@ export class Ui {
     }
     screen.appendChild(learnRow);
 
+    // quiet door to the full arcade game (Classic, Iron Rain, pilot accounts)
+    const full = this.el("button", "full-game-link", "Full game &nearr;");
+    full.addEventListener("click", () => {
+      location.href = "/fullgame";
+    });
+    screen.appendChild(full);
+
     const gear = document.createElement("button");
     gear.className = "corner-btn";
     gear.title = "Settings";

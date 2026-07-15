@@ -1,4 +1,4 @@
-import { MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP, VIEW_MIN, type PowerId } from "./config";
+import { ASSEMBLY, MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP, VIEW_MIN, type PowerId } from "./config";
 import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
@@ -1114,13 +1114,35 @@ export class Renderer {
       ctx.save();
       ctx.translate(x, y);
 
-      // assembled drones glow hot orange so the formation reads as one threat
+      // evolved drones glow in their creature's color so each shape reads as
+      // one distinct threat (bombs pulse faster and faster as the fuse burns)
       if (d.assembly) {
+        const a = d.assembly;
+        let color: [string, string];
+        switch (a.kind) {
+          case "wheel":
+            color = ["#cc77ff", "rgba(150,70,255,0)"];
+            break;
+          case "hunter":
+            color = ["#ff4466", "rgba(255,40,80,0)"];
+            break;
+          case "bomb":
+            color = ["#ffee55", "rgba(255,200,40,0)"];
+            break;
+          default: // lance
+            color = ["#ffaa33", "rgba(255,120,20,0)"];
+        }
+        let glow = a.phase === "active" ? 0.55 : 0.35;
+        if (a.kind === "bomb" && a.phase === "active") {
+          // accelerating strobe: the closer to zero, the angrier the blink
+          const urgency = 1 - clamp01(a.timer / ASSEMBLY.kinds.bomb.fuse);
+          glow = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(world.time * (8 + urgency * 34)));
+        }
         ctx.globalCompositeOperation = "lighter";
         const ag = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.9);
-        ag.addColorStop(0, "#ffaa33");
-        ag.addColorStop(1, "rgba(255,120,20,0)");
-        ctx.globalAlpha = d.assembly.phase === "charge" ? 0.55 : 0.35;
+        ag.addColorStop(0, color[0]);
+        ag.addColorStop(1, color[1]);
+        ctx.globalAlpha = glow;
         ctx.fillStyle = ag;
         ctx.beginPath();
         ctx.arc(0, 0, r * 1.9, 0, Math.PI * 2);

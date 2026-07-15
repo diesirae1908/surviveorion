@@ -407,6 +407,25 @@ button.launch {
   color: #ffd700;
 }
 
+/* quiet footer link from the daily lobby to the full arcade game */
+.full-game-link {
+  background: none;
+  border: none;
+  color: #8a7a55;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 10px;
+  transition: color 0.15s;
+}
+
+.full-game-link:hover {
+  color: #ffd700;
+  text-decoration: underline;
+}
+
 /* Training Ground card: the sparring room, bronze instead of gold */
 .menu-mode-btn.training {
   min-width: 0;
