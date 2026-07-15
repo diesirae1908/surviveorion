@@ -50,22 +50,28 @@ function trySpawnMine(world: World): void {
     candidates.push({ x: randRange(-halfW, halfW), y: randRange(-halfH, halfH) });
   }
 
+  // Daily Patrol: every scheduled mine lands at the first candidate, no cap
+  // and no ship/spacing filters — anything player-relative would put mines in
+  // different places (or skip them) per pilot on the shared run. The arm-time
+  // fade-in covers an unlucky spawn near the ship.
   const alive = world.mines.filter((m) => m.alive).length;
-  if (alive >= MINES.maxActive) return;
+  if (!world.daily && alive >= MINES.maxActive) return;
 
   for (const { x, y } of candidates) {
-    const dx = x - world.ship.x;
-    const dy = y - world.ship.y;
-    if (Math.hypot(dx, dy) < MINES.minDistanceFromShip) continue;
+    if (!world.daily) {
+      const dx = x - world.ship.x;
+      const dy = y - world.ship.y;
+      if (Math.hypot(dx, dy) < MINES.minDistanceFromShip) continue;
 
-    let tooClose = false;
-    for (const other of world.mines) {
-      if (Math.hypot(x - other.x, y - other.y) < MINES.minDistanceBetween) {
-        tooClose = true;
-        break;
+      let tooClose = false;
+      for (const other of world.mines) {
+        if (Math.hypot(x - other.x, y - other.y) < MINES.minDistanceBetween) {
+          tooClose = true;
+          break;
+        }
       }
+      if (tooClose) continue;
     }
-    if (tooClose) continue;
 
     world.mines.push({
       x,

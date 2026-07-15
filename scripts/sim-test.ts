@@ -483,8 +483,9 @@ function muteAmbientPickups(world: World): void {
   /** Play 3 seeded minutes in a given style and record the spawn script. */
   const record = (style: "ram" | "drift"): Script => {
     setRunSeed(1234567);
-    const world = createWorld(17.8, 10);
+    const world = createWorld(17.8, 10, false, 0, "classic", true); // a real daily run
     const script: Script = { formations: [], powers: [], mines: [] };
+    const seenPickups = new Set<unknown>();
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -504,11 +505,21 @@ function muteAmbientPickups(world: World): void {
         if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
       }
       world.events.length = 0;
-      // log + clear drops so neither style ever hits the pickup/mine caps
-      // (whether a capped drop is discarded is legitimately player-dependent)
-      for (const pu of world.pickups) script.powers.push(`${world.time.toFixed(2)}:${pu.power}`);
-      world.pickups.length = 0;
-      for (const m of world.mines) script.mines.push(world.time.toFixed(2));
+      // pickups stay on the board (dailies never discard a scheduled drop):
+      // log each drop once, WITH its position — the whole visible power
+      // script must match, not just the identities
+      for (const pu of world.pickups) {
+        if (seenPickups.has(pu)) continue;
+        seenPickups.add(pu);
+        script.powers.push(
+          `${world.time.toFixed(2)}:${pu.power}@${pu.x.toFixed(2)},${pu.y.toFixed(2)}`,
+        );
+      }
+      // mines never miss on dailies: log each with its position, then clear
+      // (chain explosions from powers would otherwise diverge the field)
+      for (const m of world.mines) {
+        script.mines.push(`${world.time.toFixed(2)}:${m.x.toFixed(2)},${m.y.toFixed(2)}`);
+      }
       world.mines.length = 0;
     }
     setRunSeed(null);
@@ -523,12 +534,12 @@ function muteAmbientPickups(world: World): void {
     `${a.formations.length} formations`,
   );
   check(
-    "daily seed: power drop script identical across play styles",
+    "daily seed: power drops (kind + position) identical across play styles",
     a.powers.length > 5 && a.powers.join("|") === b.powers.join("|"),
     `${a.powers.length} drops`,
   );
   check(
-    "daily seed: mine schedule identical across play styles",
+    "daily seed: mine schedule (time + position) identical across play styles",
     a.mines.length > 3 && a.mines.join("|") === b.mines.join("|"),
     `${a.mines.length} mines`,
   );

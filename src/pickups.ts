@@ -89,7 +89,9 @@ function spawnPickup(world: World): void {
   const hh = world.viewH / 2 - PICKUPS.edgeInset;
 
   // fixed number of draws (ship position must not advance the seeded stream
-  // differently per player); take the first candidate far enough away
+  // differently per player); take the first candidate far enough away.
+  // Daily Patrol: the FIRST candidate wins unconditionally — ship-relative
+  // placement would give every pilot different drop spots on the shared run.
   let x = 0;
   let y = 0;
   let found = false;
@@ -99,16 +101,23 @@ function spawnPickup(world: World): void {
     if (found) continue;
     x = cx;
     y = cy;
+    if (world.daily) {
+      found = true;
+      continue;
+    }
     const dist = Math.hypot(cx - world.ship.x, cy - world.ship.y);
     if (dist >= PICKUPS.minDistanceFromShip) found = true;
   }
 
   // roll before the cap check: how many pickups float uncollected is
   // player-dependent, and a seeded run must consume the same draws (and the
-  // same bad-luck demotions) for everyone. At the cap the drop is discarded.
+  // same bad-luck demotions) for everyone. At the cap the drop is discarded —
+  // except on Daily Patrol, where a discard would make the visible power
+  // script depend on how many pickups the pilot left floating. On dailies
+  // every scheduled drop lands, so all pilots see the identical board.
   const driftAngle = rand() * Math.PI * 2; // drift heading (fixed draw too)
   const power = rollPowerId(world);
-  if (world.pickups.length >= PICKUPS.maxActive) return;
+  if (!world.daily && world.pickups.length >= PICKUPS.maxActive) return;
   world.pickups.push({
     x,
     y,

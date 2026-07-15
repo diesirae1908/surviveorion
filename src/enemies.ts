@@ -820,6 +820,9 @@ function disbandAssembly(world: World, a: Assembly): void {
 /**
  * Violent end: the creature bursts back into ordinary drones, flung outward
  * from the anchor as brief straight-line shrapnel before resuming homing.
+ * Burst timing/member counts are player-dependent, so all randomness here
+ * stays on Math.random — touching the seeded streams would desync Daily
+ * Patrol runs (variable draws per run).
  */
 function burstAssembly(
   world: World,
@@ -832,11 +835,20 @@ function burstAssembly(
     const dx = m.x - a.x;
     const dy = m.y - a.y;
     const len = Math.hypot(dx, dy);
-    const dir = len > 0.05 ? { x: dx / len, y: dy / len } : randDir();
+    let dirX: number;
+    let dirY: number;
+    if (len > 0.05) {
+      dirX = dx / len;
+      dirY = dy / len;
+    } else {
+      const ang = Math.random() * Math.PI * 2;
+      dirX = Math.cos(ang);
+      dirY = Math.sin(ang);
+    }
     m.scriptMode = "straight";
-    m.scriptDirX = dir.x;
-    m.scriptDirY = dir.y;
-    m.scriptTimer = scatterTime * randRange(0.85, 1.15);
+    m.scriptDirX = dirX;
+    m.scriptDirY = dirY;
+    m.scriptTimer = scatterTime * (0.85 + Math.random() * 0.3);
     m.scriptSpeedScale = speedScale;
     m.scriptWander = 0;
   }
