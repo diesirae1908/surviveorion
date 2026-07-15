@@ -2,7 +2,7 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS } from "../src/config";
+import { FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING } from "../src/config";
 import { droneRadius, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
@@ -436,6 +436,32 @@ function muteAmbientPickups(world: World): void {
   tick(world, input, FIXED_DT);
   const freed = world.drones.every((d) => !d.assembly);
   check("death disbands all assemblies", world.assemblies.length === 0 && freed);
+}
+
+// --- 6g. Training Ground: capped trickle, no formations/assemblies/mines ---
+{
+  const world = createWorld(17.8, 10, false, 0, "classic", false, true);
+  check("training opens with a small burst", world.drones.length === TRAINING.initialBurst, `${world.drones.length}`);
+  let sawFormation = false;
+  let maxDrones = world.drones.length;
+  const steps = Math.round(120 / FIXED_DT);
+  for (let i = 0; i < steps; i++) {
+    world.powers.shieldActive = true; // survive without killing the class
+    tick(world, input, FIXED_DT);
+    for (const e of world.events) {
+      if (e.type === "formation" || e.type === "assembly") sawFormation = true;
+    }
+    world.events.length = 0;
+    maxDrones = Math.max(maxDrones, world.drones.length);
+  }
+  check("training never fires formations or assemblies", !sawFormation);
+  check(
+    "training drone cap holds",
+    maxDrones <= TRAINING.maxDrones + 2, // telegraphs in flight can overshoot a hair
+    `max ${maxDrones}`,
+  );
+  check("training spawns no mines", world.mines.length === 0);
+  check("training still deals pickups", world.pickups.length > 0 || world.pickupTimer < 99);
 }
 
 // --- 7. Daily Patrol determinism: same seed → same script, however you fly ---

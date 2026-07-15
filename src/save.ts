@@ -59,6 +59,7 @@ const SETTINGS_KEY = "orion.settings";
 const CONTROLS_KEY = "orion.controls";
 const KEYBINDS_KEY = "orion.keybinds";
 const GAME_MODE_KEY = "orion.gameMode";
+const DAILY_ATTEMPTS_KEY = "orion.dailyAttempts";
 
 const SENSE_LEVELS: SenseLevel[] = ["low", "med", "high"];
 
@@ -110,6 +111,90 @@ export function loadRunCount(): number {
 
 export function bumpRunCount(): void {
   localStorage.setItem(RUN_COUNT_KEY, String(loadRunCount() + 1));
+}
+
+// --- Daily-only site: attempt budget (client-side, per UTC day) ---
+//
+// The daily variant allows DAILY_MAX_ATTEMPTS Daily Patrol launches per UTC
+// day (the same day boundary as the daily seed). Purely local — incognito
+// resets it, and that's accepted (Wordle model).
+
+export const DAILY_MAX_ATTEMPTS = 3;
+
+/** Best daily result so far today, kept for the share card after lockout. */
+export interface DailyBestResult {
+  score: number;
+  time: number;
+  maxMultiplier: number;
+  /** Daily board rank at submit time (null = unranked / signed out). */
+  rank: number | null;
+  /** 1-based attempt number that produced this result. */
+  attempt: number;
+}
+
+export interface DailyAttempts {
+  /** UTC date (YYYY-MM-DD) these attempts belong to. */
+  date: string;
+  used: number;
+  best: DailyBestResult | null;
+}
+
+/** Same UTC day boundary as the Daily Patrol seed in main.ts. */
+export function utcDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Today's attempt state; a stale date resets the budget. */
+export function loadDailyAttempts(): DailyAttempts {
+  const fresh: DailyAttempts = { date: utcDateString(), used: 0, best: null };
+  try {
+    const raw = localStorage.getItem(DAILY_ATTEMPTS_KEY);
+    if (!raw) return fresh;
+    const parsed = JSON.parse(raw) as Partial<DailyAttempts>;
+    if (parsed.date !== fresh.date || typeof parsed.used !== "number") return fresh;
+    return {
+      date: fresh.date,
+      used: Math.max(0, Math.floor(parsed.used)),
+      best: parsed.best ?? null,
+    };
+  } catch {
+    return fresh;
+  }
+}
+
+function saveDailyAttempts(state: DailyAttempts): void {
+  localStorage.setItem(DAILY_ATTEMPTS_KEY, JSON.stringify(state));
+}
+
+export function dailyAttemptsLeft(): number {
+  return Math.max(0, DAILY_MAX_ATTEMPTS - loadDailyAttempts().used);
+}
+
+/** Consume one attempt (called when a daily run actually starts). */
+export function useDailyAttempt(): DailyAttempts {
+  const state = loadDailyAttempts();
+  state.used = Math.min(DAILY_MAX_ATTEMPTS, state.used + 1);
+  saveDailyAttempts(state);
+  return state;
+}
+
+/** Record a finished daily run if it beats (or first sets) today's best. */
+export function recordDailyResult(result: Omit<DailyBestResult, "attempt">): DailyBestResult {
+  const state = loadDailyAttempts();
+  const attempt = Math.max(1, state.used);
+  const entry: DailyBestResult = { ...result, attempt };
+  if (!state.best || entry.score >= state.best.score) {
+    state.best = entry;
+    saveDailyAttempts(state);
+    return entry;
+  }
+  // a better earlier run keeps the share card, but the server's dailyRank
+  // always reflects today's BEST run — so refresh the stored rank regardless
+  if (result.rank !== null) {
+    state.best.rank = result.rank;
+    saveDailyAttempts(state);
+  }
+  return state.best;
 }
 
 function parseSense(v: unknown, fallback: SenseLevel): SenseLevel {

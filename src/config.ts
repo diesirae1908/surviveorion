@@ -119,6 +119,11 @@ export const SPAWNER = {
   minDistanceFromShip: 7, // edge spawns keep at least this distance from the ship
   // Soft safety cap: no pooling/partitioning, so guard frame rate in marathon runs.
   maxDrones: 550,
+  // Relief valve: past this many loose homing drones, ambient spawns are
+  // discarded (their RNG draws still consumed, so Daily Patrol seeds stay
+  // shared). The field never silts up into an unmovable sea of singles —
+  // formations and assemblies carry the pressure instead.
+  ambientSoftCap: 130,
   // Telegraphed on-screen spawns: a red glow fades in, then the drone pops.
   telegraph: {
     ratio: 0.7, // fraction of ambient spawns that appear on-screen (rest sneak from edges)
@@ -212,6 +217,17 @@ export const IRONRAIN = {
   gaplessWallChance: 0.15,
 };
 
+// Training Ground (daily-only site): a free, unscored practice arena. A slow
+// ambient trickle with a hard cap — enough drones to learn dodging and sample
+// powers, never enough to feel like the real thing. No formations, no
+// assemblies, no mines; difficulty stays pinned at minute zero.
+export const TRAINING = {
+  initialBurst: 3,
+  spawnsPerSecond: 0.45,
+  maxDrones: 14,
+  speedScale: 0.85, // a touch slower than even a minute-zero classic run
+};
+
 // Drone assemblies: free ambient drones periodically conscript into a shape
 // (line or vee "ship"), hold formation briefly, then charge the player at
 // boosted speed before disbanding back to normal homing. Assembly timing and
@@ -220,11 +236,18 @@ export const IRONRAIN = {
 // (player-dependent by design, like power effects).
 export const ASSEMBLY = {
   minMinutes: 0.5,
-  intervalRange: [9, 14] as const,
-  countRange: [8, 14] as const,
-  gatherRadius: 7, // conscripts must be this close to the seed drone
+  intervalRange: [6, 10] as const,
+  countRange: [10, 18] as const,
+  gatherRadius: 9, // conscripts must be this close to the seed drone
   minMembers: 4, // fewer free drones than this → the event fizzles
   spacing: 0.7, // slot spacing inside the shape
+  // Crowd-pressure valve: when the loose swarm gets thick, conscript an
+  // extra assembly immediately instead of waiting for the timer. Rolls use
+  // Math.random only (player-dependent, like member selection) — the seeded
+  // schedule stream is never touched, so Daily Patrol stays shared.
+  crowdTrigger: 60, // free homing drones that count as "too thick"
+  crowdCooldown: 4, // seconds between crowd-triggered conscriptions
+  maxConcurrent: 3,
   formTime: 1.8, // seconds steering into the shape (the telegraph)
   formSpeedScale: 1.8,
   chargeTime: 3.5, // seconds the shape charges before disbanding

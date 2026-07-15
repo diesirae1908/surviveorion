@@ -28,11 +28,17 @@ import {
   saveControlPrefs,
   saveKeyBindings,
   saveSettings,
+  dailyAttemptsLeft,
+  loadDailyAttempts,
+  recordDailyResult,
+  useDailyAttempt,
+  DAILY_MAX_ATTEMPTS,
   DEFAULT_KEYBINDS,
   formatKeyCode,
   type BooleanSetting,
   type KeyBindings,
 } from "./save";
+import { buildShareText, dailyNumber, shareText } from "./share";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
@@ -47,6 +53,18 @@ type AppState =
   | "paused"
   | "tutorial"
   | "gameover";
+
+/**
+ * Daily-only variant ("Orion Daily", served on daily.surviveorion.com or via
+ * ?dailyonly=1 anywhere): the site boots straight into a Daily Patrol lobby —
+ * 3 attempts per UTC day (local budget, incognito bypass accepted), a free
+ * Training Ground, and a shareable result card. The main site is untouched.
+ */
+const DAILY_ONLY =
+  location.hostname.startsWith("daily.") ||
+  new URLSearchParams(location.search).has("dailyonly");
+
+if (DAILY_ONLY) document.title = "ORION Daily";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -77,6 +95,17 @@ let recordBeaten = false;
 /** Daily Patrol: shared-seed run, files on today's board too. */
 let pendingDaily = false;
 let runIsDaily = false;
+/** Training Ground (daily-only site): free, unscored practice run. */
+let pendingTraining = false;
+let runIsTraining = false;
+/** Share card for the daily run that just ended (rank fills in on submit). */
+let lastRunShare: {
+  score: number;
+  time: number;
+  maxMultiplier: number;
+  rank: number | null;
+  attempt: number;
+} | null = null;
 /** Game mode picked on the menu; retries reuse it (Daily is always Classic). */
 let pendingGameMode: GameMode = loadGameMode();
 let runGameMode: GameMode = "classic";
@@ -164,6 +193,17 @@ const ui = new Ui(settings, {
   onQuitToMenu: quitToMenu,
   onPauseRequest: pause,
   onTutorial: startTutorial,
+  onTraining: () => beginLaunch(false, "classic", true),
+  onShare: () => {
+    // game over shares the run that just ended; the lobby shares today's best
+    const source =
+      state === "gameover" && lastRunShare ? lastRunShare : loadDailyAttempts().best;
+    if (!source) return Promise.resolve("failed" as const);
+    return shareText(
+      buildShareText({ dayNumber: dailyNumber(), ...source }),
+      isTouchDevice(),
+    );
+  },
   onToggle: (key: BooleanSetting) => {
     settings[key] = !settings[key];
     saveSettings(settings);
@@ -231,27 +271,43 @@ const community = new CommunityUi(
 );
 
 function showMenu(): void {
+  if (DAILY_ONLY) {
+    const attempts = loadDailyAttempts();
+    ui.showDailyLobby({
+      dayNumber: dailyNumber(),
+      attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
+      maxAttempts: DAILY_MAX_ATTEMPTS,
+      best: attempts.best,
+      online: api.online,
+      touchDevice: isTouchDevice(),
+    });
+    fillDailyHint();
+    return;
+  }
   bestScore = loadBestScore(pendingGameMode);
   bestTime = loadBestTime(pendingGameMode);
   ui.showMenu(bestScore, isTouchDevice(), {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
     pendingFriends: api.pendingFriends,
   });
-  // fill the Daily Patrol hint with today's leader once the board loads
-  if (api.online) {
-    const mode: BoardMode = isTouchDevice() ? "touch" : "desktop";
-    void api
-      .dailyLeaderboard(mode)
-      .then((d) => {
-        const top = d.entries[0];
-        ui.setMenuDailyHint(
-          top
-            ? `today's leader: <b>${top.callsign.replace(/[&<>]/g, "")}</b> · ${top.best.toLocaleString()}`
-            : "no patrols flown yet today. Be the first!",
-        );
-      })
-      .catch(() => {});
-  }
+  fillDailyHint();
+}
+
+/** Fill the Daily Patrol hint with today's leader once the board loads. */
+function fillDailyHint(): void {
+  if (!api.online) return;
+  const mode: BoardMode = isTouchDevice() ? "touch" : "desktop";
+  void api
+    .dailyLeaderboard(mode)
+    .then((d) => {
+      const top = d.entries[0];
+      ui.setMenuDailyHint(
+        top
+          ? `today's leader: <b>${top.callsign.replace(/[&<>]/g, "")}</b> · ${top.best.toLocaleString()}`
+          : "no patrols flown yet today. Be the first!",
+      );
+    })
+    .catch(() => {});
 }
 
 /**
@@ -259,10 +315,16 @@ function showMenu(): void {
  * choice between the default touch stick and tilt mode (Tilt to Live tribute).
  * Desktop has no sensor, so it goes straight in.
  */
-function beginLaunch(daily: boolean, gameMode: GameMode = "classic"): void {
+function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = false): void {
   if (state === "launching") return;
+  // daily-only site: out of attempts → back to the lobby (shows the countdown)
+  if (DAILY_ONLY && daily && dailyAttemptsLeft() <= 0) {
+    quitToMenu();
+    return;
+  }
   pendingDaily = daily;
-  if (!daily) {
+  pendingTraining = training;
+  if (!daily && !training) {
     pendingGameMode = gameMode;
     saveGameMode(gameMode); // the menu remembers the last mode flown
   }
@@ -285,6 +347,11 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic"): void {
 
 function doLaunch(quick = false): void {
   if (state === "launching") return;
+  // daily-only retry path (Fly again / Space): the attempt budget still rules
+  if (DAILY_ONLY && pendingDaily && dailyAttemptsLeft() <= 0) {
+    quitToMenu();
+    return;
+  }
   audio.unlock();
   audio.pauseMusic();
   warpSeconds = quick ? RETRY_WARP_SECONDS : WARP_SECONDS;
@@ -303,16 +370,27 @@ function startRun(): void {
   audio.unlock();
   // boards are per platform: phone tilt, phone touch stick, or desktop keys
   runMode = input.tiltActive ? "tilt" : isTouchDevice() ? "touch" : "desktop";
-  runIsDaily = pendingDaily;
-  runGameMode = runIsDaily ? "classic" : pendingGameMode;
+  runIsTraining = pendingTraining;
+  runIsDaily = pendingDaily && !pendingTraining;
+  runGameMode = runIsDaily || runIsTraining ? "classic" : pendingGameMode;
+  // an attempt is spent the moment a daily run starts (quitting mid-run counts)
+  if (DAILY_ONLY && runIsDaily) useDailyAttempt();
   // PBs are per game mode — the NEW RECORD beat compares like-for-like
   bestScore = loadBestScore(runGameMode);
   bestTime = loadBestTime(runGameMode);
   // Daily Patrol deals everyone the same script (and no beginner grace);
   // normal runs soften the opening for a player's first few flights.
   setRunSeed(runIsDaily ? dailySeed() : null);
-  const grace = runIsDaily ? 0 : clamp01(1 - loadRunCount() / 3);
-  world = createWorld(renderer.viewW, renderer.viewH, false, grace, runGameMode, runIsDaily);
+  const grace = runIsDaily || runIsTraining ? 0 : clamp01(1 - loadRunCount() / 3);
+  world = createWorld(
+    renderer.viewW,
+    renderer.viewH,
+    false,
+    grace,
+    runGameMode,
+    runIsDaily,
+    runIsTraining,
+  );
   recordBeaten = false;
   particles.clear();
   popups.clear();
@@ -351,7 +429,8 @@ function finishTutorial(): void {
   tutorial = null;
   state = "menu"; // stop ticking the sandbox; the send-off screen takes over
   ui.showTutorialEnd(
-    () => beginLaunch(false),
+    // daily-only site: the send-off launch goes into today's patrol
+    () => beginLaunch(DAILY_ONLY),
     () => quitToMenu(),
   );
 }
@@ -390,6 +469,8 @@ function onGameOver(): void {
   gameOverUiShown = false;
   audio.setThrustLevel(0);
   audio.playTrack("gameover");
+  // Training Ground runs are unscored: no PBs, no run count, no submission
+  if (runIsTraining) return;
   bumpRunCount(); // new-pilot grace fades out with completed runs
   lastRunWasBest = world.score > bestScore;
   if (lastRunWasBest) {
@@ -406,6 +487,27 @@ function onGameOver(): void {
 
 function showGameOverUi(): void {
   gameOverUiShown = true;
+  if (runIsTraining) {
+    ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1);
+    return;
+  }
+  const cappedDaily = DAILY_ONLY && runIsDaily;
+  if (cappedDaily) {
+    // remember the run for the share card (rank arrives with the submit)
+    recordDailyResult({
+      score: Math.floor(world.score),
+      time: world.time,
+      maxMultiplier: world.maxMultiplier,
+      rank: null,
+    });
+    lastRunShare = {
+      score: Math.floor(world.score),
+      time: world.time,
+      maxMultiplier: world.maxMultiplier,
+      rank: null,
+      attempt: loadDailyAttempts().used,
+    };
+  }
   ui.showGameOver({
     score: world.score,
     scoreKills: world.scoreKills,
@@ -421,12 +523,24 @@ function showGameOverUi(): void {
     daily: runIsDaily,
     gameMode: runGameMode,
     touchDevice: isTouchDevice(),
+    attemptsLeft: cappedDaily ? dailyAttemptsLeft() : undefined,
+    showShare: cappedDaily,
   });
   submitRun();
 }
 
 /** Paint the rank line + badge celebration from a score-submit response. */
 function renderRankResult(r: SubmitResult): void {
+  // daily-only site: the submit response carries the rank for the share card
+  if (DAILY_ONLY && runIsDaily && r.dailyRank) {
+    if (lastRunShare) lastRunShare.rank = r.dailyRank;
+    recordDailyResult({
+      score: Math.floor(world.score),
+      time: world.time,
+      maxMultiplier: world.maxMultiplier,
+      rank: r.dailyRank,
+    });
+  }
   const parts: string[] = [];
   if (runIsDaily && r.dailyRank) parts.push(`Daily Patrol <b>#${r.dailyRank}</b>`);
   parts.push(`World rank <b>#${r.worldRank}</b>`);
@@ -694,6 +808,7 @@ function frame(now: number): void {
     if (
       state === "playing" &&
       world.phase === "playing" &&
+      !world.training && // training is unscored — no record beats in there
       !recordBeaten &&
       bestScore > 0 &&
       world.score > bestScore
@@ -786,6 +901,13 @@ Object.defineProperty(window, "__orion", {
 function enterFromGate(): void {
   if (state !== "gate") return;
   audio.unlock();
+  // daily-only site: skip the 5s cinematic — a daily habit wants zero friction
+  if (DAILY_ONLY) {
+    state = "menu";
+    audio.playTrack("menu");
+    showMenu();
+    return;
+  }
   audio.intro(INTRO_SECONDS, INTRO_HIT_AT);
   state = "intro";
   fx = { kind: "intro", t: 0 };

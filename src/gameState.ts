@@ -18,11 +18,13 @@ export function createWorld(
   grace = 0,
   gameMode: GameMode = "classic",
   daily = false,
+  training = false,
 ): World {
   const world: World = {
     viewW,
     viewH,
     sandbox,
+    training,
     gameMode,
     daily,
     grace: gameMode === "ironrain" ? 0 : grace, // Iron Rain never softens

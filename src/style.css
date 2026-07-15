@@ -332,6 +332,119 @@ button.launch {
   color: #ffee88;
 }
 
+/* --- daily-only site lobby --- */
+
+.daily-day {
+  color: #aa8844;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.daily-day b {
+  color: #ffd700;
+}
+
+/* attempt pips: one diamond per daily try, spent ones dimmed */
+.attempt-pips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.attempt-pips .pip {
+  color: #ffd700;
+  font-size: 15px;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.attempt-pips .pip.spent {
+  color: #3a3448;
+  text-shadow: none;
+}
+
+.attempt-pips .pips-label {
+  margin-left: 6px;
+  color: #8a7a55;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+/* today's-leader line on the lobby (same id as the menu daily hint) */
+.daily-hint.lobby-hint {
+  color: #ffee88;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.daily-hint.lobby-hint:empty {
+  display: none;
+}
+
+.daily-hint.lobby-hint b {
+  color: #ffd700;
+}
+
+/* out-of-attempts message (lobby + game over) */
+.daily-locked {
+  color: #ccaa66;
+  font-size: 14px;
+  line-height: 1.7;
+  letter-spacing: 0.06em;
+}
+
+.daily-locked b {
+  color: #ffd700;
+}
+
+.daily-best-line {
+  color: #ffee88;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+
+.daily-best-line b {
+  color: #ffd700;
+}
+
+/* Training Ground card: the sparring room, bronze instead of gold */
+.menu-mode-btn.training {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 26px;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  border: 1px solid rgba(170, 136, 68, 0.55);
+  background: rgba(30, 26, 20, 0.6);
+  color: #ccaa66;
+}
+
+.menu-mode-btn.training .daily-name {
+  color: #ffee88;
+}
+
+.menu-mode-btn.training .daily-sub {
+  color: #8a7a55;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0.08em;
+}
+
+.menu-mode-btn.training:hover {
+  box-shadow: 0 0 24px rgba(255, 215, 0, 0.18);
+  border-color: rgba(255, 215, 0, 0.6);
+}
+
+.share-btn {
+  min-width: 0;
+  padding: 10px 30px;
+  font-size: 14px;
+  border-color: rgba(255, 215, 0, 0.55);
+}
+
 /* game-over: Iron Rain tag (steel counterpart of the daily tag) */
 .ironrain-tag {
   color: #aecbee;

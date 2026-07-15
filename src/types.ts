@@ -255,6 +255,13 @@ export interface World {
   /** Tutorial sandbox: no ambient spawns, mines, or timed pickups. */
   sandbox: boolean;
 
+  /**
+   * Training Ground (daily-only variant): a light unscored practice arena —
+   * slow ambient trickle with a hard drone cap, no formations, assemblies,
+   * or mines. Pickups drop normally so every power can be sampled.
+   */
+  training: boolean;
+
   /** Classic (escalating) or Iron Rain (pinned at peak difficulty). */
   gameMode: GameMode;
 

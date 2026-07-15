@@ -164,6 +164,48 @@ touch-vs-desktop splits, badge holder counts, and all player feedback. The
 same data is available as JSON at `GET /api/admin/stats` and
 `GET /api/admin/feedback` (Bearer key or `?key=`).
 
+## Daily-only site ("Orion Daily")
+
+The same build has a second personality: a Wordle-style daily-only variant,
+activated purely by hostname (`daily.*`) or the `?dailyonly=1` query param
+(`DAILY_ONLY` in `src/main.ts`). No separate build or deploy — one bundle,
+one server, one database.
+
+On the daily site:
+
+- The tap-to-enter gate skips the 5s cinematic and lands on a minimal
+  **Daily Patrol lobby** (`showDailyLobby` in `src/ui.ts`): patrol number,
+  attempt pips, today's leader, one Launch button. No Classic / Iron Rain /
+  Arenas — those stay on the main site (and, later, the mobile app).
+- **3 attempts per UTC day** (`orion.dailyAttempts` in `src/save.ts`, same
+  day boundary as the daily seed). The budget is client-side by design —
+  incognito resets it, and that's accepted. An attempt is spent when a daily
+  run *starts*, so quitting mid-run counts. After the third run the lobby
+  and game-over screens show a countdown to the next UTC midnight.
+- **Training Ground** — a free, unlimited, unscored practice arena
+  (`training` on `World`, `TRAINING` in `src/config.ts`): a slow ambient
+  trickle capped at ~14 drones, no formations/assemblies/mines, normal
+  pickup drops so every power can be sampled. Never submits or logs a run,
+  never touches PBs or the attempt budget.
+- **Share result** (`src/share.ts`) — a pasteable Wordle-style card
+  (`ORION Daily #N`, time / points / peak multiplier / daily rank, attempt
+  x/3) via the native share sheet on phones and the clipboard on desktop.
+  Offered on the daily game-over screen and on the locked-out lobby.
+
+Daily scores submitted from either site land on the same daily leaderboard.
+
+### Deploying daily.surviveorion.com (Render)
+
+The daily site is just a second domain on the existing Render service:
+
+1. Render dashboard → the surviveorion service → **Settings → Custom
+   Domains → Add** `daily.surviveorion.com`. Render issues the TLS
+   certificate automatically once DNS resolves.
+2. At the DNS provider, add a **CNAME**: host `daily` → the service's
+   `*.onrender.com` hostname (the same target `surviveorion.com` points at).
+3. Done — the client detects the `daily.` hostname at boot. To preview
+   before DNS exists, open `https://surviveorion.com/?dailyonly=1`.
+
 ## Deploy (surviveorion.com)
 
 One process serves everything (game + API + SQLite). Two options:

@@ -18,7 +18,13 @@ export function isMineArmed(m: Mine): boolean {
 
 export function updateMines(world: World, dt: number): void {
   // spawning
-  if (world.phase === "playing" && !world.sandbox && world.time >= MINES.startAfterSeconds) {
+  // Training Ground never spawns mines — it's a dodging classroom, not a test
+  if (
+    world.phase === "playing" &&
+    !world.sandbox &&
+    !world.training &&
+    world.time >= MINES.startAfterSeconds
+  ) {
     world.mineTimer -= dt;
     if (world.mineTimer <= 0) {
       world.mineTimer = scheduleRange(...MINES.intervalRange);

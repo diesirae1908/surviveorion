@@ -1,4 +1,4 @@
-import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, type FormationKind } from "./config";
+import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
@@ -9,6 +9,7 @@ import type { Assembly, Drone, KillSource, World } from "./types";
  * a late-game depth from second zero (flat endurance — no ramp, no growth).
  */
 export function difficultyMinutes(world: World): number {
+  if (world.training) return 0; // Training Ground never escalates
   return world.gameMode === "ironrain" ? IRONRAIN.pinnedMinutes : world.time / 60;
 }
 
@@ -42,6 +43,15 @@ function createDrone(
 export function droneRadius(d: Drone): number {
   // frozen drones grow an ice shell: bigger to see and easier to shatter
   return DRONE.radius * d.scale * (d.frozen > 0 ? DRONE.frozenScale : 1);
+}
+
+/** Loose homing drones — not marching a script, not conscripted to a shape. */
+function countFreeDrones(world: World): number {
+  let n = 0;
+  for (const d of world.drones) {
+    if (d.alive && !d.scriptMode && !d.assembly) n++;
+  }
+  return n;
 }
 
 /** Speed factor from drone size: small = slower, large = faster. */
@@ -214,6 +224,17 @@ export function killDronesInRadius(world: World, x: number, y: number, radius: n
 // --- spawner (port of Unity EnemySpawner: ramps + formations) ---
 
 export function initSpawner(world: World): void {
+  // Training Ground: just a couple of gentle drones to warm up against —
+  // no formations or assemblies are ever scheduled (updateSpawner skips them).
+  if (world.training) {
+    for (let i = 0; i < TRAINING.initialBurst; i++) {
+      const dir = randDir();
+      const r = spawnRadius(world);
+      spawnAt(world, dir.x * r, dir.y * r, 0, { speedScale: TRAINING.speedScale });
+    }
+    return;
+  }
+
   scheduleNextFormation(world);
   world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
 
@@ -247,6 +268,21 @@ function graceSpawnScale(world: World): number {
 
 export function updateSpawner(world: World, dt: number): void {
   if (world.phase !== "playing" || world.sandbox) return;
+
+  // Training Ground: a capped, slow ambient trickle — nothing else
+  if (world.training) {
+    updateTelegraphs(world, dt, 0);
+    if (world.drones.length >= TRAINING.maxDrones) {
+      world.spawnAccumulator = 0;
+      return;
+    }
+    world.spawnAccumulator += TRAINING.spawnsPerSecond * dt;
+    while (world.spawnAccumulator >= 1) {
+      world.spawnAccumulator -= 1;
+      spawnAmbient(world, 0, 1);
+    }
+    return;
+  }
 
   const minutes = difficultyMinutes(world);
   world.spawnAccumulator +=
@@ -323,11 +359,14 @@ function spawnAt(
   x: number,
   y: number,
   minutes: number,
-  opts?: { scale?: number; speedScale?: number },
+  opts?: { scale?: number; speedScale?: number; ambient?: boolean },
 ): Drone | null {
-  // draw before the cap check so a capped run consumes the same layout rolls
+  // draw before the cap checks so a capped run consumes the same layout rolls
   const jitter = (rand() - 0.5) * 2 * SPAWNER.scaleJitter;
   if (world.drones.length >= SPAWNER.maxDrones) return null;
+  // ambient relief valve: a field silted up with loose singles stops taking
+  // more of them (formations/assemblies still deliver their patterns)
+  if (opts?.ambient && countFreeDrones(world) >= SPAWNER.ambientSoftCap) return null;
   const scale =
     opts?.scale ??
     clamp(
@@ -895,7 +934,7 @@ function steerMemberToSlot(a: Assembly, d: Drone, speed: number, dt: number): vo
  * draws), so Daily Patrol runs fire identical assembly events for everyone.
  */
 export function updateAssemblies(world: World, dt: number): void {
-  if (world.sandbox) return;
+  if (world.sandbox || world.training) return;
 
   if (world.phase !== "playing") {
     // death: release everyone so the swarm drifts naturally during the cinematic

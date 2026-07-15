@@ -2,6 +2,7 @@ import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameM
 import type {
   BooleanSetting,
   ControlMode,
+  DailyBestResult,
   KeyAction,
   KeyBindings,
   SenseLevel,
@@ -12,6 +13,7 @@ import {
   KEY_ACTIONS,
   formatKeyList,
 } from "./save";
+import type { ShareOutcome } from "./share";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -22,6 +24,10 @@ export interface UiCallbacks {
   onQuitToMenu: () => void;
   onPauseRequest: () => void;
   onTutorial: () => void;
+  /** Daily-only site: launch the free, unscored Training Ground. */
+  onTraining: () => void;
+  /** Daily-only site: share the result card (native sheet or clipboard). */
+  onShare: () => Promise<ShareOutcome>;
   onToggle: (key: BooleanSetting) => void;
   /** Cycle Low/Med/High for a sensitivity setting. */
   onCycleSense: (key: "tiltSensitivity" | "directSpeed") => SenseLevel;
@@ -68,6 +74,22 @@ export interface GameOverStats {
   /** Which board this run files on (Classic / Iron Rain). */
   gameMode: GameMode;
   touchDevice: boolean;
+  /** Daily-only site: attempts left after this run (undefined = uncapped). */
+  attemptsLeft?: number;
+  /** Daily-only site: show the share-result button. */
+  showShare?: boolean;
+}
+
+/** Everything the daily-only lobby needs to paint itself. */
+export interface DailyLobbyInfo {
+  dayNumber: number;
+  attemptsLeft: number;
+  maxAttempts: number;
+  /** Best run of the day so far (share card after lockout). */
+  best: DailyBestResult | null;
+  /** Community server reachable → show the leaderboard button. */
+  online: boolean;
+  touchDevice: boolean;
 }
 
 const SENSE_LABEL: Record<SenseLevel, string> = {
@@ -85,6 +107,10 @@ export function dailyResetLabel(): string {
   const next = new Date();
   next.setUTCHours(24, 0, 0, 0); // next UTC midnight
   return next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function fmtTime(s: number): string {
+  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
 }
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
@@ -249,6 +275,21 @@ export class Ui {
     return e;
   }
 
+  /** Share-result button with inline outcome feedback (Shared! / Copied!). */
+  private shareButton(): HTMLButtonElement {
+    const btn = this.button("Share result", false, () => {
+      btn.disabled = true;
+      void this.cb.onShare().then((outcome) => {
+        btn.disabled = false;
+        btn.textContent =
+          outcome === "copied" ? "Copied!" : outcome === "shared" ? "Shared!" : "Couldn't share";
+        setTimeout(() => (btn.textContent = "Share result"), 1600);
+      });
+    });
+    btn.classList.add("share-btn");
+    return btn;
+  }
+
   showMenu(bestScore: number, touchDevice: boolean, community?: MenuCommunity): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -333,6 +374,126 @@ export class Ui {
     );
     screen.appendChild(gear);
 
+    this.root.appendChild(screen);
+  }
+
+  /**
+   * Daily-only site lobby, kept deliberately spare: Launch, Training Ground,
+   * How to play, Powers, Leaderboard. No accounts here — players who want on
+   * the board enter a pseudo on the game-over screen (guest signup).
+   */
+  showDailyLobby(info: DailyLobbyInfo): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen menu", "");
+    screen.appendChild(this.el("div", "title", "ORION"));
+    screen.appendChild(this.el("div", "subtitle", "Daily Patrol"));
+    screen.appendChild(this.el("div", "divider", ""));
+
+    screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
+
+    // attempt pips: one per daily try, spent ones dimmed
+    const pipsRow = this.el("div", "attempt-pips", "");
+    for (let i = 0; i < info.maxAttempts; i++) {
+      pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, "◆"));
+    }
+    pipsRow.appendChild(
+      this.el(
+        "span",
+        "pips-label",
+        info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "done for today",
+      ),
+    );
+    screen.appendChild(pipsRow);
+
+    // today's leader, filled in async via setMenuDailyHint
+    const hint = this.el("div", "daily-hint lobby-hint", "");
+    hint.id = "daily-hint";
+    screen.appendChild(hint);
+
+    if (info.attemptsLeft > 0) {
+      const launch = this.button("Launch", true, () => this.cb.onDaily());
+      launch.classList.add("launch");
+      screen.appendChild(launch);
+    } else {
+      screen.appendChild(
+        this.el("div", "daily-locked", `Next patrol at <b>${dailyResetLabel()}</b>`),
+      );
+      if (info.best) {
+        screen.appendChild(
+          this.el(
+            "div",
+            "daily-best-line",
+            `Best today: <b>${fmtTime(info.best.time)}</b> · ` +
+              `<b>${Math.floor(info.best.score).toLocaleString()}</b> pts` +
+              (info.best.rank !== null ? ` · #${info.best.rank}` : ""),
+          ),
+        );
+        screen.appendChild(this.shareButton());
+      }
+    }
+
+    const training = this.el("button", "menu-mode-btn training", "");
+    training.innerHTML =
+      `<span class="daily-name">✦ Training Ground</span>` +
+      `<span class="daily-sub">free practice, unlimited</span>`;
+    training.addEventListener("click", () => this.cb.onTraining());
+    screen.appendChild(training);
+
+    const learnRow = this.el("div", "menu-row", "");
+    const howTo = this.button("How to play", false, () => this.cb.onTutorial());
+    howTo.classList.add("small-btn");
+    learnRow.appendChild(howTo);
+    const powers = this.button("Powers", false, () => this.showPowers(() => this.showDailyLobby(info)));
+    powers.classList.add("small-btn");
+    learnRow.appendChild(powers);
+    if (info.online) {
+      const board = this.button("Leaderboard", false, () => this.cb.onWorldArena());
+      board.classList.add("small-btn");
+      learnRow.appendChild(board);
+    }
+    screen.appendChild(learnRow);
+
+    const gear = document.createElement("button");
+    gear.className = "corner-btn";
+    gear.title = "Settings";
+    gear.innerHTML = "&#9881;";
+    gear.addEventListener("click", () =>
+      this.showSettings(info.touchDevice, () => this.showDailyLobby(info)),
+    );
+    screen.appendChild(gear);
+
+    this.root.appendChild(screen);
+  }
+
+  /**
+   * Training Ground send-off (daily-only site): the run is unscored, so no
+   * stats ceremony — just a nudge toward the real patrol.
+   */
+  showTrainingEnd(attemptsLeft: number): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen gameover-screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "TRAINING OVER"));
+    screen.appendChild(this.el("div", "divider", ""));
+    screen.appendChild(
+      this.el(
+        "div",
+        "hint",
+        attemptsLeft > 0
+          ? "Ready for the real thing?"
+          : `Next patrol at ${dailyResetLabel()}`,
+      ),
+    );
+    if (attemptsLeft > 0) {
+      const daily = this.button("Fly the Daily Patrol", true, () => this.cb.onDaily());
+      daily.classList.add("launch");
+      screen.appendChild(daily);
+    }
+    screen.appendChild(this.button("Train again", attemptsLeft <= 0, () => this.cb.onRestart()));
+    screen.appendChild(this.button("Back to base", false, () => this.cb.onQuitToMenu()));
     this.root.appendChild(screen);
   }
 
@@ -809,9 +970,6 @@ export class Ui {
     this.clear();
     this.pauseBtn.style.display = "none";
 
-    const fmtTime = (s: number): string =>
-      `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
-
     // transparent + slow fade: the canvas death veil provides the backdrop
     const screen = this.el("div", "screen gameover-screen", "");
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
@@ -849,13 +1007,16 @@ export class Ui {
             (stats.scoreBonuses >= 1 ? ` · <span>Bonuses ${fmt(stats.scoreBonuses)}</span>` : ""),
         ),
       );
-      screen.appendChild(
-        this.el(
-          "div",
-          "field-hint center",
-          "Everything you score is multiplied. Chain kills to keep the multiplier hot.",
-        ),
-      );
+      // the daily site keeps the results screen lean — numbers only
+      if (stats.attemptsLeft === undefined) {
+        screen.appendChild(
+          this.el(
+            "div",
+            "field-hint center",
+            "Everything you score is multiplied. Chain kills to keep the multiplier hot.",
+          ),
+        );
+      }
     }
 
     // near-miss framing: how this flight compares to the longest one
@@ -876,15 +1037,33 @@ export class Ui {
     rank.id = "rank-line";
     screen.appendChild(rank);
 
-    // retries keep the mode picked at launch, so say which run comes next
-    const retryLabel = stats.daily
-      ? "Fly again: Daily Patrol"
-      : stats.gameMode === "ironrain"
-        ? "Fly again: Iron Rain"
-        : "Fly again";
-    screen.appendChild(this.button(retryLabel, true, () => this.cb.onRestart()));
-    screen.appendChild(this.button("Main menu", false, () => this.cb.onQuitToMenu()));
-    if (!stats.touchDevice) {
+    if (stats.showShare) {
+      screen.appendChild(this.shareButton());
+    }
+
+    // daily-only site: retries draw from the daily attempt budget
+    const capped = stats.attemptsLeft !== undefined;
+    const canRetry = !capped || stats.attemptsLeft! > 0;
+
+    if (canRetry) {
+      // retries keep the mode picked at launch, so say which run comes next
+      const retryLabel = capped
+        ? `Fly again (${stats.attemptsLeft} left)`
+        : stats.daily
+          ? "Fly again: Daily Patrol"
+          : stats.gameMode === "ironrain"
+            ? "Fly again: Iron Rain"
+            : "Fly again";
+      screen.appendChild(this.button(retryLabel, true, () => this.cb.onRestart()));
+    } else {
+      screen.appendChild(
+        this.el("div", "daily-locked", `Next patrol at <b>${dailyResetLabel()}</b>`),
+      );
+    }
+    screen.appendChild(
+      this.button(capped ? "Back to base" : "Main menu", false, () => this.cb.onQuitToMenu()),
+    );
+    if (!stats.touchDevice && canRetry) {
       screen.appendChild(this.el("div", "field-hint center", "Space to fly again"));
     }
     this.root.appendChild(screen);
