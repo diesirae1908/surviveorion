@@ -57,6 +57,8 @@ function countFreeDrones(world: World): number {
 /** Speed factor from drone size: small = slower, large = faster. */
 function droneSizeSpeedFactor(scale: number): number {
   const [minScale, maxScale] = SPAWNER.scaleClamp;
+  // one-size mode (zero-width clamp): no size, no size-speed spread
+  if (maxScale <= minScale) return 1;
   const t = clamp((scale - minScale) / (maxScale - minScale), 0, 1);
   return lerp(DRONE.sizeSpeed.small, DRONE.sizeSpeed.large, t);
 }
@@ -369,13 +371,12 @@ function spawnAt(
   // ambient relief valve: a field silted up with loose singles stops taking
   // more of them (formations/assemblies still deliver their patterns)
   if (opts?.ambient && countFreeDrones(world) >= SPAWNER.ambientSoftCap) return null;
-  const scale =
-    opts?.scale ??
-    clamp(
-      0.6 + jitter, // avg size (Unity fallback used constant 1, clamped to 0.3..0.9)
-      SPAWNER.scaleClamp[0],
-      SPAWNER.scaleClamp[1],
-    );
+  // the clamp covers formation sizes too, so a pinned clamp = one size for all
+  const scale = clamp(
+    opts?.scale ?? 0.6 + jitter,
+    SPAWNER.scaleClamp[0],
+    SPAWNER.scaleClamp[1],
+  );
   const speedMult =
     Math.max(0.1, escalate(minutes, SPAWNER.speedMultiplier)) * (opts?.speedScale ?? 1);
   const drone = createDrone(x, y, scale, speedMult);
@@ -388,7 +389,7 @@ export function spawnDroneDirect(
   world: World,
   x: number,
   y: number,
-  scale = 0.6,
+  scale = 0.9,
   speedMultiplier = 0.8,
 ): Drone {
   const drone = createDrone(x, y, scale, speedMultiplier);

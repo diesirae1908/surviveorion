@@ -76,7 +76,8 @@ export const DRONE = {
   jitterFrequency: 0.8,
   // Frozen drones puff up (ice shell): easier targets to ram and shatter.
   frozenScale: 1.5,
-  // Most of the horde is slow; only the big bruisers keep some pace.
+  // Inert while scaleClamp is pinned to one size (see SPAWNER.scaleClamp);
+  // widen the clamp again to bring back "small = slower, large = faster".
   sizeSpeed: { small: 0.7, large: 1.25 },
 };
 
@@ -105,9 +106,12 @@ export const SPAWNER = {
   // Classic only: the first formation arrives this much later than the normal
   // formation cadence, so brand-new runs get a beat to breathe.
   firstFormationExtraDelay: 2,
-  // Wide size spread: runts to bruisers in the same crowd (bigger = faster).
-  scaleClamp: [0.25, 1.05] as const,
-  scaleJitter: 0.35,
+  // One drone size, the big readable one: the old runt-to-bruiser spread made
+  // the smallest drones nearly invisible on phones. The clamp applies to
+  // formation sizes too; with zero width, every drone lands on 0.9 and the
+  // size-speed spread is neutral (all drones fly the shared baseline).
+  scaleClamp: [0.9, 0.9] as const,
+  scaleJitter: 0,
   // Zombie clumping: ambient drones arrive in packs of 1..clumpMax gathered
   // around one point (the average spawn rate is unchanged — packs just group
   // the same budget), so the crowd reads as blobs with lanes between them.

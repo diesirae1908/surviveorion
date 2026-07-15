@@ -42,8 +42,8 @@ life.
 
 Enemies:
 
-- **Drones** — chase you relentlessly; sizes vary widely from runts to
-  bruisers (smaller = slower, larger = faster). Individual drones shamble like
+- **Drones** — chase you relentlessly; all one chunky size so every single
+  one reads clearly on a phone screen. Individual drones shamble like
   zombies — the threat is the crowd, and the game is about reading the swarm
   and finding the way out, not out-running anything. Ambient drones arrive in
   packs gathered around a point, so the crowd forms blobs with lanes
