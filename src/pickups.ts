@@ -10,7 +10,7 @@ import {
 import { clamp01, lerp, rand, randRange, scheduleRand, scheduleRange } from "./math";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
-import type { World } from "./types";
+import type { Pickup, World } from "./types";
 
 export function initPickups(world: World): void {
   world.pickupTimer = nextInterval(world);
@@ -43,7 +43,6 @@ export function updatePickups(world: World, dt: number): void {
   }
 
   const ship = world.ship;
-  const magnetActive = world.powers.magnetTimer > 0;
   const hw = world.viewW / 2 - PICKUPS.edgeInset;
   const hh = world.viewH / 2 - PICKUPS.edgeInset;
 
@@ -51,24 +50,25 @@ export function updatePickups(world: World, dt: number): void {
     const p = world.pickups[i];
     p.age += dt;
 
-    // slow drift, bouncing softly off the arena edges
-    p.x += (p.vx ?? 0) * dt;
-    p.y += (p.vy ?? 0) * dt;
-    if (p.vx !== undefined && ((p.x < -hw && p.vx < 0) || (p.x > hw && p.vx > 0))) {
-      p.vx = -p.vx;
-    }
-    if (p.vy !== undefined && ((p.y < -hh && p.vy < 0) || (p.y > hh && p.vy > 0))) {
-      p.vy = -p.vy;
-    }
-
-    if (magnetActive) {
+    if (p.magnetized) {
+      // claimed by a magnet: forget the drift, home straight to the ship
       const dx = ship.x - p.x;
       const dy = ship.y - p.y;
       const dist = Math.hypot(dx, dy);
-      if (dist > 0.01 && dist <= POWERS.magnet.radius) {
-        const pull = POWERS.magnet.pullSpeed * dt;
+      if (dist > 0.01) {
+        const pull = Math.min(POWERS.magnet.pullSpeed * dt, dist);
         p.x += (dx / dist) * pull;
         p.y += (dy / dist) * pull;
+      }
+    } else {
+      // slow drift, bouncing softly off the arena edges
+      p.x += (p.vx ?? 0) * dt;
+      p.y += (p.vy ?? 0) * dt;
+      if (p.vx !== undefined && ((p.x < -hw && p.vx < 0) || (p.x > hw && p.vx > 0))) {
+        p.vx = -p.vx;
+      }
+      if (p.vy !== undefined && ((p.y < -hh && p.vy < 0) || (p.y > hh && p.vy > 0))) {
+        p.vy = -p.vy;
       }
     }
 
@@ -118,14 +118,20 @@ function spawnPickup(world: World): void {
   const driftAngle = rand() * Math.PI * 2; // drift heading (fixed draw too)
   const power = rollPowerId(world);
   if (!world.daily && world.pickups.length >= PICKUPS.maxActive) return;
-  world.pickups.push({
+  const pickup: Pickup = {
     x,
     y,
     power,
     age: 0,
     vx: Math.cos(driftAngle) * PICKUPS.driftSpeed,
     vy: Math.sin(driftAngle) * PICKUPS.driftSpeed,
-  });
+  };
+  // a magnet grabbed on an empty board stays armed and claims the next drop
+  if (world.powers.magnetPending > 0) {
+    world.powers.magnetPending--;
+    pickup.magnetized = true;
+  }
+  world.pickups.push(pickup);
 }
 
 /**

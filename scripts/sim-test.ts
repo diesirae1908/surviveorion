@@ -132,6 +132,34 @@ function muteAmbientPickups(world: World): void {
   check("vortex kills drones", world.kills > killsBeforeVortex, `+${world.kills - killsBeforeVortex}`);
 }
 
+// --- 3b. magnet: one-shot grab yanks a single pickup to the ship ---
+{
+  const world = createWorld(17.8, 10);
+  step(world, 5);
+  muteAmbientPickups(world);
+
+  // park a pickup far away, then grab a magnet at the ship
+  world.pickups.push({ x: world.ship.x + 7, y: world.ship.y, power: "shield", age: 0 });
+  activate(world, "magnet");
+  const claimed = world.pickups.find((p) => p.power === "shield");
+  check("magnet claims the nearest pickup", claimed?.magnetized === true);
+  step(world, 1.5); // 7 units at pullSpeed 11 — arrives well within this
+  check("claimed pickup flies in and is collected", world.powers.shieldActive);
+
+  // empty board: the charge stays armed and takes the next drop instead
+  world.pickups.length = 0;
+  activate(world, "magnet");
+  check("magnet on an empty board arms a pending grab", world.powers.magnetPending === 1);
+  world.pickupTimer = 0; // force the next scheduled drop
+  step(world, 0.1);
+  const inbound = world.pickups.filter((p) => p.magnetized);
+  check(
+    "pending grab claims the next drop",
+    inbound.length === 1 && world.powers.magnetPending === 0,
+    inbound.map((p) => p.power).join(","),
+  );
+}
+
 // --- 4. every power id activates without crashing ---
 {
   const world = createWorld(17.8, 10);
@@ -177,7 +205,7 @@ function muteAmbientPickups(world: World): void {
   );
   check(
     "all spawnable powers appear within 60 drops (benched ones never)",
-    seen.size === SPAWNABLE_POWER_IDS.length && !seen.has("magnet") && !seen.has("vortex"),
+    seen.size === SPAWNABLE_POWER_IDS.length && !seen.has("afterburner") && !seen.has("vortex"),
     `${seen.size}/${SPAWNABLE_POWER_IDS.length}`,
   );
   check(

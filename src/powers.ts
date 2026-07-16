@@ -4,7 +4,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 // randomness stays on Math.random — drawing from the seeded daily streams
 // here would desync the shared spawn script between players.
 import { isMineArmed, killMine, killMinesInRadius } from "./mines";
-import type { ArcChainState, Drone, Mine, PowersState, World } from "./types";
+import type { ArcChainState, Drone, Mine, Pickup, PowersState, World } from "./types";
 import { clamp01 } from "./math";
 
 export function createPowersState(): PowersState {
@@ -12,7 +12,7 @@ export function createPowersState(): PowersState {
     shieldActive: false,
     starshellTimer: 0,
     pulseTimer: 0,
-    magnetTimer: 0,
+    magnetPending: 0,
     afterburnerCharge: 0,
     afterburnerDash: 0,
     afterburnerGrace: 0,
@@ -116,9 +116,23 @@ export function activatePower(world: World, power: PowerId): void {
       p.pulseTimer = POWERS.pulse.chargeTime;
       world.events.push({ type: "pulseCharge" });
       break;
-    case "magnet":
-      p.magnetTimer = POWERS.magnet.duration;
+    case "magnet": {
+      // one-shot grab: claim the nearest unclaimed pickup; if the board is
+      // empty, stay armed and take the next drop instead (see spawnPickup)
+      let nearest: Pickup | undefined;
+      let best = Infinity;
+      for (const pu of world.pickups) {
+        if (pu.magnetized) continue;
+        const d = Math.hypot(pu.x - world.ship.x, pu.y - world.ship.y);
+        if (d < best) {
+          best = d;
+          nearest = pu;
+        }
+      }
+      if (nearest) nearest.magnetized = true;
+      else p.magnetPending++;
       break;
+    }
     case "afterburner":
       // ignore re-pickup mid-dash; restart the charge otherwise
       if (p.afterburnerDash <= 0) {
@@ -621,7 +635,6 @@ export function updatePowers(world: World, dt: number): void {
   const p = world.powers;
 
   if (p.starshellTimer > 0) p.starshellTimer -= dt;
-  if (p.magnetTimer > 0) p.magnetTimer -= dt;
 
   // afterburner: charge -> dash -> burning trail
   if (p.afterburnerCharge > 0) {

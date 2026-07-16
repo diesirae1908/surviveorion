@@ -1611,18 +1611,26 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Dashed tether from the ship to each magnet-claimed pickup flying in. */
   private drawMagnetField(world: World, time: number): void {
-    if (world.powers.magnetTimer <= 0 || world.phase !== "playing") return;
+    if (world.phase !== "playing") return;
     const { ctx } = this;
-    ctx.save();
-    ctx.globalAlpha = 0.12 + 0.05 * Math.sin(time * 4);
-    ctx.strokeStyle = PALETTE.magnet;
-    ctx.lineWidth = 0.05;
-    ctx.setLineDash([0.3, 0.25]);
-    ctx.beginPath();
-    ctx.arc(world.ship.x, world.ship.y, POWERS.magnet.radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    const s = world.ship;
+    for (const p of world.pickups) {
+      if (!p.magnetized) continue;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.45 + 0.2 * Math.sin(time * 10);
+      ctx.strokeStyle = PALETTE.magnet;
+      ctx.lineWidth = 0.06;
+      ctx.setLineDash([0.35, 0.3]);
+      ctx.lineDashOffset = -time * 3; // dashes flow toward the ship
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   private drawProjectiles(world: World, alpha: number): void {
@@ -1839,8 +1847,8 @@ export class Renderer {
     if (p.shieldActive) powers.push(["SHIELD", 1, 1, POWER_COLORS.shield]);
     if (p.starshellTimer > 0)
       powers.push(["STARSHELL: RAM!", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
-    if (p.magnetTimer > 0)
-      powers.push(["MAGNET", p.magnetTimer, POWERS.magnet.duration, POWER_COLORS.magnet]);
+    if (p.magnetPending > 0 || world.pickups.some((pu) => pu.magnetized))
+      powers.push(["MAGNET", 1, 1, POWER_COLORS.magnet]);
     if (p.afterburnerCharge > 0)
       powers.push([
         "AFTERBURNER",

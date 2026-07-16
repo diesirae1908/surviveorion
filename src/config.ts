@@ -217,7 +217,7 @@ export const IRONRAIN = {
   wallSpacingScale: 0.75,
   wallGapScale: 0.8,
   // some walls spawn with NO gap at all — survivable only via powers
-  // (shockwave, starshell, shield, afterburner). Iron Rain only.
+  // (shockwave, starshell, shield, freeze). Iron Rain only.
   gaplessWallChance: 0.15,
 };
 
@@ -382,10 +382,10 @@ export const POWERS = {
     projectileRadius: 1.6,
     spawnOffset: 0.8, // along ship forward
   },
+  // One-shot grab: yanks the nearest power pickup straight to the ship. If
+  // the board is empty the charge stays armed and grabs the next drop instead.
   magnet: {
-    duration: 6,
-    radius: 7,
-    pullSpeed: 9,
+    pullSpeed: 11,
   },
   // Charge briefly, then dash forward in a straight line: enemies on the way
   // die, and the burning trail left behind stays lethal for a few seconds.
@@ -484,8 +484,9 @@ export const ALL_POWER_IDS: PowerId[] = [
 ];
 
 // Benched for now (code stays intact so they're easy to bring back):
-// vortex is too strong even as a rare drop, magnet is off with it.
-export const BENCHED_POWER_IDS: PowerId[] = ["magnet", "vortex"];
+// vortex is too strong even as a rare drop, afterburner's control-stealing
+// dash felt too risky to pick up (magnet took its slot).
+export const BENCHED_POWER_IDS: PowerId[] = ["afterburner", "vortex"];
 
 /** Powers that can actually drop (and that the codex shows). */
 export const SPAWNABLE_POWER_IDS: PowerId[] = ALL_POWER_IDS.filter(
@@ -493,20 +494,20 @@ export const SPAWNABLE_POWER_IDS: PowerId[] = ALL_POWER_IDS.filter(
 );
 
 // Relative spawn frequency, in the intended pecking order: pulse first
-// (the skill weapon), then shield, freeze, afterburner, shockwave, then the
+// (the skill weapon), then shield, freeze, magnet, shockwave, then the
 // rest evenly. Bad-luck demotion still gets the whole roster seen.
 export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
   pulse: 4,
   shield: 3,
   freeze: 2.5,
-  afterburner: 2,
+  magnet: 2,
   shockwave: 1.5,
   missiles: 1,
   starshell: 1,
   arc: 1,
   autocannon: 1,
   meteors: 1,
-  magnet: 1, // benched (see BENCHED_POWER_IDS)
+  afterburner: 1, // benched (see BENCHED_POWER_IDS)
   vortex: 1, // benched
 };
 
@@ -575,7 +576,7 @@ export const POWER_HINTS: Record<PowerId, string> = {
   shield: "banks an extra life, blocks one hit",
   shockwave: "blasts the swarm away from you",
   pulse: "aimed shots, kills pay double",
-  magnet: "pulls pickups to you",
+  magnet: "yanks the nearest power to your ship",
   afterburner: "warp dash, untouchable on arrival",
   freeze: "freezes drones, shatter them for bonus",
   missiles: "homing missiles blast the swarm",

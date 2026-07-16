@@ -105,6 +105,8 @@ export interface Pickup {
   /** Slow drift velocity (bounces softly off arena edges). */
   vx?: number;
   vy?: number;
+  /** Claimed by a magnet: homes straight to the ship until collected. */
+  magnetized?: boolean;
 }
 
 export interface PulseProjectile {
@@ -200,7 +202,8 @@ export interface PowersState {
   shieldActive: boolean; // persists until it absorbs a hit (banked extra life)
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
   pulseTimer: number; // >0 => pulse charging
-  magnetTimer: number;
+  /** Armed magnet grabs waiting for a pickup to spawn (board was empty). */
+  magnetPending: number;
   afterburnerCharge: number; // >0 => charging up the dash
   afterburnerDash: number; // >0 => dashing
   afterburnerGrace: number; // >0 => post-dash invincibility window

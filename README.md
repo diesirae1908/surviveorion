@@ -9,7 +9,7 @@ defensive power pickups:
 - **Aegis Shield** — stays on the ship until it absorbs a hit (a banked extra life), then detonates, clearing nearby drones
 - **Shockwave** — kills every drone in a radius, and the blast zone stays lethal for ~1s after (a nuclear linger)
 - **Pulse Shot** — charges up (~1s), then fires a piercing bolt forward
-- **Afterburner** — charges, then dashes you forward through enemies, leaving a burning trail that stays lethal for ~2.5s; you get a 1s invincibility grace on arrival
+- **Magnet** — one-shot grab: yanks the nearest power pickup straight to your ship; if the board is empty the charge stays armed and grabs the next drop instead
 - **Cryo Field** — flash-freezes all drones in a big area; fly into frozen drones to shatter them
 - **Missile Swarm** — launches a volley of guided missiles in all directions; each impact detonates a small area blast that lingers ~1s
 - **Starshell** — a golden shell that makes you invulnerable for ~6s and ram-kills everything you touch
@@ -17,13 +17,14 @@ defensive power pickups:
 - **Autocannon** — mounts a turret on the ship for ~6s that auto-fires tracer rounds (~8/s) at the nearest enemy in range
 - **Meteor Storm** — explosions rain down for ~4s, biased toward drone clusters, each leaving a crater that stays lethal for ~1s
 
-(Magnet and Vortex exist in the code but are benched from the drop rotation
-for now — `BENCHED_POWER_IDS` in `src/config.ts`; vortex's open-vortex
-invulnerability made it too strong even as a rare drop.)
+(Afterburner and Vortex exist in the code but are benched from the drop
+rotation for now — `BENCHED_POWER_IDS` in `src/config.ts`; vortex's
+open-vortex invulnerability made it too strong even as a rare drop, and
+afterburner's control-stealing dash made the pickup feel too risky to grab.)
 
 Pickups spawn with weighted frequency (`POWER_SPAWN_WEIGHTS` in `src/config.ts`)
 in a deliberate pecking order: Pulse Shot first, then shield, freeze,
-afterburner, shockwave, then the rest. Every power can spawn from minute zero
+magnet, shockwave, then the rest. Every power can spawn from minute zero
 (`POWER_MIN_MINUTES` is empty), and bad-luck protection demotes a power's
 weight each time it drops so the whole roster appears over a run. Pickups
 drift slowly across the arena (soft wall bounces), one is dealt at launch,
