@@ -31,7 +31,9 @@ import {
   dailyAttemptsLeft,
   loadDailyAttempts,
   recordDailyResult,
+  refundDailyAttempt,
   useDailyAttempt,
+  DAILY_FREE_DEATH_SECONDS,
   DAILY_MAX_ATTEMPTS,
   DEFAULT_KEYBINDS,
   formatKeyCode,
@@ -103,6 +105,8 @@ let runIsDaily = false;
 /** Training Ground (daily-only site): free, unscored practice run. */
 let pendingTraining = false;
 let runIsTraining = false;
+/** Daily death inside the free-death window: the attempt was returned. */
+let runRefunded = false;
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -380,6 +384,7 @@ function startRun(): void {
   runGameMode = runIsDaily || runIsTraining ? "classic" : pendingGameMode;
   // an attempt is spent the moment a daily run starts (quitting mid-run counts)
   if (DAILY_ONLY && runIsDaily) useDailyAttempt();
+  runRefunded = false;
   // PBs are per game mode — the NEW RECORD beat compares like-for-like
   bestScore = loadBestScore(runGameMode);
   bestTime = loadBestTime(runGameMode);
@@ -478,6 +483,10 @@ function onGameOver(): void {
   audio.playTrack("gameover");
   // Training Ground runs are unscored: no PBs, no run count, no submission
   if (runIsTraining) return;
+  // instant wipeouts are free: a daily death inside the grace window hands
+  // the attempt back so a botched start doesn't burn the day's budget
+  runRefunded = DAILY_ONLY && runIsDaily && world.time < DAILY_FREE_DEATH_SECONDS;
+  if (runRefunded) refundDailyAttempt();
   bumpRunCount(); // new-pilot grace fades out with completed runs
   lastRunWasBest = world.score > bestScore;
   if (lastRunWasBest) {
@@ -499,7 +508,9 @@ function showGameOverUi(): void {
     return;
   }
   const cappedDaily = DAILY_ONLY && runIsDaily;
-  if (cappedDaily) {
+  // a refunded run never happened as far as the daily books are concerned:
+  // no best-of-day entry, no share card, no daily board submission
+  if (cappedDaily && !runRefunded) {
     // remember the run for the share card (rank arrives with the submit)
     recordDailyResult({
       score: Math.floor(world.score),
@@ -531,7 +542,8 @@ function showGameOverUi(): void {
     gameMode: runGameMode,
     touchDevice: isTouchDevice(),
     attemptsLeft: cappedDaily ? dailyAttemptsLeft() : undefined,
-    showShare: cappedDaily,
+    showShare: cappedDaily && !runRefunded,
+    refunded: runRefunded,
   });
   submitRun();
 }
@@ -581,7 +593,7 @@ function submitRun(): void {
     mode: runMode,
     gameMode: runGameMode,
     platform: isTouchDevice() ? "touch" : "desktop",
-    daily: runIsDaily || undefined,
+    daily: (runIsDaily && !runRefunded) || undefined,
   };
   if (!api.signedIn) {
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget

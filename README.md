@@ -186,8 +186,11 @@ On the daily front door:
 - **3 attempts per UTC day** (`orion.dailyAttempts` in `src/save.ts`, same
   day boundary as the daily seed). The budget is client-side by design —
   incognito resets it, and that's accepted. An attempt is spent when a daily
-  run *starts*, so quitting mid-run counts. After the third run the lobby
-  and game-over screens show a countdown to the next UTC midnight.
+  run *starts*, so quitting mid-run counts. Dying inside the first 15s
+  (`DAILY_FREE_DEATH_SECONDS`) refunds the attempt — the run never happened
+  for the daily books (no best-of-day, no share card, not submitted as a
+  daily score) and the game-over screen says so. After the third run the
+  lobby and game-over screens show a countdown to the next UTC midnight.
 - **Training Ground** — a free, unlimited, unscored practice arena
   (`training` on `World`, `TRAINING` in `src/config.ts`): a slow ambient
   trickle capped at ~14 drones, no formations/assemblies/mines, normal

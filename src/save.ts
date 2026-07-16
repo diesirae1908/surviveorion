@@ -121,6 +121,9 @@ export function bumpRunCount(): void {
 
 export const DAILY_MAX_ATTEMPTS = 3;
 
+/** Daily deaths inside this window don't count — the attempt is returned. */
+export const DAILY_FREE_DEATH_SECONDS = 15;
+
 /** Best daily result so far today, kept for the share card after lockout. */
 export interface DailyBestResult {
   score: number;
@@ -176,6 +179,13 @@ export function useDailyAttempt(): DailyAttempts {
   state.used = Math.min(DAILY_MAX_ATTEMPTS, state.used + 1);
   saveDailyAttempts(state);
   return state;
+}
+
+/** Return an attempt (death inside the free-death window — the run is free). */
+export function refundDailyAttempt(): void {
+  const state = loadDailyAttempts();
+  state.used = Math.max(0, state.used - 1);
+  saveDailyAttempts(state);
 }
 
 /** Record a finished daily run if it beats (or first sets) today's best. */

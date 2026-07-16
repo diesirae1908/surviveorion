@@ -9,6 +9,7 @@ import type {
   Settings,
 } from "./save";
 import {
+  DAILY_FREE_DEATH_SECONDS,
   KEY_ACTION_LABELS,
   KEY_ACTIONS,
   formatKeyList,
@@ -78,6 +79,8 @@ export interface GameOverStats {
   attemptsLeft?: number;
   /** Daily-only site: show the share-result button. */
   showShare?: boolean;
+  /** Daily-only site: death inside the free-death window — attempt returned. */
+  refunded?: boolean;
 }
 
 /** Everything the daily-only lobby needs to paint itself. */
@@ -1024,6 +1027,18 @@ export class Ui {
           ),
         );
       }
+    }
+
+    // free death: the attempt went back to the budget — say so, or the
+    // attempt count on the retry button looks wrong
+    if (stats.refunded) {
+      screen.appendChild(
+        this.el(
+          "div",
+          "run-delta gold",
+          `Down inside ${DAILY_FREE_DEATH_SECONDS}s — that one's free, no attempt spent`,
+        ),
+      );
     }
 
     // near-miss framing: how this flight compares to the longest one
