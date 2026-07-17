@@ -333,6 +333,10 @@ export const PICKUPS = {
   secondsBetweenAtPeak: [5, 8] as const,
   intervalRampMinutes: 4,
   maxActive: 3,
+  // Daily Patrol has no refill floor (collection timing would desync the
+  // shared seed), so the whole drop schedule runs faster to compensate —
+  // intervals are multiplied by this on daily runs.
+  dailyIntervalScale: 0.7,
   spawnOnStart: 1, // pickups dealt the moment the run starts
   // Refill floor: below this many live pickups the next drop is hurried in.
   // Disabled on Daily Patrol (refill timing depends on when the player

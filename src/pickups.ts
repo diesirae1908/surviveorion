@@ -20,8 +20,11 @@ export function initPickups(world: World): void {
 /** Support scales with pressure: drops come faster as the escalation climbs. */
 function nextInterval(world: World): number {
   const t = clamp01(world.time / 60 / PICKUPS.intervalRampMinutes);
-  const min = lerp(PICKUPS.secondsBetweenRange[0], PICKUPS.secondsBetweenAtPeak[0], t);
-  const max = lerp(PICKUPS.secondsBetweenRange[1], PICKUPS.secondsBetweenAtPeak[1], t);
+  // dailies have no refill floor, so the baseline schedule runs faster —
+  // a flat scale on a single seeded draw keeps the shared script in sync
+  const scale = world.daily ? PICKUPS.dailyIntervalScale : 1;
+  const min = lerp(PICKUPS.secondsBetweenRange[0], PICKUPS.secondsBetweenAtPeak[0], t) * scale;
+  const max = lerp(PICKUPS.secondsBetweenRange[1], PICKUPS.secondsBetweenAtPeak[1], t) * scale;
   return scheduleRange(min, max);
 }
 
