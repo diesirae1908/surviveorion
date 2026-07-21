@@ -80,6 +80,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at);
 
+  -- Anonymous visit beacons (first-party traffic stats for /admin): one row
+  -- per browser session. ip_hash is a truncated SHA-256 — no raw IPs stored.
+  CREATE TABLE IF NOT EXISTS visits (
+    id INTEGER PRIMARY KEY,
+    ip_hash TEXT NOT NULL,
+    country TEXT NOT NULL DEFAULT '',
+    ref TEXT NOT NULL DEFAULT '',
+    path TEXT NOT NULL DEFAULT '',
+    platform TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_visits_created ON visits(created_at);
+
   -- Earned badges (see server/badges.mjs for the definitions).
   CREATE TABLE IF NOT EXISTS badges (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -571,6 +584,57 @@ export function listFeedback(limit = 100) {
     .all(limit);
 }
 
+// --- visits (anonymous traffic beacons; admin dashboard only) ---
+
+export function addVisit({ ipHash, country = "", ref = "", path = "", platform = "" }) {
+  db.prepare(
+    `INSERT INTO visits (ip_hash, country, ref, path, platform, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(ipHash, country, ref, path, platform, Date.now());
+}
+
+/** Traffic overview for the admin dashboard. */
+export function trafficStats() {
+  const now = Date.now();
+  const day = 24 * 3600 * 1000;
+
+  const window = (since) =>
+    db
+      .prepare(
+        `SELECT COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
+         FROM visits WHERE created_at > ?`,
+      )
+      .get(since);
+
+  const perDay = db
+    .prepare(
+      `SELECT date(created_at / 1000, 'unixepoch') AS day,
+              COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
+       FROM visits GROUP BY day ORDER BY day DESC LIMIT 14`,
+    )
+    .all();
+
+  const top = (column, since) =>
+    db
+      .prepare(
+        `SELECT ${column} AS k, COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
+         FROM visits WHERE created_at > ? AND ${column} != ''
+         GROUP BY ${column} ORDER BY visits DESC LIMIT 12`,
+      )
+      .all(since);
+
+  return {
+    today: window(now - day),
+    week: window(now - 7 * day),
+    total: window(0),
+    perDay,
+    countries: top("country", now - 14 * day),
+    referrers: top("ref", now - 14 * day),
+    platforms: top("platform", now - 14 * day),
+    paths: top("path", now - 14 * day),
+  };
+}
+
 // --- runs (analytics telemetry; leaderboards use the scores table) ---
 
 export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, mode, gameMode, platform }) {
@@ -681,6 +745,7 @@ export function adminStats() {
 
   return {
     users: { ...users, returningPlayers: returning },
+    traffic: trafficStats(),
     runs: {
       total: n,
       anonymous: totals.anonRuns ?? 0,

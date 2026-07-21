@@ -167,8 +167,14 @@ requires Node 22.5+).
 
 Every finished run is logged to a `runs` table — signed-in runs through
 `POST /api/scores`, anonymous runs through `POST /api/runs` (validated and
-rate-limited; analytics only, never the leaderboards). Set `ORION_ADMIN_KEY`
+rate-limited; analytics only, never the leaderboards). Every page load also
+fires a first-party, cookie-less visit beacon (`POST /api/visit`, one per
+browser session): country (Cloudflare `cf-ipcountry` edge header when
+present, else the client's locale/timezone guess), referrer hostname,
+daily-vs-fullgame path, and touch-vs-desktop — with the IP stored only as a
+truncated hash for unique-visitor counts. Set `ORION_ADMIN_KEY`
 in the environment (or `server/.env`) and open **`/admin`** for a dashboard:
+visitors/visits (today, 7 days, all-time, per-day), countries and referrers,
 pilot counts, runs per day, game-length and score distributions
 (average/median/range/percentiles), kills per minute, per-board and
 touch-vs-desktop splits, badge holder counts, and all player feedback. The
@@ -183,7 +189,8 @@ arcade game (Classic, Iron Rain, arenas, wingmates, pilot login) lives at
 **`/fullgame`** (`FULL_GAME`/`DAILY_ONLY` in `src/main.ts`; `?fullgame=1`
 works anywhere too, handy in dev). One bundle, one server, one database —
 the server SPA-fallbacks unknown paths to `index.html`, so `/fullgame`
-needs no route. The daily lobby carries a quiet "Full game" footer link.
+needs no route. The `/fullgame` door is unlisted (no lobby link) while the
+daily is the public face — the lobby footer carries a Feedback link instead.
 
 On the daily front door:
 

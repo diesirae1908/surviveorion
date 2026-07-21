@@ -368,6 +368,26 @@ export class Api {
     return this.request("GET", "/api/friends/activity");
   }
 
+  /**
+   * Anonymous visit beacon: one per browser session, fired at boot. Powers
+   * the private Traffic section on /admin — first-party, cookie-less, and
+   * fire-and-forget (never blocks or breaks the game).
+   */
+  logVisit(path: "daily" | "fullgame", country: string): void {
+    try {
+      if (sessionStorage.getItem("orion.visitLogged")) return;
+      sessionStorage.setItem("orion.visitLogged", "1");
+    } catch {
+      // storage blocked (private mode) — still log the visit, just undeduped
+    }
+    void this.request("POST", "/api/visit", {
+      path,
+      country,
+      ref: document.referrer,
+      platform: "ontouchstart" in window ? "touch" : "desktop",
+    }).catch(() => {});
+  }
+
   /** Player feedback; email is optional (follow-ups / rewards). */
   sendFeedback(message: string, email: string): Promise<{ ok: boolean }> {
     // device context helps reproduce bugs without asking the player

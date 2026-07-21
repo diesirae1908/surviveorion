@@ -458,19 +458,13 @@ export class Ui {
     }
     screen.appendChild(learnRow);
 
-    // footer row: quiet door to the full arcade game + the feedback channel
-    const footer = this.el("div", "menu-row", "");
-    const full = this.el("button", "full-game-link", "Full game &nearr;");
-    full.addEventListener("click", () => {
-      location.href = "/fullgame";
-    });
-    footer.appendChild(full);
+    // footer: the feedback channel. (The /fullgame door still exists by URL,
+    // but is unlisted while the daily is the public face.)
     const feedback = this.el("button", "full-game-link", "Feedback");
     feedback.addEventListener("click", () =>
       this.showFeedback(() => this.showDailyLobby(info)),
     );
-    footer.appendChild(feedback);
-    screen.appendChild(footer);
+    screen.appendChild(feedback);
 
     const gear = document.createElement("button");
     gear.className = "corner-btn";

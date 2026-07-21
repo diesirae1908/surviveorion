@@ -435,6 +435,34 @@ const routes = {
     });
   },
 
+  // Anonymous visit beacon (one per browser session, fired at boot): powers
+  // the Traffic section on /admin. First-party and cookie-less — the IP is
+  // stored only as a truncated hash for unique-visitor counting. Country
+  // comes from Cloudflare's cf-ipcountry edge header when present, falling
+  // back to the client's locale/timezone guess.
+  "POST /api/visit": async (req, res) => {
+    const ip = clientIp(req);
+    if (!rateLimit(`visit:${ip}`, 30)) return json(res, 429, { error: "slow down" });
+    const body = await readBody(req);
+    const headerCountry = String(req.headers["cf-ipcountry"] ?? "").toUpperCase();
+    const clientCountry =
+      typeof body.country === "string" && /^[A-Z]{2}$/.test(body.country) ? body.country : "";
+    let ref = "";
+    try {
+      if (typeof body.ref === "string" && body.ref) ref = new URL(body.ref).hostname.slice(0, 100);
+    } catch {
+      // unparsable referrer — drop it
+    }
+    store.addVisit({
+      ipHash: crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16),
+      country: /^[A-Z]{2}$/.test(headerCountry) ? headerCountry : clientCountry,
+      ref,
+      path: body.path === "fullgame" ? "fullgame" : "daily",
+      platform: cleanPlatform(body.platform),
+    });
+    json(res, 200, { ok: true });
+  },
+
   // Anonymous run telemetry (signed-in runs are logged via POST /api/scores).
   // Analytics only — never touches the leaderboards.
   "POST /api/runs": async (req, res) => {
@@ -775,7 +803,29 @@ async function go() {
   document.getElementById("gate").style.display = "none";
   const d = document.getElementById("dash");
   d.style.display = "";
+  const t = s.traffic ?? null;
   d.innerHTML =
+    (t ? (
+    "<h2>Traffic</h2><div class='grid'>" +
+      stat("visitors today", fmt(t.today.uniques)) +
+      stat("visits today", fmt(t.today.visits)) +
+      stat("visitors (7 days)", fmt(t.week.uniques)) +
+      stat("visits (7 days)", fmt(t.week.visits)) +
+      stat("visitors all-time", fmt(t.total.uniques)) +
+      stat("visits all-time", fmt(t.total.visits)) +
+      t.paths.map((p) => stat(esc(p.k) + " visits (14d)", fmt(p.visits))).join("") +
+      t.platforms.map((p) => stat(esc(p.k) + " devices (14d)", fmt(p.visits))).join("") +
+    "</div>" +
+    "<h2>Where from — countries (14d)</h2><table><tr><th>country</th><th>visitors</th><th>visits</th></tr>" +
+      (t.countries.length ? t.countries.map((c) => "<tr><td>" + esc(c.k) + "</td><td>" + fmt(c.uniques) + "</td><td>" + fmt(c.visits) + "</td></tr>").join("") : "<tr><td class='muted' colspan='3'>nothing yet</td></tr>") +
+    "</table>" +
+    "<h2>Where from — referrers (14d)</h2><table><tr><th>site</th><th>visitors</th><th>visits</th></tr>" +
+      (t.referrers.length ? t.referrers.map((r) => "<tr><td>" + esc(r.k) + "</td><td>" + fmt(r.uniques) + "</td><td>" + fmt(r.visits) + "</td></tr>").join("") : "<tr><td class='muted' colspan='3'>direct visits only so far</td></tr>") +
+    "</table>" +
+    "<h2>Visits per day (last 14)</h2><table><tr><th>day</th><th>visitors</th><th>visits</th></tr>" +
+      t.perDay.map((v) => "<tr><td>" + v.day + "</td><td>" + fmt(v.uniques) + "</td><td>" + fmt(v.visits) + "</td></tr>").join("") +
+    "</table>"
+    ) : "") +
     "<h2>Pilots</h2><div class='grid'>" +
       stat("registered pilots", fmt(s.users.total)) +
       stat("new this week", fmt(s.users.newThisWeek)) +

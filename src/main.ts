@@ -1017,4 +1017,7 @@ void api.init().then(() => {
   if (state === "menu") showMenu();
 });
 
+// traffic beacon: who's arriving, from where (admin dashboard only)
+api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
+
 requestAnimationFrame(frame);
