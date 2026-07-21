@@ -263,6 +263,22 @@ export class Ui {
     return wrap;
   }
 
+  /**
+   * Transient notice that survives screen changes (lives on <body>, not the
+   * screen root). Used for control fallbacks the player must know about.
+   */
+  toast(message: string, seconds = 7): void {
+    document.getElementById("orion-toast")?.remove();
+    const el = this.el("div", "toast", "");
+    el.id = "orion-toast";
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => {
+      el.classList.add("fade-out");
+      setTimeout(() => el.remove(), 600);
+    }, seconds * 1000);
+  }
+
   private button(label: string, primary: boolean, onClick: () => void): HTMLButtonElement {
     const btn = document.createElement("button");
     btn.textContent = label;

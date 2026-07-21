@@ -1270,6 +1270,32 @@ button.link-btn:active {
   letter-spacing: 0.2em;
 }
 
+/* transient notice (e.g. tilt fell back to the stick); above every screen */
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(16px + var(--safe-top));
+  z-index: 10;
+  max-width: min(520px, 90vw);
+  padding: 12px 18px;
+  text-align: center;
+  color: #ffee88;
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  background: rgba(10, 10, 18, 0.92);
+  border: 1px solid rgba(170, 136, 68, 0.6);
+  border-radius: 4px;
+  pointer-events: none;
+  animation: modalPop 0.35s ease-out;
+}
+
+.toast.fade-out {
+  opacity: 0;
+  transition: opacity 0.6s ease-out;
+}
+
 .tutorial-modal .tap-continue {
   margin-top: 16px;
   color: #ffd700;
