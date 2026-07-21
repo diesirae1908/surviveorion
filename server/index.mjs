@@ -33,6 +33,8 @@ const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist
 
 const CALLSIGN_RE = /^[A-Za-z0-9_\- ]{3,20}$/;
 const COUNTRY_RE = /^([A-Z]{2})?$/;
+/** Daily Patrol attempts per UTC day — keep in sync with DAILY_MAX_ATTEMPTS in src/save.ts. */
+const DAILY_MAX_ATTEMPTS = 3;
 
 // --- tiny helpers ---
 
@@ -69,9 +71,23 @@ const authUser = (req) => {
   return m ? store.getSessionUser(m[1]) : null;
 };
 
-/** Real client IP (Render/other proxies set x-forwarded-for). */
-const clientIp = (req) =>
-  (req.headers["x-forwarded-for"]?.split(",")[0] ?? req.socket.remoteAddress ?? "?").trim();
+/**
+ * Real client IP, spoof-resistant. Cloudflare (which fronts Render) always
+ * overwrites cf-connecting-ip at its edge — unlike X-Forwarded-For (or
+ * true-client-ip on non-Enterprise zones), a client can't forge it. Failing
+ * that, take the RIGHTMOST X-Forwarded-For hop (appended by the proxy in
+ * front of us; earlier entries are client-controlled), then the raw socket.
+ */
+function clientIp(req) {
+  const cf = req.headers["cf-connecting-ip"];
+  if (cf) return String(cf).trim();
+  const xff = req.headers["x-forwarded-for"];
+  if (xff) {
+    const hops = String(xff).split(",");
+    return hops[hops.length - 1].trim();
+  }
+  return req.socket.remoteAddress ?? "?";
+}
 
 const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
 
@@ -100,11 +116,14 @@ function queryGameMode(url) {
   return GAME_MODES.includes(gm) ? gm : null;
 }
 
-/** Admin key check: Bearer header or ?key= param. 404s when no key is set. */
-const isAdmin = (req, url) => {
+/**
+ * Admin key check: Bearer header only (a ?key= param would leak the secret
+ * into access logs and browser history). 404s when no key is set.
+ */
+const isAdmin = (req) => {
   if (!ADMIN_KEY) return false;
   const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? "");
-  const given = m?.[1] ?? url.searchParams.get("key") ?? "";
+  const given = m?.[1] ?? "";
   return given.length === ADMIN_KEY.length &&
     crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ADMIN_KEY));
 };
@@ -123,8 +142,27 @@ function rateLimit(key, maxPerMinute) {
 
 // --- auth primitives ---
 
+// scrypt work scales with input size — cap passwords so a huge one can't
+// stall the event loop. Anything longer than this is rejected up front.
+const MAX_PASSWORD_LENGTH = 200;
+
 const hashPassword = (password, salt) =>
   crypto.scryptSync(password, salt, 32).toString("hex");
+
+/**
+ * Guest device secrets: a 256-bit random value handed out once at guest
+ * creation and stored hashed (plain SHA-256 is fine — the secret is random,
+ * not a human password, so there's nothing to brute-force).
+ */
+const newGuestSecret = () => crypto.randomBytes(32).toString("hex");
+const hashGuestSecret = (secret) =>
+  crypto.createHash("sha256").update(secret).digest("hex");
+const guestSecretMatches = (secret, storedHash) => {
+  if (typeof secret !== "string" || !storedHash) return false;
+  const given = Buffer.from(hashGuestSecret(secret));
+  const stored = Buffer.from(storedHash);
+  return given.length === stored.length && crypto.timingSafeEqual(given, stored);
+};
 
 function issueSession(userId) {
   const token = crypto.randomBytes(32).toString("hex");
@@ -169,12 +207,12 @@ const routes = {
   },
 
   "POST /api/auth/register": async (req, res) => {
-    if (!rateLimit(`reg:${req.socket.remoteAddress}`, 10)) return json(res, 429, { error: "slow down" });
+    if (!rateLimit(`reg:${clientIp(req)}`, 10)) return json(res, 429, { error: "slow down" });
     const { callsign, password, country = "" } = await readBody(req);
     if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
       return json(res, 400, { error: "callsign must be 3-20 letters, digits, - or _" });
-    if (typeof password !== "string" || password.length < 6)
-      return json(res, 400, { error: "password must be at least 6 characters" });
+    if (typeof password !== "string" || password.length < 6 || password.length > MAX_PASSWORD_LENGTH)
+      return json(res, 400, { error: "password must be 6-200 characters" });
     if (typeof country !== "string" || !COUNTRY_RE.test(country))
       return json(res, 400, { error: "invalid country" });
     if (store.getUserByCallsign(callsign.trim()))
@@ -193,14 +231,16 @@ const routes = {
   // Quick save from the game-over screen: a name is enough to get on the
   // boards. Creates a real (passwordless) account — the device stays signed
   // in, and a password can be added later from the profile screen.
-  // Re-entering an existing passwordless name signs back into that pilot
-  // (by design: guest names are shared honor-system handles, so a player can
-  // keep updating their score from any device — the client shows a heads-up
-  // that the name was already in use). Names protected by a password, Google,
-  // or Clerk stay locked to their owner.
+  // Guest accounts are DEVICE-LOCKED: creation hands the client a random
+  // secret (kept in localStorage), and reclaiming an existing guest callsign
+  // requires that secret — a stranger typing the same name gets a 409, not
+  // that pilot's session. Guests created before the lock (no stored hash)
+  // are grandfathered: the next successful reclaim binds a secret to them
+  // (first device wins). Names protected by a password, Google, or Clerk
+  // stay locked to their owner as before.
   "POST /api/auth/guest": async (req, res) => {
     if (!rateLimit(`guest:${clientIp(req)}`, 10)) return json(res, 429, { error: "slow down" });
-    const { callsign, country = "" } = await readBody(req);
+    const { callsign, country = "", guestSecret } = await readBody(req);
     if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
       return json(res, 400, { error: "callsign must be 3-20 letters, digits, - or _" });
     if (typeof country !== "string" || !COUNTRY_RE.test(country))
@@ -210,22 +250,45 @@ const routes = {
     if (existing) {
       if (existing.pass_hash || existing.google_sub || existing.clerk_sub)
         return json(res, 409, { error: "that callsign belongs to a registered pilot" });
+      if (existing.guest_secret_hash) {
+        if (!guestSecretMatches(guestSecret, existing.guest_secret_hash))
+          return json(res, 409, { error: "that callsign is taken — pick another name" });
+        return json(res, 200, {
+          token: issueSession(existing.id),
+          user: publicUser(existing),
+          existing: true,
+        });
+      }
+      // pre-lock guest: bind a device secret now (first device to come back wins)
+      const secret = newGuestSecret();
+      store.setGuestSecretHash(existing.id, hashGuestSecret(secret));
       return json(res, 200, {
         token: issueSession(existing.id),
         user: publicUser(existing),
         existing: true,
+        guestSecret: secret,
       });
     }
 
-    const user = store.createUser({ callsign: callsign.trim(), country });
-    json(res, 200, { token: issueSession(user.id), user: publicUser(user), existing: false });
+    const secret = newGuestSecret();
+    const user = store.createUser({
+      callsign: callsign.trim(),
+      country,
+      guestSecretHash: hashGuestSecret(secret),
+    });
+    json(res, 200, {
+      token: issueSession(user.id),
+      user: publicUser(user),
+      existing: false,
+      guestSecret: secret,
+    });
   },
 
   "POST /api/auth/login": async (req, res) => {
-    if (!rateLimit(`login:${req.socket.remoteAddress}`, 15)) return json(res, 429, { error: "slow down" });
+    if (!rateLimit(`login:${clientIp(req)}`, 15)) return json(res, 429, { error: "slow down" });
     const { callsign, password } = await readBody(req);
     const user = typeof callsign === "string" ? store.getUserByCallsign(callsign.trim()) : null;
-    if (!user?.pass_hash || typeof password !== "string")
+    if (!user?.pass_hash || typeof password !== "string" || password.length > MAX_PASSWORD_LENGTH)
       return json(res, 401, { error: "unknown callsign or wrong password" });
     const hash = hashPassword(password, user.pass_salt);
     if (!crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(user.pass_hash)))
@@ -235,7 +298,7 @@ const routes = {
 
   "POST /api/auth/google": async (req, res) => {
     if (!GOOGLE_CLIENT_ID) return json(res, 400, { error: "google sign-in not configured" });
-    if (!rateLimit(`google:${req.socket.remoteAddress}`, 15)) return json(res, 429, { error: "slow down" });
+    if (!rateLimit(`google:${clientIp(req)}`, 15)) return json(res, 429, { error: "slow down" });
     const { idToken, country = "" } = await readBody(req);
     if (typeof idToken !== "string") return json(res, 400, { error: "missing idToken" });
     const info = await verifyGoogleToken(idToken);
@@ -314,8 +377,8 @@ const routes = {
     // elsewhere. Accounts that already have one keep it (no change flow yet).
     if (password !== undefined) {
       if (user.pass_hash) return json(res, 400, { error: "password already set" });
-      if (typeof password !== "string" || password.length < 6)
-        return json(res, 400, { error: "password must be at least 6 characters" });
+      if (typeof password !== "string" || password.length < 6 || password.length > MAX_PASSWORD_LENGTH)
+        return json(res, 400, { error: "password must be 6-200 characters" });
       patch.passSalt = crypto.randomBytes(16).toString("hex");
       patch.passHash = hashPassword(password, patch.passSalt);
     }
@@ -342,6 +405,11 @@ const routes = {
     // Daily Patrol: the server stamps the date itself (clients can't file
     // scores onto past/future boards). Daily runs count all-time too.
     const dailyDate = body.daily === true ? utcDate() : null;
+    // The 3-attempts-per-day budget is enforced HERE, not just in the client's
+    // localStorage — a forged client can't flood the daily board. (Refunded
+    // <15s deaths never submit as daily, so legit players can't hit this.)
+    if (dailyDate && store.countDailyScores(user.id, dailyDate) >= DAILY_MAX_ATTEMPTS)
+      return json(res, 429, { error: "daily attempt limit reached — next patrol at UTC midnight" });
 
     store.insertScore(user.id, { ...run, dailyDate });
     store.insertRun(user.id, { ...run, platform: cleanPlatform(body.platform) });
@@ -539,18 +607,25 @@ const routes = {
 
   // --- admin (requires ORION_ADMIN_KEY) ---
 
-  "GET /api/admin/stats": (req, res, user, url) => {
-    if (!isAdmin(req, url)) return json(res, 404, { error: "not found" });
+  "GET /api/admin/stats": (req, res) => {
+    if (!isAdmin(req)) return json(res, 404, { error: "not found" });
     json(res, 200, store.adminStats());
   },
 
-  "GET /api/admin/feedback": (req, res, user, url) => {
-    if (!isAdmin(req, url)) return json(res, 404, { error: "not found" });
+  "GET /api/admin/feedback": (req, res) => {
+    if (!isAdmin(req)) return json(res, 404, { error: "not found" });
     json(res, 200, { feedback: store.listFeedback(200) });
   },
 
-  "GET /admin": (req, res, user, url) => {
-    res.writeHead(200, { "Content-Type": "text/html" });
+  "GET /admin": (req, res) => {
+    res.writeHead(200, {
+      "Content-Type": "text/html",
+      // the dashboard is a single inline-script page that only talks to /api
+      "Content-Security-Policy":
+        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+        "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; " +
+        "frame-ancestors 'none'",
+    });
     res.end(ADMIN_PAGE);
   },
 };
@@ -783,6 +858,10 @@ function serveStatic(req, res, pathname) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  // baseline security headers on every response
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   try {
     const arenaLb = /^\/api\/arenas\/([A-Za-z0-9]+)\/leaderboard$/.exec(url.pathname);
     if (req.method === "GET" && arenaLb) {
@@ -802,6 +881,11 @@ const server = http.createServer(async (req, res) => {
     json(res, 400, { error: e?.message ?? "bad request" });
   }
 });
+
+// Expired sessions are invisible to reads but still take up rows — sweep
+// them on boot and once a day so the table doesn't grow forever.
+store.purgeExpiredSessions();
+setInterval(() => store.purgeExpiredSessions(), 24 * 3600 * 1000).unref();
 
 server.listen(PORT, () => {
   console.log(`Orion server on http://localhost:${PORT}`);

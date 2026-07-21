@@ -108,6 +108,16 @@ try {
   // column already exists
 }
 
+// Migration for guest device lock: passwordless (guest) accounts carry a
+// hashed device secret. Reclaiming a guest callsign requires the matching
+// secret; pre-migration guests (NULL hash) get one bound on their next
+// successful reclaim (first device wins).
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN guest_secret_hash TEXT`);
+} catch {
+  // column already exists
+}
+
 // Migration for databases created before tilt controls (per-mode leaderboards).
 try {
   db.exec(`ALTER TABLE scores ADD COLUMN mode TEXT NOT NULL DEFAULT 'classic'`);
@@ -172,13 +182,14 @@ export function createUser({
   googleSub = null,
   clerkSub = null,
   country = "",
+  guestSecretHash = null,
 }) {
   const r = db
     .prepare(
-      `INSERT INTO users (callsign, callsign_lower, pass_salt, pass_hash, google_sub, clerk_sub, country, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (callsign, callsign_lower, pass_salt, pass_hash, google_sub, clerk_sub, country, guest_secret_hash, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(callsign, callsign.toLowerCase(), passSalt, passHash, googleSub, clerkSub, country, Date.now());
+    .run(callsign, callsign.toLowerCase(), passSalt, passHash, googleSub, clerkSub, country, guestSecretHash, Date.now());
   return getUserById(r.lastInsertRowid);
 }
 
@@ -211,6 +222,11 @@ export function updateUser(id, { callsign, country, passSalt, passHash }) {
   return getUserById(id);
 }
 
+/** Bind a guest device secret to a pre-migration guest account (one-time). */
+export function setGuestSecretHash(id, hash) {
+  db.prepare(`UPDATE users SET guest_secret_hash = ? WHERE id = ?`).run(hash, id);
+}
+
 const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
 
 export function createSession(userId, token) {
@@ -233,6 +249,10 @@ export function getSessionUser(token) {
 
 export const deleteSession = (token) => db.prepare(`DELETE FROM sessions WHERE token = ?`).run(token);
 
+/** Drop expired sessions (they're already invisible to reads; this reclaims space). */
+export const purgeExpiredSessions = () =>
+  db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(Date.now());
+
 // --- scores ---
 
 export function insertScore(userId, { score, timeSurvived, kills, maxMultiplier, mode, gameMode, dailyDate = null }) {
@@ -246,6 +266,12 @@ export const getUserBest = (userId, mode = "desktop", gameMode = "classic") =>
   db
     .prepare(`SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND mode = ? AND game_mode = ?`)
     .get(userId, mode, gameMode)?.best ?? 0;
+
+/** Daily runs already filed by a user on a given UTC date (server-side attempt budget). */
+export const countDailyScores = (userId, dailyDate) =>
+  db
+    .prepare(`SELECT COUNT(*) AS c FROM scores WHERE user_id = ? AND daily_date = ?`)
+    .get(userId, dailyDate).c;
 
 /** Best daily-run score for one user on a given UTC date (dailies are Classic). */
 export const getUserDailyBest = (userId, mode, dailyDate) =>

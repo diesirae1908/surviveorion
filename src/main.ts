@@ -141,6 +141,22 @@ audio.setMusic(settings.music);
 
 const api = new Api();
 
+// --- crash reporting ---
+// Uncaught errors from public testers would otherwise vanish silently.
+// Ship them to the existing feedback log (visible on /admin), deduped and
+// capped so a render-loop crash can't flood the server.
+const reportedCrashes = new Set<string>();
+function reportCrash(kind: string, detail: unknown): void {
+  const err = detail instanceof Error ? detail : new Error(String(detail));
+  const key = `${err.name}:${err.message}`;
+  if (reportedCrashes.has(key) || reportedCrashes.size >= 2) return;
+  reportedCrashes.add(key);
+  const message = `[crash] ${kind}: ${err.message}\n${(err.stack ?? "").slice(0, 1500)}`;
+  void api.sendFeedback(message.slice(0, 2000), "").catch(() => {});
+}
+window.addEventListener("error", (e) => reportCrash("error", e.error ?? e.message));
+window.addEventListener("unhandledrejection", (e) => reportCrash("promise", e.reason));
+
 // --- tilt controls (mobile) ---
 
 input.controlMode = controls.mode;
@@ -608,17 +624,15 @@ function submitRun(): void {
           try {
             reusedName = await api.guestSignup(name, guessCountry());
           } catch (e) {
-            // only names locked by a password / Google / Clerk are refused —
-            // plain guest names sign back into the same pilot
-            if (e instanceof ApiError && e.status === 409)
-              throw new Error("That name belongs to a registered pilot. Sign in or pick another");
+            // 409 = the name is locked to a registered pilot or another
+            // device's guest — the server's message says which
+            if (e instanceof ApiError && e.status === 409) throw new Error(e.message);
             throw e;
           }
         }
         renderRankResult(await api.submitScore(run));
-        // heads-up for whoever typed a name that was already on the boards:
-        // scores merge into that pilot (shared honor-system handle)
-        if (reusedName) ui.appendGameOverRankNote(`“${name.trim()}” was already on the boards — your scores now count for that pilot. Not you? Sign in with a different name next time.`);
+        // the name matched this device's existing guest pilot: scores merge
+        if (reusedName) ui.appendGameOverRankNote(`Welcome back, “${name.trim()}” — this run counts for your existing pilot.`);
       },
       // full sign-in: back to this screen after, where submitRun files the score
       onSignIn: () => community.showAuth(showGameOverUi),
@@ -900,8 +914,9 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
-// debug/testing hook (used by automated playtests)
-Object.defineProperty(window, "__orion", {
+// debug/testing hook (used by automated playtests) — dev builds only, so the
+// public daily site doesn't ship a ready-made cheat/automation surface
+if (import.meta.env.DEV) Object.defineProperty(window, "__orion", {
   value: {
     get world() {
       return world;

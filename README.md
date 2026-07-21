@@ -123,9 +123,11 @@ community buttons simply don't appear.
   the UTC date (`setRunSeed` in `src/math.ts`), so every pilot faces the same
   opening script that day. Daily runs land on a per-day board
   (`GET /api/leaderboard/daily`, `daily_date` column on `scores`; the "Daily
-  Patrol" tab in the Leaderboard screen) *and* still count all-time. Unlimited
-  attempts; the board resets at UTC midnight. Launched from the menu's Daily
-  Patrol button, which shows today's leader.
+  Patrol" tab in the Leaderboard screen) *and* still count all-time.
+  **3 daily attempts per UTC day**, enforced server-side per account on score
+  submission (and mirrored client-side — see "The daily front door" below);
+  the board resets at UTC midnight. Launched from the menu's Daily Patrol
+  button, which shows today's leader.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
 - **Wingmates (friends)** — add pilots by callsign (mutual accept; requests can
   be sent from any pilot record too). The Wingmates screen has a squadron
@@ -139,6 +141,11 @@ community buttons simply don't appear.
   name creates a real passwordless account (`POST /api/auth/guest`), files the
   finished run on the boards, and keeps the device signed in; a password can be
   added later from the profile (`PATCH /api/me`, only while none is set).
+  Guest accounts are **device-locked**: creation returns a random secret the
+  client keeps in localStorage (`orion.guestSecret`), and reclaiming the same
+  callsign later requires it — someone else typing the name gets "taken", not
+  the pilot's session. Guests created before the lock get a secret bound on
+  their next reclaim (first device wins).
 - **Badges** — 17 milestone awards (definitions in `server/badges.mjs`, display
   data in `src/badges.ts`), from easy (First Flight, Space Dust — die inside
   10s) through rare (Swarm Reaper — 1,000 kills in a run; Galaxy's Finest —
@@ -166,7 +173,8 @@ pilot counts, runs per day, game-length and score distributions
 (average/median/range/percentiles), kills per minute, per-board and
 touch-vs-desktop splits, badge holder counts, and all player feedback. The
 same data is available as JSON at `GET /api/admin/stats` and
-`GET /api/admin/feedback` (Bearer key or `?key=`).
+`GET /api/admin/feedback` (`Authorization: Bearer <key>` only — no `?key=`
+param, so the secret never lands in access logs).
 
 ## The daily front door ("Orion Daily")
 
@@ -184,8 +192,11 @@ On the daily front door:
   attempt pips, today's leader, one Launch button. No Classic / Iron Rain /
   Arenas — those live at `/fullgame` (and, later, the mobile app).
 - **3 attempts per UTC day** (`orion.dailyAttempts` in `src/save.ts`, same
-  day boundary as the daily seed). The budget is client-side by design —
-  incognito resets it, and that's accepted. An attempt is spent when a daily
+  day boundary as the daily seed), enforced in two layers: the client budget
+  drives the UI (pips, lockout countdown; incognito resets it, accepted),
+  and the server independently rejects a 4th daily score per account per UTC
+  day (`countDailyScores` on `POST /api/scores`) so a forged client can't
+  flood the daily board. An attempt is spent when a daily
   run *starts*, so quitting mid-run counts. Dying inside the first 15s
   (`DAILY_FREE_DEATH_SECONDS`) refunds the attempt — the run never happened
   for the daily books (no best-of-day, no share card, not submitted as a

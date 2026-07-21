@@ -115,6 +115,12 @@ export class ApiError extends Error {
 }
 
 const TOKEN_KEY = "orion.session";
+/**
+ * Guest device secret: handed out by the server at guest creation and
+ * required to reclaim that callsign later. Keeps guest accounts locked to
+ * this device instead of being open honor-system handles.
+ */
+const GUEST_SECRET_KEY = "orion.guestSecret";
 
 export class Api {
   private token: string | null = localStorage.getItem(TOKEN_KEY);
@@ -207,17 +213,25 @@ export class Api {
   }
 
   /**
-   * Game-over quick save: a callsign creates a real passwordless account.
-   * Returns true when the name already existed as a guest pilot — the caller
-   * signs into that pilot and should warn the player the name is shared.
+   * Game-over quick save: a callsign creates a real passwordless account,
+   * device-locked via a secret the server hands out (kept in localStorage —
+   * reclaiming the name later requires it). Returns true when the name
+   * already existed as this device's guest pilot (scores merge into it).
+   * A name owned by another device rejects with a 409.
    */
   async guestSignup(callsign: string, country: string): Promise<boolean> {
-    const r = await this.request<{ token: string; user: UserInfo; existing?: boolean }>(
-      "POST",
-      "/api/auth/guest",
-      { callsign, country },
-    );
+    const r = await this.request<{
+      token: string;
+      user: UserInfo;
+      existing?: boolean;
+      guestSecret?: string;
+    }>("POST", "/api/auth/guest", {
+      callsign,
+      country,
+      guestSecret: localStorage.getItem(GUEST_SECRET_KEY) ?? undefined,
+    });
     this.setSession(r.token, r.user);
+    if (r.guestSecret) localStorage.setItem(GUEST_SECRET_KEY, r.guestSecret);
     this.hasPassword = false;
     return !!r.existing;
   }

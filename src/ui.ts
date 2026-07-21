@@ -458,12 +458,19 @@ export class Ui {
     }
     screen.appendChild(learnRow);
 
-    // quiet door to the full arcade game (Classic, Iron Rain, pilot accounts)
+    // footer row: quiet door to the full arcade game + the feedback channel
+    const footer = this.el("div", "menu-row", "");
     const full = this.el("button", "full-game-link", "Full game &nearr;");
     full.addEventListener("click", () => {
       location.href = "/fullgame";
     });
-    screen.appendChild(full);
+    footer.appendChild(full);
+    const feedback = this.el("button", "full-game-link", "Feedback");
+    feedback.addEventListener("click", () =>
+      this.showFeedback(() => this.showDailyLobby(info)),
+    );
+    footer.appendChild(feedback);
+    screen.appendChild(footer);
 
     const gear = document.createElement("button");
     gear.className = "corner-btn";
@@ -741,12 +748,21 @@ export class Ui {
     this.root.appendChild(screen);
   }
 
-  /** Feedback form: message + optional email for follow-ups and rewards. */
-  private showFeedback(onBack: () => void): void {
-    this.clear();
-    this.pauseBtn.style.display = "none";
+  /**
+   * Feedback form: message + optional email for follow-ups and rewards.
+   * Pass null for onBack to open it as an overlay ON TOP of the current
+   * screen (used from game over, so the results/save-score UI underneath
+   * survives) — Back then just closes the form.
+   */
+  private showFeedback(onBackOrNull: (() => void) | null): void {
+    const overlay = onBackOrNull === null;
+    if (!overlay) {
+      this.clear();
+      this.pauseBtn.style.display = "none";
+    }
 
     const screen = this.el("div", "screen", "");
+    const onBack = onBackOrNull ?? ((): void => screen.remove());
     screen.appendChild(this.el("div", "heading gold small", "PILOT DEBRIEF"));
     screen.appendChild(this.el("div", "divider", ""));
     screen.appendChild(
@@ -1088,6 +1104,12 @@ export class Ui {
     if (!stats.touchDevice && canRetry) {
       screen.appendChild(this.el("div", "field-hint center", "Space to fly again"));
     }
+
+    // feedback CTA: post-run is when testers actually have something to say
+    const feedback = this.el("button", "link-btn", "Found a bug? Send feedback");
+    feedback.addEventListener("click", () => this.showFeedback(null));
+    screen.appendChild(feedback);
+
     this.root.appendChild(screen);
   }
 
