@@ -165,28 +165,22 @@ input.cruiseSpeed = DIRECT_CRUISE[settings.directSpeed];
 input.tilt.maxTiltDeg = TILT_MAX_DEG[settings.tiltSensitivity];
 input.setBindings(keybinds);
 if (controls.tiltNeutral) input.tilt.setNeutral(controls.tiltNeutral);
-if (controls.mode === "tilt") {
-  if (!TiltControl.needsPermission()) {
-    input.tilt.start();
-  } else {
-    // iOS requires a user gesture to (re-)confirm the motion permission
-    window.addEventListener(
-      "pointerdown",
-      () => {
-        void input.tilt.requestPermission().then((ok) => {
-          if (ok) input.tilt.start();
-          else input.controlMode = "stick"; // denied: don't leave the ship uncontrollable
-        });
-      },
-      { once: true },
-    );
-  }
+// On platforms without a permission gate the sensor can warm up right away.
+// On iOS we deliberately DON'T request permission here: the old first-tap
+// request fired the motion dialog out of context (on "tap to enter"), players
+// reflexively denied it, and Safari caches a denial for the whole session —
+// silently killing tilt everywhere. The mode-select "Tilt" tap (a real,
+// in-context click) is now the only place that asks.
+if (controls.mode === "tilt" && !TiltControl.needsPermission()) {
+  input.tilt.start();
 }
 
-/** Permission + sensor warm-up + neutral capture. False = fall back to stick. */
-async function enableTilt(): Promise<boolean> {
-  if (!TiltControl.supported()) return false;
-  if (!(await input.tilt.requestPermission())) return false;
+type TiltEnableResult = "ok" | "denied" | "no-data";
+
+/** Permission + sensor warm-up + neutral capture. Non-"ok" = fall back to stick. */
+async function enableTilt(): Promise<TiltEnableResult> {
+  if (!TiltControl.supported()) return "denied";
+  if (!(await input.tilt.requestPermission())) return "denied";
   input.tilt.start();
   // the first sensor reading can lag the permission grant by a few frames
   let neutral = input.tilt.calibrate();
@@ -194,12 +188,29 @@ async function enableTilt(): Promise<boolean> {
     await new Promise((r) => setTimeout(r, 50));
     neutral = input.tilt.calibrate();
   }
-  if (!neutral) return false;
+  if (!neutral) return "no-data";
   controls.mode = "tilt";
   controls.tiltNeutral = neutral;
   input.controlMode = "tilt";
   saveControlPrefs(controls);
-  return true;
+  return "ok";
+}
+
+/**
+ * Tilt couldn't start: fall back to the stick and SAY SO. iOS caches a motion
+ * permission denial for the whole Safari session and auto-denies every later
+ * request without showing the dialog, so the player needs to know how to
+ * un-wedge it (silent stick fallback here read as "tilt is broken").
+ */
+function failTiltToStick(reason: TiltEnableResult): void {
+  setStickMode();
+  ui.toast(
+    reason === "no-data"
+      ? "No motion data from this device. Flying with the touch stick."
+      : "Motion access is blocked, so tilt can't steer. Flying with the touch stick. " +
+          "To fix it: quit and reopen your browser (or allow Motion & Orientation access" +
+          " in its settings), then pick Tilt again.",
+  );
 }
 
 function setStickMode(): void {
@@ -250,7 +261,8 @@ const ui = new Ui(settings, {
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
   onControlModeChange: async (mode) => {
     if (mode === "tilt") {
-      if (!(await enableTilt())) setStickMode();
+      const r = await enableTilt();
+      if (r !== "ok") failTiltToStick(r);
     } else {
       setStickMode();
     }
@@ -356,8 +368,8 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   if (isTouchDevice() && TiltControl.supported()) {
     ui.showModeSelect(controls.mode, (mode) => {
       if (mode === "tilt") {
-        void enableTilt().then((ok) => {
-          if (!ok) setStickMode(); // permission denied → fly with the stick
+        void enableTilt().then((r) => {
+          if (r !== "ok") failTiltToStick(r); // permission denied → fly with the stick
           doLaunch();
         });
       } else {
