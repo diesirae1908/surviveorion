@@ -754,16 +754,20 @@ const ADMIN_PAGE = /* html */ `<!doctype html>
 <meta name="robots" content="noindex">
 <title>ORION mission control</title>
 <style>
-  body { margin: 0; padding: 24px; background: #08080f; color: #ffee88;
+  body { margin: 0 auto; padding: 24px; max-width: 1100px; background: #08080f; color: #ffee88;
          font: 14px/1.5 Georgia, serif; }
   h1 { color: #ffd700; letter-spacing: .3em; font-size: 18px; text-transform: uppercase; }
   h2 { color: #ffd700; letter-spacing: .15em; font-size: 13px; text-transform: uppercase;
-       border-bottom: 1px solid rgba(170,136,68,.4); padding-bottom: 6px; margin: 28px 0 10px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+       border-bottom: 1px solid rgba(170,136,68,.4); padding-bottom: 6px; margin: 30px 0 12px; }
+  h3 { color: #8a7a55; letter-spacing: .1em; font-size: 11px; text-transform: uppercase; margin: 14px 0 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .stat { background: rgba(26,26,42,.6); border: 1px solid rgba(170,136,68,.35);
           padding: 10px 14px; border-radius: 4px; }
-  .stat .v { color: #ffd700; font-size: 20px; }
+  .stat .v { color: #ffd700; font-size: 22px; }
   .stat .k { color: #8a7a55; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px 28px;
+          align-items: start; }
+  .panel { min-width: 0; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border-bottom: 1px solid rgba(170,136,68,.2); padding: 6px 10px; text-align: left;
            vertical-align: top; }
@@ -775,6 +779,29 @@ const ADMIN_PAGE = /* html */ `<!doctype html>
   .err { color: #ff4455; margin-top: 10px; }
   .muted { color: #8a7a55; }
   pre { white-space: pre-wrap; margin: 0; font: 12px/1.5 monospace; }
+  /* horizontal bar lists */
+  .hbar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .hbar-label { width: 150px; flex: none; text-align: right; font-size: 13px;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hbar-track { flex: 1; background: rgba(26,26,42,.6); border-radius: 3px; height: 17px; overflow: hidden; }
+  .hbar-fill { height: 100%; background: linear-gradient(90deg, #aa8844, #ffd700); border-radius: 3px;
+               box-shadow: 0 0 10px rgba(255,215,0,.2); }
+  .hbar-val { width: 90px; flex: none; font-size: 12px; color: #ffd700; }
+  /* per-day column charts */
+  .colchart { display: flex; align-items: stretch; gap: 4px; height: 150px; margin-top: 6px; }
+  .colwrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .colval { font-size: 10px; color: #ffd700; text-align: center; height: 16px; }
+  .colstack { flex: 1; position: relative; }
+  .colstack .b, .colstack .a { position: absolute; bottom: 0; left: 12%; width: 76%; border-radius: 2px 2px 0 0; }
+  .colstack .b { background: rgba(196,30,58,.5); }
+  .colstack .a { background: linear-gradient(180deg, #ffee88, #cc8800); box-shadow: 0 0 8px rgba(255,215,0,.25); }
+  .collabel { font-size: 9px; color: #8a7a55; text-align: center; padding-top: 4px;
+              white-space: nowrap; overflow: hidden; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: #8a7a55; margin: 8px 0 2px; }
+  .chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  /* stacked split bar */
+  .split { display: flex; height: 18px; border-radius: 3px; overflow: hidden; background: rgba(26,26,42,.6); }
+  .split div { min-width: 2px; }
 </style>
 </head>
 <body>
@@ -789,8 +816,56 @@ const ADMIN_PAGE = /* html */ `<!doctype html>
 <script>
 const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 const secs = (s) => s == null ? "—" : s >= 60 ? Math.floor(s / 60) + "m " + Math.round(s % 60) + "s" : Math.round(s) + "s";
-const esc = (t) => String(t ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const stat = (k, v) => '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + "</div></div>";
+const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : "";
+const GOLD = "#ffd700", RED = "rgba(196,30,58,.75)", BLUE = "#7fb8d4", BRONZE = "#aa8844";
+
+/** Horizontal bar list: rows = [{ label, value, val (display) }]. */
+function hbars(rows, empty) {
+  if (!rows.length) return '<div class="muted">' + empty + "</div>";
+  const max = Math.max.apply(null, rows.map((r) => r.value).concat([1]));
+  return rows.map((r) =>
+    '<div class="hbar-row"><div class="hbar-label">' + r.label + "</div>" +
+    '<div class="hbar-track"><div class="hbar-fill" style="width:' + Math.max(1.5, (r.value / max) * 100).toFixed(1) + '%"></div></div>' +
+    '<div class="hbar-val">' + r.val + "</div></div>",
+  ).join("");
+}
+
+/** Per-day columns, oldest → newest. days = [{ day, a (gold), b (dim red) }]. */
+function colchart(days, aName, bName) {
+  if (!days.length) return '<div class="muted">nothing yet</div>';
+  const max = Math.max.apply(null, days.map((d) => Math.max(d.a, d.b)).concat([1]));
+  const cols = days.map((d) => {
+    const title = esc(d.day + " — " + fmt(d.b) + " " + bName + ", " + fmt(d.a) + " " + aName);
+    return '<div class="colwrap" title="' + title + '">' +
+      '<div class="colval">' + (d.b || "") + "</div>" +
+      '<div class="colstack">' +
+        '<div class="b" style="height:' + ((d.b / max) * 100).toFixed(1) + '%"></div>' +
+        '<div class="a" style="height:' + ((d.a / max) * 100).toFixed(1) + '%"></div>' +
+      "</div>" +
+      '<div class="collabel">' + d.day.slice(5).replace("-", "/") + "</div>" +
+    "</div>";
+  }).join("");
+  return '<div class="legend"><span><span class="chip" style="background:linear-gradient(180deg,#ffee88,#cc8800)"></span>' +
+    aName + '</span><span><span class="chip" style="background:rgba(196,30,58,.5)"></span>' + bName + "</span></div>" +
+    '<div class="colchart">' + cols + "</div>";
+}
+
+/** One stacked 100% bar + legend. parts = [{ label, value }]. */
+function splitBar(parts) {
+  const COLORS = [GOLD, RED, BLUE, BRONZE, "#8888cc"];
+  parts = parts.filter((p) => p.value > 0);
+  if (!parts.length) return '<div class="muted">nothing yet</div>';
+  const total = parts.reduce((s, p) => s + p.value, 0);
+  return '<div class="split">' +
+    parts.map((p, i) => '<div style="width:' + ((p.value / total) * 100).toFixed(1) + "%;background:" +
+      COLORS[i % COLORS.length] + '" title="' + esc(p.label) + ": " + fmt(p.value) + '"></div>').join("") +
+    "</div><div class='legend'>" +
+    parts.map((p, i) => '<span><span class="chip" style="background:' + COLORS[i % COLORS.length] + '"></span>' +
+      esc(p.label) + " · " + fmt(p.value) + " (" + Math.round((p.value / total) * 100) + "%)</span>").join("") +
+    "</div>";
+}
 
 async function go() {
   const key = document.getElementById("key").value.trim();
@@ -813,18 +888,23 @@ async function go() {
       stat("visits (7 days)", fmt(t.week.visits)) +
       stat("visitors all-time", fmt(t.total.uniques)) +
       stat("visits all-time", fmt(t.total.visits)) +
-      t.paths.map((p) => stat(esc(p.k) + " visits (14d)", fmt(p.visits))).join("") +
-      t.platforms.map((p) => stat(esc(p.k) + " devices (14d)", fmt(p.visits))).join("") +
     "</div>" +
-    "<h2>Where from — countries (14d)</h2><table><tr><th>country</th><th>visitors</th><th>visits</th></tr>" +
-      (t.countries.length ? t.countries.map((c) => "<tr><td>" + esc(c.k) + "</td><td>" + fmt(c.uniques) + "</td><td>" + fmt(c.visits) + "</td></tr>").join("") : "<tr><td class='muted' colspan='3'>nothing yet</td></tr>") +
-    "</table>" +
-    "<h2>Where from — referrers (14d)</h2><table><tr><th>site</th><th>visitors</th><th>visits</th></tr>" +
-      (t.referrers.length ? t.referrers.map((r) => "<tr><td>" + esc(r.k) + "</td><td>" + fmt(r.uniques) + "</td><td>" + fmt(r.visits) + "</td></tr>").join("") : "<tr><td class='muted' colspan='3'>direct visits only so far</td></tr>") +
-    "</table>" +
-    "<h2>Visits per day (last 14)</h2><table><tr><th>day</th><th>visitors</th><th>visits</th></tr>" +
-      t.perDay.map((v) => "<tr><td>" + v.day + "</td><td>" + fmt(v.uniques) + "</td><td>" + fmt(v.visits) + "</td></tr>").join("") +
-    "</table>"
+    "<h3>Visits per day (last 14)</h3>" +
+      colchart(t.perDay.slice().reverse().map((v) => ({ day: v.day, a: v.uniques, b: v.visits })), "visitors", "visits") +
+    "<div class='row2'>" +
+      "<div class='panel'><h3>Countries (14d)</h3>" +
+        hbars(t.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "nothing yet") +
+      "</div>" +
+      "<div class='panel'><h3>Referrers (14d)</h3>" +
+        hbars(t.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "direct visits only so far") +
+      "</div>" +
+      "<div class='panel'><h3>Site face (14d)</h3>" +
+        splitBar(t.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
+      "</div>" +
+      "<div class='panel'><h3>Devices (14d)</h3>" +
+        splitBar(t.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
+      "</div>" +
+    "</div>"
     ) : "") +
     "<h2>Pilots</h2><div class='grid'>" +
       stat("registered pilots", fmt(s.users.total)) +
@@ -836,26 +916,36 @@ async function go() {
       stat("total runs", fmt(s.runs.total)) +
       stat("anonymous runs", fmt(s.runs.anonymous)) +
       stat("signed-in players", fmt(s.runs.signedInPlayers)) +
-      s.runs.modeSplit.map((m) => stat(m.mode + " runs", fmt(m.runs))).join("") +
-      s.runs.platformSplit.map((p) => stat((p.platform || "unknown") + " runs", fmt(p.runs))).join("") +
-      (s.runs.gameModeSplit ?? []).map((g) => stat((g.gameMode || "classic") + " runs", fmt(g.runs))).join("") +
     "</div>" +
-    "<h2>Game length</h2><div class='grid'>" +
-      stat("average", secs(s.gameLength.avg)) +
-      stat("median", secs(s.gameLength.median)) +
-      stat("range", secs(s.gameLength.min) + " – " + secs(s.gameLength.max)) +
-      Object.entries(s.gameLength.buckets).map(([k, v]) => stat(k, fmt(v))).join("") +
+    "<h3>Runs per day (last 14)</h3>" +
+      colchart(s.runs.perDay.slice().reverse().map((r) => ({ day: r.day, a: r.players, b: r.runs })), "signed-in players", "runs") +
+    "<div class='row2'>" +
+      "<div class='panel'><h3>Boards</h3>" +
+        splitBar(s.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
+      "</div>" +
+      "<div class='panel'><h3>Game modes</h3>" +
+        splitBar((s.runs.gameModeSplit ?? []).map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
+      "</div>" +
     "</div>" +
-    "<h2>Score</h2><div class='grid'>" +
-      stat("average", fmt(s.score.avg)) + stat("median", fmt(s.score.median)) +
-      stat("p90", fmt(s.score.p90)) + stat("p99", fmt(s.score.p99)) +
-      stat("range", fmt(s.score.min) + " – " + fmt(s.score.max)) +
-    "</div>" +
-    "<h2>Combat</h2><div class='grid'>" +
-      stat("avg kills / run", fmt(s.combat.avgKills, 1)) +
-      stat("kills / minute", fmt(s.combat.killsPerMinute, 1)) +
-      stat("avg peak multiplier", "x" + fmt(s.combat.avgMaxMultiplier, 1)) +
-      stat("best multiplier", "x" + fmt(s.combat.bestMultiplier, 1)) +
+    "<div class='row2'>" +
+      "<div class='panel'><h2>Game length</h2><div class='grid'>" +
+        stat("average", secs(s.gameLength.avg)) +
+        stat("median", secs(s.gameLength.median)) +
+        stat("longest", secs(s.gameLength.max)) +
+      "</div><h3>Distribution</h3>" +
+        hbars(Object.entries(s.gameLength.buckets).map(([k, v]) => ({ label: esc(k), value: v, val: fmt(v) + " runs" })), "nothing yet") +
+      "</div>" +
+      "<div class='panel'><h2>Score</h2><div class='grid'>" +
+        stat("average", fmt(s.score.avg)) + stat("median", fmt(s.score.median)) +
+        stat("p90", fmt(s.score.p90)) + stat("p99", fmt(s.score.p99)) +
+        stat("best", fmt(s.score.max)) +
+      "</div>" +
+      "<h2>Combat</h2><div class='grid'>" +
+        stat("avg kills / run", fmt(s.combat.avgKills, 1)) +
+        stat("kills / minute", fmt(s.combat.killsPerMinute, 1)) +
+        stat("avg peak multiplier", "x" + fmt(s.combat.avgMaxMultiplier, 1)) +
+        stat("best multiplier", "x" + fmt(s.combat.bestMultiplier, 1)) +
+      "</div></div>" +
     "</div>" +
     "<h2>Community</h2><div class='grid'>" +
       stat("feedback reports", fmt(s.community.feedback)) +
@@ -863,12 +953,8 @@ async function go() {
       stat("arenas", fmt(s.community.arenas)) +
       stat("badges awarded", fmt(s.community.badgesAwarded)) +
     "</div>" +
-    "<h2>Badge holders</h2><table><tr><th>badge</th><th>holders</th></tr>" +
-      s.community.badgeCounts.map((b) => "<tr><td>" + esc(b.badge) + "</td><td>" + fmt(b.holders) + "</td></tr>").join("") +
-    "</table>" +
-    "<h2>Runs per day (last 14)</h2><table><tr><th>day</th><th>runs</th><th>signed-in players</th></tr>" +
-      s.runs.perDay.map((r) => "<tr><td>" + r.day + "</td><td>" + fmt(r.runs) + "</td><td>" + fmt(r.players) + "</td></tr>").join("") +
-    "</table>" +
+    "<h3>Badge holders</h3>" +
+      hbars(s.community.badgeCounts.map((b) => ({ label: esc(b.badge), value: b.holders, val: fmt(b.holders) + " pilots" })), "no badges earned yet") +
     "<h2>Recent feedback</h2><table><tr><th>when</th><th>pilot</th><th>email</th><th>message</th></tr>" +
       fb.map((f) => "<tr><td class='muted'>" + new Date(f.createdAt).toLocaleString() + "</td><td>" +
         esc(f.callsign ?? "anon") + "</td><td>" + esc(f.email ?? "") + "</td><td><pre>" +
