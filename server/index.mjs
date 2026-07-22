@@ -880,6 +880,7 @@ async function go() {
   d.style.display = "";
   const t = s.traffic ?? null;
   d.innerHTML =
+    "<p class='muted'>Days and \\"today\\" counters are Pacific Time (PT). Weeks are rolling 7 days.</p>" +
     (t ? (
     "<h2>Traffic</h2><div class='grid'>" +
       stat("visitors today", fmt(t.today.uniques)) +

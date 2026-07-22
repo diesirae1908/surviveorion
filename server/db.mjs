@@ -584,6 +584,38 @@ export function listFeedback(limit = 100) {
     .all(limit);
 }
 
+// --- Pacific Time helpers (admin dashboard only) ---
+// Lucas reads /admin from Vancouver, so per-day buckets and "today" counters
+// use America/Vancouver calendar days, not UTC. SQLite has no named-timezone
+// support and this server is zero-dependency, so we compute the CURRENT
+// Vancouver UTC offset in Node and shift epochs before date(). Using today's
+// offset for a whole 14-day window means rows within an hour of midnight can
+// land one day off across a DST switch — fine for a hobby dashboard.
+// (Player-facing Daily Patrol rollover stays UTC — utcDate() in index.mjs.)
+
+/** Milliseconds America/Vancouver lags behind UTC right now (7h PDT / 8h PST). */
+function ptOffsetMs(now = Date.now()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Vancouver",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(now));
+  const get = (t) => Number(parts.find((p) => p.type === t).value);
+  const wallAsUtc = Date.UTC(
+    get("year"), get("month") - 1, get("day"),
+    get("hour") % 24, get("minute"), get("second"),
+  );
+  return Math.round((now - wallAsUtc) / 60000) * 60000;
+}
+
+/** Epoch ms of the most recent midnight in America/Vancouver. */
+function ptMidnightEpoch(now = Date.now()) {
+  const off = ptOffsetMs(now);
+  const day = 24 * 3600 * 1000;
+  return Math.floor((now - off) / day) * day + off;
+}
+
 // --- visits (anonymous traffic beacons; admin dashboard only) ---
 
 export function addVisit({ ipHash, country = "", ref = "", path = "", platform = "" }) {
@@ -593,7 +625,7 @@ export function addVisit({ ipHash, country = "", ref = "", path = "", platform =
   ).run(ipHash, country, ref, path, platform, Date.now());
 }
 
-/** Traffic overview for the admin dashboard. */
+/** Traffic overview for the admin dashboard. Days + "today" are Pacific Time. */
 export function trafficStats() {
   const now = Date.now();
   const day = 24 * 3600 * 1000;
@@ -606,13 +638,14 @@ export function trafficStats() {
       )
       .get(since);
 
+  // Shift epochs by the current PT offset so date() buckets on Vancouver days.
   const perDay = db
     .prepare(
-      `SELECT date(created_at / 1000, 'unixepoch') AS day,
+      `SELECT date((created_at - ?) / 1000, 'unixepoch') AS day,
               COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
        FROM visits GROUP BY day ORDER BY day DESC LIMIT 14`,
     )
-    .all();
+    .all(ptOffsetMs(now));
 
   const top = (column, since) =>
     db
@@ -624,7 +657,7 @@ export function trafficStats() {
       .all(since);
 
   return {
-    today: window(now - day),
+    today: window(ptMidnightEpoch(now)), // since midnight PT, not rolling 24h
     week: window(now - 7 * day),
     total: window(0),
     perDay,
@@ -695,13 +728,14 @@ export function adminStats() {
       )
       .get(lo, hi).c;
 
+  // Pacific Time days (current PT offset — see the PT helpers above).
   const perDay = db
     .prepare(
-      `SELECT date(created_at / 1000, 'unixepoch') AS day, COUNT(*) AS runs,
+      `SELECT date((created_at - ?) / 1000, 'unixepoch') AS day, COUNT(*) AS runs,
               COUNT(DISTINCT user_id) AS players
        FROM runs GROUP BY day ORDER BY day DESC LIMIT 14`,
     )
-    .all();
+    .all(ptOffsetMs(now));
 
   const modeSplit = db
     .prepare(`SELECT mode, COUNT(*) AS runs FROM runs GROUP BY mode`)
@@ -720,7 +754,7 @@ export function adminStats() {
               SUM(created_at > ?) AS newThisWeek
        FROM users`,
     )
-    .get(now - day, now - 7 * day);
+    .get(ptMidnightEpoch(now), now - 7 * day); // "today" = since midnight PT
 
   const returning = db
     .prepare(

@@ -4,6 +4,22 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-07-21 — /admin day math moved from UTC to Pacific Time (this commit)
+
+- The admin dashboard's per-day charts (visits/day, runs/day) bucketed on UTC
+  days, so from 5 PM PT onward the charts rolled over to "tomorrow"; the
+  "today" tiles were rolling 24-hour windows, not calendar days. Both now use
+  America/Vancouver days: new `ptOffsetMs()` / `ptMidnightEpoch()` helpers in
+  `server/db.mjs` (via `Intl.DateTimeFormat` — SQLite has no named timezones
+  and the server is zero-dependency) shift epochs before `date()` and anchor
+  "today" (visits/uniques today, users newToday) at PT midnight. The current
+  offset is applied to the whole 14-day window — DST-edge rows can land a day
+  off, acceptable for a hobby dashboard. Week counters stay rolling 7 days.
+  Added a note on `/admin` that days/"today" are PT. Player-facing Daily
+  Patrol rollover (`utcDate()` in `index.mjs`) deliberately untouched — that's
+  gameplay, still UTC. Verified: build + sim-test green, plus a temp-DB check
+  that a 6 PM PT visit no longer buckets to the next day. Dispatched by Sam.
+
 ## 2026-07-21 — PM-model docs: AGENTS.md + this journal
 
 - Added `AGENTS.md` (repo context, deploy warning, guardrails, PM model with
