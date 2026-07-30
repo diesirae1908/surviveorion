@@ -4,7 +4,7 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-07-30 — /admin date selector (per-day drill-down)
+## 2026-07-30 — /admin date selector (per-day drill-down) [MERGED + DEPLOYED same day: merge `70c6709`, live on Render ~4:49 PM PT, /admin verified serving the day-nav]
 
 - Added a date picker to `/admin` so Lucas can view analytics for any single
   day, not just the rolling 14-day charts and all-time totals. Default view
