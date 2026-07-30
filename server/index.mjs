@@ -635,9 +635,17 @@ const routes = {
 
   // --- admin (requires ORION_ADMIN_KEY) ---
 
-  "GET /api/admin/stats": (req, res) => {
+  "GET /api/admin/stats": (req, res, user, url) => {
     if (!isAdmin(req)) return json(res, 404, { error: "not found" });
-    json(res, 200, store.adminStats());
+    const dateParam = url.searchParams.get("date");
+    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return json(res, 400, { error: "invalid date" });
+    }
+    // `day` is the date-selector slice (defaults to today, PT); everything
+    // else here is the existing all-time / rolling dashboard, unchanged.
+    const day = store.adminStatsForDay(dateParam || undefined);
+    if (dateParam && !day) return json(res, 400, { error: "invalid date" });
+    json(res, 200, { ...store.adminStats(), day });
   },
 
   "GET /api/admin/feedback": (req, res) => {
@@ -776,6 +784,11 @@ const ADMIN_PAGE = /* html */ `<!doctype html>
           font: inherit; padding: 10px 14px; width: 280px; }
   button { background: #ffd700; border: 0; color: #08080f; font: inherit; padding: 10px 22px;
            cursor: pointer; margin-left: 8px; }
+  button:disabled { background: rgba(170,136,68,.4); color: #4a4a3a; cursor: default; }
+  .daynav { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; flex-wrap: wrap; }
+  .daynav input[type="date"] { width: 160px; margin: 0; color-scheme: dark; }
+  .daynav button { margin-left: 0; padding: 8px 16px; }
+  .daynav .today { background: transparent; border: 1px solid #aa8844; color: #ffd700; }
   .err { color: #ff4455; margin-top: 10px; }
   .muted { color: #8a7a55; }
   pre { white-space: pre-wrap; margin: 0; font: 12px/1.5 monospace; }
@@ -867,6 +880,87 @@ function splitBar(parts) {
     "</div>";
 }
 
+/** One stats/splits panel for a single day (used by the date selector). */
+function renderDay(day) {
+  const body = document.getElementById("day-body");
+  if (!body) return;
+  if (!day) { body.innerHTML = "<p class='err'>No data for that date.</p>"; return; }
+  body.innerHTML =
+    "<div class='grid'>" +
+      stat("visitors", fmt(day.traffic.uniques)) +
+      stat("visits", fmt(day.traffic.visits)) +
+      stat("new pilots", fmt(day.users.new)) +
+      stat("runs", fmt(day.runs.total)) +
+      stat("signed-in players", fmt(day.runs.signedInPlayers)) +
+      stat("anonymous runs", fmt(day.runs.anonymous)) +
+    "</div>" +
+    "<div class='row2'>" +
+      "<div class='panel'><h3>Countries</h3>" +
+        hbars(day.traffic.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "no traffic that day") +
+      "</div>" +
+      "<div class='panel'><h3>Referrers</h3>" +
+        hbars(day.traffic.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "direct visits only") +
+      "</div>" +
+      "<div class='panel'><h3>Site face</h3>" +
+        splitBar(day.traffic.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
+      "</div>" +
+      "<div class='panel'><h3>Devices</h3>" +
+        splitBar(day.traffic.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
+      "</div>" +
+    "</div>" +
+    "<div class='row2'>" +
+      "<div class='panel'><h3>Boards</h3>" +
+        splitBar(day.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
+      "</div>" +
+      "<div class='panel'><h3>Game modes</h3>" +
+        splitBar(day.runs.gameModeSplit.map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
+      "</div>" +
+    "</div>" +
+    "<div class='row2'>" +
+      "<div class='panel'><h3>Game length</h3><div class='grid'>" +
+        stat("average", secs(day.gameLength.avg)) + stat("median", secs(day.gameLength.median)) + stat("longest", secs(day.gameLength.max)) +
+      "</div></div>" +
+      "<div class='panel'><h3>Score</h3><div class='grid'>" +
+        stat("average", fmt(day.score.avg)) + stat("median", fmt(day.score.median)) + stat("best", fmt(day.score.max)) +
+      "</div></div>" +
+      "<div class='panel'><h3>Combat</h3><div class='grid'>" +
+        stat("avg kills", fmt(day.combat.avgKills, 1)) + stat("best multiplier", "x" + fmt(day.combat.bestMultiplier, 1)) +
+      "</div></div>" +
+    "</div>";
+}
+
+let ADMIN_AUTH = null;
+let TODAY = null;   // today's date (PT, "YYYY-MM-DD"), from the server
+let currentDay = null;
+
+/** Shift a "YYYY-MM-DD" string by N calendar days (plain UTC arithmetic, no timezone). */
+function shiftDate(dateStr, days) {
+  const [y, m, dd] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, dd));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+function setDayControls(dateStr) {
+  currentDay = dateStr;
+  document.getElementById("day-date").value = dateStr;
+  document.getElementById("day-next").disabled = dateStr >= TODAY;
+}
+
+async function loadDay(dateStr) {
+  const res = await fetch("/api/admin/stats?date=" + dateStr, ADMIN_AUTH);
+  const s = await res.json();
+  if (!res.ok || !s.day) {
+    document.getElementById("day-body").innerHTML = "<p class='err'>" + esc(s.error ?? "no data") + "</p>";
+    return;
+  }
+  renderDay(s.day);
+  setDayControls(s.day.date);
+}
+
+function navDay(delta) { loadDay(shiftDate(currentDay, delta)); }
+function jumpToday() { loadDay(TODAY); }
+
 async function go() {
   const key = document.getElementById("key").value.trim();
   const auth = { headers: { Authorization: "Bearer " + key } };
@@ -879,7 +973,18 @@ async function go() {
   const d = document.getElementById("dash");
   d.style.display = "";
   const t = s.traffic ?? null;
+  ADMIN_AUTH = auth;
+  TODAY = s.day ? s.day.date : null;
   d.innerHTML =
+    "<h2>Day report</h2>" +
+    "<div class='daynav'>" +
+      "<button onclick='navDay(-1)'>&#9664; prev day</button>" +
+      "<input id='day-date' type='date' max='" + esc(TODAY) + "'>" +
+      "<button id='day-next' onclick='navDay(1)'>next day &#9654;</button>" +
+      "<button class='today' onclick='jumpToday()'>today</button>" +
+    "</div>" +
+    "<div id='day-body'></div>" +
+    "<p class='muted'>Pick a date to see that day's traffic, runs, and performance. Everything below stays all-time / rolling.</p>" +
     "<p class='muted'>Days and \\"today\\" counters are Pacific Time (PT). Weeks are rolling 7 days.</p>" +
     (t ? (
     "<h2>Traffic</h2><div class='grid'>" +
@@ -961,6 +1066,8 @@ async function go() {
         esc(f.callsign ?? "anon") + "</td><td>" + esc(f.email ?? "") + "</td><td><pre>" +
         esc(f.message) + "</pre><span class='muted'>" + esc(f.context) + "</span></td></tr>").join("") +
     "</table>";
+  document.getElementById("day-date").addEventListener("change", (e) => loadDay(e.target.value));
+  if (s.day) { renderDay(s.day); setDayControls(s.day.date); }
 }
 const saved = localStorage.getItem("orion.adminKey");
 if (saved) { document.getElementById("key").value = saved; go(); }
