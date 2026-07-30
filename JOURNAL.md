@@ -4,6 +4,41 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-07-30 — /admin date selector (per-day drill-down)
+
+- Added a date picker to `/admin` so Lucas can view analytics for any single
+  day, not just the rolling 14-day charts and all-time totals. Default view
+  (no date picked) is today, PT, matching the day math from `a22e890` below;
+  everything else on the dashboard is unchanged.
+- Picked up mid-flight, uncommitted work from an interrupted session (~150
+  lines in `server/db.mjs`, ~111 in `server/index.mjs`). Reviewed it
+  critically and kept nearly all of it as-is: `ptDateBounds()` (parses
+  `YYYY-MM-DD`, defaults to today, reuses the existing `ptOffsetMs` PT-day
+  math) and `adminStatsForDay()` in `server/db.mjs` mirror `adminStats()`'s
+  query style exactly (same columns, same hardcoded-column SQL pattern, no
+  injection risk since no column name is ever request-controlled) and were
+  already correct. `GET /api/admin/stats?date=YYYY-MM-DD` in `server/index.mjs`
+  validates the date, 400s on a bad one, and returns the existing payload plus
+  a new `day` key; omitting `date` returns today, so old clients see identical
+  output with one added field. Turned out the "admin UI was not started" note
+  I was given was stale: the inherited diff already had a working date input,
+  prev/next-day buttons, a today button, and a `renderDay()` panel reusing
+  the existing `stat`/`hbars`/`splitBar` helpers, all inside the same
+  `ADMIN_PAGE` template in `server/index.mjs` (this repo has no separate
+  admin UI file). I left that code essentially untouched after verifying it.
+- Tripwire check: confirmed per-day granularity already exists (every `runs`
+  and `visits` row has a millisecond `created_at`), so no schema or backfill
+  was needed. Verified against the local dev DB: `date=2026-07-11` correctly
+  picked up 15 runs that are UTC-dated 2026-07-12 in `sqlite date()` terms but
+  land in PT day 2026-07-11 once shifted, exactly the PT bucketing `a22e890`
+  established for the rest of the dashboard.
+- Verified: `npm run build` (tsc + vite) green, `npx tsx scripts/sim-test.ts`
+  all green, ran the community server locally and hit
+  `/api/admin/stats` with no date (today), a real historical date, an invalid
+  date string (400), and a future date (200, all zeros) - all matched
+  expectations. Committed on `sam/admin-date-selector` (not merged to main,
+  not pushed to origin/main; branch itself may be pushed). Dispatched by Sam.
+
 ## 2026-07-21 — /admin day math moved from UTC to Pacific Time (this commit)
 
 - The admin dashboard's per-day charts (visits/day, runs/day) bucketed on UTC

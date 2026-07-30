@@ -616,6 +616,28 @@ function ptMidnightEpoch(now = Date.now()) {
   return Math.floor((now - off) / day) * day + off;
 }
 
+/**
+ * [start, end) epoch ms bounding one Pacific Time calendar day, for the
+ * admin dashboard's date selector. `dateStr` is "YYYY-MM-DD"; omitted means
+ * today (PT). Returns null on a malformed string so the caller can 400.
+ */
+function ptDateBounds(dateStr) {
+  const day = 24 * 3600 * 1000;
+  if (!dateStr) {
+    const start = ptMidnightEpoch();
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver" }).format(start);
+    return { start, end: start + day, dateStr: parts };
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  // Noon UTC on that date is close enough to the real day to pick the right
+  // PDT/PST offset (same DST tolerance already accepted elsewhere here).
+  const off = ptOffsetMs(Date.UTC(y, mo - 1, d, 12, 0, 0));
+  const start = Date.UTC(y, mo - 1, d, 0, 0, 0) + off;
+  return { start, end: start + day, dateStr };
+}
+
 // --- visits (anonymous traffic beacons; admin dashboard only) ---
 
 export function addVisit({ ipHash, country = "", ref = "", path = "", platform = "" }) {
@@ -818,6 +840,134 @@ export function adminStats() {
       bestMultiplier: totals.bestMultiplier ?? 0,
     },
     community,
+  };
+}
+
+/**
+ * Analytics for one Pacific Time calendar day, for the admin dashboard's
+ * date selector (`dateStr` "YYYY-MM-DD", omitted = today). Mirrors the
+ * runs/traffic slices of adminStats() above but scoped to that single day
+ * instead of all-time / rolling windows. Returns null on a bad date string.
+ */
+export function adminStatsForDay(dateStr) {
+  const bounds = ptDateBounds(dateStr);
+  if (!bounds) return null;
+  const { start, end, dateStr: date } = bounds;
+
+  const visits = db
+    .prepare(
+      `SELECT COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
+       FROM visits WHERE created_at >= ? AND created_at < ?`,
+    )
+    .get(start, end);
+  const topVisits = (column) =>
+    db
+      .prepare(
+        `SELECT ${column} AS k, COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
+         FROM visits WHERE created_at >= ? AND created_at < ? AND ${column} != ''
+         GROUP BY ${column} ORDER BY visits DESC LIMIT 12`,
+      )
+      .all(start, end);
+
+  const totals = db
+    .prepare(
+      `SELECT COUNT(*) AS runs,
+              COUNT(DISTINCT user_id) AS signedInPlayers,
+              SUM(user_id IS NULL) AS anonRuns,
+              AVG(time_survived) AS avgTime,
+              MIN(time_survived) AS minTime,
+              MAX(time_survived) AS maxTime,
+              AVG(score) AS avgScore,
+              MIN(score) AS minScore,
+              MAX(score) AS maxScore,
+              AVG(kills) AS avgKills,
+              AVG(max_multiplier) AS avgMaxMultiplier,
+              MAX(max_multiplier) AS bestMultiplier
+       FROM runs WHERE created_at >= ? AND created_at < ?`,
+    )
+    .get(start, end);
+  const n = totals.runs ?? 0;
+
+  const bucket = (lo, hi) =>
+    db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM runs
+         WHERE created_at >= ? AND created_at < ? AND time_survived >= ? AND time_survived < ?`,
+      )
+      .get(start, end, lo, hi).c;
+
+  const percentile = (column, p) => {
+    if (!n) return 0;
+    const offset = Math.min(n - 1, Math.max(0, Math.floor((n - 1) * p)));
+    return (
+      db
+        .prepare(
+          `SELECT ${column} AS v FROM runs
+           WHERE created_at >= ? AND created_at < ? ORDER BY ${column} LIMIT 1 OFFSET ?`,
+        )
+        .get(start, end, offset)?.v ?? 0
+    );
+  };
+
+  const split = (column) =>
+    db
+      .prepare(
+        `SELECT ${column} AS k, COUNT(*) AS runs FROM runs
+         WHERE created_at >= ? AND created_at < ? GROUP BY ${column}`,
+      )
+      .all(start, end);
+
+  const newUsers = db
+    .prepare(`SELECT COUNT(*) AS c FROM users WHERE created_at >= ? AND created_at < ?`)
+    .get(start, end).c;
+
+  return {
+    date,
+    traffic: {
+      visits: visits.visits ?? 0,
+      uniques: visits.uniques ?? 0,
+      countries: topVisits("country"),
+      referrers: topVisits("ref"),
+      platforms: topVisits("platform"),
+      paths: topVisits("path"),
+    },
+    users: { new: newUsers },
+    runs: {
+      total: n,
+      anonymous: totals.anonRuns ?? 0,
+      signedInPlayers: totals.signedInPlayers ?? 0,
+      modeSplit: split("mode").map((r) => ({ mode: r.k, runs: r.runs })),
+      platformSplit: split("platform").map((r) => ({ platform: r.k, runs: r.runs })),
+      gameModeSplit: split("game_mode").map((r) => ({ gameMode: r.k, runs: r.runs })),
+    },
+    gameLength: {
+      avg: totals.avgTime ?? 0,
+      median: percentile("time_survived", 0.5),
+      min: totals.minTime ?? 0,
+      max: totals.maxTime ?? 0,
+      buckets: {
+        "under 30s": bucket(0, 30),
+        "30-60s": bucket(30, 60),
+        "1-2m": bucket(60, 120),
+        "2-5m": bucket(120, 300),
+        "5m+": bucket(300, Number.MAX_SAFE_INTEGER),
+      },
+    },
+    score: {
+      avg: totals.avgScore ?? 0,
+      median: percentile("score", 0.5),
+      p90: percentile("score", 0.9),
+      p99: percentile("score", 0.99),
+      min: totals.minScore ?? 0,
+      max: totals.maxScore ?? 0,
+    },
+    combat: {
+      avgKills: totals.avgKills ?? 0,
+      killsPerMinute:
+        totals.avgTime > 0 ? (totals.avgKills ?? 0) / (totals.avgTime / 60) : 0,
+      avgMaxMultiplier: totals.avgMaxMultiplier ?? 0,
+      bestMultiplier: totals.bestMultiplier ?? 0,
+    },
   };
 }
 
