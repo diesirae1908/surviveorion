@@ -616,26 +616,103 @@ function ptMidnightEpoch(now = Date.now()) {
   return Math.floor((now - off) / day) * day + off;
 }
 
-/**
- * [start, end) epoch ms bounding one Pacific Time calendar day, for the
- * admin dashboard's date selector. `dateStr` is "YYYY-MM-DD"; omitted means
- * today (PT). Returns null on a malformed string so the caller can 400.
- */
-function ptDateBounds(dateStr) {
-  const day = 24 * 3600 * 1000;
-  if (!dateStr) {
-    const start = ptMidnightEpoch();
-    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver" }).format(start);
-    return { start, end: start + day, dateStr: parts };
-  }
+/** Format an epoch ms as "YYYY-MM-DD" in Pacific Time. */
+function ptDateStr(epoch) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver" }).format(epoch);
+}
+
+/** Epoch ms of PT midnight on a given "YYYY-MM-DD" date, or null if malformed. */
+function parsePtDate(dateStr) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
   if (!m) return null;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
   // Noon UTC on that date is close enough to the real day to pick the right
   // PDT/PST offset (same DST tolerance already accepted elsewhere here).
   const off = ptOffsetMs(Date.UTC(y, mo - 1, d, 12, 0, 0));
-  const start = Date.UTC(y, mo - 1, d, 0, 0, 0) + off;
-  return { start, end: start + day, dateStr };
+  return Date.UTC(y, mo - 1, d, 0, 0, 0) + off;
+}
+
+/** Shift a "YYYY-MM-DD" string by N calendar days (plain UTC arithmetic, no timezone). */
+function shiftDateStr(dateStr, days) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+const DEFAULT_RANGE_DAYS = 14; // no start/end params → last 14 PT days, matching the old rolling dashboard
+const MAX_RANGE_DAYS = 1827; // ~5 years — generous ceiling against a garbage/huge custom range
+const MAX_RANGE_BARS = 60; // per-day chart bars before we widen into multi-day buckets to stay readable
+
+/**
+ * [start, end) epoch ms bounding an inclusive range of Pacific Time calendar
+ * days, for the admin dashboard's range picker (presets + custom start/end).
+ * `startStr`/`endStr` are "YYYY-MM-DD"; omitting both defaults to the last
+ * `DEFAULT_RANGE_DAYS` PT days ending today. Returns null on a malformed,
+ * inverted (end before start), or oversized range so the caller can 400.
+ */
+function ptRangeBounds(startStr, endStr) {
+  const day = 24 * 3600 * 1000;
+  if (!startStr && !endStr) {
+    const end = ptMidnightEpoch() + day;
+    const start = end - DEFAULT_RANGE_DAYS * day;
+    return { start, end, startStr: ptDateStr(start), endStr: ptDateStr(end - day), days: DEFAULT_RANGE_DAYS };
+  }
+  if (!startStr || !endStr) return null; // custom range needs both ends
+  const start = parsePtDate(startStr);
+  const endDayStart = parsePtDate(endStr);
+  if (start == null || endDayStart == null) return null;
+  const end = endDayStart + day;
+  if (end <= start) return null;
+  const days = Math.round((end - start) / day);
+  if (days > MAX_RANGE_DAYS) return null;
+  return { start, end, startStr, endStr, days };
+}
+
+/**
+ * True all-time bounds: earliest recorded run/visit through today (PT).
+ * Not subject to MAX_RANGE_DAYS since it's bounded by real data, not user input.
+ */
+function allTimeBounds() {
+  const day = 24 * 3600 * 1000;
+  const end = ptMidnightEpoch() + day;
+  const earliest = db
+    .prepare(
+      `SELECT MIN(t) AS t FROM (
+         SELECT created_at AS t FROM runs
+         UNION ALL
+         SELECT created_at AS t FROM visits
+       )`,
+    )
+    .get()?.t;
+  const start = earliest != null ? ptMidnightEpoch(earliest) : end - day;
+  const days = Math.max(1, Math.round((end - start) / day));
+  return { start, end, startStr: ptDateStr(start), endStr: ptDateStr(end - day), days };
+}
+
+/**
+ * Bucketed counts for a per-day chart, chunked to at most MAX_RANGE_BARS bars
+ * so long ranges stay readable. `table`/`idCol` are always hardcoded literals
+ * at the call site, never request-controlled. Returns oldest → newest.
+ */
+function bucketSeries(table, idCol, start, end, startStr, totalDays, chunkDays) {
+  const chunkMs = chunkDays * 24 * 3600 * 1000;
+  const rows = db
+    .prepare(
+      `SELECT CAST((created_at - ?) / ? AS INTEGER) AS idx, COUNT(*) AS n, COUNT(DISTINCT ${idCol}) AS uniq
+       FROM ${table} WHERE created_at >= ? AND created_at < ? GROUP BY idx`,
+    )
+    .all(start, chunkMs, start, end);
+  const byIdx = new Map(rows.map((r) => [r.idx, r]));
+  const numBuckets = Math.ceil(totalDays / chunkDays);
+  const series = [];
+  for (let i = 0; i < numBuckets; i++) {
+    const r = byIdx.get(i);
+    const from = shiftDateStr(startStr, i * chunkDays);
+    const to = shiftDateStr(startStr, Math.min(totalDays, (i + 1) * chunkDays) - 1);
+    series.push({ label: chunkDays > 1 ? from + ".." + to : from, n: r?.n ?? 0, uniq: r?.uniq ?? 0 });
+  }
+  return series;
 }
 
 // --- visits (anonymous traffic beacons; admin dashboard only) ---
@@ -645,49 +722,6 @@ export function addVisit({ ipHash, country = "", ref = "", path = "", platform =
     `INSERT INTO visits (ip_hash, country, ref, path, platform, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
   ).run(ipHash, country, ref, path, platform, Date.now());
-}
-
-/** Traffic overview for the admin dashboard. Days + "today" are Pacific Time. */
-export function trafficStats() {
-  const now = Date.now();
-  const day = 24 * 3600 * 1000;
-
-  const window = (since) =>
-    db
-      .prepare(
-        `SELECT COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
-         FROM visits WHERE created_at > ?`,
-      )
-      .get(since);
-
-  // Shift epochs by the current PT offset so date() buckets on Vancouver days.
-  const perDay = db
-    .prepare(
-      `SELECT date((created_at - ?) / 1000, 'unixepoch') AS day,
-              COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
-       FROM visits GROUP BY day ORDER BY day DESC LIMIT 14`,
-    )
-    .all(ptOffsetMs(now));
-
-  const top = (column, since) =>
-    db
-      .prepare(
-        `SELECT ${column} AS k, COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
-         FROM visits WHERE created_at > ? AND ${column} != ''
-         GROUP BY ${column} ORDER BY visits DESC LIMIT 12`,
-      )
-      .all(since);
-
-  return {
-    today: window(ptMidnightEpoch(now)), // since midnight PT, not rolling 24h
-    week: window(now - 7 * day),
-    total: window(0),
-    perDay,
-    countries: top("country", now - 14 * day),
-    referrers: top("ref", now - 14 * day),
-    platforms: top("platform", now - 14 * day),
-    paths: top("path", now - 14 * day),
-  };
 }
 
 // --- runs (analytics telemetry; leaderboards use the scores table) ---
@@ -709,74 +743,23 @@ export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, m
   );
 }
 
-/** Nth-percentile of a runs column (0..1), by sorted offset. */
-function runPercentile(column, p, total) {
-  if (!total) return 0;
-  const offset = Math.min(total - 1, Math.max(0, Math.floor((total - 1) * p)));
-  return (
-    db.prepare(`SELECT ${column} AS v FROM runs ORDER BY ${column} LIMIT 1 OFFSET ?`).get(offset)
-      ?.v ?? 0
-  );
-}
-
-/** Everything the admin dashboard shows, in one call. */
+/**
+ * True all-time snapshot for the admin dashboard (registered pilots,
+ * returning players, all-time visits/runs). Everything time-scoped
+ * (per-day charts, countries, device/mode shares, game length/score/combat)
+ * now lives in adminStatsForRange() below, driven by the range picker.
+ */
 export function adminStats() {
-  const now = Date.now();
-  const day = 24 * 3600 * 1000;
-
   const totals = db
     .prepare(
       `SELECT COUNT(*) AS runs,
               COUNT(DISTINCT user_id) AS signedInPlayers,
-              SUM(user_id IS NULL) AS anonRuns,
-              AVG(time_survived) AS avgTime,
-              MIN(time_survived) AS minTime,
-              MAX(time_survived) AS maxTime,
-              AVG(score) AS avgScore,
-              MIN(score) AS minScore,
-              MAX(score) AS maxScore,
-              AVG(kills) AS avgKills,
-              AVG(max_multiplier) AS avgMaxMultiplier,
-              MAX(max_multiplier) AS bestMultiplier
+              SUM(user_id IS NULL) AS anonRuns
        FROM runs`,
     )
     .get();
-  const n = totals.runs ?? 0;
 
-  const bucket = (lo, hi) =>
-    db
-      .prepare(
-        `SELECT COUNT(*) AS c FROM runs WHERE time_survived >= ? AND time_survived < ?`,
-      )
-      .get(lo, hi).c;
-
-  // Pacific Time days (current PT offset — see the PT helpers above).
-  const perDay = db
-    .prepare(
-      `SELECT date((created_at - ?) / 1000, 'unixepoch') AS day, COUNT(*) AS runs,
-              COUNT(DISTINCT user_id) AS players
-       FROM runs GROUP BY day ORDER BY day DESC LIMIT 14`,
-    )
-    .all(ptOffsetMs(now));
-
-  const modeSplit = db
-    .prepare(`SELECT mode, COUNT(*) AS runs FROM runs GROUP BY mode`)
-    .all();
-  const platformSplit = db
-    .prepare(`SELECT platform, COUNT(*) AS runs FROM runs GROUP BY platform`)
-    .all();
-  const gameModeSplit = db
-    .prepare(`SELECT game_mode AS gameMode, COUNT(*) AS runs FROM runs GROUP BY game_mode`)
-    .all();
-
-  const users = db
-    .prepare(
-      `SELECT COUNT(*) AS total,
-              SUM(created_at > ?) AS newToday,
-              SUM(created_at > ?) AS newThisWeek
-       FROM users`,
-    )
-    .get(ptMidnightEpoch(now), now - 7 * day); // "today" = since midnight PT
+  const users = db.prepare(`SELECT COUNT(*) AS total FROM users`).get();
 
   const returning = db
     .prepare(
@@ -786,6 +769,10 @@ export function adminStats() {
        )`,
     )
     .get().c;
+
+  const visitTotals = db
+    .prepare(`SELECT COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques FROM visits`)
+    .get();
 
   const community = {
     feedback: db.prepare(`SELECT COUNT(*) AS c FROM feedback`).get().c,
@@ -800,59 +787,33 @@ export function adminStats() {
   };
 
   return {
-    users: { ...users, returningPlayers: returning },
-    traffic: trafficStats(),
-    runs: {
-      total: n,
-      anonymous: totals.anonRuns ?? 0,
+    allTime: {
+      registeredPilots: users.total ?? 0,
+      returningPlayers: returning,
+      runs: totals.runs ?? 0,
       signedInPlayers: totals.signedInPlayers ?? 0,
-      perDay,
-      modeSplit,
-      platformSplit,
-      gameModeSplit,
-    },
-    gameLength: {
-      avg: totals.avgTime ?? 0,
-      median: runPercentile("time_survived", 0.5, n),
-      min: totals.minTime ?? 0,
-      max: totals.maxTime ?? 0,
-      buckets: {
-        "under 30s": bucket(0, 30),
-        "30-60s": bucket(30, 60),
-        "1-2m": bucket(60, 120),
-        "2-5m": bucket(120, 300),
-        "5m+": bucket(300, Number.MAX_SAFE_INTEGER),
-      },
-    },
-    score: {
-      avg: totals.avgScore ?? 0,
-      median: runPercentile("score", 0.5, n),
-      p90: runPercentile("score", 0.9, n),
-      p99: runPercentile("score", 0.99, n),
-      min: totals.minScore ?? 0,
-      max: totals.maxScore ?? 0,
-    },
-    combat: {
-      avgKills: totals.avgKills ?? 0,
-      killsPerMinute:
-        totals.avgTime > 0 ? (totals.avgKills ?? 0) / (totals.avgTime / 60) : 0,
-      avgMaxMultiplier: totals.avgMaxMultiplier ?? 0,
-      bestMultiplier: totals.bestMultiplier ?? 0,
+      anonymousRuns: totals.anonRuns ?? 0,
+      visitors: visitTotals.uniques ?? 0,
+      visits: visitTotals.visits ?? 0,
     },
     community,
   };
 }
 
 /**
- * Analytics for one Pacific Time calendar day, for the admin dashboard's
- * date selector (`dateStr` "YYYY-MM-DD", omitted = today). Mirrors the
- * runs/traffic slices of adminStats() above but scoped to that single day
- * instead of all-time / rolling windows. Returns null on a bad date string.
+ * Everything the admin dashboard's range picker needs, scoped to a Pacific
+ * Time date range (inclusive). Pass `{ start, end }` as "YYYY-MM-DD" strings
+ * (both required together), or `{ all: true }` for true all-time (earliest
+ * recorded activity through today). Omitting start/end defaults to the last
+ * `DEFAULT_RANGE_DAYS` PT days. Mirrors the query shapes of the old
+ * adminStats()/adminStatsForDay() but scoped to the resolved range, plus a
+ * same-length previous-period comparison for the headline tiles. Returns
+ * null on a malformed, inverted, or oversized range.
  */
-export function adminStatsForDay(dateStr) {
-  const bounds = ptDateBounds(dateStr);
+export function adminStatsForRange({ start: startStr, end: endStr, all = false } = {}) {
+  const bounds = all ? allTimeBounds() : ptRangeBounds(startStr, endStr);
   if (!bounds) return null;
-  const { start, end, dateStr: date } = bounds;
+  const { start, end, startStr: rangeStart, endStr: rangeEnd, days } = bounds;
 
   const visits = db
     .prepare(
@@ -921,8 +882,45 @@ export function adminStatsForDay(dateStr) {
     .prepare(`SELECT COUNT(*) AS c FROM users WHERE created_at >= ? AND created_at < ?`)
     .get(start, end).c;
 
+  const chunkDays = Math.max(1, Math.ceil(days / MAX_RANGE_BARS));
+  const visitBuckets = bucketSeries("visits", "ip_hash", start, end, rangeStart, days, chunkDays);
+  const runBuckets = bucketSeries("runs", "user_id", start, end, rangeStart, days, chunkDays);
+
+  // Same-length window immediately before the range, for "vs previous
+  // period" deltas on the headline tiles. Skipped for all-time — there's no
+  // meaningful "before all-time".
+  const prev = all
+    ? null
+    : (() => {
+        const span = end - start;
+        const pStart = start - span;
+        const pEnd = start;
+        const v = db
+          .prepare(
+            `SELECT COUNT(*) AS visits, COUNT(DISTINCT ip_hash) AS uniques
+             FROM visits WHERE created_at >= ? AND created_at < ?`,
+          )
+          .get(pStart, pEnd);
+        const r = db
+          .prepare(`SELECT COUNT(*) AS runs FROM runs WHERE created_at >= ? AND created_at < ?`)
+          .get(pStart, pEnd);
+        const u = db
+          .prepare(`SELECT COUNT(*) AS c FROM users WHERE created_at >= ? AND created_at < ?`)
+          .get(pStart, pEnd);
+        return { visits: v.visits ?? 0, uniques: v.uniques ?? 0, runs: r.runs ?? 0, newUsers: u.c ?? 0 };
+      })();
+  const pct = (cur, prior) => (prior > 0 ? Math.round(((cur - prior) / prior) * 100) : null);
+  const deltas = prev
+    ? {
+        visits: pct(visits.visits ?? 0, prev.visits),
+        uniques: pct(visits.uniques ?? 0, prev.uniques),
+        runs: pct(n, prev.runs),
+        newUsers: pct(newUsers, prev.newUsers),
+      }
+    : null;
+
   return {
-    date,
+    period: { start: rangeStart, end: rangeEnd, days, all },
     traffic: {
       visits: visits.visits ?? 0,
       uniques: visits.uniques ?? 0,
@@ -930,6 +928,7 @@ export function adminStatsForDay(dateStr) {
       referrers: topVisits("ref"),
       platforms: topVisits("platform"),
       paths: topVisits("path"),
+      perBucket: visitBuckets.map((b) => ({ day: b.label, visits: b.n, uniques: b.uniq })),
     },
     users: { new: newUsers },
     runs: {
@@ -939,6 +938,7 @@ export function adminStatsForDay(dateStr) {
       modeSplit: split("mode").map((r) => ({ mode: r.k, runs: r.runs })),
       platformSplit: split("platform").map((r) => ({ platform: r.k, runs: r.runs })),
       gameModeSplit: split("game_mode").map((r) => ({ gameMode: r.k, runs: r.runs })),
+      perBucket: runBuckets.map((b) => ({ day: b.label, runs: b.n, players: b.uniq })),
     },
     gameLength: {
       avg: totals.avgTime ?? 0,
@@ -968,6 +968,7 @@ export function adminStatsForDay(dateStr) {
       avgMaxMultiplier: totals.avgMaxMultiplier ?? 0,
       bestMultiplier: totals.bestMultiplier ?? 0,
     },
+    deltas,
   };
 }
 

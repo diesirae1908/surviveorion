@@ -637,15 +637,20 @@ const routes = {
 
   "GET /api/admin/stats": (req, res, user, url) => {
     if (!isAdmin(req)) return json(res, 404, { error: "not found" });
-    const dateParam = url.searchParams.get("date");
-    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const startParam = url.searchParams.get("start");
+    const endParam = url.searchParams.get("end");
+    const allParam = url.searchParams.get("all") === "1";
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    if ((startParam && !DATE_RE.test(startParam)) || (endParam && !DATE_RE.test(endParam))) {
       return json(res, 400, { error: "invalid date" });
     }
-    // `day` is the date-selector slice (defaults to today, PT); everything
-    // else here is the existing all-time / rolling dashboard, unchanged.
-    const day = store.adminStatsForDay(dateParam || undefined);
-    if (dateParam && !day) return json(res, 400, { error: "invalid date" });
-    json(res, 200, { ...store.adminStats(), day });
+    // `range` is the range-picker slice (no params = last 14 PT days);
+    // `allTime`/`community` on adminStats() are the true all-time snapshot.
+    const range = allParam
+      ? store.adminStatsForRange({ all: true })
+      : store.adminStatsForRange({ start: startParam || undefined, end: endParam || undefined });
+    if (!range) return json(res, 400, { error: "invalid range" });
+    json(res, 200, { ...store.adminStats(), range });
   },
 
   "GET /api/admin/feedback": (req, res) => {
@@ -785,10 +790,22 @@ const ADMIN_PAGE = /* html */ `<!doctype html>
   button { background: #ffd700; border: 0; color: #08080f; font: inherit; padding: 10px 22px;
            cursor: pointer; margin-left: 8px; }
   button:disabled { background: rgba(170,136,68,.4); color: #4a4a3a; cursor: default; }
-  .daynav { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; flex-wrap: wrap; }
-  .daynav input[type="date"] { width: 160px; margin: 0; color-scheme: dark; }
-  .daynav button { margin-left: 0; padding: 8px 16px; }
-  .daynav .today { background: transparent; border: 1px solid #aa8844; color: #ffd700; }
+  .rangebar { display: flex; align-items: center; justify-content: space-between; gap: 16px 24px;
+              margin: 10px 0 4px; flex-wrap: wrap; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .presetbtn { background: transparent; border: 1px solid rgba(170,136,68,.6); color: #ffd700;
+               font: inherit; font-size: 12px; padding: 7px 12px; border-radius: 3px; cursor: pointer;
+               margin: 0; letter-spacing: .02em; }
+  .presetbtn:hover { border-color: #ffd700; }
+  .presetbtn.active { background: #ffd700; color: #08080f; border-color: #ffd700; }
+  .customrange { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .customrange input[type="date"] { width: 150px; margin: 0; color-scheme: dark; padding: 8px 10px; }
+  .customrange button { margin-left: 0; padding: 8px 16px; }
+  #range-label { font-size: 13px; letter-spacing: .04em; }
+  .delta { font-size: 11px; margin-left: 6px; }
+  .delta.up { color: #6fcf6f; }
+  .delta.down { color: #ff6b6b; }
+  .delta.flat { color: #8a7a55; }
   .err { color: #ff4455; margin-top: 10px; }
   .muted { color: #8a7a55; }
   pre { white-space: pre-wrap; margin: 0; font: 12px/1.5 monospace; }
@@ -831,6 +848,10 @@ const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString(undefined
 const secs = (s) => s == null ? "—" : s >= 60 ? Math.floor(s / 60) + "m " + Math.round(s % 60) + "s" : Math.round(s) + "s";
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const stat = (k, v) => '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + "</div></div>";
+/** delta is a signed percent (or null/undefined to skip the badge) vs the previous period. */
+const deltaBadge = (pct) => pct == null ? "" :
+  '<span class="delta ' + (pct > 0 ? "up" : pct < 0 ? "down" : "flat") + '">' + (pct > 0 ? "+" : "") + pct + "%</span>";
+const statD = (k, v, pct) => '<div class="stat"><div class="v">' + v + deltaBadge(pct) + '</div><div class="k">' + k + "</div></div>";
 const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : "";
 const GOLD = "#ffd700", RED = "rgba(196,30,58,.75)", BLUE = "#7fb8d4", BRONZE = "#aa8844";
 
@@ -845,11 +866,17 @@ function hbars(rows, empty) {
   ).join("");
 }
 
-/** Per-day columns, oldest → newest. days = [{ day, a (gold), b (dim red) }]. */
-function colchart(days, aName, bName) {
-  if (!days.length) return '<div class="muted">nothing yet</div>';
-  const max = Math.max.apply(null, days.map((d) => Math.max(d.a, d.b)).concat([1]));
-  const cols = days.map((d) => {
+// Bucket labels are either one PT date ("2026-07-30") or a chunked span
+// ("2026-07-01..2026-07-07") when the range has more days than fit as
+// single-day bars — see MAX_RANGE_BARS in db.mjs.
+const shortDate = (s) => s.slice(5).replace("-", "/");
+const bucketLabel = (raw) => (raw.includes("..") ? raw.split("..").map(shortDate).join("-") : shortDate(raw));
+
+/** Per-bucket columns, oldest → newest. buckets = [{ day, a (gold), b (dim red) }]. */
+function colchart(buckets, aName, bName) {
+  if (!buckets.length) return '<div class="muted">nothing yet</div>';
+  const max = Math.max.apply(null, buckets.map((d) => Math.max(d.a, d.b)).concat([1]));
+  const cols = buckets.map((d) => {
     const title = esc(d.day + " — " + fmt(d.b) + " " + bName + ", " + fmt(d.a) + " " + aName);
     return '<div class="colwrap" title="' + title + '">' +
       '<div class="colval">' + (d.b || "") + "</div>" +
@@ -857,7 +884,7 @@ function colchart(days, aName, bName) {
         '<div class="b" style="height:' + ((d.b / max) * 100).toFixed(1) + '%"></div>' +
         '<div class="a" style="height:' + ((d.a / max) * 100).toFixed(1) + '%"></div>' +
       "</div>" +
-      '<div class="collabel">' + d.day.slice(5).replace("-", "/") + "</div>" +
+      '<div class="collabel">' + bucketLabel(d.day) + "</div>" +
     "</div>";
   }).join("");
   return '<div class="legend"><span><span class="chip" style="background:linear-gradient(180deg,#ffee88,#cc8800)"></span>' +
@@ -880,58 +907,71 @@ function splitBar(parts) {
     "</div>";
 }
 
-/** One stats/splits panel for a single day (used by the date selector). */
-function renderDay(day) {
-  const body = document.getElementById("day-body");
+/** Full range report panel (headline tiles, per-period charts, breakdowns). s is the range payload
+    from GET /api/admin/stats — one level in from the top response, i.e. topLevel.range. */
+function renderRange(s) {
+  const r = s.period;
+  const d = s.deltas;
+  const label = document.getElementById("range-label");
+  if (label) label.textContent = formatRangeLabel(r);
+  highlightPreset();
+  const body = document.getElementById("range-body");
   if (!body) return;
-  if (!day) { body.innerHTML = "<p class='err'>No data for that date.</p>"; return; }
   body.innerHTML =
     "<div class='grid'>" +
-      stat("visitors", fmt(day.traffic.uniques)) +
-      stat("visits", fmt(day.traffic.visits)) +
-      stat("new pilots", fmt(day.users.new)) +
-      stat("runs", fmt(day.runs.total)) +
-      stat("signed-in players", fmt(day.runs.signedInPlayers)) +
-      stat("anonymous runs", fmt(day.runs.anonymous)) +
+      statD("visitors", fmt(s.traffic.uniques), d && d.uniques) +
+      statD("visits", fmt(s.traffic.visits), d && d.visits) +
+      statD("new pilots", fmt(s.users.new), d && d.newUsers) +
+      statD("runs", fmt(s.runs.total), d && d.runs) +
+      stat("signed-in players", fmt(s.runs.signedInPlayers)) +
+      stat("anonymous runs", fmt(s.runs.anonymous)) +
     "</div>" +
+    "<h3>Visits per period</h3>" +
+      colchart(s.traffic.perBucket.map((v) => ({ day: v.day, a: v.uniques, b: v.visits })), "visitors", "visits") +
+    "<h3>Runs per period</h3>" +
+      colchart(s.runs.perBucket.map((v) => ({ day: v.day, a: v.players, b: v.runs })), "signed-in players", "runs") +
     "<div class='row2'>" +
       "<div class='panel'><h3>Countries</h3>" +
-        hbars(day.traffic.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "no traffic that day") +
+        hbars(s.traffic.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "no traffic in this range") +
       "</div>" +
       "<div class='panel'><h3>Referrers</h3>" +
-        hbars(day.traffic.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "direct visits only") +
+        hbars(s.traffic.referrers.map((rr) => ({ label: esc(rr.k), value: rr.uniques, val: fmt(rr.uniques) + " visitors" })), "direct visits only") +
       "</div>" +
       "<div class='panel'><h3>Site face</h3>" +
-        splitBar(day.traffic.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
+        splitBar(s.traffic.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
       "</div>" +
       "<div class='panel'><h3>Devices</h3>" +
-        splitBar(day.traffic.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
+        splitBar(s.traffic.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
       "</div>" +
     "</div>" +
     "<div class='row2'>" +
       "<div class='panel'><h3>Boards</h3>" +
-        splitBar(day.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
+        splitBar(s.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
       "</div>" +
       "<div class='panel'><h3>Game modes</h3>" +
-        splitBar(day.runs.gameModeSplit.map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
+        splitBar(s.runs.gameModeSplit.map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
       "</div>" +
     "</div>" +
     "<div class='row2'>" +
       "<div class='panel'><h3>Game length</h3><div class='grid'>" +
-        stat("average", secs(day.gameLength.avg)) + stat("median", secs(day.gameLength.median)) + stat("longest", secs(day.gameLength.max)) +
-      "</div></div>" +
+        stat("average", secs(s.gameLength.avg)) + stat("median", secs(s.gameLength.median)) + stat("longest", secs(s.gameLength.max)) +
+      "</div><h3>Distribution</h3>" +
+        hbars(Object.entries(s.gameLength.buckets).map(([k, v]) => ({ label: esc(k), value: v, val: fmt(v) + " runs" })), "nothing yet") +
+      "</div>" +
       "<div class='panel'><h3>Score</h3><div class='grid'>" +
-        stat("average", fmt(day.score.avg)) + stat("median", fmt(day.score.median)) + stat("best", fmt(day.score.max)) +
+        stat("average", fmt(s.score.avg)) + stat("median", fmt(s.score.median)) +
+        stat("p90", fmt(s.score.p90)) + stat("p99", fmt(s.score.p99)) + stat("best", fmt(s.score.max)) +
       "</div></div>" +
       "<div class='panel'><h3>Combat</h3><div class='grid'>" +
-        stat("avg kills", fmt(day.combat.avgKills, 1)) + stat("best multiplier", "x" + fmt(day.combat.bestMultiplier, 1)) +
+        stat("avg kills", fmt(s.combat.avgKills, 1)) + stat("kills / minute", fmt(s.combat.killsPerMinute, 1)) +
+        stat("avg peak multiplier", "x" + fmt(s.combat.avgMaxMultiplier, 1)) + stat("best multiplier", "x" + fmt(s.combat.bestMultiplier, 1)) +
       "</div></div>" +
     "</div>";
 }
 
 let ADMIN_AUTH = null;
-let TODAY = null;   // today's date (PT, "YYYY-MM-DD"), from the server
-let currentDay = null;
+let TODAY = null;        // today's date (PT, "YYYY-MM-DD"), from the server's default range
+let activePreset = null; // id of the currently selected preset, or null when a custom range is applied
 
 /** Shift a "YYYY-MM-DD" string by N calendar days (plain UTC arithmetic, no timezone). */
 function shiftDate(dateStr, days) {
@@ -940,26 +980,64 @@ function shiftDate(dateStr, days) {
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().slice(0, 10);
 }
+function startOfWeek(dateStr) { // Monday of the week containing dateStr
+  const [y, m, dd] = dateStr.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, dd)).getUTCDay(); // 0 = Sun .. 6 = Sat
+  return shiftDate(dateStr, -((dow + 6) % 7));
+}
+const startOfMonth = (dateStr) => dateStr.slice(0, 8) + "01";
+const startOfYear = (dateStr) => dateStr.slice(0, 4) + "-01-01";
 
-function setDayControls(dateStr) {
-  currentDay = dateStr;
-  document.getElementById("day-date").value = dateStr;
-  document.getElementById("day-next").disabled = dateStr >= TODAY;
+const PRESETS = [
+  { id: "today", label: "Today", range: () => ({ start: TODAY, end: TODAY }) },
+  { id: "yesterday", label: "Yesterday", range: () => { const d = shiftDate(TODAY, -1); return { start: d, end: d }; } },
+  { id: "last7", label: "Last 7 days", range: () => ({ start: shiftDate(TODAY, -6), end: TODAY }) },
+  { id: "last14", label: "Last 14 days", range: () => ({ start: shiftDate(TODAY, -13), end: TODAY }) },
+  { id: "last30", label: "Last 30 days", range: () => ({ start: shiftDate(TODAY, -29), end: TODAY }) },
+  { id: "last90", label: "Last 90 days", range: () => ({ start: shiftDate(TODAY, -89), end: TODAY }) },
+  { id: "wtd", label: "Week to date", range: () => ({ start: startOfWeek(TODAY), end: TODAY }) },
+  { id: "mtd", label: "Month to date", range: () => ({ start: startOfMonth(TODAY), end: TODAY }) },
+  { id: "ytd", label: "Year to date", range: () => ({ start: startOfYear(TODAY), end: TODAY }) },
+  { id: "all", label: "All time", range: () => ({ all: true }) },
+];
+
+function formatRangeLabel(r) {
+  const human = (dstr) => { const [y, m, dd] = dstr.split("-"); return m + "/" + dd + "/" + y; };
+  const span = r.start === r.end ? human(r.start) : human(r.start) + " \u2013 " + human(r.end);
+  return (r.all ? "All time \u2014 " : "") + span + " (" + r.days + (r.days === 1 ? " day" : " days") + ")";
 }
 
-async function loadDay(dateStr) {
-  const res = await fetch("/api/admin/stats?date=" + dateStr, ADMIN_AUTH);
+function highlightPreset() {
+  document.querySelectorAll(".presetbtn").forEach((b) => b.classList.toggle("active", b.dataset.preset === activePreset));
+}
+
+async function loadRange(query) {
+  const res = await fetch("/api/admin/stats?" + query, ADMIN_AUTH);
   const s = await res.json();
-  if (!res.ok || !s.day) {
-    document.getElementById("day-body").innerHTML = "<p class='err'>" + esc(s.error ?? "no data") + "</p>";
+  if (!res.ok || !s.range) {
+    document.getElementById("range-body").innerHTML = "<p class='err'>" + esc(s.error ?? "no data") + "</p>";
     return;
   }
-  renderDay(s.day);
-  setDayControls(s.day.date);
+  renderRange(s.range); // s.range is the whole range payload (itself has a nested .range for the bounds)
 }
 
-function navDay(delta) { loadDay(shiftDate(currentDay, delta)); }
-function jumpToday() { loadDay(TODAY); }
+function choosePreset(id) {
+  const preset = PRESETS.find((p) => p.id === id);
+  if (!preset) return;
+  activePreset = id;
+  const r = preset.range();
+  document.getElementById("range-start").value = r.all ? "" : r.start;
+  document.getElementById("range-end").value = r.all ? "" : r.end;
+  loadRange(r.all ? "all=1" : "start=" + r.start + "&end=" + r.end);
+}
+
+function applyCustomRange() {
+  const start = document.getElementById("range-start").value;
+  const end = document.getElementById("range-end").value;
+  if (!start || !end) return;
+  activePreset = null;
+  loadRange("start=" + start + "&end=" + end);
+}
 
 async function go() {
   const key = document.getElementById("key").value.trim();
@@ -972,86 +1050,33 @@ async function go() {
   document.getElementById("gate").style.display = "none";
   const d = document.getElementById("dash");
   d.style.display = "";
-  const t = s.traffic ?? null;
   ADMIN_AUTH = auth;
-  TODAY = s.day ? s.day.date : null;
+  TODAY = s.range.period.end; // the default range (last 14 PT days) ends today
+  activePreset = "last14";
+  const at = s.allTime;
   d.innerHTML =
-    "<h2>Day report</h2>" +
-    "<div class='daynav'>" +
-      "<button onclick='navDay(-1)'>&#9664; prev day</button>" +
-      "<input id='day-date' type='date' max='" + esc(TODAY) + "'>" +
-      "<button id='day-next' onclick='navDay(1)'>next day &#9654;</button>" +
-      "<button class='today' onclick='jumpToday()'>today</button>" +
-    "</div>" +
-    "<div id='day-body'></div>" +
-    "<p class='muted'>Pick a date to see that day's traffic, runs, and performance. Everything below stays all-time / rolling.</p>" +
-    "<p class='muted'>Days and \\"today\\" counters are Pacific Time (PT). Weeks are rolling 7 days.</p>" +
-    (t ? (
-    "<h2>Traffic</h2><div class='grid'>" +
-      stat("visitors today", fmt(t.today.uniques)) +
-      stat("visits today", fmt(t.today.visits)) +
-      stat("visitors (7 days)", fmt(t.week.uniques)) +
-      stat("visits (7 days)", fmt(t.week.visits)) +
-      stat("visitors all-time", fmt(t.total.uniques)) +
-      stat("visits all-time", fmt(t.total.visits)) +
-    "</div>" +
-    "<h3>Visits per day (last 14)</h3>" +
-      colchart(t.perDay.slice().reverse().map((v) => ({ day: v.day, a: v.uniques, b: v.visits })), "visitors", "visits") +
-    "<div class='row2'>" +
-      "<div class='panel'><h3>Countries (14d)</h3>" +
-        hbars(t.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "nothing yet") +
+    "<h2>Range report</h2>" +
+    "<div class='rangebar'>" +
+      "<div class='presets' id='presets'>" +
+        PRESETS.map((p) => "<button class='presetbtn' data-preset='" + p.id + "'>" + esc(p.label) + "</button>").join("") +
       "</div>" +
-      "<div class='panel'><h3>Referrers (14d)</h3>" +
-        hbars(t.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "direct visits only so far") +
-      "</div>" +
-      "<div class='panel'><h3>Site face (14d)</h3>" +
-        splitBar(t.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
-      "</div>" +
-      "<div class='panel'><h3>Devices (14d)</h3>" +
-        splitBar(t.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
-      "</div>" +
-    "</div>"
-    ) : "") +
-    "<h2>Pilots</h2><div class='grid'>" +
-      stat("registered pilots", fmt(s.users.total)) +
-      stat("new this week", fmt(s.users.newThisWeek)) +
-      stat("new today", fmt(s.users.newToday)) +
-      stat("returning (&gt;1 run)", fmt(s.users.returningPlayers)) +
-    "</div>" +
-    "<h2>Runs</h2><div class='grid'>" +
-      stat("total runs", fmt(s.runs.total)) +
-      stat("anonymous runs", fmt(s.runs.anonymous)) +
-      stat("signed-in players", fmt(s.runs.signedInPlayers)) +
-    "</div>" +
-    "<h3>Runs per day (last 14)</h3>" +
-      colchart(s.runs.perDay.slice().reverse().map((r) => ({ day: r.day, a: r.players, b: r.runs })), "signed-in players", "runs") +
-    "<div class='row2'>" +
-      "<div class='panel'><h3>Boards</h3>" +
-        splitBar(s.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
-      "</div>" +
-      "<div class='panel'><h3>Game modes</h3>" +
-        splitBar((s.runs.gameModeSplit ?? []).map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
+      "<div class='customrange'>" +
+        "<input id='range-start' type='date' max='" + esc(TODAY) + "'>" +
+        "<span class='muted'>to</span>" +
+        "<input id='range-end' type='date' max='" + esc(TODAY) + "'>" +
+        "<button onclick='applyCustomRange()'>Apply</button>" +
       "</div>" +
     "</div>" +
-    "<div class='row2'>" +
-      "<div class='panel'><h2>Game length</h2><div class='grid'>" +
-        stat("average", secs(s.gameLength.avg)) +
-        stat("median", secs(s.gameLength.median)) +
-        stat("longest", secs(s.gameLength.max)) +
-      "</div><h3>Distribution</h3>" +
-        hbars(Object.entries(s.gameLength.buckets).map(([k, v]) => ({ label: esc(k), value: v, val: fmt(v) + " runs" })), "nothing yet") +
-      "</div>" +
-      "<div class='panel'><h2>Score</h2><div class='grid'>" +
-        stat("average", fmt(s.score.avg)) + stat("median", fmt(s.score.median)) +
-        stat("p90", fmt(s.score.p90)) + stat("p99", fmt(s.score.p99)) +
-        stat("best", fmt(s.score.max)) +
-      "</div>" +
-      "<h2>Combat</h2><div class='grid'>" +
-        stat("avg kills / run", fmt(s.combat.avgKills, 1)) +
-        stat("kills / minute", fmt(s.combat.killsPerMinute, 1)) +
-        stat("avg peak multiplier", "x" + fmt(s.combat.avgMaxMultiplier, 1)) +
-        stat("best multiplier", "x" + fmt(s.combat.bestMultiplier, 1)) +
-      "</div></div>" +
+    "<p id='range-label' class='muted'></p>" +
+    "<div id='range-body'></div>" +
+    "<p class='muted'>Days are Pacific Time (PT). Percent deltas (where shown) compare to the same-length period right before the selected range.</p>" +
+    "<h2>All time</h2><div class='grid'>" +
+      stat("registered pilots", fmt(at.registeredPilots)) +
+      stat("returning (&gt;1 run)", fmt(at.returningPlayers)) +
+      stat("visitors", fmt(at.visitors)) +
+      stat("visits", fmt(at.visits)) +
+      stat("total runs", fmt(at.runs)) +
+      stat("signed-in players", fmt(at.signedInPlayers)) +
     "</div>" +
     "<h2>Community</h2><div class='grid'>" +
       stat("feedback reports", fmt(s.community.feedback)) +
@@ -1066,8 +1091,13 @@ async function go() {
         esc(f.callsign ?? "anon") + "</td><td>" + esc(f.email ?? "") + "</td><td><pre>" +
         esc(f.message) + "</pre><span class='muted'>" + esc(f.context) + "</span></td></tr>").join("") +
     "</table>";
-  document.getElementById("day-date").addEventListener("change", (e) => loadDay(e.target.value));
-  if (s.day) { renderDay(s.day); setDayControls(s.day.date); }
+  document.getElementById("presets").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-preset]");
+    if (btn) choosePreset(btn.dataset.preset);
+  });
+  document.getElementById("range-start").value = shiftDate(TODAY, -13);
+  document.getElementById("range-end").value = TODAY;
+  renderRange(s.range);
 }
 const saved = localStorage.getItem("orion.adminKey");
 if (saved) { document.getElementById("key").value = saved; go(); }

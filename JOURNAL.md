@@ -4,6 +4,74 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-07-30 (part 2): /admin range picker (Shopify-style presets + custom range, this commit)
+
+- Upgraded the single-day date selector shipped earlier today into a proper
+  date-range picker, because a picked day only scoped one panel while every
+  other chart/breakdown stayed on hardcoded rolling windows. Lucas asked for
+  it to work "like Shopify does it, with ranges available, and all" (screenshots
+  of Shopify's picker for reference).
+- API: `GET /api/admin/stats` now takes `?start=YYYY-MM-DD&end=YYYY-MM-DD`
+  (inclusive PT days, both required together) or `?all=1` for true all-time
+  (earliest recorded run/visit through today). No params defaults to the last
+  14 PT days, same feel as the old rolling dashboard. The old single `?date=`
+  param is gone; the inline admin page was its only consumer. Validates
+  garbage dates and end-before-start (400), caps custom ranges at roughly 5
+  years (`MAX_RANGE_DAYS` in `server/db.mjs`) so nobody can accidentally ask
+  for a 40-year table scan; all-time isn't capped since it's bounded by real
+  data.
+- `server/db.mjs`: replaced `ptDateBounds()`/`adminStatsForDay()` with
+  `ptRangeBounds()` (defaults + validation), `allTimeBounds()` (earliest
+  activity through today), and `adminStatsForRange()`, which generalizes the
+  old single-day slice into a range-scoped payload: traffic (visits/uniques,
+  countries/referrers/platforms/paths), runs (totals, mode/platform/game-mode
+  splits), game length/score/combat, plus a `period` (the resolved
+  start/end/days/all) and a `deltas` block (percent change vs. the
+  same-length period immediately before the range, skipped for all-time,
+  nice-to-have kept simple). Per-day chart bars are chunked into wider
+  buckets once a range exceeds 60 days (`MAX_RANGE_BARS`) so a year-long
+  range still renders as readable columns instead of an unreadable smear.
+  `adminStats()` is now a lean true-all-time snapshot (registered pilots,
+  returning players, all-time visits/runs) plus the untouched community
+  stats (feedback/arenas/badges); the old rolling 14-day traffic/runs
+  sections it used to carry are gone, superseded by the range picker.
+  Removed now-dead `trafficStats()`/`runPercentile()`.
+- `server/index.mjs`: the admin page's "Day report" panel became "Range
+  report", with preset buttons (Today, Yesterday, Last 7/14/30/90 days, Week/
+  Month/Year to date, All time) plus native `<input type="date">` start/end
+  fields with an Apply button, all styled to match the existing gold/red
+  aesthetic (no calendar widget, zero-dependency). Presets compute their
+  start/end client-side (`shiftDate`/`startOfWeek`/`startOfMonth`/
+  `startOfYear`, same plain-UTC-arithmetic style as the old day-nav) and hit
+  the range endpoint; the per-day column charts, countries/referrers/site-face/
+  device bars, and boards/game-mode splits are now all driven by
+  `renderRange()` off the picked range instead of being hardcoded to "last
+  14 days" text. Headline tiles show a small percent-delta badge when
+  available. Kept a slim "All time" section (registered pilots, returning
+  players, all-time visitors/visits/runs) and left Community/Recent feedback
+  untouched.
+- Tripwire I nearly tripped: the route wraps the whole range payload under a
+  top-level `range` key, and I'd originally also named the resolved
+  start/end/days/all bounds `range` inside that payload, a `range.range`
+  collision that silently broke the client (wrong object accessed). Renamed
+  the inner bounds to `period` before shipping; caught it by actually curling
+  the endpoint and inspecting the JSON shape rather than trusting the code
+  read-through.
+- Verified: `npm run build` (tsc + vite) green, `npx tsx scripts/sim-test.ts`
+  all green (unrelated to this change but run per AGENTS.md). Ran the
+  community server locally against the dev DB and curled `/api/admin/stats`
+  with no params (last 14 days, correctly empty since the dev DB's 15 seeded
+  runs are older), an explicit range covering the seeded data (correctly
+  picked up all 15), `all=1` (correctly spans from the earliest activity
+  date), a garbage date (400), end-before-start (400), start without end
+  (400), a 10-year custom range (400, over the cap), and a future date range
+  (200, all zeros); all matched expectations. Also drove the actual /admin
+  page in a browser end to end: logged in, switched between several presets,
+  and applied a custom range; stats/charts/labels/active-button-highlight all
+  updated correctly with no console errors and no NaN/undefined anywhere.
+- Committed on `sam/admin-range-picker` (not merged to main, not pushed to
+  origin/main; branch itself pushed). Dispatched by Sam.
+
 ## 2026-07-30 — /admin date selector (per-day drill-down) [MERGED + DEPLOYED same day: merge `70c6709`, live on Render ~4:49 PM PT, /admin verified serving the day-nav]
 
 - Added a date picker to `/admin` so Lucas can view analytics for any single
