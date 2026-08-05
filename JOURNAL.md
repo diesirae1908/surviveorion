@@ -4,6 +4,50 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-05 — Daily lobby: inline leaderboard replaces the Leaderboard screen (this commit)
+
+- Lucas asked to simplify the daily-only lobby (surviveorion.com root): the
+  separate Leaderboard screen (tabs, per-device mode dropdown) is gone from
+  that side, replaced with one merged ranking sitting directly under the
+  menu buttons — no tabs, no mode filter, every device in one list. The
+  `/fullgame` Leaderboard screen (`community.ts` `showWorldArena`) is
+  untouched; it still tabs Classic/Iron Rain × Desktop/Phone/Phone tilt.
+- Server (`server/db.mjs`, `server/index.mjs`): `GET /api/leaderboard/daily`
+  now accepts `mode=all` alongside the existing per-device modes. New
+  `dailyLeaderboardCombined()` groups today's daily runs by pilot across
+  every device with a `ROW_NUMBER()`/`COUNT()` window over `scores`
+  (confirmed `node:sqlite`'s bundled SQLite supports window functions before
+  relying on it), picking each pilot's best score and which device it was
+  set on; `dailyRankCombined()` gives one pilot's rank/best/device in that
+  merged board. Both hardcode `game_mode = 'classic'` since Daily Patrol is
+  always Classic — no schema change, purely additive queries alongside the
+  existing per-mode `leaderboard()`/`rankOf()`.
+- Client: `api.ts` gets `dailyLeaderboardCombined()` hitting the new
+  `mode=all` param. `ui.ts`'s `showDailyLobby` drops the "Leaderboard"
+  button and grows a bounded-scroll `.board` list (same class the world
+  board already uses — `max-height: min(46vh, 420px)`) titled "TODAY'S
+  BOARD", rows show rank/name/a subtle device tag (DESKTOP/PHONE/TILT text,
+  full name in the title attr)/score. `main.ts`'s new `fillDailyBoard()`
+  mirrors the existing `fillDailyHint()` fetch-after-render pattern: highlights
+  the viewer's own row gold in place if it's in the loaded window (reusing
+  the `.board-row.me` style from the world board), or appends a
+  `position: sticky; bottom: 0` pinned copy of it if their rank falls
+  outside the top 50 — no own-row at all if anonymous or no daily score yet.
+  Feedback footer link untouched.
+- Verified: `npm run build` (tsc + vite) clean, `npx tsx scripts/sim-test.ts`
+  all green (untouched gameplay code, ran it anyway per the task ask). Manual
+  check with `npm run dev` + `npm run server`: seeded local guest pilots
+  across desktop/touch/tilt daily scores, confirmed the combined ranking
+  merges correctly (best score wins regardless of device, ties broken by
+  earliest), confirmed a signed-in pilot's row gets the gold `.me` highlight
+  at its real position, and confirmed the server-side pinned-row math
+  (`rank > entries.length` on a truncated window) computes right. Screenshot-
+  verified in a real browser via a subagent — matches the gold/dark aesthetic
+  cleanly, no layout bugs. Cleared the local seeded test data from
+  `server/orion.db` (gitignored, dev-only) before finishing.
+- No destructive DB changes — additive queries only, real Render data
+  untouched by this change itself.
+
 ## 2026-07-30 — /admin date selector (per-day drill-down) [MERGED + DEPLOYED same day: merge `70c6709`, live on Render ~4:49 PM PT, /admin verified serving the day-nav]
 
 - Added a date picker to `/admin` so Lucas can view analytics for any single
