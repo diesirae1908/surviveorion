@@ -358,6 +358,69 @@ export function rankOf(userId, { country = null, arenaId = null, mode = "desktop
 }
 
 /**
+ * Combined daily leaderboard: one row per pilot, best score across ALL
+ * device modes for the UTC day merged into a single ranking (dailies are
+ * always Classic). `mode` on each row is the device the pilot's best run
+ * that day happened to be played on (ties broken by which came first) —
+ * shown as a subtle per-row tag on the daily-only lobby's inline board.
+ */
+export function dailyLeaderboardCombined({ dailyDate, limit = 100 }) {
+  return db
+    .prepare(
+      `WITH best_runs AS (
+         SELECT s.user_id, s.mode, s.score, s.time_survived, s.created_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY s.user_id ORDER BY s.score DESC, s.created_at ASC
+                ) AS rn,
+                COUNT(*) OVER (PARTITION BY s.user_id) AS runs
+         FROM scores s
+         WHERE s.daily_date = ? AND s.game_mode = 'classic'
+       )
+       SELECT u.id AS userId, u.callsign, u.country,
+              br.score AS best, br.runs AS runs, br.time_survived AS bestTime, br.mode AS mode
+       FROM best_runs br
+       JOIN users u ON u.id = br.user_id
+       WHERE br.rn = 1
+       ORDER BY br.score DESC, br.created_at ASC
+       LIMIT ?`,
+    )
+    .all(dailyDate, limit);
+}
+
+/**
+ * Combined daily rank for one user across all device modes — the "me" row
+ * for the merged board: 1-based rank, their best score today, and which
+ * device it was set on. Null if they haven't flown a daily run today.
+ */
+export function dailyRankCombined(userId, dailyDate) {
+  const best =
+    db
+      .prepare(
+        `SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND daily_date = ? AND game_mode = 'classic'`,
+      )
+      .get(userId, dailyDate)?.best ?? 0;
+  if (!best) return null;
+  const mode =
+    db
+      .prepare(
+        `SELECT mode FROM scores
+         WHERE user_id = ? AND daily_date = ? AND game_mode = 'classic' AND score = ?
+         ORDER BY created_at ASC LIMIT 1`,
+      )
+      .get(userId, dailyDate, best)?.mode ?? "desktop";
+  const { ahead } = db
+    .prepare(
+      `SELECT COUNT(*) AS ahead FROM (
+         SELECT user_id, MAX(score) AS b FROM scores
+         WHERE daily_date = ? AND game_mode = 'classic'
+         GROUP BY user_id
+       ) WHERE b > ?`,
+    )
+    .get(dailyDate, best);
+  return { rank: ahead + 1, best, mode };
+}
+
+/**
  * The pilot directly above a user on the world board for a mode —
  * the gap-to-goal target shown on the game-over screen.
  */

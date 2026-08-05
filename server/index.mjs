@@ -503,12 +503,19 @@ const routes = {
   },
 
   // Daily Patrol: best daily-run score per pilot for today's UTC date.
-  // The board resets naturally when the date rolls over.
+  // The board resets naturally when the date rolls over. mode=all merges
+  // every device into one ranking (the daily-only lobby's inline board);
+  // per-device mode still powers the /fullgame Leaderboard screen's tabs.
   "GET /api/leaderboard/daily": (req, res, user, url) => {
     const mode = url.searchParams.get("mode") ?? "desktop";
-    if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
     const dailyDate = utcDate();
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
+    if (mode === "all") {
+      const entries = store.dailyLeaderboardCombined({ dailyDate, limit });
+      const me = user ? store.dailyRankCombined(user.id, dailyDate) : null;
+      return json(res, 200, { date: dailyDate, entries, me });
+    }
+    if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
     const entries = store.leaderboard({ mode, dailyDate, limit });
     const myBest = user ? store.getUserDailyBest(user.id, mode, dailyDate) : 0;
     const me = myBest

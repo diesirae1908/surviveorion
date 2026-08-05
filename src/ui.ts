@@ -1,3 +1,4 @@
+import type { BoardMode } from "./api";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
 import type {
   BooleanSetting,
@@ -90,9 +91,31 @@ export interface DailyLobbyInfo {
   maxAttempts: number;
   /** Best run of the day so far (share card after lockout). */
   best: DailyBestResult | null;
-  /** Community server reachable → show the leaderboard button. */
+  /** Community server reachable → show the inline leaderboard. */
   online: boolean;
   touchDevice: boolean;
+}
+
+/** One row of the daily-only lobby's inline leaderboard (all devices merged). */
+export interface DailyBoardRow {
+  rank: number;
+  callsign: string;
+  score: number;
+  mode: BoardMode;
+  /** Highlight this row gold — it's the viewer's own placement. */
+  isMe: boolean;
+}
+
+/**
+ * Data for the daily-only lobby's inline board (see setDailyBoard):
+ * `entries` is the loaded window ([] = no patrols flown yet today, null =
+ * fetch failed / offline → hide the board entirely); `pinned` is the
+ * viewer's own row when their rank falls outside `entries` (null = already
+ * visible in the list above, no daily score yet, or anonymous).
+ */
+export interface DailyBoardData {
+  entries: DailyBoardRow[];
+  pinned: DailyBoardRow | null;
 }
 
 const SENSE_LABEL: Record<SenseLevel, string> = {
@@ -100,6 +123,22 @@ const SENSE_LABEL: Record<SenseLevel, string> = {
   med: "MED",
   high: "HIGH",
 };
+
+/** Subtle per-row device tag on the daily lobby board (title carries the full name). */
+const DEVICE_TAG: Record<BoardMode, string> = {
+  desktop: "Desktop",
+  touch: "Phone",
+  tilt: "Tilt",
+};
+const DEVICE_LABEL: Record<BoardMode, string> = {
+  desktop: "Desktop",
+  touch: "Phone",
+  tilt: "Phone tilt",
+};
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
 
 /**
  * The Daily Patrol board resets at UTC midnight — which lands mid-evening in
@@ -467,12 +506,20 @@ export class Ui {
     const powers = this.button("Powers", false, () => this.showPowers(() => this.showDailyLobby(info)));
     powers.classList.add("small-btn");
     learnRow.appendChild(powers);
-    if (info.online) {
-      const board = this.button("Leaderboard", false, () => this.cb.onWorldArena());
-      board.classList.add("small-btn");
-      learnRow.appendChild(board);
-    }
     screen.appendChild(learnRow);
+
+    // Inline leaderboard: one merged ranking (all devices) for today's
+    // Daily Patrol, scrollable, filled in async via setDailyBoard once it
+    // loads (mirrors the today's-leader hint's fetch-after-render pattern).
+    if (info.online) {
+      const boardWrap = this.el("div", "daily-board-wrap", "");
+      boardWrap.id = "daily-lobby-board-wrap";
+      boardWrap.appendChild(this.el("div", "manual-title", "TODAY'S BOARD"));
+      const list = this.el("div", "board", `<div class="field-hint center">Loading…</div>`);
+      list.id = "daily-lobby-board";
+      boardWrap.appendChild(list);
+      screen.appendChild(boardWrap);
+    }
 
     // footer: the feedback channel. (The /fullgame door still exists by URL,
     // but is unlisted while the daily is the public face.)
@@ -1204,6 +1251,41 @@ export class Ui {
   setMenuDailyHint(html: string): void {
     const hint = document.getElementById("daily-hint");
     if (hint) hint.innerHTML = html;
+  }
+
+  /**
+   * Paint the daily-only lobby's inline leaderboard once it loads. `null`
+   * hides the board entirely (fetch failed) instead of leaving "Loading…"
+   * stuck — a no-op if the lobby isn't the screen currently showing.
+   */
+  setDailyBoard(data: DailyBoardData | null): void {
+    const wrap = document.getElementById("daily-lobby-board-wrap");
+    const list = document.getElementById("daily-lobby-board");
+    if (!wrap || !list) return;
+    if (data === null) {
+      wrap.style.display = "none";
+      return;
+    }
+    list.innerHTML = "";
+    if (data.entries.length === 0) {
+      list.appendChild(
+        this.el("div", "field-hint center", "No patrols flown yet today. Be the first!"),
+      );
+      return;
+    }
+    for (const row of data.entries) list.appendChild(this.dailyBoardRow(row, false));
+    if (data.pinned) list.appendChild(this.dailyBoardRow(data.pinned, true));
+  }
+
+  private dailyBoardRow(row: DailyBoardRow, pinned: boolean): HTMLElement {
+    return this.el(
+      "div",
+      `board-row${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
+      `<span class="rank">${row.rank}</span>` +
+        `<span class="name">${escapeHtml(row.callsign)}</span>` +
+        `<span class="device" title="${DEVICE_LABEL[row.mode]}">${DEVICE_TAG[row.mode]}</span>` +
+        `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
+    );
   }
 
   /** Celebrate freshly earned badges on the game-over screen. */

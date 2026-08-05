@@ -319,6 +319,7 @@ function showMenu(): void {
       touchDevice: isTouchDevice(),
     });
     fillDailyHint();
+    fillDailyBoard();
     return;
   }
   bestScore = loadBestScore(pendingGameMode);
@@ -345,6 +346,34 @@ function fillDailyHint(): void {
       );
     })
     .catch(() => {});
+}
+
+/**
+ * Fill the daily-only lobby's inline leaderboard: one ranking merging every
+ * device. The viewer's own row is highlighted wherever it lands in the
+ * loaded window, or pinned separately if their rank falls outside it (no
+ * pin if they're anonymous or haven't flown a daily run today).
+ */
+function fillDailyBoard(): void {
+  if (!api.online) return;
+  void api
+    .dailyLeaderboardCombined()
+    .then((d) => {
+      const myCallsign = api.user?.callsign;
+      const entries = d.entries.map((e, i) => ({
+        rank: i + 1,
+        callsign: e.callsign,
+        score: e.best,
+        mode: e.mode,
+        isMe: !!myCallsign && myCallsign === e.callsign,
+      }));
+      const pinned =
+        d.me && d.me.rank > entries.length && myCallsign
+          ? { rank: d.me.rank, callsign: myCallsign, score: d.me.best, mode: d.me.mode, isMe: true }
+          : null;
+      ui.setDailyBoard({ entries, pinned });
+    })
+    .catch(() => ui.setDailyBoard(null));
 }
 
 /**

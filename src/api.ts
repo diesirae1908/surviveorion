@@ -30,6 +30,18 @@ export interface LeaderboardResponse {
   me: { rank: number; best: number } | null;
 }
 
+/** One row of the combined daily board — every device merged into one ranking. */
+export interface DailyCombinedEntry extends LeaderboardEntry {
+  /** Device the pilot's best run today was played on. */
+  mode: BoardMode;
+}
+
+export interface DailyCombinedResponse {
+  date: string;
+  entries: DailyCombinedEntry[];
+  me: { rank: number; best: number; mode: BoardMode } | null;
+}
+
 export interface ArenaInfo {
   code: string;
   name: string;
@@ -315,6 +327,14 @@ export class Api {
   /** Today's Daily Patrol board (shared-seed runs, resets at UTC midnight). */
   dailyLeaderboard(mode: BoardMode = "desktop"): Promise<LeaderboardResponse & { date: string }> {
     return this.request("GET", `/api/leaderboard/daily?mode=${mode}`);
+  }
+
+  /**
+   * Combined daily board: every device merged into one ranking (the
+   * daily-only lobby's inline leaderboard).
+   */
+  dailyLeaderboardCombined(limit = 50): Promise<DailyCombinedResponse> {
+    return this.request("GET", `/api/leaderboard/daily?mode=all&limit=${limit}`);
   }
 
   createArena(name: string): Promise<{ arena: ArenaInfo }> {
