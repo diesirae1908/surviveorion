@@ -1,4 +1,5 @@
 import type { BoardMode } from "./api";
+import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
 import type {
   BooleanSetting,
@@ -100,6 +101,7 @@ export interface DailyLobbyInfo {
 export interface DailyBoardRow {
   rank: number;
   callsign: string;
+  country: string;
   score: number;
   mode: BoardMode;
   /** Highlight this row gold — it's the viewer's own placement. */
@@ -1282,6 +1284,7 @@ export class Ui {
       "div",
       `board-row${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
       `<span class="rank">${row.rank}</span>` +
+        `<span class="flag" title="${countryName(row.country)}">${row.country ? countryFlag(row.country) : "·"}</span>` +
         `<span class="name">${escapeHtml(row.callsign)}</span>` +
         `<span class="device" title="${DEVICE_LABEL[row.mode]}">${DEVICE_TAG[row.mode]}</span>` +
         `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,

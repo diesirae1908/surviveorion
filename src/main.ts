@@ -363,13 +363,21 @@ function fillDailyBoard(): void {
       const entries = d.entries.map((e, i) => ({
         rank: i + 1,
         callsign: e.callsign,
+        country: e.country,
         score: e.best,
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
       }));
       const pinned =
         d.me && d.me.rank > entries.length && myCallsign
-          ? { rank: d.me.rank, callsign: myCallsign, score: d.me.best, mode: d.me.mode, isMe: true }
+          ? {
+              rank: d.me.rank,
+              callsign: myCallsign,
+              country: api.user?.country ?? "",
+              score: d.me.best,
+              mode: d.me.mode,
+              isMe: true,
+            }
           : null;
       ui.setDailyBoard({ entries, pinned });
     })

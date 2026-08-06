@@ -4,6 +4,28 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-05 — Daily lobby inline board: show country flags (matches fullgame boards)
+
+- Sam asked for the daily-only lobby's "TODAY'S BOARD" (the merged inline
+  leaderboard added earlier today) to show each pilot's country flag, same
+  as the fullgame community boards already do. The API already returned
+  `country` (`dailyLeaderboardCombined` selects `u.country`,
+  `LeaderboardEntry`/`DailyCombinedEntry` in `api.ts` already typed it) — the
+  lobby UI just dropped it on the floor.
+- `ui.ts`: `DailyBoardRow` gains `country: string`; `dailyBoardRow()` renders
+  `<span class="flag" title="${countryName(...)}">` between rank and name,
+  identical markup/behavior to `community.ts`'s board rows (empty country →
+  "·"). Reused the existing `.board-row .flag` CSS — no style changes
+  needed, it was already generic.
+- `main.ts`: `fillDailyBoard()` threads `e.country` through for loaded-window
+  rows; the pinned own-row (shown when the viewer's rank falls outside the
+  window) uses `api.user?.country ?? ""` since the combined-board `me`
+  response only carries rank/best/mode, not country.
+- Verified: `npm run build` (tsc + vite) clean, no lint errors. UI-only
+  change, no sim-test needed (no gameplay code touched).
+- On branch `sam/daily-board-country` for Sam to review before merging to
+  `main` (which auto-deploys).
+
 ## 2026-08-05 — Daily lobby: inline leaderboard replaces the Leaderboard screen (this commit)
 
 - Lucas asked to simplify the daily-only lobby (surviveorion.com root): the
