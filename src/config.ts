@@ -318,6 +318,17 @@ export const CREATURE_DAYS = {
     deploymentIntervalEarly: [7, 9] as const,
     deploymentIntervalLate: [3, 4.5] as const,
   },
+  // MENAGERIE: one event at a time, kind drawn per event (see creatures.ts
+  // scheduleMenagerieEvent), reusing each kind's own member-count range and
+  // telegraph above. Cadence sits between the four single-kind days' own
+  // pacing rather than matching any one of them.
+  menagerie: {
+    eventIntervalEarly: [8, 10] as const,
+    eventIntervalLate: [4, 6] as const,
+    // chance a late-run event doubles into two different kinds at once,
+    // lerped from 0 at run start up to this cap by rampMinutes
+    doubleChanceLate: 0.25,
+  },
 };
 
 // Stationary hazards that deny space. Capped low and spawned away from the

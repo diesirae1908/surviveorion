@@ -50,6 +50,16 @@ export interface MutatorOverrides {
   assemblyIntervalScale?: number;
   /** Forces every assembly (scheduled + crowd-triggered) to one kind. */
   forceAssemblyKind?: AssemblyKind;
+  /** MENAGERIE only: direct-spawn choreography with the kind drawn per event
+   * across all four kinds, instead of one forced kind (see creatures.ts
+   * scheduleMenagerieEvent). Mutually exclusive with forceAssemblyKind in
+   * practice (no mutator sets both), gates conscription off the same way. */
+  menagerieChoreography?: boolean;
+  /** Seeded [min,max] delay (seconds) before the very first creature-day
+   * event, drawn once at world setup. Only set by mutators that want a
+   * deliberate reveal beat instead of the default near-instant first event
+   * (creatureTimer starts at 0 otherwise, see enemies.ts initSpawner). */
+  firstCreatureDelayRange?: readonly [number, number];
   /** Multiplies the rolled assembly member count (both scheduled + crowd). */
   assemblyCountScale?: number;
   /** Replaces ASSEMBLY.maxConcurrent for the day. */
@@ -246,14 +256,27 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "menagerie",
     name: "MENAGERIE",
-    briefing: "The swarm keeps fusing into hunters and worse.",
-    subline: "Ambient density cut roughly in half. Evolutions form more than twice as often.",
-    difficultyFactor: 1.2,
-    tags: ["assembly-freq"],
-    // v2 (round 2): sharpened so it reads in the first minute. Ambient down
-    // hard (was 0.85) so the thinner swarm makes the more-frequent (was
-    // 0.45) evolutions the obvious main event, not background noise.
-    overrides: { assemblyIntervalScale: 0.35, ambientRateScale: 0.55 },
+    briefing: "The Zoo is open. Every cage, every kind. You never know what fuses next.",
+    subline: "A brief calm, then hunters, lances, wheels, and bombs take turns, drawn at random with no repeats back to back. Ambient is a faint trickle, ordinary formations are gone, and late in the run two kinds sometimes fuse in at once.",
+    // v3 (round 5, this fix): moved onto the direct-spawn choreography
+    // engine like the four single-kind days (see creatures.ts
+    // scheduleMenagerieEvent), replacing round 2's conscription-based
+    // "ambient thin + evolutions frequent" tuning. Root cause of the old
+    // version's "just drones as usual" opening: conscription needs the
+    // ambient crowd to build mass before anything can fuse, so the first
+    // real creature could take well past a minute to show up. Evasive-bot
+    // score median (see JOURNAL.md) lands close to WHEELHOUSE's, the
+    // easiest of the direct-spawn days: one creature at a time, seeded
+    // variety, gives a dodging pilot plenty of room, so the factor sits
+    // just above WHEELHOUSE's 1.0.
+    difficultyFactor: 1.1,
+    tags: ["assembly-kind"],
+    overrides: {
+      menagerieChoreography: true,
+      ambientRateScale: 0.15, // faint trickle: keeps the reveal beat from reading as a dead arena
+      formationIntervalScale: 30,
+      firstCreatureDelayRange: [8, 12], // the screenshot moment: a beat of quiet, then the first creature bursts in
+    },
   },
   {
     id: "lancer-doctrine",
@@ -309,10 +332,10 @@ export const MUTATOR_POOL: Mutator[] = [
     briefing: "Fewer evolutions today. Each one is a titan.",
     subline: "Evolutions are much rarer, only one active at a time, and roughly twice the usual size.",
     difficultyFactor: 1.1,
-    // Excludes both the forced-kind days (assembly-kind) and MENAGERIE
-    // (assembly-freq) per Sam's ask: this is a frequency AND scale change,
-    // so it can't stack sensibly with either family.
-    tags: ["assembly-kind", "assembly-freq"],
+    // Excludes the forced-kind days AND MENAGERIE (both "assembly-kind" as
+    // of round 5's MENAGERIE rebuild): this is a conscription frequency AND
+    // scale change, so it can't stack sensibly with any direct-spawn day.
+    tags: ["assembly-kind"],
     overrides: { assemblyIntervalScale: 2.4, assemblyCountScale: 1.8, assemblyMaxConcurrent: 1 },
   },
   {
@@ -641,6 +664,17 @@ export function mutatorAssemblyIntervalScale(): number {
 
 export function mutatorForceAssemblyKind(): AssemblyKind | null {
   return firstOf((o) => o.forceAssemblyKind) ?? null;
+}
+
+/** MENAGERIE's mixed-kind direct-spawn choreography (see creatures.ts). */
+export function mutatorMenagerieActive(): boolean {
+  return firstOf((o) => o.menagerieChoreography) ?? false;
+}
+
+/** Seeded first-creature-event delay range; null on every ordinary day (and
+ * on the four single-kind creature days, which keep their instant open). */
+export function mutatorFirstCreatureDelayRange(): readonly [number, number] | null {
+  return firstOf((o) => o.firstCreatureDelayRange) ?? null;
 }
 
 export function mutatorAssemblyCountScale(): number {

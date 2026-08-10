@@ -21,7 +21,7 @@
 import { CREATURE_DAYS, SPAWNER } from "./config";
 import { difficultyMinutes, spawnAssemblyDirect } from "./enemies";
 import { clamp01, lerp, randRange, scheduleRand, scheduleRange } from "./math";
-import { mutatorForceAssemblyKind } from "./mutators";
+import { mutatorForceAssemblyKind, mutatorMenagerieActive } from "./mutators";
 import type { AssemblyKind, CreatureSpawn, World } from "./types";
 
 const EDGE_COUNT = 4;
@@ -179,15 +179,126 @@ function scheduleBombDeployment(world: World, minutes: number): void {
   );
 }
 
+/** MENAGERIE: the four kinds in seeded draw order (stable indices, used by
+ * drawMenagerieKind's consecutive-repeat guard below). */
+const MENAGERIE_KINDS: AssemblyKind[] = ["hunter", "lance", "wheel", "bomb"];
+
+/**
+ * Draws a kind from the seeded schedule stream. If it would repeat `avoid`,
+ * steps forward once (no extra draw), the same trick pickFirst (mutators.ts)
+ * uses to dodge repeats: exactly one scheduleRand() call either way, so this
+ * stays a fixed-draw, shared-script operation.
+ */
+function drawMenagerieKind(avoid: AssemblyKind | null): AssemblyKind {
+  const idx = Math.floor(scheduleRand() * MENAGERIE_KINDS.length);
+  const avoidIdx = avoid === null ? -1 : MENAGERIE_KINDS.indexOf(avoid);
+  const finalIdx = idx === avoidIdx ? (idx + 1) % MENAGERIE_KINDS.length : idx;
+  return MENAGERIE_KINDS[finalIdx];
+}
+
+/** Each kind's own telegraph length (bomb's materialize-strobe is longer
+ * than the other three's entry-flash, see CREATURE_DAYS.telegraph). */
+function telegraphFor(kind: AssemblyKind): number {
+  return kind === "bomb" ? CREATURE_DAYS.telegraph.materializeWarning : CREATURE_DAYS.telegraph.entryWarning;
+}
+
+/**
+ * Spawns ONE instance of `kind` (not a whole wave/salvo like the single-kind
+ * days), reusing that kind's own edge geometry, member-count range, and
+ * telegraph from CREATURE_DAYS. One event = one creature fusing in; that's
+ * what makes MENAGERIE read as variety rather than a shrunken wave.
+ * `extraDelay` lets a double event force strict materialization order (see
+ * scheduleMenagerieEvent) regardless of the two kinds' own telegraph lengths.
+ */
+function spawnMenagerieKind(world: World, kind: AssemblyKind, extraDelay: number): void {
+  const warning = telegraphFor(kind);
+  switch (kind) {
+    case "hunter": {
+      const cfg = CREATURE_DAYS.hunter;
+      const geo = edgeGeometry(world, Math.floor(scheduleRand() * EDGE_COUNT));
+      const anchor = edgeAnchor(geo, randRange(-geo.span * 0.35, geo.span * 0.35));
+      const heading = jitterHeading(geo.dirX, geo.dirY, randRange(-0.35, 0.35));
+      const count = Math.round(scheduleRange(...cfg.veeMemberRange));
+      queueSpawn(world, "hunter", anchor.x, anchor.y, heading.x, heading.y, count, warning, extraDelay);
+      return;
+    }
+    case "lance": {
+      const cfg = CREATURE_DAYS.lance;
+      const geo = edgeGeometry(world, Math.floor(scheduleRand() * EDGE_COUNT));
+      const anchor = edgeAnchor(geo, randRange(-geo.span * 0.4, geo.span * 0.4));
+      const heading = jitterHeading(geo.dirX, geo.dirY, randRange(-0.12, 0.12));
+      const count = Math.round(scheduleRange(...cfg.barMemberRange));
+      queueSpawn(world, "lance", anchor.x, anchor.y, heading.x, heading.y, count, warning, extraDelay);
+      return;
+    }
+    case "wheel": {
+      const cfg = CREATURE_DAYS.wheel;
+      const geo = edgeGeometry(world, Math.floor(scheduleRand() * EDGE_COUNT));
+      const anchor = edgeAnchor(geo, randRange(-geo.span * 0.4, geo.span * 0.4));
+      const count = Math.round(scheduleRange(...cfg.wheelMemberRange));
+      // no heading jitter: a clean lane crossing reads best straight across
+      queueSpawn(world, "wheel", anchor.x, anchor.y, geo.dirX, geo.dirY, count, warning, extraDelay);
+      return;
+    }
+    case "bomb": {
+      const cfg = CREATURE_DAYS.bomb;
+      const hw = world.viewW / 2 - 1.5;
+      const hh = world.viewH / 2 - 1.5;
+      const x = randRange(-hw, hw);
+      const y = randRange(-hh, hh);
+      const angle = randRange(0, Math.PI * 2);
+      const count = Math.round(scheduleRange(...cfg.memberRange));
+      queueSpawn(world, "bomb", x, y, Math.cos(angle) * 0.15, Math.sin(angle) * 0.15, count, warning, extraDelay);
+      return;
+    }
+  }
+}
+
+/**
+ * MENAGERIE: draws one kind per event from the seeded schedule stream
+ * across all four kinds (consecutive-repeat avoidance so the variety
+ * actually reads), occasionally doubling into two different kinds at once
+ * as the run escalates. Cadence sits between the four single-kind days' own
+ * pacing (see CREATURE_DAYS.menagerie), it doesn't match any one of them.
+ *
+ * A double event forces kindSecond to materialize strictly after kindFirst
+ * (extraDelay below), no matter which two kinds are drawn: telegraphFor
+ * varies per kind (bomb is longer), so without this a short-telegraph
+ * kindSecond could pop in before kindFirst and land next to whatever kind
+ * ended the PREVIOUS event instead of next to kindFirst, silently defeating
+ * the repeat guard on the visible script. Forcing the order keeps "visible
+ * order == draw order", so avoiding kind1 for kind2 is enough.
+ */
+function scheduleMenagerieEvent(world: World, minutes: number): void {
+  const cfg = CREATURE_DAYS.menagerie;
+  const [minI, maxI] = rampedInterval(minutes, cfg.eventIntervalEarly, cfg.eventIntervalLate);
+  world.creatureTimer = scheduleRange(minI, maxI);
+
+  const doubleChance = lerp(0, cfg.doubleChanceLate, clamp01(minutes / CREATURE_DAYS.rampMinutes));
+  const isDouble = scheduleRand() < doubleChance;
+
+  const kindFirst = drawMenagerieKind(world.creatureLastKind);
+  spawnMenagerieKind(world, kindFirst, 0);
+
+  if (isDouble) {
+    const kindSecond = drawMenagerieKind(kindFirst); // avoid repeating kindFirst within the same double
+    spawnMenagerieKind(world, kindSecond, telegraphFor(kindFirst) + 0.1);
+    world.creatureLastKind = kindSecond;
+  } else {
+    world.creatureLastKind = kindFirst;
+  }
+}
+
 /**
  * Creature-day choreography tick: drains the spawn queue (materializing any
  * item whose telegraph has expired) and, on cooldown, schedules the next
- * wave/salvo/lane-burst/deployment for whichever creature day is active.
- * No-op on every other day (mutatorForceAssemblyKind() is null).
+ * wave/salvo/lane-burst/deployment/menagerie-draw for whichever creature day
+ * is active. No-op on every other day (neither forced kind nor MENAGERIE).
  */
 export function updateCreatureChoreography(world: World, dt: number): void {
   const kind = mutatorForceAssemblyKind();
-  if (kind === null) return;
+  const menagerie = mutatorMenagerieActive();
+  if (kind === null && !menagerie) return;
   if (world.phase !== "playing" || world.sandbox || world.training) return;
 
   for (let i = world.creatureSpawnQueue.length - 1; i >= 0; i--) {
@@ -203,6 +314,10 @@ export function updateCreatureChoreography(world: World, dt: number): void {
   if (world.creatureTimer > 0) return;
 
   const minutes = difficultyMinutes(world);
+  if (menagerie) {
+    scheduleMenagerieEvent(world, minutes);
+    return;
+  }
   switch (kind) {
     case "hunter":
       scheduleHunterWave(world, minutes);

@@ -4,6 +4,92 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-10e: MENAGERIE rebuilt on the direct-spawn choreography engine (main, deployed, hotfix on today's live day)
+
+- Direct commit to `main` (Lucas explicitly approved, this deploys to prod
+  immediately). Live playtest feedback while flying today's MENAGERIE:
+  "the beginning is just drones as usual." Root cause: MENAGERIE never got
+  round 5's direct-spawn treatment. It was still conscription-based (round
+  2's "ambient thin + evolutions frequent" tuning), so the opening was plain
+  drones until the ambient crowd built enough mass to fuse, which could take
+  well past a minute.
+- **MENAGERIE identity: THE ZOO.** Rebuilt on the same direct-spawn
+  choreography engine as the four single-kind days (`creatures.ts`), but
+  instead of one forced kind, the kind is drawn per event from the seeded
+  schedule stream across all four (hunter/lance/wheel/bomb), with
+  consecutive-repeat avoidance so the variety actually reads. New override
+  flag `menagerieChoreography` (mutators.ts) gates conscription and the
+  crowd-pressure valve off exactly like `forceAssemblyKind` does for the
+  single-kind days (`enemies.ts`'s `directSpawnActive` now checks either).
+  One event = one creature (reusing that kind's own edge geometry,
+  member-count range, and telegraph), not a whole wave/salvo like the
+  single-kind days, so a MENAGERIE event reads as "one animal fused in,"
+  distinct from HUNTING PARTY's packs or LANCER DOCTRINE's salvos.
+- **First creature lands fast, on purpose.** New override
+  `firstCreatureDelayRange` (seeded `[8, 12]` seconds, drawn once at world
+  setup in `initSpawner`) replaces the default near-instant first event
+  (every other creature day starts its countdown at 0). This is the
+  screenshot moment Lucas was missing: a beat of quiet, then the first
+  creature bursts in, generally landing around t=8.4-13.5s once its own
+  telegraph (0.4s for hunter/lance/wheel, 1.5s for bomb) is added on top of
+  the drawn delay.
+- **Cadence + double events.** New `CREATURE_DAYS.menagerie` config:
+  interval ramps `[8,10]s` early to `[4,6]s` late (deliberately between the
+  four single-kind days' own pacing, not matching any one of them). Late in
+  the run, a seeded roll (ramping 0% to 25% by `rampMinutes`) doubles an
+  event into two different kinds firing at once, the "menagerie compounding."
+  A double forces the second kind's telegraph to resolve strictly after the
+  first's (`telegraphFor(kindFirst) + 0.1`) regardless of which two kinds
+  are drawn, otherwise a short-telegraph second kind (e.g. hunter, 0.4s)
+  could pop in before a long-telegraph first kind (bomb, 1.5s) and land
+  next to whatever ended the *previous* event instead of next to its actual
+  partner, silently defeating the repeat guard on the visible script. Caught
+  this exact failure mode in sim-test (a back-to-back "hunter, hunter" in
+  the recorded script) before fixing the ordering.
+- **Ambient: a faint trickle, not true zero** (`ambientRateScale: 0.15`,
+  vs the four single-kind days' `0`). With the first creature deliberately
+  delayed 8-12s, a true-zero opening would sit visually empty for that
+  whole window; the faint trickle keeps a few ambient drones on screen
+  during the wait without diluting the reveal. Formations stay near-zero
+  (`formationIntervalScale: 30`, same as the other creature days): sim
+  confirms 0 formations and ~29 ambient spawns vs 29 assemblies over a 180s
+  run, creature pressure carries the day including the opening, as required.
+- **Tags:** MENAGERIE moves from its old solo `assembly-freq` tag to
+  `assembly-kind` (same family as the four single-kind days), since it's now
+  a direct-spawn day itself and shouldn't co-occur with any of them on a
+  Sunday. TITANFALL's tag list drops the now-dead `assembly-freq` (nothing
+  else carries it) and keeps `assembly-kind`, which already excludes
+  MENAGERIE under its new tag.
+- **Copy:** briefing "The Zoo is open. Every cage, every kind. You never
+  know what fuses next." Plain subline: "A brief calm, then hunters, lances,
+  wheels, and bombs take turns, drawn at random with no repeats back to
+  back. Ambient is a faint trickle, ordinary formations are gone, and late
+  in the run two kinds sometimes fuse in at once."
+- **Difficulty factor re-tuned 1.2 → 1.1.** Evasive-bot score median across
+  several sim-test runs lands close to WHEELHOUSE's (the easiest of the
+  direct-spawn days): one creature at a time with seeded variety gives a
+  dodging pilot plenty of room. Factor set just above WHEELHOUSE's 1.0.
+  Today's medal thresholds shift mid-day as a result; accepted per Lucas
+  (today is already a mixed soft-launch day).
+- **New World field** `creatureLastKind: AssemblyKind | null`, MENAGERIE-only
+  bookkeeping for the consecutive-repeat guard; harmless on every other day
+  (`null`, never read).
+- **Sim-test additions:** MENAGERIE determinism (script identical across
+  "ram"/"drift" play styles, matching the other four creature days),
+  kind-variety check (>=3 distinct kinds over a 180s run; typical runs saw
+  all four), no-back-to-back-repeat check (this is what caught the ordering
+  bug above), and a first-creature-landing-time check (7-14s window, giving
+  the telegraph tail some room around the drawn 8-12s). All new checks pass
+  cleanly across 5+ consecutive runs. Ad hoc (not in sim-test, checked
+  manually): a 300s run with an invulnerable ram bot logs 548 kills (1.83
+  kills/sec, well under `validate.mjs`'s `MAX_KILLS_PER_SEC = 12`) and peaks
+  at 114 concurrent drones (well under `SPAWNER.maxDrones = 550`).
+- **Verification:** `npm run build` green. `npx tsx scripts/sim-test.ts`
+  green across 5+ consecutive runs (one run hit the pre-existing
+  `pending grab claims the next drop` flake, documented in earlier entries
+  as unrelated unseeded-`Math.random` gameplay, unrelated to this change,
+  cleared on re-run).
+
 ## 2026-08-10d: Daily Mutators LIVE from Aug 10, preview override locked to dev (main, deployed)
 
 - Direct commit to `main` (Lucas explicitly approved, this deploys to prod

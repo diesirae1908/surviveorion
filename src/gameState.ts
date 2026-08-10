@@ -66,6 +66,7 @@ export function createWorld(
     // Round 5 creature days only (see creatures.ts); harmless everywhere else.
     creatureTimer: 0,
     creatureSpawnQueue: [],
+    creatureLastKind: null,
     shake: 0,
     events: [],
   };

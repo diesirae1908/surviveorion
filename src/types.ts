@@ -373,6 +373,8 @@ export interface World {
   creatureTimer: number;
   /** Creature days only: scripted assemblies queued to materialize. */
   creatureSpawnQueue: CreatureSpawn[];
+  /** MENAGERIE only: kind of the last scheduled event, for consecutive-repeat avoidance. */
+  creatureLastKind: AssemblyKind | null;
 
   shake: number; // screen shake amplitude (world units)
 

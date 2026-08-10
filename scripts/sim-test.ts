@@ -981,6 +981,54 @@ function muteAmbientPickups(world: World): void {
     console.log(`  creature-day choreography counts (180s run): ${summaries.join(" | ")}`);
   }
 
+  // (f2) MENAGERIE: mixed-kind direct-spawn choreography (round-5-launch-day
+  // fix; Lucas's playtest on the old conscription-based version: "the
+  // beginning is just drones as usual"). Same determinism discipline as the
+  // four single-kind days above, plus its own two checks: kind variety (a
+  // run must actually show several different creatures, not read like a
+  // single-kind day) and a fast-but-deliberate first landing (the reveal
+  // beat from firstCreatureDelayRange, see mutators.ts/creatures.ts).
+  {
+    const menagerie = getMutatorById("menagerie")!;
+    const menagerieDate = new Date("2026-08-18T00:00:00Z"); // arbitrary, not a Sunday
+    const g1 = recordMutated([menagerie], "ram", menagerieDate);
+    const g2 = recordMutated([menagerie], "drift", menagerieDate);
+    check(
+      "MENAGERIE determinism: choreography script (event time/kind/anchor) identical across play styles",
+      g1.assemblies.length > 3 && g1.assemblies.join("|") === g2.assemblies.join("|"),
+      `${g1.assemblies.length} events`,
+    );
+
+    const kinds = g1.assemblies.map((e) => e.split(":")[1].split("@")[0]);
+    const distinctKinds = new Set(kinds);
+    check(
+      "MENAGERIE: a run shows at least 3 distinct creature kinds (the zoo, not one animal)",
+      distinctKinds.size >= 3,
+      `saw ${[...distinctKinds].join(", ")} across ${kinds.length} events`,
+    );
+
+    let hasRepeat = false;
+    for (let i = 1; i < kinds.length; i++) {
+      if (kinds[i] === kinds[i - 1]) hasRepeat = true;
+    }
+    check(
+      "MENAGERIE: no two consecutive events repeat the same kind",
+      !hasRepeat,
+      hasRepeat ? "found a back-to-back repeat" : "no back-to-back repeats",
+    );
+
+    const firstTime = g1.assemblies.length > 0 ? Number(g1.assemblies[0].split(":")[0]) : -1;
+    check(
+      "MENAGERIE: the first creature lands fast (the screenshot moment), not an empty-screen wait",
+      firstTime >= 7 && firstTime <= 14,
+      `first creature at t=${firstTime.toFixed(2)}`,
+    );
+
+    console.log(
+      `  MENAGERIE choreography (180s run): ${kinds.length} events, kinds seen: ${[...distinctKinds].join(", ")}, first @ t=${firstTime.toFixed(2)}`,
+    );
+  }
+
   // (g) launch-date gate: a pre-gate UTC date yields no mutators at all
   // (vanilla daily), a post-gate date resolves the normal hash pick. The
   // gate only suppresses, so the post-gate date's pick must match what the

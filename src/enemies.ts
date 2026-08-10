@@ -8,11 +8,13 @@ import {
   mutatorAssemblyMaxConcurrent,
   mutatorClumpMaxScale,
   mutatorDroneSpeedScale,
+  mutatorFirstCreatureDelayRange,
   mutatorFirstFormationDelayCap,
   mutatorFormationIntervalScale,
   mutatorFormationWeights,
   mutatorForceAssemblyKind,
   mutatorAmbientSoftCapActive,
+  mutatorMenagerieActive,
   mutatorScaleClamp,
   mutatorTelegraphDurationScale,
   mutatorTelegraphRatio,
@@ -291,8 +293,15 @@ export function initSpawner(world: World): void {
   // choreographed event schedules on the first tick, so its own short
   // telegraph (0.4-1.5s, see CREATURE_DAYS) is the only opening delay, no
   // separate "don't open empty" cap needed like the formation-day fix above.
-  world.creatureTimer = 0;
+  // MENAGERIE is the one exception: it wants a deliberate reveal beat
+  // instead of an instant first creature (see mutators.ts
+  // firstCreatureDelayRange), so it overrides this to a fixed seeded delay,
+  // drawn once here from the schedule stream, same discipline as every
+  // other one-time setup draw in this function.
+  const firstCreatureDelay = mutatorFirstCreatureDelayRange();
+  world.creatureTimer = firstCreatureDelay !== null ? scheduleRange(...firstCreatureDelay) : 0;
   world.creatureSpawnQueue = [];
+  world.creatureLastKind = null;
 
   // Iron Rain: no gentle burst — the run opens with an immediate mega-wall
   // and the first regular formation lands seconds later.
@@ -1214,11 +1223,12 @@ export function updateAssemblies(world: World, dt: number): void {
 
   const maxConcurrent = effectiveAssemblyMaxConcurrent();
 
-  // Round 5: on a forced-creature day, updateCreatureChoreography (creatures.ts)
-  // owns spawning entirely: conscription and the crowd-pressure valve stay
-  // off so the scripted schedule isn't diluted by leftover evolutions.
-  // Every other day/mode behaves exactly as before.
-  const directSpawnActive = mutatorForceAssemblyKind() !== null;
+  // Round 5: on a forced-creature day (single-kind, or MENAGERIE's mixed-
+  // kind choreography), updateCreatureChoreography (creatures.ts) owns
+  // spawning entirely: conscription and the crowd-pressure valve stay off
+  // so the scripted schedule isn't diluted by leftover evolutions. Every
+  // other day/mode behaves exactly as before.
+  const directSpawnActive = mutatorForceAssemblyKind() !== null || mutatorMenagerieActive();
 
   if (!directSpawnActive) {
     world.assemblyTimer -= dt;
