@@ -1101,7 +1101,31 @@ function serveStatic(req, res, pathname) {
   if (!file.startsWith(DIST)) return json(res, 403, { error: "forbidden" });
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST, "index.html");
   if (!fs.existsSync(file)) return json(res, 404, { error: "not found (run npm run build)" });
-  res.writeHead(200, { "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream" });
+
+  // Cache policy: without one, browsers cache HTML heuristically and players
+  // keep an old bundle after a deploy (bit us on the Aug 10 mutators launch).
+  // Vite fingerprints /assets/* filenames, so those can cache forever; HTML
+  // (and the SPA fallback) must always revalidate so a deploy is picked up on
+  // the next load; everything else (icons, music, manifest) gets a short TTL.
+  const ext = path.extname(file);
+  const stat = fs.statSync(file);
+  const isAsset = /^[/\\]?assets[/\\]/.test(safe);
+  const cacheControl = isAsset
+    ? "public, max-age=31536000, immutable"
+    : ext === ".html"
+      ? "no-cache"
+      : "public, max-age=3600";
+
+  const lastModified = stat.mtime.toUTCString();
+  if (req.headers["if-modified-since"] === lastModified) {
+    res.writeHead(304, { "Cache-Control": cacheControl, "Last-Modified": lastModified });
+    return res.end();
+  }
+  res.writeHead(200, {
+    "Content-Type": MIME[ext] ?? "application/octet-stream",
+    "Cache-Control": cacheControl,
+    "Last-Modified": lastModified,
+  });
   fs.createReadStream(file).pipe(res);
 }
 

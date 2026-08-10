@@ -465,6 +465,20 @@ why, commit hash, follow-ups), committed together with the work. See
   check.
 - Nothing escalated this round; both items shipped as specced.
 
+## 2026-08-10: static cache policy so deploys reach players without a hard refresh (Sam, inline)
+
+- Right after the mutators launch Lucas still saw the old build. Cause: `serveStatic`
+  sent no Cache-Control and no validators at all, so browsers cached index.html on
+  their own heuristics and kept referencing the previous hashed bundle after a deploy.
+- Fix in `server/index.mjs` `serveStatic`: `/assets/*` (Vite-fingerprinted) gets
+  `public, max-age=31536000, immutable`; `.html` (including the SPA fallback) gets
+  `no-cache` so every load revalidates; everything else (icons, music, manifest)
+  gets `public, max-age=3600`. Added `Last-Modified` + `If-Modified-Since` 304
+  handling so the revalidation is a header-only round trip.
+- Verified locally on all three tiers plus the 304 path. Players with an already
+  stale cached HTML self-heal when their heuristic TTL lapses (or on one manual
+  refresh); from this deploy on, new HTML is picked up on the next load.
+
 ## 2026-08-09c: evasive-bot baseline bar loosened 12s to 8s (addendum, Sam)
 
 - The round-2 baseline sanity check (`baselineMedian >= 12`) sat exactly at the
