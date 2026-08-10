@@ -28,7 +28,7 @@ export interface ShareStats {
   rank: number | null;
   /** 1-based attempt number the result came from. */
   attempt: number;
-  /** Today's mutator name(s), e.g. ["OVERDRIVE"] or ["BLACKOUT", "GIANTS"] on Sundays. */
+  /** Today's mutator name(s), e.g. ["RED ALERT"] or ["BLACKOUT", "GIANTS"] on Sundays. */
   mutatorNames?: string[];
   /** Best-of-day medal, or null if no tier reached yet. */
   medal?: MedalTier | null;

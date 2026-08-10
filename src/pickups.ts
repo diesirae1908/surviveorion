@@ -8,7 +8,12 @@ import {
   type PowerId,
 } from "./config";
 import { clamp01, lerp, rand, randRange, scheduleRand, scheduleRange } from "./math";
-import { mutatorExtraPowerIds, mutatorPickupIntervalScale, mutatorPowerWeights } from "./mutators";
+import {
+  mutatorExtraPowerIds,
+  mutatorPickupIntervalScale,
+  mutatorPickupMagnetStrength,
+  mutatorPowerWeights,
+} from "./mutators";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
 import type { Pickup, World } from "./types";
@@ -74,6 +79,20 @@ export function updatePickups(world: World, dt: number): void {
       if (p.vy !== undefined && ((p.y < -hh && p.vy < 0) || (p.y > hh && p.vy > 0))) {
         p.vy = -p.vy;
       }
+      // MAGNETIC FIELD: a gentle homing pull layered on top of the normal
+      // wander, all day. Pure position math (no RNG), so it can't desync
+      // Daily Patrol between play styles (see mutators.ts).
+      const pull = mutatorPickupMagnetStrength();
+      if (pull > 0) {
+        const dx = ship.x - p.x;
+        const dy = ship.y - p.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0.01) {
+          const step = Math.min(pull * dt, dist);
+          p.x += (dx / dist) * step;
+          p.y += (dy / dist) * step;
+        }
+      }
     }
 
     if (circlesOverlap(ship.x, ship.y, SHIP.radius, p.x, p.y, PICKUPS.radius)) {
@@ -136,6 +155,10 @@ function spawnPickup(world: World): void {
     pickup.magnetized = true;
   }
   world.pickups.push(pickup);
+  // fired even if the ship overlaps this spot and collects it the same tick,
+  // so anything auditing "what dropped and when" (e.g. sim-test's shared-seed
+  // check) sees every scheduled drop, not just the ones that survive a frame.
+  world.events.push({ type: "pickupSpawn", power, x, y });
 }
 
 /**

@@ -2,13 +2,20 @@ import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKi
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import {
   mutatorAmbientRateScale,
+  mutatorAmbientSoftCapScale,
+  mutatorAssemblyCountScale,
   mutatorAssemblyIntervalScale,
+  mutatorAssemblyMaxConcurrent,
+  mutatorClumpMaxScale,
   mutatorDroneSpeedScale,
   mutatorFormationIntervalScale,
   mutatorFormationWeights,
   mutatorForceAssemblyKind,
+  mutatorAmbientSoftCapActive,
   mutatorScaleClamp,
+  mutatorTelegraphDurationScale,
   mutatorTelegraphRatio,
+  mutatorWindVector,
 } from "./mutators";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
@@ -17,6 +24,21 @@ import type { Assembly, AssemblyKind, Drone, KillSource, World } from "./types";
 /** Effective drone-size clamp: a Daily Mutator can widen it (bigger only). */
 function effectiveScaleClamp(): readonly [number, number] {
   return mutatorScaleClamp() ?? SPAWNER.scaleClamp;
+}
+
+/** Effective loose-drone relief valve; a Daily Mutator can tighten or loosen it. */
+function effectiveAmbientSoftCap(): number {
+  return SPAWNER.ambientSoftCap * mutatorAmbientSoftCapScale();
+}
+
+/** Effective ambient clump size; a Daily Mutator can gather bigger/smaller blobs. */
+function effectiveClumpMax(): number {
+  return Math.max(1, SPAWNER.clumpMax * mutatorClumpMaxScale());
+}
+
+/** Effective concurrent-evolution cap; a Daily Mutator can lower it (TITANFALL). */
+function effectiveAssemblyMaxConcurrent(): number {
+  return mutatorAssemblyMaxConcurrent() ?? ASSEMBLY.maxConcurrent;
 }
 
 /**
@@ -81,6 +103,10 @@ function droneSizeSpeedFactor(scale: number): number {
 export function updateDrones(world: World, dt: number): void {
   const ship = world.ship;
   const chase = world.phase === "playing";
+  // SOLAR WIND: a constant per-day crosswind, added as a pure positional
+  // nudge after each drone's own homing/script movement (see mutators.ts for
+  // why this stays outside the seeded-draw discipline entirely).
+  const wind = mutatorWindVector();
 
   for (const d of world.drones) {
     d.prevX = d.x;
@@ -198,6 +224,10 @@ export function updateDrones(world: World, dt: number): void {
     d.vy = hy * speed;
     d.x += d.vx * dt;
     d.y += d.vy * dt;
+    if (wind) {
+      d.x += wind.x * dt;
+      d.y += wind.y * dt;
+    }
   }
 }
 
@@ -319,7 +349,7 @@ export function updateSpawner(world: World, dt: number): void {
     // Zombie clumping: spend 1..clumpMax of the spawn budget on one pack.
     // The accumulator may dip negative — average rate is unchanged, arrivals
     // just group. Fixed rand draws per pack keep Daily Patrol shared.
-    const clump = 1 + Math.floor(rand() * SPAWNER.clumpMax);
+    const clump = 1 + Math.floor(rand() * effectiveClumpMax());
     world.spawnAccumulator -= clump;
     spawnAmbient(world, minutes, clump);
   }
@@ -332,7 +362,7 @@ function updateTelegraphs(world: World, dt: number, minutes: number): void {
     t.timer -= dt;
     if (t.timer <= 0) {
       world.spawnTelegraphs.splice(i, 1);
-      spawnAt(world, t.x, t.y, minutes);
+      spawnAt(world, t.x, t.y, minutes, mutatorAmbientSoftCapActive() ? { ambient: true } : undefined);
       world.events.push({ type: "droneSpawn", x: t.x, y: t.y });
     }
   }
@@ -345,6 +375,8 @@ function telegraphAt(world: World, x: number, y: number, duration: number): void
 
 function telegraphAmbient(world: World, count = 1): void {
   const cfg = SPAWNER.telegraph;
+  // BLACKOUT: warnings stay, but the reaction window shrinks (see mutators.ts).
+  const duration = cfg.duration * mutatorTelegraphDurationScale();
   const hw = world.viewW / 2 - cfg.edgeInset;
   const hh = world.viewH / 2 - cfg.edgeInset;
   // fixed number of draws (ship position must not advance the seeded stream
@@ -362,14 +394,14 @@ function telegraphAmbient(world: World, count = 1): void {
     const dy = cy - world.ship.y;
     if (dx * dx + dy * dy >= cfg.minDistanceFromShip ** 2) found = true;
   }
-  telegraphAt(world, x, y, cfg.duration);
+  telegraphAt(world, x, y, duration);
   // pack members glow in around the anchor (clamped inside the view)
   for (let i = 1; i < count; i++) {
     const a = rand() * Math.PI * 2;
     const r = SPAWNER.clumpRadius * (0.4 + 0.6 * rand());
     const px = clamp(x + Math.cos(a) * r, -hw, hw);
     const py = clamp(y + Math.sin(a) * r, -hh, hh);
-    telegraphAt(world, px, py, cfg.duration);
+    telegraphAt(world, px, py, duration);
   }
 }
 
@@ -385,7 +417,7 @@ function spawnAt(
   if (world.drones.length >= SPAWNER.maxDrones) return null;
   // ambient relief valve: a field silted up with loose singles stops taking
   // more of them (formations/assemblies still deliver their patterns)
-  if (opts?.ambient && countFreeDrones(world) >= SPAWNER.ambientSoftCap) return null;
+  if (opts?.ambient && countFreeDrones(world) >= effectiveAmbientSoftCap()) return null;
   // the clamp covers formation sizes too, so a pinned clamp = one size for all
   const [clampMin, clampMax] = effectiveScaleClamp();
   const scale = clamp(opts?.scale ?? 0.6 + jitter, clampMin, clampMax);
@@ -442,11 +474,12 @@ function spawnAmbient(world: World, minutes: number, count = 1): void {
       bestDist = dist;
     }
   }
-  spawnAt(world, best.x, best.y, minutes);
+  const capOpts = mutatorAmbientSoftCapActive() ? { ambient: true } : undefined;
+  spawnAt(world, best.x, best.y, minutes, capOpts);
   for (let i = 1; i < count; i++) {
     const a = rand() * Math.PI * 2;
     const r = SPAWNER.clumpRadius * (0.4 + 0.6 * rand());
-    spawnAt(world, best.x + Math.cos(a) * r, best.y + Math.sin(a) * r, minutes);
+    spawnAt(world, best.x + Math.cos(a) * r, best.y + Math.sin(a) * r, minutes, capOpts);
   }
 }
 
@@ -1047,16 +1080,18 @@ export function updateAssemblies(world: World, dt: number): void {
 
   const kinds: AssemblyKind[] = ["lance", "wheel", "hunter", "bomb"];
 
+  const maxConcurrent = effectiveAssemblyMaxConcurrent();
+
   world.assemblyTimer -= dt;
   if (world.assemblyTimer <= 0) {
     world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange) * mutatorAssemblyIntervalScale();
     // fixed draws per event — consumed even when the event fizzles
-    const count = Math.round(scheduleRange(...ASSEMBLY.countRange));
+    const count = Math.round(scheduleRange(...ASSEMBLY.countRange) * mutatorAssemblyCountScale());
     const rolledKind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
     const kind = mutatorForceAssemblyKind() ?? rolledKind;
     if (
       difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
-      world.assemblies.length < ASSEMBLY.maxConcurrent
+      world.assemblies.length < maxConcurrent
     ) {
       tryFormAssembly(world, count, kind);
     }
@@ -1067,14 +1102,15 @@ export function updateAssemblies(world: World, dt: number): void {
   world.crowdAssemblyTimer -= dt;
   if (
     world.crowdAssemblyTimer <= 0 &&
-    world.assemblies.length < ASSEMBLY.maxConcurrent &&
+    world.assemblies.length < maxConcurrent &&
     difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
     countFreeDrones(world) >= ASSEMBLY.crowdTrigger
   ) {
     world.crowdAssemblyTimer = ASSEMBLY.crowdCooldown;
     const count = Math.round(
-      ASSEMBLY.countRange[0] +
-        Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0]),
+      (ASSEMBLY.countRange[0] +
+        Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0])) *
+        mutatorAssemblyCountScale(),
     );
     const kind = mutatorForceAssemblyKind() ?? kinds[Math.floor(Math.random() * kinds.length)];
     tryFormAssembly(world, count, kind);

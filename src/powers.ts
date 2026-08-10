@@ -2,8 +2,10 @@ import { MINES, PALETTE, POWERS, SCORING, type PowerId } from "./config";
 import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 // Power effects are player-triggered (when a pickup is grabbed), so their
 // randomness stays on Math.random — drawing from the seeded daily streams
-// here would desync the shared spawn script between players.
+// here would desync the shared spawn script between players. OVERCHARGE's
+// amplification is a plain config-value multiplier on top, so it's safe too.
 import { isMineArmed, killMine, killMinesInRadius } from "./mines";
+import { mutatorPowerAmpScale } from "./mutators";
 import type { ArcChainState, Drone, Mine, Pickup, PowersState, World } from "./types";
 import { clamp01 } from "./math";
 
@@ -82,6 +84,10 @@ function updateBlasts(world: World, dt: number): void {
 /** Auto-activate on pickup (port of Unity PowerManager.Trigger). */
 export function activatePower(world: World, power: PowerId): void {
   const p = world.powers;
+  // OVERCHARGE: drop RATE is untouched (see mutators.ts); this scales the
+  // magnitude of whichever power lands, so it reads the same at the moment
+  // of activation regardless of when the drop happened.
+  const amp = mutatorPowerAmpScale();
   switch (power) {
     case "shield":
       p.shieldActive = true;
@@ -91,12 +97,14 @@ export function activatePower(world: World, power: PowerId): void {
       p.starshellTimer = POWERS.starshell.duration;
       world.events.push({ type: "starshellUp" });
       break;
-    case "shockwave":
+    case "shockwave": {
       // instant core kill, then the sweep stays lethal out to the full wave
       // and lingers there — the "nuclear" afterglow
-      killDronesInRadius(world, world.ship.x, world.ship.y, POWERS.shockwave.radius);
-      killMinesInRadius(world, world.ship.x, world.ship.y, POWERS.shockwave.radius);
-      spawnBlast(world, world.ship.x, world.ship.y, POWERS.shockwave.waveMaxRadius, {
+      const radius = POWERS.shockwave.radius * amp;
+      const waveMaxRadius = POWERS.shockwave.waveMaxRadius * amp;
+      killDronesInRadius(world, world.ship.x, world.ship.y, radius);
+      killMinesInRadius(world, world.ship.x, world.ship.y, radius);
+      spawnBlast(world, world.ship.x, world.ship.y, waveMaxRadius, {
         expandTime: POWERS.shockwave.waveLifetime,
         holdTime: POWERS.shockwave.blastLifetime,
         color: PALETTE.gold,
@@ -106,12 +114,13 @@ export function activatePower(world: World, power: PowerId): void {
         y: world.ship.y,
         elapsed: 0,
         lifetime: POWERS.shockwave.waveLifetime,
-        maxRadius: POWERS.shockwave.waveMaxRadius,
+        maxRadius: waveMaxRadius,
         color: PALETTE.gold,
       });
       world.events.push({ type: "shockwave", x: world.ship.x, y: world.ship.y });
       world.shake = Math.max(world.shake, 0.35);
       break;
+    }
     case "pulse":
       p.pulseTimer = POWERS.pulse.chargeTime;
       world.events.push({ type: "pulseCharge" });
@@ -141,12 +150,14 @@ export function activatePower(world: World, power: PowerId): void {
       }
       break;
     case "freeze": {
-      const r = POWERS.freeze.radius;
+      // OVERCHARGE: a bigger, longer-lasting cryo field.
+      const r = POWERS.freeze.radius * amp;
+      const duration = POWERS.freeze.freezeDuration * amp;
       for (const d of world.drones) {
         if (!d.alive) continue;
         const dx = d.x - world.ship.x;
         const dy = d.y - world.ship.y;
-        if (dx * dx + dy * dy <= r * r) d.frozen = POWERS.freeze.freezeDuration;
+        if (dx * dx + dy * dy <= r * r) d.frozen = duration;
       }
       p.waves.push({
         x: world.ship.x,
@@ -190,8 +201,12 @@ export function activatePower(world: World, power: PowerId): void {
 function fireMissileSwarm(world: World): void {
   const p = world.powers;
   const cfg = POWERS.missiles;
+  // OVERCHARGE: more missiles per swarm, still capped by maxAlive so two
+  // stacked pickups can't runaway the missile count.
+  const amp = mutatorPowerAmpScale();
+  const requested = Math.round(cfg.count * amp);
   const room = cfg.maxAlive - p.missiles.length;
-  const count = Math.min(cfg.count, Math.max(0, room));
+  const count = Math.min(requested, Math.max(0, room));
   const baseAngle = world.ship.angle;
   for (let i = 0; i < count; i++) {
     const angle = baseAngle + (Math.PI * 2 * i) / count;
@@ -298,12 +313,15 @@ function zapTarget(
 function startArcChain(world: World): void {
   const p = world.powers;
   const cfg = POWERS.arc;
+  // OVERCHARGE: a wider jump radius reaches more targets, so the chain runs
+  // longer before it fizzles (see updateArcChain for the jump-side scaling).
+  const amp = mutatorPowerAmpScale();
   const ship = world.ship;
   const first = nearestEnemyInRadius(
     world,
     ship.x,
     ship.y,
-    cfg.initialRadius,
+    cfg.initialRadius * amp,
     new Set(),
     new Set(),
   );
@@ -347,7 +365,7 @@ function updateArcChain(world: World, dt: number): void {
     world,
     chain.x,
     chain.y,
-    cfg.jumpRadius,
+    cfg.jumpRadius * mutatorPowerAmpScale(),
     chain.hitDrones,
     chain.hitMines,
   );
@@ -495,7 +513,8 @@ function updateAutocannon(world: World, dt: number): void {
           dirY: Math.sin(angle),
           elapsed: 0,
         });
-        p.autocannonCooldown = cfg.fireInterval;
+        // OVERCHARGE: faster fire rate (smaller interval between rounds).
+        p.autocannonCooldown = cfg.fireInterval / mutatorPowerAmpScale();
         world.events.push({ type: "autocannonFire", x: ship.x, y: ship.y });
       }
     }
@@ -548,7 +567,9 @@ function updateMeteors(world: World, dt: number): void {
   p.meteorTimer -= dt;
   p.meteorCooldown -= dt;
   if (p.meteorCooldown > 0 || world.phase !== "playing") return;
-  p.meteorCooldown = cfg.interval;
+  // OVERCHARGE: strikes land more often (smaller interval between them).
+  const amp = mutatorPowerAmpScale();
+  p.meteorCooldown = cfg.interval / amp;
 
   // aim at a random alive drone (jittered) so strikes chase the swarm;
   // with no drones left, hammer a random on-screen point for the spectacle
@@ -583,6 +604,23 @@ function updateMeteors(world: World, dt: number): void {
   });
   world.events.push({ type: "meteorStrike", x, y });
   world.shake = Math.max(world.shake, 0.18);
+
+  // OVERCHARGE: the main strike fragments into a couple of smaller craters
+  // nearby (Math.random-only, same as the main strike's own targeting).
+  if (amp > 1) {
+    const fragments = amp >= 1.35 ? 2 : 1;
+    for (let i = 0; i < fragments; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = cfg.scatter * (1 + Math.random());
+      const fx = x + Math.cos(a) * r;
+      const fy = y + Math.sin(a) * r;
+      const fr = cfg.radius * 0.6;
+      killDronesInRadius(world, fx, fy, fr);
+      killMinesInRadius(world, fx, fy, fr);
+      spawnBlast(world, fx, fy, fr, { holdTime: cfg.blastLifetime * 0.7, color: PALETTE.meteors });
+      world.events.push({ type: "meteorStrike", x: fx, y: fy });
+    }
+  }
 }
 
 /** Vortices: pull drones inward, then collapse and kill the core. */
@@ -697,7 +735,8 @@ export function updatePowers(world: World, dt: number): void {
     proj.x += proj.dirX * POWERS.pulse.projectileSpeed * dt;
     proj.y += proj.dirY * POWERS.pulse.projectileSpeed * dt;
 
-    const r = POWERS.pulse.projectileRadius;
+    // OVERCHARGE: a bigger pulse shot.
+    const r = POWERS.pulse.projectileRadius * mutatorPowerAmpScale();
     for (const d of world.drones) {
       if (!d.alive || proj.hit.has(d)) continue;
       const dx = d.x - proj.x;

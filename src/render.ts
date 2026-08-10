@@ -2,6 +2,7 @@ import { ASSEMBLY, MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP,
 import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
+import { mutatorRedTint } from "./mutators";
 import { blastRadius } from "./powers";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
@@ -166,6 +167,11 @@ export class Renderer {
 
     // screen-space UI
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // RED ALERT: a subtle pulsing red vignette, cosmetic only (no gameplay
+    // state, so it's safe to skip on the daily determinism scripts).
+    if (world.daily && world.phase === "playing" && mutatorRedTint()) {
+      this.drawRedAlertVignette(opts.uiTime);
+    }
     if (opts.showHud) this.drawHud(world, opts);
     if (opts.touch?.active) this.drawTouchOverlay(opts.touch);
 
@@ -176,6 +182,26 @@ export class Renderer {
       else if (opts.fx.kind === "intro") this.drawIntroFx(opts.fx.t, opts.uiTime);
       else this.drawDeathFx(opts.fx.t, opts.uiTime);
     }
+  }
+
+  /** RED ALERT flavor: a slow-pulsing red edge glow, drawn in screen space. */
+  private drawRedAlertVignette(uiTime: number): void {
+    const { ctx } = this;
+    const W = this.cssW;
+    const H = this.cssH;
+    const pulse = 0.5 + 0.5 * Math.sin(uiTime * 2.2);
+    const grad = ctx.createRadialGradient(
+      W / 2,
+      H / 2,
+      Math.min(W, H) * 0.35,
+      W / 2,
+      H / 2,
+      Math.max(W, H) * 0.72,
+    );
+    grad.addColorStop(0, "rgba(196, 30, 58, 0)");
+    grad.addColorStop(1, `rgba(196, 30, 58, ${(0.14 + 0.08 * pulse).toFixed(3)})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
   }
 
   // --- cinematic transitions ---

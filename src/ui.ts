@@ -361,8 +361,9 @@ export class Ui {
   }
 
   /**
-   * Daily lobby briefing card: today's mutator(s) (name + one-line briefing,
-   * 2 on UTC Sundays) and today's medal time thresholds, shown before launch.
+   * Daily lobby briefing card: today's mutator(s) (name + flavor briefing +
+   * a plain-language subline stating what mechanically changed, 2 on UTC
+   * Sundays) and today's medal time thresholds, shown before launch.
    */
   private mutatorBriefingCard(mutators: Mutator[], thresholds: MedalThresholds): HTMLElement {
     const card = this.el("div", "mutator-card", "");
@@ -372,7 +373,8 @@ export class Ui {
           "div",
           "mutator-row",
           `<span class="mutator-name">${escapeHtml(m.name)}</span>` +
-            `<span class="mutator-briefing">${escapeHtml(m.briefing)}</span>`,
+            `<span class="mutator-briefing">${escapeHtml(m.briefing)}</span>` +
+            `<span class="mutator-subline">${escapeHtml(m.subline)}</span>`,
         ),
       );
     }

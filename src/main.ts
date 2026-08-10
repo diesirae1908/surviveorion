@@ -481,8 +481,12 @@ function startRun(): void {
   bestTime = loadBestTime(runGameMode);
   // Daily Mutators apply ONLY to Daily Patrol; Classic/Iron Rain/Training
   // Ground never see an override (see mutators.ts).
-  if (runIsDaily) setActiveMutators(getMutatorsForDate(new Date()));
-  else clearActiveMutators();
+  if (runIsDaily) {
+    const today = new Date();
+    setActiveMutators(getMutatorsForDate(today), today);
+  } else {
+    clearActiveMutators();
+  }
   currentViewScale = runIsDaily ? mutatorViewScale() : 1;
   // Daily Patrol deals everyone the same script (and no beginner grace);
   // normal runs soften the opening for a player's first few flights.

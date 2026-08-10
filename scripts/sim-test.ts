@@ -11,6 +11,7 @@ import { setRunSeed } from "../src/math";
 import { medalThresholdsForDate } from "../src/medals";
 import {
   clearActiveMutators,
+  getMutatorById,
   getMutatorsForDate,
   MUTATOR_POOL,
   mutatorViewScale,
@@ -524,7 +525,6 @@ function muteAmbientPickups(world: World): void {
     setRunSeed(1234567);
     const world = createWorld(17.8, 10, false, 0, "classic", true); // a real daily run
     const script: Script = { formations: [], powers: [], mines: [] };
-    const seenPickups = new Set<unknown>();
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -540,20 +540,19 @@ function muteAmbientPickups(world: World): void {
       }
       tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
 
+      // event-sourced, not scanned from world.pickups after the fact: a
+      // pickup that spawns and gets instantly self-collected by one of these
+      // synthetic bots in the same tick (a quirk of the bot, not a real
+      // player) would otherwise silently drop out of the recorded script
       for (const e of world.events) {
         if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+        if (e.type === "pickupSpawn") {
+          script.powers.push(
+            `${world.time.toFixed(2)}:${e.power}@${e.x.toFixed(2)},${e.y.toFixed(2)}`,
+          );
+        }
       }
       world.events.length = 0;
-      // pickups stay on the board (dailies never discard a scheduled drop):
-      // log each drop once, WITH its position — the whole visible power
-      // script must match, not just the identities
-      for (const pu of world.pickups) {
-        if (seenPickups.has(pu)) continue;
-        seenPickups.add(pu);
-        script.powers.push(
-          `${world.time.toFixed(2)}:${pu.power}@${pu.x.toFixed(2)},${pu.y.toFixed(2)}`,
-        );
-      }
       // mines never miss on dailies: log each with its position, then clear
       // (chain explosions from powers would otherwise diverge the field)
       for (const m of world.mines) {
@@ -660,13 +659,12 @@ function muteAmbientPickups(world: World): void {
   /** Same shape as the section-7 daily determinism recorder, but with a set
    * of mutators active for the run (main.ts calls setActiveMutators before
    * createWorld the same way for a real Daily Patrol launch). */
-  const recordMutated = (mutators: Mutator[], style: "ram" | "drift"): Script => {
+  const recordMutated = (mutators: Mutator[], style: "ram" | "drift", date: Date): Script => {
     setRunSeed(1234567);
-    setActiveMutators(mutators);
+    setActiveMutators(mutators, date);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
     const script: Script = { formations: [], powers: [], mines: [] };
-    const seenPickups = new Set<unknown>();
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -680,17 +678,16 @@ function muteAmbientPickups(world: World): void {
       }
       tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
 
+      // event-sourced (see the section-7 recorder above for why).
       for (const e of world.events) {
         if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+        if (e.type === "pickupSpawn") {
+          script.powers.push(
+            `${world.time.toFixed(2)}:${e.power}@${e.x.toFixed(2)},${e.y.toFixed(2)}`,
+          );
+        }
       }
       world.events.length = 0;
-      for (const pu of world.pickups) {
-        if (seenPickups.has(pu)) continue;
-        seenPickups.add(pu);
-        script.powers.push(
-          `${world.time.toFixed(2)}:${pu.power}@${pu.x.toFixed(2)},${pu.y.toFixed(2)}`,
-        );
-      }
       for (const m of world.mines) {
         script.mines.push(`${world.time.toFixed(2)}:${m.x.toFixed(2)},${m.y.toFixed(2)}`);
       }
@@ -705,8 +702,8 @@ function muteAmbientPickups(world: World): void {
   const dayA = new Date("2026-08-10T00:00:00Z"); // arbitrary UTC day, not a Sunday
   const mutatorsA = getMutatorsForDate(dayA);
   const namesA = mutatorsA.map((m) => m.name).join("+");
-  const a1 = recordMutated(mutatorsA, "ram");
-  const a2 = recordMutated(mutatorsA, "drift");
+  const a1 = recordMutated(mutatorsA, "ram", dayA);
+  const a2 = recordMutated(mutatorsA, "drift", dayA);
   check(
     `mutated day (${namesA}) determinism: formations match across play styles`,
     a1.formations.length > 3 && a1.formations.join("|") === a2.formations.join("|"),
@@ -740,7 +737,7 @@ function muteAmbientPickups(world: World): void {
     mutatorsB.map((m) => m.id).join(",") !== mutatorsA.map((m) => m.id).join(","),
     `${namesA} (day A) vs ${mutatorsB.map((m) => m.name).join("+")} (day B, +${Math.round((dayB.getTime() - dayA.getTime()) / MS_PER_DAY)}d)`,
   );
-  const b1 = recordMutated(mutatorsB, "ram");
+  const b1 = recordMutated(mutatorsB, "ram", dayB);
   check(
     "two days with different mutators produce different scripts",
     a1.formations.join("|") !== b1.formations.join("|") || a1.powers.join("|") !== b1.powers.join("|"),
@@ -750,7 +747,7 @@ function muteAmbientPickups(world: World): void {
   let crashedMutator: string | null = null;
   const deadArena: string[] = [];
   for (const m of MUTATOR_POOL) {
-    setActiveMutators([m]);
+    setActiveMutators([m], dayA);
     const scale = mutatorViewScale();
     try {
       const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
@@ -798,6 +795,131 @@ function muteAmbientPickups(world: World): void {
     "medal thresholds ordered/positive/5s-rounded across a sample week",
     badThresholds === null,
     badThresholds ?? "",
+  );
+}
+
+// --- 10. Daily Mutators: evasive-bot playability (can you actually dodge?) ---
+//
+// Round 1's playability check used an invulnerable starshell observer, which
+// answers "does the arena spawn/kill sanely" but not "can a pilot who
+// actually has to dodge survive it". This harness flies a simple repulsion
+// dodger (steer away from the nearest drones/mines, no powers, no offense:
+// a deliberately pessimistic lower bound) and measures real survival time.
+// Not seeded on purpose (playability, not determinism): Math.random gameplay.
+{
+  const CAP_SECONDS = 90;
+  const TRIALS = 10;
+  const evasiveDate = new Date("2026-08-10T00:00:00Z");
+
+  /** Steer away from every nearby drone/mine, weighted by inverse-square distance. */
+  function evasiveHeading(world: World): { x: number; y: number } {
+    let fx = 0;
+    let fy = 0;
+    const ship = world.ship;
+    for (const d of world.drones) {
+      if (!d.alive) continue;
+      const dx = ship.x - d.x;
+      const dy = ship.y - d.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > 36) continue; // only threats within 6 units matter
+      const dist = Math.sqrt(distSq) || 0.05;
+      const w = 1 / (distSq + 0.2);
+      fx += (dx / dist) * w;
+      fy += (dy / dist) * w;
+    }
+    for (const m of world.mines) {
+      if (!m.alive) continue;
+      const dx = ship.x - m.x;
+      const dy = ship.y - m.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > 16) continue;
+      const dist = Math.sqrt(distSq) || 0.05;
+      const w = 1.5 / (distSq + 0.2);
+      fx += (dx / dist) * w;
+      fy += (dy / dist) * w;
+    }
+    const len = Math.hypot(fx, fy);
+    if (len < 0.0001) return { x: 0, y: 0 };
+    return { x: fx / len, y: fy / len };
+  }
+
+  function runEvasiveTrial(mutators: Mutator[]): number {
+    setActiveMutators(mutators, evasiveDate);
+    const scale = mutatorViewScale();
+    const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    const evasiveInput: InputState = {
+      turn: 0,
+      thrust: 0,
+      heading: null,
+      moveVector: { x: 0, y: 0 },
+      inertia: false,
+      cruiseSpeed: 8,
+    };
+    const steps = Math.round(CAP_SECONDS / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      if (world.phase !== "playing") break;
+      evasiveInput.moveVector = evasiveHeading(world);
+      tick(world, evasiveInput, FIXED_DT);
+      world.events.length = 0;
+    }
+    clearActiveMutators();
+    return Math.min(world.time, CAP_SECONDS);
+  }
+
+  function median(values: number[]): number {
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  }
+
+  const baselineTimes = Array.from({ length: TRIALS }, () => runEvasiveTrial([]));
+  const baselineMedian = median(baselineTimes);
+  check(
+    "evasive bot: baseline (no mutator) survives a sane median time",
+    baselineMedian >= 12,
+    `median ${baselineMedian.toFixed(1)}s over ${TRIALS} trials`,
+  );
+
+  // Every mutator gets the same bar: a dodging pilot with no powers must
+  // clear either an absolute floor or a fraction of the baseline median,
+  // whichever is more lenient, since a genuinely harder day is allowed to
+  // cut survival somewhat, it just can't be an instant-death trap.
+  const FLOOR_SECONDS = 10;
+  const FLOOR_FRACTION = 0.4;
+  const results: { id: string; name: string; median: number }[] = [];
+  for (const m of MUTATOR_POOL) {
+    const times = Array.from({ length: TRIALS }, () => runEvasiveTrial([m]));
+    results.push({ id: m.id, name: m.name, median: median(times) });
+  }
+  const bar = Math.min(FLOOR_SECONDS, baselineMedian * FLOOR_FRACTION);
+  const tooLethal = results.filter((r) => r.median < bar);
+  check(
+    `evasive bot: every mutator clears the playability bar (>=${bar.toFixed(1)}s median)`,
+    tooLethal.length === 0,
+    tooLethal.map((r) => `${r.name} ${r.median.toFixed(1)}s`).join(", "),
+  );
+  console.log(
+    "  evasive-bot medians: " +
+      results.map((r) => `${r.name} ${r.median.toFixed(1)}s`).join(" | "),
+  );
+
+  // Named call-outs from Sam's brief: BLACKOUT and THE FLOOD specifically.
+  const blackout = results.find((r) => r.id === "blackout");
+  const flood = results.find((r) => r.id === "the-flood");
+  check(
+    "evasive bot: BLACKOUT is a fair fight, not a surprise-death trap",
+    !!blackout && blackout.median >= bar,
+    `${blackout?.median.toFixed(1)}s vs baseline ${baselineMedian.toFixed(1)}s`,
+  );
+  check(
+    "evasive bot: THE FLOOD is navigable (a current, not instant death)",
+    !!flood && flood.median >= bar,
+    `${flood?.median.toFixed(1)}s vs baseline ${baselineMedian.toFixed(1)}s`,
+  );
+  // sanity: getMutatorById resolves every id used above (catches stale ids)
+  check(
+    "getMutatorById resolves every pool id",
+    MUTATOR_POOL.every((m) => getMutatorById(m.id)?.id === m.id),
   );
 }
 

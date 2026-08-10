@@ -4,6 +4,122 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-09b: Daily Mutators round 2, tuning fixes + pool expansion (branch, not merged)
+
+- Lucas playtested round 1 on the test link and loved the concept ("very fun
+  to have a new mode like that every day"), then gave item-by-item tuning
+  feedback. Still branch `sam/daily-mutators`, still **not merged to main**,
+  pushed the branch only (`surviveorion-test` auto-deploys from it).
+- **BLACKOUT (item 1)**: "maybe too hard". Tried both options from the brief;
+  the evasive-bot harness (new this round, see below) showed pure
+  telegraph-off hitting real survival, so kept telegraphs on but cut their
+  warning time to ~1/3 (`telegraphDurationScale: 0.36`, ~0.5s instead of
+  1.4s). New briefing "The sirens are slow tonight." Factor eased 1.15 → 1.1.
+- **OVERDRIVE → RED ALERT (item 2)**: reworked to tempo-only. Spawn rate,
+  formation frequency, and pickup interval all sped up; `droneSpeedScale`
+  removed entirely so drone speed stays normal (klaxon-panic, not
+  twitch-speed, per the brief). Added a cheap cosmetic pulsing red vignette
+  (`render.ts`, gated on `world.daily && phase==="playing"`, no gameplay
+  state, safe for the daily determinism scripts).
+- **THE FLOOD (item 3)**: added the evasive-bot playability harness Lucas
+  asked for (section 10 in `sim-test.ts`, a repulsion dodger with no powers,
+  unseeded on purpose since it's testing playability not determinism) and
+  required every mutator to clear a floor relative to the no-mutator
+  baseline. Retuned FLOOD: ambient rate down (1.6 → 1.3), added a tighter
+  ambient soft cap (`ambientSoftCapScale: 0.7`, this also surfaced that
+  `SPAWNER.ambientSoftCap` was defined but never actually wired into any
+  spawn call before now, fixed that plumbing in `enemies.ts` so it only
+  engages when a mutator asks for it), bigger clump grouping
+  (`clumpMaxScale: 1.6`, same density gathered into fewer/bigger blobs with
+  real lanes between them), plus a touch more pickup support. Evasive-bot
+  median ~12-14s vs. baseline ~13-14s across repeated runs, a fair current,
+  not an instant-death trap.
+- **WARGAMES → GREAT WALL + YEAR OF THE SERPENT (item 4)**: "not sure what
+  this is" (illegible identity), replaced with two self-explanatory
+  forced-formation days. GREAT WALL locks the formation diet to
+  wall/megawall/pincer ("Today the enemy builds walls. Find the gaps.").
+  YEAR OF THE SERPENT locks it to serpent trains only. Both tagged
+  `formation-kind` (mutually exclusive with each other) and `density`
+  (mutually exclusive with THE FLOOD, opposite identity).
+- **MENAGERIE (item 5)**: sharpened so it reads in the first minute. Ambient
+  rate cut harder (0.85 → 0.55) and assembly interval tightened further
+  (0.45 → 0.35) so the thinner swarm makes the much-more-frequent evolutions
+  the obvious main event. New briefing: "The swarm keeps fusing into hunters
+  and worse." Factor raised 1.1 → 1.2.
+- **ARSENAL (item 7)**: kept as-is (liked), added the requested **OVERCHARGE**
+  variant: normal drop rate, every power's magnitude amplified 1.4x
+  (shockwave radius, missile count, arc jump radius, cryo radius/duration,
+  autocannon fire rate, meteor interval + a fragmented second explosion,
+  pulse projectile radius), via one `powerAmpScale` knob read across
+  `powers.ts`. Checked against `server/validate.mjs`'s `MAX_KILLS_PER_SEC`
+  (12) with the same invulnerable-observer harness used for WARGAMES in
+  round 1: OVERCHARGE averaged ~6.8 kills/sec over 4 minutes vs. a ~6.6
+  no-mutator baseline in the same harness, nowhere near the ceiling (the
+  amplification is magnitude not rate, so it barely moves the sustained
+  average). Worst mutator in the whole pool by this measure was GREAT WALL
+  at ~8.2 kills/sec, still well under 12. No exclusions needed.
+- **New mutators (item 8)**, all shipped:
+  - **SOLAR WIND**: constant per-day crosswind pushing ship and every drone
+    the same way. Direction comes from a hash of the UTC date string (same
+    "deterministic from the date, no stream draw" trick the mutator
+    selection itself uses), not a seeded-stream draw, so it sits outside the
+    seeded-draw-count discipline entirely rather than resting on "one fixed
+    draw threaded correctly through every call site". Applied as a pure
+    per-frame positional nudge in `ship.ts`/`enemies.ts`. Tagged
+    `arena-size` too (excluded from THE PIT: a shrunk arena plus a crosswind
+    pinning you against closer walls tested as too much stacked at once).
+  - **TITANFALL**: evolutions much rarer (interval x2.4), much bigger
+    (member count x1.8), capped at 1 concurrent. Boss-hunt read. Tagged
+    `assembly-kind` + `assembly-freq` (excludes the forced-kind days and
+    MENAGERIE, since it's both a frequency and a scale change).
+  - **STARFALL**: monopower day, every drop is Meteor Storm. Spectacle,
+    reuses the existing mono-power weight helper.
+  - **MAGNETIC FIELD**: verified pickup drift is pure post-spawn kinematics
+    with zero RNG involved (not riding the seeded streams), so a gentle
+    ship-homing pull layered on top is determinism-safe. Pickups slowly
+    drift toward the ship all day on top of normal wander. Reads as a fun
+    day (0.85 factor); evasive-bot median came back the highest in the pool
+    (~21-24s vs. ~13-14s baseline), confirming it as the intended pure-fun
+    outlier.
+- **Legibility (item 9)**: every mutator in the pool (22 total, up from 16)
+  now carries a `subline`, a second plain-language line under the flavor
+  briefing stating mechanically what changed (e.g. "Spawn rate, formation
+  frequency, and pickup drops all sped up. Drone speed is unchanged.").
+  Rendered in `ui.ts`'s briefing card, new `.mutator-subline` style in
+  `style.css` (dimmer, smaller than the flavor line, still centered and
+  tight on phones). Game-over tag and share card left as-is (already
+  generic over `mutator.name`, nothing to update).
+- **Determinism bug found and fixed**: while retuning MENAGERIE, hit a
+  determinism-test failure isolated to `assemblyIntervalScale`. Root cause
+  was in the test harness, not the game: `sim-test.ts` recorded dropped
+  powers by scanning `world.pickups` after each tick, so a pickup that
+  spawned and got instantly self-collected by one of the synthetic bots in
+  the same tick (a quirk of the ram/drift test bots, not a real player) just
+  vanished from the recorded script for that style, producing a false
+  mismatch. Fixed at the source: `pickups.ts` now fires a `pickupSpawn`
+  event the moment a pickup is created (new event type in `types.ts`,
+  harmless if unhandled elsewhere), and both `sim-test.ts` recorders now
+  read that event instead of scanning `world.pickups` post-tick. Confirmed
+  real Daily Patrol pickup placement was never affected (position is
+  ship-independent on daily runs already, see the "first candidate wins"
+  comment in `pickups.ts`); this was purely a test-measurement artifact.
+- Also noticed (pre-existing, unrelated to this branch): a handful of
+  `sim-test.ts` checks that use unseeded `Math.random()` (assembly burst,
+  magnet pending-grab, serpent-follow, drone-population-cap) can very rarely
+  flip on an unlucky roll, roughly 1 in 20-30 runs, reproduced at the same
+  rate on the unmodified round-1 baseline. Not something this branch caused
+  or is fixing; flagging for awareness only.
+- **Verified**: `npm run build` (tsc + vite) green. `npx tsx
+  scripts/sim-test.ts` green, reran repeatedly clean including the new
+  evasive-bot section; every one of the 22 pool mutators clears the
+  playability floor. No em dashes in any new copy or comments (scanned the
+  full diff for this round).
+- Open items for Lucas/Sam: none blocking. (1) OVERCHARGE/STARFALL both
+  cleared the kill-rate ceiling with real margin, no tone-down needed;
+  (2) the pre-existing test flakiness noted above is worth a look someday
+  but is out of scope here; (3) medal-calendar/server persistence remains
+  intentionally out of scope, same as round 1.
+
 ## 2026-08-09 — Daily Mutators + Medals for Daily Patrol (branch, not merged)
 
 - Lucas's ask (via Sam): make every Daily Patrol feel DIFFERENT to play, not
