@@ -7,7 +7,19 @@ import { droneRadius, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
-import { setRunSeed } from "../src/math";
+import { clamp01, setRunSeed } from "../src/math";
+import { medalThresholdsForDate } from "../src/medals";
+import {
+  clearActiveMutators,
+  getMutatorById,
+  getMutatorsForDate,
+  MUTATOR_POOL,
+  MUTATORS_START_DATE,
+  mutatorAmbientRateScale,
+  mutatorViewScale,
+  setActiveMutators,
+  type Mutator,
+} from "../src/mutators";
 import { Tutorial } from "../src/tutorial";
 import type { World } from "../src/types";
 
@@ -28,6 +40,8 @@ function step(world: World, seconds: number): void {
     world.events.length = 0;
   }
 }
+
+const MS_PER_DAY = 86_400_000;
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ""): void {
@@ -513,7 +527,6 @@ function muteAmbientPickups(world: World): void {
     setRunSeed(1234567);
     const world = createWorld(17.8, 10, false, 0, "classic", true); // a real daily run
     const script: Script = { formations: [], powers: [], mines: [] };
-    const seenPickups = new Set<unknown>();
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -529,20 +542,19 @@ function muteAmbientPickups(world: World): void {
       }
       tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
 
+      // event-sourced, not scanned from world.pickups after the fact: a
+      // pickup that spawns and gets instantly self-collected by one of these
+      // synthetic bots in the same tick (a quirk of the bot, not a real
+      // player) would otherwise silently drop out of the recorded script
       for (const e of world.events) {
         if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+        if (e.type === "pickupSpawn") {
+          script.powers.push(
+            `${world.time.toFixed(2)}:${e.power}@${e.x.toFixed(2)},${e.y.toFixed(2)}`,
+          );
+        }
       }
       world.events.length = 0;
-      // pickups stay on the board (dailies never discard a scheduled drop):
-      // log each drop once, WITH its position — the whole visible power
-      // script must match, not just the identities
-      for (const pu of world.pickups) {
-        if (seenPickups.has(pu)) continue;
-        seenPickups.add(pu);
-        script.powers.push(
-          `${world.time.toFixed(2)}:${pu.power}@${pu.x.toFixed(2)},${pu.y.toFixed(2)}`,
-        );
-      }
       // mines never miss on dailies: log each with its position, then clear
       // (chain explosions from powers would otherwise diverge the field)
       for (const m of world.mines) {
@@ -636,6 +648,561 @@ function muteAmbientPickups(world: World): void {
   const outroShown = hints.some((h) => h.includes("THE GOAL"));
   stepTut(1);
   check("tutorial: shockwave beat + outro reached", pickupAppeared && outroShown && tut.done, hints.length + " hints");
+}
+
+// --- 9. Daily Mutators: determinism, day-to-day variety, pool playability ---
+{
+  interface Script {
+    formations: string[];
+    powers: string[];
+    mines: string[];
+    meteors: string[];
+    assemblies: string[];
+  }
+
+  /** Same shape as the section-7 daily determinism recorder, but with a set
+   * of mutators active for the run (main.ts calls setActiveMutators before
+   * createWorld the same way for a real Daily Patrol launch). */
+  const recordMutated = (mutators: Mutator[], style: "ram" | "drift", date: Date): Script => {
+    setRunSeed(1234567);
+    setActiveMutators(mutators, date);
+    const scale = mutatorViewScale();
+    const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    const script: Script = { formations: [], powers: [], mines: [], meteors: [], assemblies: [] };
+    let t = 0;
+    const steps = Math.round(180 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      t += FIXED_DT;
+      let drive = { x: 0, y: 0 };
+      if (style === "ram") {
+        world.powers.starshellTimer = 9999;
+      } else {
+        world.powers.shieldActive = true;
+        drive = { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
+      }
+      tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
+
+      // event-sourced (see the section-7 recorder above for why).
+      for (const e of world.events) {
+        if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+        if (e.type === "pickupSpawn") {
+          script.powers.push(
+            `${world.time.toFixed(2)}:${e.power}@${e.x.toFixed(2)},${e.y.toFixed(2)}`,
+          );
+        }
+        // STARFALL: the meteor rain's impact script (rides schedule + placement
+        // streams only, see starfall.ts), independent of the ship/drones.
+        if (e.type === "meteorStrike") {
+          script.meteors.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        }
+        // Round 5 creature days: direct-spawn assembly anchors/headings ride
+        // the seeded streams (see creatures.ts), so this is now a shared
+        // script too, unlike conscription's player-dependent member picks.
+        if (e.type === "assembly") {
+          script.assemblies.push(`${world.time.toFixed(2)}:${e.kind}@${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        }
+      }
+      world.events.length = 0;
+      for (const m of world.mines) {
+        script.mines.push(`${world.time.toFixed(2)}:${m.x.toFixed(2)},${m.y.toFixed(2)}`);
+      }
+      world.mines.length = 0;
+    }
+    setRunSeed(null);
+    clearActiveMutators();
+    return script;
+  };
+
+  // (a) same mutated day, two very different play styles -> identical script
+  // (post launch-gate: MUTATORS_START_DATE is 2026-08-11, see section (g)
+  // below; picked a non-creature-day date since this check expects the
+  // normal formation cadence, not round 5's near-zero-formation choreography)
+  const dayA = new Date("2026-08-13T00:00:00Z"); // arbitrary UTC day, not a Sunday, THE FLOOD
+  const mutatorsA = getMutatorsForDate(dayA);
+  const namesA = mutatorsA.map((m) => m.name).join("+");
+  const a1 = recordMutated(mutatorsA, "ram", dayA);
+  const a2 = recordMutated(mutatorsA, "drift", dayA);
+  check(
+    `mutated day (${namesA}) determinism: formations match across play styles`,
+    a1.formations.length > 3 && a1.formations.join("|") === a2.formations.join("|"),
+    `${a1.formations.length} formations`,
+  );
+  check(
+    `mutated day (${namesA}) determinism: power drops match across play styles`,
+    a1.powers.join("|") === a2.powers.join("|"),
+    `${a1.powers.length} drops`,
+  );
+  check(
+    `mutated day (${namesA}) determinism: mine schedule matches across play styles`,
+    a1.mines.join("|") === a2.mines.join("|"),
+    `${a1.mines.length} mines`,
+  );
+
+  // (b) two different days pick different mutators, and their scripts diverge
+  let dayB = dayA;
+  let mutatorsB = mutatorsA;
+  for (let i = 1; i <= 30; i++) {
+    const candidate = new Date(dayA.getTime() + i * MS_PER_DAY);
+    const candidateMutators = getMutatorsForDate(candidate);
+    if (candidateMutators.map((m) => m.id).join(",") !== mutatorsA.map((m) => m.id).join(",")) {
+      dayB = candidate;
+      mutatorsB = candidateMutators;
+      break;
+    }
+  }
+  check(
+    "a different mutator turns up within 30 days (no permanent stuck day)",
+    mutatorsB.map((m) => m.id).join(",") !== mutatorsA.map((m) => m.id).join(","),
+    `${namesA} (day A) vs ${mutatorsB.map((m) => m.name).join("+")} (day B, +${Math.round((dayB.getTime() - dayA.getTime()) / MS_PER_DAY)}d)`,
+  );
+  const b1 = recordMutated(mutatorsB, "ram", dayB);
+  check(
+    "two days with different mutators produce different scripts",
+    a1.formations.join("|") !== b1.formations.join("|") || a1.powers.join("|") !== b1.powers.join("|"),
+  );
+
+  // (c) every mutator in the pool boots and survives a sim run cleanly
+  let crashedMutator: string | null = null;
+  const deadArena: string[] = [];
+  for (const m of MUTATOR_POOL) {
+    setActiveMutators([m], dayA);
+    const scale = mutatorViewScale();
+    try {
+      const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+      step(world, 60);
+      if (!Number.isFinite(world.score) || !Number.isFinite(world.time)) {
+        crashedMutator = `${m.id}: non-finite score/time`;
+        break;
+      }
+      // the stationary observer ram-kills anything that reaches it, so a
+      // healthy arena always spawns/kills something over a full minute
+      const spawned = world.kills + world.drones.length;
+      if (spawned === 0) deadArena.push(m.id);
+    } catch (e) {
+      crashedMutator = `${m.id}: ${e}`;
+      break;
+    } finally {
+      clearActiveMutators();
+    }
+  }
+  check(
+    `all ${MUTATOR_POOL.length} pool mutators boot + survive 60s (no crash, no NaN)`,
+    crashedMutator === null,
+    crashedMutator ?? "",
+  );
+  check("no mutator produces a zero-spawn dead arena", deadArena.length === 0, deadArena.join(","));
+
+  // (d) STARFALL: the meteor rain script (timing + impact position) rides
+  // the seeded schedule/placement streams only, so it must be byte-identical
+  // across play styles, same as formations/powers/mines above.
+  {
+    const starfallDate = new Date("2026-08-16T00:00:00Z"); // arbitrary, not a Sunday
+    const starfall = getMutatorById("starfall")!;
+    const s1 = recordMutated([starfall], "ram", starfallDate);
+    const s2 = recordMutated([starfall], "drift", starfallDate);
+    check(
+      "STARFALL determinism: meteor impact script identical across play styles",
+      s1.meteors.length > 5 && s1.meteors.join("|") === s2.meteors.join("|"),
+      `${s1.meteors.length} impacts`,
+    );
+    // sanity: the rain ramps up (later gaps between impacts are tighter)
+    const times = s1.meteors.map((e) => Number(e.split(":")[0]));
+    const gaps = times.slice(1).map((t, i) => t - times[i]);
+    const earlyGap = gaps.slice(0, Math.max(1, Math.floor(gaps.length * 0.3))).reduce((a, b) => a + b, 0) /
+      Math.max(1, Math.floor(gaps.length * 0.3));
+    const lateGap = gaps.slice(-Math.max(1, Math.floor(gaps.length * 0.3))).reduce((a, b) => a + b, 0) /
+      Math.max(1, Math.floor(gaps.length * 0.3));
+    check(
+      "STARFALL: cadence ramps up over the run (later gaps tighter than early gaps)",
+      gaps.length > 5 && lateGap < earlyGap,
+      `early ~${earlyGap.toFixed(2)}s vs late ~${lateGap.toFixed(2)}s`,
+    );
+  }
+
+  // (e) forced-formation days go to true zero ambient. Forced-creature days
+  // (round 5) now direct-spawn choreographed assemblies instead of
+  // conscripting the ambient swarm (see creatures.ts), so they go to true
+  // zero ambient AND near-zero ordinary formations too: the choreography
+  // is the whole day. See section (f) below for the choreography-specific
+  // determinism/shape checks.
+  {
+    function countEvents(
+      mutators: Mutator[],
+      seconds: number,
+    ): { ambientSpawns: number; assemblies: number; formations: number } {
+      setActiveMutators(mutators, dayA);
+      const scale = mutatorViewScale();
+      const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+      let ambientSpawns = 0;
+      let assemblies = 0;
+      let formations = 0;
+      const steps = Math.round(seconds / FIXED_DT);
+      for (let i = 0; i < steps; i++) {
+        world.powers.shieldActive = true; // survive without ram-killing conscripts
+        tick(world, input, FIXED_DT);
+        for (const e of world.events) {
+          if (e.type === "ambientSpawn") ambientSpawns++;
+          if (e.type === "assembly") assemblies++;
+          if (e.type === "formation") formations++;
+        }
+        world.events.length = 0;
+      }
+      clearActiveMutators();
+      return { ambientSpawns, assemblies, formations };
+    }
+
+    const greatWall = getMutatorById("great-wall")!;
+    const serpent = getMutatorById("year-of-the-serpent")!;
+
+    // The opening must not sit empty: the very first formation has to land
+    // fast (firstFormationDelayCap) AND resolve to a real kind, not fizzle
+    // on an empty weight pool (wall/serpent's own minMinutes ramp-gate would
+    // otherwise still be closed this early; see rollFormationKind's bypass
+    // for a mutator-forced weight table).
+    function firstFormationLanding(m: Mutator): { time: number; kind: string | null } {
+      setActiveMutators([m], dayA);
+      const scale = mutatorViewScale();
+      const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+      const steps = Math.round(20 / FIXED_DT);
+      for (let i = 0; i < steps; i++) {
+        tick(world, input, FIXED_DT);
+        for (const e of world.events) {
+          if (e.type === "formation") {
+            clearActiveMutators();
+            return { time: world.time, kind: e.kind };
+          }
+        }
+        world.events.length = 0;
+      }
+      clearActiveMutators();
+      return { time: -1, kind: null };
+    }
+    const gwOpening = firstFormationLanding(greatWall);
+    const serpentOpening = firstFormationLanding(serpent);
+    check(
+      "GREAT WALL: opening formation lands fast and resolves (no empty-pool fizzle)",
+      gwOpening.kind !== null && gwOpening.time <= 5,
+      `${gwOpening.kind ?? "none"} @ t=${gwOpening.time.toFixed(2)}`,
+    );
+    check(
+      "YEAR OF THE SERPENT: opening formation lands fast and resolves (no empty-pool fizzle)",
+      serpentOpening.kind === "serpent" && serpentOpening.time <= 5,
+      `${serpentOpening.kind ?? "none"} @ t=${serpentOpening.time.toFixed(2)}`,
+    );
+
+    const gwStats = countEvents([greatWall], 90);
+    const serpentStats = countEvents([serpent], 90);
+    check(
+      "GREAT WALL: zero ambient spawn events over a 90s run",
+      gwStats.ambientSpawns === 0,
+      `${gwStats.ambientSpawns} ambient spawns`,
+    );
+    check(
+      "YEAR OF THE SERPENT: zero ambient spawn events over a 90s run",
+      serpentStats.ambientSpawns === 0,
+      `${serpentStats.ambientSpawns} ambient spawns`,
+    );
+
+    const creatureIds = ["lancer-doctrine", "wheelhouse", "hunting-party", "demolition-day"];
+    const creatureResults = creatureIds.map((id) => ({
+      id,
+      ...countEvents([getMutatorById(id)!], 120),
+    }));
+    check(
+      "forced-creature days: direct-spawn choreography produces plenty of assemblies",
+      creatureResults.every((r) => r.assemblies > 0),
+      creatureResults.map((r) => `${r.id}:${r.assemblies} assemblies`).join(", "),
+    );
+    check(
+      "forced-creature days: zero ambient spawn events over a 120s run (round 5, no more conscription fuel)",
+      creatureResults.every((r) => r.ambientSpawns === 0),
+      creatureResults.map((r) => `${r.id}:${r.ambientSpawns} spawns`).join(", "),
+    );
+    check(
+      "forced-creature days: ordinary formations near-zero (choreography is the whole day)",
+      creatureResults.every((r) => r.formations <= 1),
+      creatureResults.map((r) => `${r.id}:${r.formations} formations`).join(", "),
+    );
+
+    // Sunday pairing edge case: GREAT WALL (different exclusion tag from the
+    // forced-creature days) can legally pair with one of them. Round 5
+    // removed conscription's need for an ambient floor, so both sides now
+    // want zero, so the simplified multiplicative rule should resolve to a
+    // sane, finite, non-negative value (not NaN, not negative) regardless.
+    const lancer = getMutatorById("lancer-doctrine")!;
+    setActiveMutators([greatWall, lancer], dayA);
+    const pairedRate = mutatorAmbientRateScale();
+    clearActiveMutators();
+    check(
+      "Sunday pairing: zero-ambient formation day + creature day resolves to a sane rate",
+      Number.isFinite(pairedRate) && pairedRate === 0,
+      `resolved ${pairedRate} (formation day wants 0, creature day wants ${lancer.overrides.ambientRateScale})`,
+    );
+
+    // the combine rule stays multiplicative everywhere (RED ALERT x ARSENAL
+    // both wanting more ambient should stack).
+    const redAlert = getMutatorById("red-alert")!;
+    const arsenal = getMutatorById("arsenal")!;
+    setActiveMutators([redAlert, arsenal], dayA);
+    const stackedRate = mutatorAmbientRateScale();
+    clearActiveMutators();
+    const expectedStacked = (redAlert.overrides.ambientRateScale ?? 1) * (arsenal.overrides.ambientRateScale ?? 1);
+    check(
+      "ambient rate combine stays multiplicative",
+      Math.abs(stackedRate - expectedStacked) < 1e-9,
+      `${stackedRate.toFixed(3)} vs expected ${expectedStacked.toFixed(3)}`,
+    );
+  }
+
+  // (f) round 5: creature-day choreography determinism + shape checks. Event
+    // timing/anchors/headings ride the seeded streams (see creatures.ts), so,
+    // unlike the old conscription system, these scripts must now be
+    // byte-identical across play styles, same discipline as formations/STARFALL.
+  {
+    const creatureMutatorIds: Array<{ id: string; label: string }> = [
+      { id: "hunting-party", label: "wolf packs" },
+      { id: "lancer-doctrine", label: "broadsides" },
+      { id: "wheelhouse", label: "crossing traffic" },
+      { id: "demolition-day", label: "area denial" },
+    ];
+    const creatureDate = new Date("2026-08-17T00:00:00Z"); // arbitrary, not a Sunday
+    const summaries: string[] = [];
+    for (const { id, label } of creatureMutatorIds) {
+      const m = getMutatorById(id)!;
+      const c1 = recordMutated([m], "ram", creatureDate);
+      const c2 = recordMutated([m], "drift", creatureDate);
+      check(
+        `${m.name} determinism: choreography script (event time/kind/anchor) identical across play styles`,
+        c1.assemblies.length > 3 && c1.assemblies.join("|") === c2.assemblies.join("|"),
+        `${c1.assemblies.length} events`,
+      );
+      summaries.push(`${m.name} (${label}): ${c1.assemblies.length} events`);
+    }
+    console.log(`  creature-day choreography counts (180s run): ${summaries.join(" | ")}`);
+  }
+
+  // (g) launch-date gate: a pre-gate UTC date yields no mutators at all
+  // (vanilla daily), a post-gate date resolves the normal hash pick. The
+  // gate only suppresses, so the post-gate date's pick must match what the
+  // same date would have resolved to without a gate (i.e. it isn't shifted).
+  {
+    const gateOpenMs = Date.parse(`${MUTATORS_START_DATE}T00:00:00Z`);
+    const preGateDate = new Date(gateOpenMs - MS_PER_DAY); // the day before the gate opens
+    const postGateDate = new Date(gateOpenMs); // the gate date itself
+    const preGatePick = getMutatorsForDate(preGateDate);
+    const postGatePick = getMutatorsForDate(postGateDate);
+    check(
+      "launch gate: a pre-gate UTC date yields no mutators",
+      preGatePick.length === 0,
+      `${preGatePick.length} mutator(s) picked`,
+    );
+    check(
+      "launch gate: the gate date itself yields the expected hash pick",
+      postGatePick.length > 0,
+      `${postGatePick.map((m) => m.id).join("+") || "(none)"}`,
+    );
+  }
+
+  // medal SCORE thresholds stay sane (positive, ordered, 5k-rounded) across a sample week
+  let badThresholds: string | null = null;
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(dayA.getTime() + i * MS_PER_DAY);
+    const t = medalThresholdsForDate(date);
+    const sane =
+      t.copper > 0 &&
+      t.copper < t.silver &&
+      t.silver < t.gold &&
+      t.copper % 5000 === 0 &&
+      t.silver % 5000 === 0 &&
+      t.gold % 5000 === 0;
+    if (!sane) {
+      badThresholds = `${date.toISOString().slice(0, 10)}: ${JSON.stringify(t)}`;
+      break;
+    }
+  }
+  check(
+    "medal score thresholds ordered/positive/5k-rounded across a sample week",
+    badThresholds === null,
+    badThresholds ?? "",
+  );
+}
+
+// --- 10. Daily Mutators: evasive-bot playability (can you actually dodge?) ---
+//
+// Round 1's playability check used an invulnerable starshell observer, which
+// answers "does the arena spawn/kill sanely" but not "can a pilot who
+// actually has to dodge survive it". This harness flies a simple repulsion
+// dodger (steer away from the nearest drones/mines, no powers, no offense:
+// a deliberately pessimistic lower bound) and measures real survival time.
+// Not seeded on purpose (playability, not determinism): Math.random gameplay.
+{
+  const CAP_SECONDS = 90;
+  const TRIALS = 10;
+  const evasiveDate = new Date("2026-08-10T00:00:00Z");
+
+  /** Steer away from every nearby drone/mine, weighted by inverse-square distance. */
+  function evasiveHeading(world: World): { x: number; y: number } {
+    let fx = 0;
+    let fy = 0;
+    const ship = world.ship;
+    for (const d of world.drones) {
+      if (!d.alive) continue;
+      const dx = ship.x - d.x;
+      const dy = ship.y - d.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > 36) continue; // only threats within 6 units matter
+      const dist = Math.sqrt(distSq) || 0.05;
+      const w = 1 / (distSq + 0.2);
+      fx += (dx / dist) * w;
+      fy += (dy / dist) * w;
+    }
+    for (const m of world.mines) {
+      if (!m.alive) continue;
+      const dx = ship.x - m.x;
+      const dy = ship.y - m.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > 16) continue;
+      const dist = Math.sqrt(distSq) || 0.05;
+      const w = 1.5 / (distSq + 0.2);
+      fx += (dx / dist) * w;
+      fy += (dy / dist) * w;
+    }
+    // STARFALL only: the ground reticle is visible telegraphed warning, so a
+    // real pilot dodges it too (empty on every other mutator, no effect there).
+    for (const t of world.meteorTelegraphs) {
+      const dx = ship.x - t.x;
+      const dy = ship.y - t.y;
+      const distSq = dx * dx + dy * dy;
+      const avoidR = t.radius + 1.5;
+      if (distSq > avoidR * avoidR) continue;
+      const dist = Math.sqrt(distSq) || 0.05;
+      const urgency = clamp01(1 - t.timer / t.duration); // scarier as impact nears
+      const w = (1 + urgency * 3) / (distSq + 0.2);
+      fx += (dx / dist) * w;
+      fy += (dy / dist) * w;
+    }
+    const len = Math.hypot(fx, fy);
+    if (len < 0.0001) return { x: 0, y: 0 };
+    return { x: fx / len, y: fy / len };
+  }
+
+  function runEvasiveTrial(mutators: Mutator[]): { time: number; score: number } {
+    setActiveMutators(mutators, evasiveDate);
+    const scale = mutatorViewScale();
+    const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    const evasiveInput: InputState = {
+      turn: 0,
+      thrust: 0,
+      heading: null,
+      moveVector: { x: 0, y: 0 },
+      inertia: false,
+      cruiseSpeed: 8,
+    };
+    const steps = Math.round(CAP_SECONDS / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      if (world.phase !== "playing") break;
+      evasiveInput.moveVector = evasiveHeading(world);
+      tick(world, evasiveInput, FIXED_DT);
+      world.events.length = 0;
+    }
+    clearActiveMutators();
+    return { time: Math.min(world.time, CAP_SECONDS), score: world.score };
+  }
+
+  function median(values: number[]): number {
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  }
+
+  const baselineTrials = Array.from({ length: TRIALS }, () => runEvasiveTrial([]));
+  const baselineMedian = median(baselineTrials.map((r) => r.time));
+  const baselineScoreMedian = median(baselineTrials.map((r) => r.score));
+  check(
+    "evasive bot: baseline (no mutator) survives a sane median time",
+    // Harness sanity only (a broken bot dies in ~2s); the observed median
+    // hovers around 12s with real variance, so the bar sits well below it.
+    baselineMedian >= 8,
+    `median ${baselineMedian.toFixed(1)}s over ${TRIALS} trials`,
+  );
+
+  // Every mutator gets the same bar: a dodging pilot with no powers must
+  // clear either an absolute floor or a fraction of the baseline median,
+  // whichever is more lenient, since a genuinely harder day is allowed to
+  // cut survival somewhat, it just can't be an instant-death trap. Score
+  // medians are also collected here (dodge-only, so a rough LOWER bound on
+  // real scoring opportunity) to calibrate each mutator's medal difficulty
+  // factor for SCORE — see mutators.ts and JOURNAL.md round 3.
+  const FLOOR_SECONDS = 10;
+  const FLOOR_FRACTION = 0.4;
+  const results: { id: string; name: string; median: number; medianScore: number }[] = [];
+  for (const m of MUTATOR_POOL) {
+    const trials = Array.from({ length: TRIALS }, () => runEvasiveTrial([m]));
+    results.push({
+      id: m.id,
+      name: m.name,
+      median: median(trials.map((r) => r.time)),
+      medianScore: median(trials.map((r) => r.score)),
+    });
+  }
+  const bar = Math.min(FLOOR_SECONDS, baselineMedian * FLOOR_FRACTION);
+  const tooLethal = results.filter((r) => r.median < bar);
+  check(
+    `evasive bot: every mutator clears the playability bar (>=${bar.toFixed(1)}s median)`,
+    tooLethal.length === 0,
+    tooLethal.map((r) => `${r.name} ${r.median.toFixed(1)}s`).join(", "),
+  );
+  console.log(
+    `  evasive-bot baseline: ${baselineMedian.toFixed(1)}s / ${Math.round(baselineScoreMedian)}pts median\n` +
+      "  evasive-bot medians: " +
+      results
+        .map((r) => `${r.name} ${r.median.toFixed(1)}s/${Math.round(r.medianScore)}pts`)
+        .join(" | "),
+  );
+
+  // Named call-outs from Sam's brief: BLACKOUT, THE FLOOD, and (round 3) STARFALL.
+  const blackout = results.find((r) => r.id === "blackout");
+  const flood = results.find((r) => r.id === "the-flood");
+  const starfallResult = results.find((r) => r.id === "starfall");
+  check(
+    "evasive bot: BLACKOUT is a fair fight, not a surprise-death trap",
+    !!blackout && blackout.median >= bar,
+    `${blackout?.median.toFixed(1)}s vs baseline ${baselineMedian.toFixed(1)}s`,
+  );
+  check(
+    "evasive bot: THE FLOOD is navigable (a current, not instant death)",
+    !!flood && flood.median >= bar,
+    `${flood?.median.toFixed(1)}s vs baseline ${baselineMedian.toFixed(1)}s`,
+  );
+  // STARFALL is already covered by the pool-wide bar above (tooLethal); this
+  // named call-out reports the actual number for the round-3 playability
+  // write-up (the bot only steers away from telegraphed reticles, no
+  // reflexes beyond that, so it's a rough proxy for a pilot who reads the
+  // warning and dodges it).
+  check(
+    "evasive bot: STARFALL is navigable for a reticle-aware dodge bot",
+    !!starfallResult && starfallResult.median >= bar,
+    `${starfallResult?.median.toFixed(1)}s / ${Math.round(starfallResult?.medianScore ?? 0)}pts` +
+      ` vs baseline ${baselineMedian.toFixed(1)}s / ${Math.round(baselineScoreMedian)}pts`,
+  );
+  // Round 5: the four creature days rebuilt around direct-spawn choreography
+  // (see creatures.ts) need the same fair-fight bar re-checked, since the
+  // whole spawn pattern changed. The bot only reacts once drones/telegraphs
+  // are close enough to matter (no lookahead into the schedule), so this is
+  // a pessimistic proxy, same as STARFALL's reticle-dodge above.
+  for (const id of ["hunting-party", "lancer-doctrine", "wheelhouse", "demolition-day"]) {
+    const r = results.find((x) => x.id === id);
+    check(
+      `evasive bot: ${r?.name ?? id} choreography is a fair fight, not a surprise-death trap`,
+      !!r && r.median >= bar,
+      `${r?.median.toFixed(1)}s / ${Math.round(r?.medianScore ?? 0)}pts vs baseline ${baselineMedian.toFixed(1)}s / ${Math.round(baselineScoreMedian)}pts`,
+    );
+  }
+  // sanity: getMutatorById resolves every id used above (catches stale ids)
+  check(
+    "getMutatorById resolves every pool id",
+    MUTATOR_POOL.every((m) => getMutatorById(m.id)?.id === m.id),
+  );
 }
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);

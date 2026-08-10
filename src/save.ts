@@ -139,6 +139,7 @@ export interface DailyAttempts {
   /** UTC date (YYYY-MM-DD) these attempts belong to. */
   date: string;
   used: number;
+  /** Best-scoring attempt of the day; medals are best-of-day on this SCORE. */
   best: DailyBestResult | null;
 }
 
@@ -202,9 +203,14 @@ export function recordDailyResult(result: Omit<DailyBestResult, "attempt">): Dai
   // always reflects today's BEST run — so refresh the stored rank regardless
   if (result.rank !== null) {
     state.best.rank = result.rank;
-    saveDailyAttempts(state);
   }
+  saveDailyAttempts(state);
   return state.best;
+}
+
+/** Best-of-day SCORE so far (medals are computed from this). */
+export function dailyBestScoreToday(): number {
+  return loadDailyAttempts().best?.score ?? 0;
 }
 
 function parseSense(v: unknown, fallback: SenseLevel): SenseLevel {

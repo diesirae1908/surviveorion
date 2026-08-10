@@ -1,12 +1,14 @@
-import { MINES, POWERS, SCORING, SHIP, type GameMode } from "./config";
+import { MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./config";
+import { updateCreatureChoreography } from "./creatures";
 import { droneRadius, initSpawner, killDrone, updateAssemblies, updateDrones, updateSpawner } from "./enemies";
 import type { InputState } from "./input";
 import { isMineArmed, killMine, mineRadius, updateMines } from "./mines";
 import { circlesOverlap } from "./physics";
 import { initPickups, updatePickups } from "./pickups";
-import { createPowersState, detonateShield, updatePowers } from "./powers";
+import { blastRadius, createPowersState, detonateShield, updatePowers } from "./powers";
 import { registerGraze, updateScoring } from "./scoring";
 import { createShip, updateShip } from "./ship";
+import { updateStarfallRain } from "./starfall";
 import type { World } from "./types";
 
 export const DEATH_TO_GAMEOVER_SECONDS = 1.4;
@@ -54,9 +56,16 @@ export function createWorld(
     pickupTimer: 0,
     powerSpawnCounts: {},
     mineTimer: MINES.intervalRange[0],
+    // STARFALL only (see starfall.ts); harmless on every other day, the
+    // timer is never consumed unless the mutator is active.
+    meteorRainTimer: STARFALL_RAIN.intervalStart,
+    meteorTelegraphs: [],
     assemblyTimer: 0, // set by initSpawner (schedule stream)
     crowdAssemblyTimer: 0,
     assemblies: [],
+    // Round 5 creature days only (see creatures.ts); harmless everywhere else.
+    creatureTimer: 0,
+    creatureSpawnQueue: [],
     shake: 0,
     events: [],
   };
@@ -86,12 +95,15 @@ export function tick(world: World, input: InputState, dt: number): void {
   updateSpawner(world, dt);
   updateDrones(world, dt);
   updateAssemblies(world, dt);
+  updateCreatureChoreography(world, dt);
   updateMines(world, dt);
+  updateStarfallRain(world, dt);
   updatePickups(world, dt);
   updatePowers(world, dt);
   updateScoring(world, dt);
   handleShipDroneCollisions(world);
   handleShipMineCollisions(world);
+  handleShipBlastCollisions(world);
   handleGrazes(world);
 
   // sweep dead drones
@@ -197,6 +209,48 @@ function handleShipMineCollisions(world: World): void {
     s.vy += (dy / dist) * SHIP.deathKnockback;
     world.phase = "dying"; // set before killMine so no points are credited
     killMine(world, m); // it blows up with you
+    world.deathTimer = 0;
+    world.shake = Math.max(world.shake, 0.7);
+    world.events.push({ type: "death", x: s.x, y: s.y });
+    return;
+  }
+}
+
+/**
+ * STARFALL only: a meteor crater flagged `lethalToShip` costs the run same
+ * as a drone hit, unless a banked shield absorbs it. Every other blast
+ * source (Shockwave, Missiles, the Meteor Storm power, mine explosions)
+ * never sets that flag, so this is a no-op on every other day and mode.
+ */
+function handleShipBlastCollisions(world: World): void {
+  if (world.phase !== "playing") return;
+  const s = world.ship;
+  const shipR =
+    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
+
+  for (const b of world.powers.blasts) {
+    if (!b.lethalToShip) continue;
+    const r = blastRadius(b);
+    if (r <= 0) continue;
+    if (!circlesOverlap(s.x, s.y, shipR, b.x, b.y, r)) continue;
+
+    // same escape hatches as a drone hit: the shell/dash/vortex ride it out
+    // untouched (there's nothing to ram-kill, so just skip the crater).
+    if (world.powers.starshellTimer > 0) continue;
+    if (world.powers.afterburnerDash > 0 || world.powers.afterburnerGrace > 0) continue;
+    if (world.powers.vortices.length > 0) continue;
+
+    if (world.powers.shieldActive) {
+      detonateShield(world);
+      continue;
+    }
+
+    const dx = s.x - b.x;
+    const dy = s.y - b.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    s.vx += (dx / dist) * SHIP.deathKnockback;
+    s.vy += (dy / dist) * SHIP.deathKnockback;
+    world.phase = "dying";
     world.deathTimer = 0;
     world.shake = Math.max(world.shake, 0.7);
     world.events.push({ type: "death", x: s.x, y: s.y });

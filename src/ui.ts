@@ -1,6 +1,8 @@
 import type { BoardMode } from "./api";
 import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
+import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
+import type { Mutator } from "./mutators";
 import type {
   BooleanSetting,
   ControlMode,
@@ -83,6 +85,12 @@ export interface GameOverStats {
   showShare?: boolean;
   /** Daily-only site: death inside the free-death window — attempt returned. */
   refunded?: boolean;
+  /** Daily-only site: today's mutator name(s), for the "DAILY PATROL" tag. */
+  mutatorNames?: string[];
+  /** Daily-only site: best-of-day medal (by score) + next-tier hint. */
+  dailyMedal?: { tier: MedalTier | null; hint: string | null };
+  /** This run used the ?mutator= preview override — not submitted anywhere. */
+  preview?: boolean;
 }
 
 /** Everything the daily-only lobby needs to paint itself. */
@@ -95,6 +103,12 @@ export interface DailyLobbyInfo {
   /** Community server reachable → show the inline leaderboard. */
   online: boolean;
   touchDevice: boolean;
+  /** Today's mutator(s): 1 normally, 2 on UTC Sundays, empty before the launch gate opens. */
+  mutators: Mutator[];
+  /** Today's medal score thresholds (already mutator-adjusted). Undefined before the launch gate opens. */
+  medalThresholds?: MedalThresholds;
+  /** The ?mutator= preview override is active: unlimited, unscored runs. */
+  preview?: boolean;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -155,6 +169,11 @@ export function dailyResetLabel(): string {
 
 function fmtTime(s: number): string {
   return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+}
+
+/** Compact score, e.g. 150000 -> "150k" (thresholds are always round-5k). */
+function fmtScoreShort(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
 }
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
@@ -350,6 +369,37 @@ export class Ui {
     return btn;
   }
 
+  /**
+   * Daily lobby briefing card: today's mutator(s) (name + flavor briefing +
+   * a plain-language subline stating what mechanically changed, 2 on UTC
+   * Sundays) and today's medal score thresholds, shown before launch.
+   */
+  private mutatorBriefingCard(mutators: Mutator[], thresholds: MedalThresholds, preview?: boolean): HTMLElement {
+    const card = this.el("div", "mutator-card", "");
+    if (preview) card.appendChild(this.el("div", "preview-badge", "PREVIEW"));
+    for (const m of mutators) {
+      card.appendChild(
+        this.el(
+          "div",
+          "mutator-row",
+          `<span class="mutator-name">${escapeHtml(m.name)}</span>` +
+            `<span class="mutator-briefing">${escapeHtml(m.briefing)}</span>` +
+            `<span class="mutator-subline">${escapeHtml(m.subline)}</span>`,
+        ),
+      );
+    }
+    card.appendChild(
+      this.el(
+        "div",
+        "medal-thresholds",
+        `<span class="medal-pip copper">🥉 ${fmtScoreShort(thresholds.copper)}</span>` +
+          `<span class="medal-pip silver">🥈 ${fmtScoreShort(thresholds.silver)}</span>` +
+          `<span class="medal-pip gold">🥇 ${fmtScoreShort(thresholds.gold)}</span>`,
+      ),
+    );
+    return card;
+  }
+
   showMenu(bestScore: number, touchDevice: boolean, community?: MenuCommunity): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -452,27 +502,41 @@ export class Ui {
     screen.appendChild(this.el("div", "divider", ""));
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
-
-    // attempt pips: one per daily try, spent ones dimmed
-    const pipsRow = this.el("div", "attempt-pips", "");
-    for (let i = 0; i < info.maxAttempts; i++) {
-      pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, "◆"));
+    // pre-launch-gate days carry no mutators and no thresholds (see
+    // mutators.ts MUTATORS_START_DATE): skip the card entirely so the lobby
+    // looks exactly like it did before this feature shipped.
+    if (info.mutators.length > 0 && info.medalThresholds) {
+      screen.appendChild(this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview));
     }
-    pipsRow.appendChild(
-      this.el(
-        "span",
-        "pips-label",
-        info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "done for today",
-      ),
-    );
-    screen.appendChild(pipsRow);
+
+    // attempt pips: one per daily try, spent ones dimmed. A preview run
+    // never spends one, so its row says so instead of counting down.
+    if (info.preview) {
+      screen.appendChild(
+        this.el("div", "attempt-pips", `<span class="pips-label">unlimited attempts, not scored</span>`),
+      );
+    } else {
+      const pipsRow = this.el("div", "attempt-pips", "");
+      for (let i = 0; i < info.maxAttempts; i++) {
+        pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, "◆"));
+      }
+      pipsRow.appendChild(
+        this.el(
+          "span",
+          "pips-label",
+          info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "done for today",
+        ),
+      );
+      screen.appendChild(pipsRow);
+    }
 
     // today's leader, filled in async via setMenuDailyHint
     const hint = this.el("div", "daily-hint lobby-hint", "");
     hint.id = "daily-hint";
     screen.appendChild(hint);
 
-    if (info.attemptsLeft > 0) {
+    // preview ignores the real attempt budget entirely: Launch always shows
+    if (info.preview || info.attemptsLeft > 0) {
       const launch = this.button("Launch", true, () => this.cb.onDaily());
       launch.classList.add("launch");
       screen.appendChild(launch);
@@ -1059,7 +1123,12 @@ export class Ui {
     const screen = this.el("div", "screen gameover-screen", "");
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
     if (stats.daily) {
-      screen.appendChild(this.el("div", "daily-tag", "DAILY PATROL"));
+      const label = stats.preview ? "DAILY PATROL PREVIEW" : "DAILY PATROL";
+      const tag =
+        stats.mutatorNames && stats.mutatorNames.length > 0
+          ? `${label} &nbsp;·&nbsp; ${escapeHtml(stats.mutatorNames.join(" + "))}`
+          : label;
+      screen.appendChild(this.el("div", "daily-tag", tag));
     } else if (stats.gameMode === "ironrain") {
       screen.appendChild(this.el("div", "ironrain-tag", "IRON RAIN"));
     }
@@ -1079,6 +1148,18 @@ export class Ui {
           `<div><span class="label">Best</span><span class="value">${Math.floor(stats.best).toLocaleString()}</span></div>`,
       ),
     );
+
+    // best-of-day medal (score), or how close today's best is to the next tier
+    if (stats.dailyMedal) {
+      const { tier, hint } = stats.dailyMedal;
+      screen.appendChild(
+        this.el(
+          "div",
+          `medal-earned${tier ? ` ${tier}` : ""}`,
+          tier ? `${MEDAL_EMOJI[tier]} ${MEDAL_LABEL[tier]} MEDAL` : (hint ?? ""),
+        ),
+      );
+    }
 
     // where the points came from — scoring is opaque without this
     if (stats.score > 0) {

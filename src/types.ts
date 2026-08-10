@@ -59,6 +59,23 @@ export interface Drone {
  */
 export type AssemblyKind = "lance" | "wheel" | "hunter" | "bomb";
 
+/**
+ * Round 5 Daily Mutator (creature days): a scripted assembly waiting to
+ * materialize fully formed. Timing/anchor/heading were already rolled on the
+ * seeded streams when this was queued (see creatures.ts); `timer` just
+ * counts down the readable telegraph before spawnAssemblyDirect fires.
+ */
+export interface CreatureSpawn {
+  kind: AssemblyKind;
+  timer: number; // seconds left before materializing
+  duration: number; // original warning duration, for telegraph render progress
+  x: number; // anchor position at materialization
+  y: number;
+  dirX: number; // initial heading (unit vector)
+  dirY: number;
+  count: number; // member count, fixed at schedule time
+}
+
 export interface Assembly {
   kind: AssemblyKind;
   phase: "form" | "active";
@@ -134,6 +151,10 @@ export interface Blast {
   holdTime: number;
   maxRadius: number;
   color: string;
+  /** STARFALL only: also kills the ship on contact (like a drone hit), not
+   * just drones/mines. Undefined/false for every other blast source, so
+   * Shockwave/Missiles/Meteor Storm/mine explosions are unaffected. */
+  lethalToShip?: boolean;
 }
 
 /** Expanding ring visual (shockwave / shield detonation). */
@@ -198,6 +219,15 @@ export interface SpawnTelegraph {
   duration: number;
 }
 
+/** STARFALL only: a ground reticle marking where a meteor is about to land. */
+export interface MeteorTelegraph {
+  x: number;
+  y: number;
+  timer: number; // counts down to impact
+  duration: number;
+  radius: number; // impact/lethal radius, so the reticle can be sized to match
+}
+
 export interface PowersState {
   shieldActive: boolean; // persists until it absorbs a hit (banked extra life)
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
@@ -241,6 +271,7 @@ export type GameEvent =
     }
   | { type: "mineExploded"; x: number; y: number; points: number }
   | { type: "pickup"; power: import("./config").PowerId; x: number; y: number }
+  | { type: "pickupSpawn"; power: import("./config").PowerId; x: number; y: number }
   | { type: "formation"; kind: import("./config").FormationKind }
   | { type: "shieldUp" }
   | { type: "starshellUp" }
@@ -266,6 +297,7 @@ export type GameEvent =
   | { type: "assembly"; x: number; y: number; kind: AssemblyKind }
   | { type: "assemblyBurst"; x: number; y: number; kind: AssemblyKind }
   | { type: "droneSpawn"; x: number; y: number }
+  | { type: "ambientSpawn"; x: number; y: number }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };
 
@@ -328,11 +360,19 @@ export interface World {
   /** Times each power spawned this run (bad-luck protection in the roll). */
   powerSpawnCounts: Partial<Record<PowerId, number>>;
   mineTimer: number;
+  /** STARFALL only: countdown to the next meteor telegraph (schedule stream). */
+  meteorRainTimer: number;
+  /** STARFALL only: pending impact reticles, counting down to their strike. */
+  meteorTelegraphs: MeteorTelegraph[];
   /** Countdown to the next drone-evolution event (schedule stream). */
   assemblyTimer: number;
   /** Cooldown for crowd-pressure evolutions (Math.random side, off-stream). */
   crowdAssemblyTimer: number;
   assemblies: Assembly[];
+  /** Creature days only: countdown to the next choreographed event (schedule stream). */
+  creatureTimer: number;
+  /** Creature days only: scripted assemblies queued to materialize. */
+  creatureSpawnQueue: CreatureSpawn[];
 
   shake: number; // screen shake amplitude (world units)
 

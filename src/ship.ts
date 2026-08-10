@@ -1,5 +1,6 @@
 import { POWERS, SHIP, TILT } from "./config";
 import type { InputState } from "./input";
+import { mutatorWindVector } from "./mutators";
 import { clampToBounds } from "./physics";
 import type { Ship, World } from "./types";
 
@@ -23,6 +24,16 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   s.prevX = s.x;
   s.prevY = s.y;
   s.prevAngle = s.angle;
+
+  // SOLAR WIND: a constant per-day crosswind nudges position every tick,
+  // ahead of every control scheme below. Only active counter-steering
+  // (thrust or heading) holds a course against it. Same for every pilot
+  // (fixed direction/strength for the day, see mutators.ts).
+  const wind = mutatorWindVector();
+  if (wind) {
+    s.x += wind.x * dt;
+    s.y += wind.y * dt;
+  }
 
   // afterburner dash: locked on a straight line at dash speed, input ignored
   if (world.powers.afterburnerDash > 0) {

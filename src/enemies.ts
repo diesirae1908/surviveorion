@@ -1,8 +1,46 @@
 import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
+import {
+  mutatorAmbientRateScale,
+  mutatorAmbientSoftCapScale,
+  mutatorAssemblyCountScale,
+  mutatorAssemblyIntervalScale,
+  mutatorAssemblyMaxConcurrent,
+  mutatorClumpMaxScale,
+  mutatorDroneSpeedScale,
+  mutatorFirstFormationDelayCap,
+  mutatorFormationIntervalScale,
+  mutatorFormationWeights,
+  mutatorForceAssemblyKind,
+  mutatorAmbientSoftCapActive,
+  mutatorScaleClamp,
+  mutatorTelegraphDurationScale,
+  mutatorTelegraphRatio,
+  mutatorWindVector,
+} from "./mutators";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
 import type { Assembly, AssemblyKind, Drone, KillSource, World } from "./types";
+
+/** Effective drone-size clamp: a Daily Mutator can widen it (bigger only). */
+function effectiveScaleClamp(): readonly [number, number] {
+  return mutatorScaleClamp() ?? SPAWNER.scaleClamp;
+}
+
+/** Effective loose-drone relief valve; a Daily Mutator can tighten or loosen it. */
+function effectiveAmbientSoftCap(): number {
+  return SPAWNER.ambientSoftCap * mutatorAmbientSoftCapScale();
+}
+
+/** Effective ambient clump size; a Daily Mutator can gather bigger/smaller blobs. */
+function effectiveClumpMax(): number {
+  return Math.max(1, SPAWNER.clumpMax * mutatorClumpMaxScale());
+}
+
+/** Effective concurrent-evolution cap; a Daily Mutator can lower it (TITANFALL). */
+function effectiveAssemblyMaxConcurrent(): number {
+  return mutatorAssemblyMaxConcurrent() ?? ASSEMBLY.maxConcurrent;
+}
 
 /**
  * Difficulty clock: Classic escalates with real time; Iron Rain is pinned at
@@ -56,7 +94,7 @@ function countFreeDrones(world: World): number {
 
 /** Speed factor from drone size: small = slower, large = faster. */
 function droneSizeSpeedFactor(scale: number): number {
-  const [minScale, maxScale] = SPAWNER.scaleClamp;
+  const [minScale, maxScale] = effectiveScaleClamp();
   // one-size mode (zero-width clamp): no size, no size-speed spread
   if (maxScale <= minScale) return 1;
   const t = clamp((scale - minScale) / (maxScale - minScale), 0, 1);
@@ -66,6 +104,10 @@ function droneSizeSpeedFactor(scale: number): number {
 export function updateDrones(world: World, dt: number): void {
   const ship = world.ship;
   const chase = world.phase === "playing";
+  // SOLAR WIND: a constant per-day crosswind, added as a pure positional
+  // nudge after each drone's own homing/script movement (see mutators.ts for
+  // why this stays outside the seeded-draw discipline entirely).
+  const wind = mutatorWindVector();
 
   for (const d of world.drones) {
     d.prevX = d.x;
@@ -177,12 +219,16 @@ export function updateDrones(world: World, dt: number): void {
       hy /= l;
     }
 
-    let speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale);
+    let speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale) * mutatorDroneSpeedScale();
     if (scripted && d.scriptSpeedScale) speed *= d.scriptSpeedScale;
     d.vx = hx * speed;
     d.vy = hy * speed;
     d.x += d.vx * dt;
     d.y += d.vy * dt;
+    if (wind) {
+      d.x += wind.x * dt;
+      d.y += wind.y * dt;
+    }
   }
 }
 
@@ -241,6 +287,12 @@ export function initSpawner(world: World): void {
 
   scheduleNextFormation(world);
   world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
+  // Round 5 creature days: starting the countdown at 0 means the very first
+  // choreographed event schedules on the first tick, so its own short
+  // telegraph (0.4-1.5s, see CREATURE_DAYS) is the only opening delay, no
+  // separate "don't open empty" cap needed like the formation-day fix above.
+  world.creatureTimer = 0;
+  world.creatureSpawnQueue = [];
 
   // Iron Rain: no gentle burst — the run opens with an immediate mega-wall
   // and the first regular formation lands seconds later.
@@ -255,7 +307,15 @@ export function initSpawner(world: World): void {
   // Classic breathes before the first formation; new-pilot grace opens even
   // gentler (smaller burst, later first formation) for the first few runs.
   world.nextFormationDelay += SPAWNER.firstFormationExtraDelay + 8 * world.grace;
-  const burst = Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace));
+  // A zero-ambient formation day (GREAT WALL, YEAR OF THE SERPENT) can cap
+  // the first delay so the run doesn't sit empty waiting on it (see
+  // mutators.ts firstFormationDelayCap; null on every ordinary day).
+  const delayCap = mutatorFirstFormationDelayCap();
+  if (delayCap !== null) world.nextFormationDelay = Math.min(world.nextFormationDelay, delayCap);
+  // opening burst scales with the day's ambient rate so a zero-ambient day
+  // (same knob as the ongoing trickle below) truly opens with nothing but
+  // the scripted patterns, not a free burst that ignores the override.
+  const burst = Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace) * mutatorAmbientRateScale());
   // opening drones start at the far formation radius for a gentle ramp-in
   for (let i = 0; i < burst; i++) {
     const dir = randDir();
@@ -290,7 +350,7 @@ export function updateSpawner(world: World, dt: number): void {
 
   const minutes = difficultyMinutes(world);
   world.spawnAccumulator +=
-    escalate(minutes, SPAWNER.spawnsPerSecond) * graceSpawnScale(world) * dt;
+    escalate(minutes, SPAWNER.spawnsPerSecond) * graceSpawnScale(world) * mutatorAmbientRateScale() * dt;
 
   updateTelegraphs(world, dt, minutes);
   handleFormations(world, minutes, dt);
@@ -304,7 +364,7 @@ export function updateSpawner(world: World, dt: number): void {
     // Zombie clumping: spend 1..clumpMax of the spawn budget on one pack.
     // The accumulator may dip negative — average rate is unchanged, arrivals
     // just group. Fixed rand draws per pack keep Daily Patrol shared.
-    const clump = 1 + Math.floor(rand() * SPAWNER.clumpMax);
+    const clump = 1 + Math.floor(rand() * effectiveClumpMax());
     world.spawnAccumulator -= clump;
     spawnAmbient(world, minutes, clump);
   }
@@ -317,7 +377,7 @@ function updateTelegraphs(world: World, dt: number, minutes: number): void {
     t.timer -= dt;
     if (t.timer <= 0) {
       world.spawnTelegraphs.splice(i, 1);
-      spawnAt(world, t.x, t.y, minutes);
+      spawnAt(world, t.x, t.y, minutes, mutatorAmbientSoftCapActive() ? { ambient: true } : undefined);
       world.events.push({ type: "droneSpawn", x: t.x, y: t.y });
     }
   }
@@ -330,6 +390,8 @@ function telegraphAt(world: World, x: number, y: number, duration: number): void
 
 function telegraphAmbient(world: World, count = 1): void {
   const cfg = SPAWNER.telegraph;
+  // BLACKOUT: warnings stay, but the reaction window shrinks (see mutators.ts).
+  const duration = cfg.duration * mutatorTelegraphDurationScale();
   const hw = world.viewW / 2 - cfg.edgeInset;
   const hh = world.viewH / 2 - cfg.edgeInset;
   // fixed number of draws (ship position must not advance the seeded stream
@@ -347,14 +409,14 @@ function telegraphAmbient(world: World, count = 1): void {
     const dy = cy - world.ship.y;
     if (dx * dx + dy * dy >= cfg.minDistanceFromShip ** 2) found = true;
   }
-  telegraphAt(world, x, y, cfg.duration);
+  telegraphAt(world, x, y, duration);
   // pack members glow in around the anchor (clamped inside the view)
   for (let i = 1; i < count; i++) {
     const a = rand() * Math.PI * 2;
     const r = SPAWNER.clumpRadius * (0.4 + 0.6 * rand());
     const px = clamp(x + Math.cos(a) * r, -hw, hw);
     const py = clamp(y + Math.sin(a) * r, -hh, hh);
-    telegraphAt(world, px, py, cfg.duration);
+    telegraphAt(world, px, py, duration);
   }
 }
 
@@ -370,13 +432,10 @@ function spawnAt(
   if (world.drones.length >= SPAWNER.maxDrones) return null;
   // ambient relief valve: a field silted up with loose singles stops taking
   // more of them (formations/assemblies still deliver their patterns)
-  if (opts?.ambient && countFreeDrones(world) >= SPAWNER.ambientSoftCap) return null;
+  if (opts?.ambient && countFreeDrones(world) >= effectiveAmbientSoftCap()) return null;
   // the clamp covers formation sizes too, so a pinned clamp = one size for all
-  const scale = clamp(
-    opts?.scale ?? 0.6 + jitter,
-    SPAWNER.scaleClamp[0],
-    SPAWNER.scaleClamp[1],
-  );
+  const [clampMin, clampMax] = effectiveScaleClamp();
+  const scale = clamp(opts?.scale ?? 0.6 + jitter, clampMin, clampMax);
   const speedMult =
     Math.max(0.1, escalate(minutes, SPAWNER.speedMultiplier)) * (opts?.speedScale ?? 1);
   const drone = createDrone(x, y, scale, speedMult);
@@ -409,7 +468,11 @@ export function spawnRadius(world: World): number {
  * so the crowd arrives in blobs with lanes between them.
  */
 function spawnAmbient(world: World, minutes: number, count = 1): void {
-  if (rand() < SPAWNER.telegraph.ratio) {
+  // Test-only marker (no visual/audio effect, never handled in main.ts's
+  // drainEvents, same pattern as pickupSpawn): lets sim-test confirm a
+  // zero-ambient day (GREAT WALL, YEAR OF THE SERPENT) really produces none.
+  world.events.push({ type: "ambientSpawn", x: world.ship.x, y: world.ship.y });
+  if (rand() < mutatorTelegraphRatio()) {
     telegraphAmbient(world, count);
     return;
   }
@@ -430,11 +493,12 @@ function spawnAmbient(world: World, minutes: number, count = 1): void {
       bestDist = dist;
     }
   }
-  spawnAt(world, best.x, best.y, minutes);
+  const capOpts = mutatorAmbientSoftCapActive() ? { ambient: true } : undefined;
+  spawnAt(world, best.x, best.y, minutes, capOpts);
   for (let i = 1; i < count; i++) {
     const a = rand() * Math.PI * 2;
     const r = SPAWNER.clumpRadius * (0.4 + 0.6 * rand());
-    spawnAt(world, best.x + Math.cos(a) * r, best.y + Math.sin(a) * r, minutes);
+    spawnAt(world, best.x + Math.cos(a) * r, best.y + Math.sin(a) * r, minutes, capOpts);
   }
 }
 
@@ -458,10 +522,22 @@ function formationCountBonus(minutes: number): number {
  */
 function rollFormationKind(world: World, minutes: number): FormationKind {
   const cfg = SPAWNER.formations;
+  const mutatorWeights = mutatorFormationWeights();
   const weights =
-    world.gameMode === "ironrain" ? IRONRAIN.formationWeights : cfg.weights;
+    world.gameMode === "ironrain"
+      ? IRONRAIN.formationWeights
+      : mutatorWeights ?? cfg.weights;
+  // Iron Rain's pinned minutes already unlock the whole roster from second
+  // zero (see the comment above); a Daily Mutator that fully replaces the
+  // weight table (GREAT WALL, YEAR OF THE SERPENT) gets the same bypass.
+  // The day's curated diet already IS the gate, so stacking the normal
+  // "heavier patterns unlock over time" ramp on top risks an empty pool (and
+  // a silently fizzled formation) before the one allowed kind's own
+  // minMinutes clears (serpent's is 18s, with no wall/megawall to
+  // pinch-hit since every other weight is zeroed by the override).
+  const gateBypassed = world.gameMode === "ironrain" || mutatorWeights !== null;
   const pool = (Object.keys(weights) as FormationKind[]).filter(
-    (kind) => minutes >= (cfg.minMinutes[kind] ?? 0),
+    (kind) => gateBypassed || minutes >= (cfg.minMinutes[kind] ?? 0),
   );
 
   let total = 0;
@@ -526,7 +602,8 @@ function scheduleNextFormation(world: World): void {
   const t = clamp01(difficultyMinutes(world) / cfg.intervalRampMinutes);
   const min = lerp(cfg.intervalRange[0], cfg.intervalFloor[0], t);
   const max = lerp(cfg.intervalRange[1], cfg.intervalFloor[1], t);
-  world.nextFormationDelay = scheduleRange(min, max);
+  const scale = mutatorFormationIntervalScale();
+  world.nextFormationDelay = scheduleRange(min, max) * scale;
 }
 
 /** A sweeping line of drones approaching from one off-screen direction. */
@@ -918,14 +995,31 @@ function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void 
     spin: 0,
   };
 
-  // slots in the travel frame: slotX along the heading, slotY perpendicular —
-  // the whole shape rotates with its heading (a lance flips broadside after a
-  // wall bounce, the wheel's spin rides on top of this frame)
-  const half = (members.length - 1) / 2;
-  const ringRadius = Math.max(1.1, (members.length * ASSEMBLY.spacing) / (Math.PI * 2));
-  const cols = Math.max(2, Math.ceil(Math.sqrt(members.length)));
-  const rows = Math.ceil(members.length / cols);
+  const slots = assemblySlots(kind, members.length);
   members.forEach((d, i) => {
+    d.assembly = assembly;
+    d.slotX = slots[i].x;
+    d.slotY = slots[i].y;
+  });
+  assembly.radius = assemblyRadiusFor(kind, members.length);
+
+  world.assemblies.push(assembly);
+  world.events.push({ type: "assembly", x: cx, y: cy, kind });
+}
+
+/**
+ * Slot offsets in the assembly's travel frame (slotX along the heading,
+ * slotY perpendicular) for a given kind + member count. Shared by conscribed
+ * assemblies (tryFormAssembly) and direct-spawned ones (spawnAssemblyDirect,
+ * see creatures.ts) so both paths produce byte-identical shapes.
+ */
+function assemblySlots(kind: AssemblyKind, count: number): { x: number; y: number }[] {
+  const half = (count - 1) / 2;
+  const ringRadius = Math.max(1.1, (count * ASSEMBLY.spacing) / (Math.PI * 2));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(count)));
+  const rows = Math.ceil(count / cols);
+  const slots: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
     let sx: number;
     let sy: number;
     switch (kind) {
@@ -938,7 +1032,7 @@ function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void 
         break;
       }
       case "wheel": {
-        const a = (i / members.length) * Math.PI * 2;
+        const a = (i / count) * Math.PI * 2;
         sx = Math.cos(a) * ringRadius;
         sy = Math.sin(a) * ringRadius;
         break;
@@ -957,27 +1051,113 @@ function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void 
         sy = (i - half) * ASSEMBLY.spacing;
       }
     }
-    d.assembly = assembly;
-    d.slotX = sx;
-    d.slotY = sy;
-  });
+    slots.push({ x: sx, y: sy });
+  }
+  return slots;
+}
 
+/** Shape half-extent for a given kind + member count (for wall bounces). */
+function assemblyRadiusFor(kind: AssemblyKind, count: number): number {
+  const half = (count - 1) / 2;
+  const ringRadius = Math.max(1.1, (count * ASSEMBLY.spacing) / (Math.PI * 2));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(count)));
+  const rows = Math.ceil(count / cols);
   switch (kind) {
     case "wheel":
-      assembly.radius = ringRadius;
-      break;
+      return ringRadius;
     case "hunter":
-      assembly.radius = Math.ceil((members.length - 1) / 2) * ASSEMBLY.spacing * 0.9;
-      break;
+      return Math.ceil((count - 1) / 2) * ASSEMBLY.spacing * 0.9;
     case "bomb":
-      assembly.radius = (Math.max(cols, rows) / 2) * ASSEMBLY.spacing * 0.7;
-      break;
+      return (Math.max(cols, rows) / 2) * ASSEMBLY.spacing * 0.7;
     default:
-      assembly.radius = half * ASSEMBLY.spacing;
+      return half * ASSEMBLY.spacing;
+  }
+}
+
+/**
+ * Round 5 Daily Mutator (creature days): spawn an assembly FULLY FORMED.
+ * Member drones are created directly at their rotated slot positions around
+ * `anchorX,anchorY` and bound to the assembly immediately, skipping the
+ * gather/conscription phase entirely. Everything about WHERE/WHEN this event
+ * happens was already decided on the seeded streams by the caller
+ * (creatures.ts); this function only touches Math.random via createDrone's
+ * cosmetic spin/jitter, same as every other drone-creation path.
+ */
+export function spawnAssemblyDirect(
+  world: World,
+  minutes: number,
+  kind: AssemblyKind,
+  count: number,
+  anchorX: number,
+  anchorY: number,
+  dirX: number,
+  dirY: number,
+): void {
+  // safety valve, matches spawnAt's own maxDrones guard: astronomically
+  // unlikely to trigger in a normal run given near-zero ambient on these days
+  if (world.drones.length + count > SPAWNER.maxDrones) return;
+
+  const slots = assemblySlots(kind, count);
+  const theta = Math.atan2(dirY, dirX);
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const [clampMin, clampMax] = effectiveScaleClamp();
+  const scale = clamp(0.6, clampMin, clampMax);
+  const speedMult = Math.max(0.1, escalate(minutes, SPAWNER.speedMultiplier));
+
+  const members: Drone[] = [];
+  for (const slot of slots) {
+    const wx = slot.x * cos - slot.y * sin;
+    const wy = slot.x * sin + slot.y * cos;
+    const d = createDrone(anchorX + wx, anchorY + wy, scale, speedMult);
+    world.drones.push(d);
+    members.push(d);
   }
 
+  const assembly: Assembly = {
+    kind,
+    phase: "active", // fully formed already: no gather telegraph to wait through
+    timer: 0,
+    members,
+    x: anchorX,
+    y: anchorY,
+    dirX,
+    dirY,
+    speed: 0,
+    radius: assemblyRadiusFor(kind, count),
+    bounces: 0,
+    spin: 0,
+  };
+
+  const base = assemblyBaseSpeed(world);
+  const K = ASSEMBLY.kinds;
+  switch (kind) {
+    case "lance":
+      assembly.timer = K.lance.duration;
+      assembly.speed = base * K.lance.speedScale;
+      break;
+    case "wheel":
+      assembly.timer = K.wheel.duration;
+      assembly.speed = base * K.wheel.speedScale;
+      break;
+    case "hunter":
+      assembly.timer = K.hunter.duration;
+      assembly.speed = base * K.hunter.speedScale;
+      break;
+    case "bomb":
+      assembly.timer = K.bomb.fuse;
+      assembly.speed = base * K.bomb.speedScale;
+      break;
+  }
+
+  members.forEach((d, i) => {
+    d.assembly = assembly;
+    d.slotX = slots[i].x;
+    d.slotY = slots[i].y;
+  });
+
   world.assemblies.push(assembly);
-  world.events.push({ type: "assembly", x: cx, y: cy, kind });
+  world.events.push({ type: "assembly", x: anchorX, y: anchorY, kind });
 }
 
 /** Move a member toward its (rotated) slot, capped at `speed`; updates vx/vy. */
@@ -1032,35 +1212,47 @@ export function updateAssemblies(world: World, dt: number): void {
 
   const kinds: AssemblyKind[] = ["lance", "wheel", "hunter", "bomb"];
 
-  world.assemblyTimer -= dt;
-  if (world.assemblyTimer <= 0) {
-    world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
-    // fixed draws per event — consumed even when the event fizzles
-    const count = Math.round(scheduleRange(...ASSEMBLY.countRange));
-    const kind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
+  const maxConcurrent = effectiveAssemblyMaxConcurrent();
+
+  // Round 5: on a forced-creature day, updateCreatureChoreography (creatures.ts)
+  // owns spawning entirely: conscription and the crowd-pressure valve stay
+  // off so the scripted schedule isn't diluted by leftover evolutions.
+  // Every other day/mode behaves exactly as before.
+  const directSpawnActive = mutatorForceAssemblyKind() !== null;
+
+  if (!directSpawnActive) {
+    world.assemblyTimer -= dt;
+    if (world.assemblyTimer <= 0) {
+      world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange) * mutatorAssemblyIntervalScale();
+      // fixed draws per event — consumed even when the event fizzles
+      const count = Math.round(scheduleRange(...ASSEMBLY.countRange) * mutatorAssemblyCountScale());
+      const kind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
+      if (
+        difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
+        world.assemblies.length < maxConcurrent
+      ) {
+        tryFormAssembly(world, count, kind);
+      }
+    }
+
+    // Crowd-pressure valve: too many loose homing drones → an extra evolution
+    // fires now, thinning the swarm into one readable creature.
+    world.crowdAssemblyTimer -= dt;
     if (
+      world.crowdAssemblyTimer <= 0 &&
+      world.assemblies.length < maxConcurrent &&
       difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
-      world.assemblies.length < ASSEMBLY.maxConcurrent
+      countFreeDrones(world) >= ASSEMBLY.crowdTrigger
     ) {
+      world.crowdAssemblyTimer = ASSEMBLY.crowdCooldown;
+      const count = Math.round(
+        (ASSEMBLY.countRange[0] +
+          Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0])) *
+          mutatorAssemblyCountScale(),
+      );
+      const kind = kinds[Math.floor(Math.random() * kinds.length)];
       tryFormAssembly(world, count, kind);
     }
-  }
-
-  // Crowd-pressure valve: too many loose homing drones → an extra evolution
-  // fires now, thinning the swarm into one readable creature.
-  world.crowdAssemblyTimer -= dt;
-  if (
-    world.crowdAssemblyTimer <= 0 &&
-    world.assemblies.length < ASSEMBLY.maxConcurrent &&
-    difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
-    countFreeDrones(world) >= ASSEMBLY.crowdTrigger
-  ) {
-    world.crowdAssemblyTimer = ASSEMBLY.crowdCooldown;
-    const count = Math.round(
-      ASSEMBLY.countRange[0] +
-        Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0]),
-    );
-    tryFormAssembly(world, count, kinds[Math.floor(Math.random() * kinds.length)]);
   }
 
   const hw = world.viewW / 2;

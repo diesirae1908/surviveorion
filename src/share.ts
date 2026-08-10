@@ -1,9 +1,13 @@
 // Share card for the daily-only site: a Wordle-style pasteable text block.
 // Native share sheet on phones, clipboard on desktop.
 
+import { MEDAL_EMOJI, MEDAL_LABEL, type MedalTier } from "./medals";
 import { DAILY_MAX_ATTEMPTS } from "./save";
 
-/** Day the daily site went live — that date is Daily #1. */
+/**
+ * Day the daily site went live, that date is Daily/Patrol #1. Reused as the
+ * Patrol # epoch too (same feature, same numbering, no separate epoch).
+ */
 const DAILY_EPOCH_UTC = Date.UTC(2026, 6, 14);
 
 const MS_PER_DAY = 86_400_000;
@@ -24,6 +28,12 @@ export interface ShareStats {
   rank: number | null;
   /** 1-based attempt number the result came from. */
   attempt: number;
+  /** Today's mutator name(s), e.g. ["RED ALERT"] or ["BLACKOUT", "GIANTS"] on Sundays. */
+  mutatorNames?: string[];
+  /** Best-of-day medal, or null if no tier reached yet. */
+  medal?: MedalTier | null;
+  /** This card came from a ?mutator= preview run: not scored, not on any board. */
+  preview?: boolean;
 }
 
 export const SHARE_URL = "surviveorion.com";
@@ -37,12 +47,18 @@ export function buildShareText(s: ShareStats): string {
     `×${s.maxMultiplier.toFixed(1)} peak`,
   ];
   if (s.rank !== null) line.push(`🏆 #${s.rank} today`);
+  const medalLine = s.medal ? `${MEDAL_EMOJI[s.medal]} ${MEDAL_LABEL[s.medal]}` : null;
   return [
-    `ORION Daily #${s.dayNumber}`,
+    `ORION Patrol #${s.dayNumber}`,
+    s.preview ? "PREVIEW (not scored, not submitted)" : null,
+    s.mutatorNames && s.mutatorNames.length > 0 ? s.mutatorNames.join(" + ") : null,
     line.join("  ·  "),
-    `attempt ${Math.min(s.attempt, DAILY_MAX_ATTEMPTS)}/${DAILY_MAX_ATTEMPTS}`,
+    medalLine,
+    s.preview ? null : `attempt ${Math.min(s.attempt, DAILY_MAX_ATTEMPTS)}/${DAILY_MAX_ATTEMPTS}`,
     SHARE_URL,
-  ].join("\n");
+  ]
+    .filter((l): l is string => l !== null)
+    .join("\n");
 }
 
 export type ShareOutcome = "shared" | "copied" | "failed";

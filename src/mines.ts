@@ -1,6 +1,7 @@
 import { MINES } from "./config";
 import { randRange, scheduleRange } from "./math";
 import { killDronesInRadius } from "./enemies";
+import { mutatorMineIntervalScale } from "./mutators";
 import { registerKill } from "./scoring";
 import type { Mine, World } from "./types";
 
@@ -27,7 +28,7 @@ export function updateMines(world: World, dt: number): void {
   ) {
     world.mineTimer -= dt;
     if (world.mineTimer <= 0) {
-      world.mineTimer = scheduleRange(...MINES.intervalRange);
+      world.mineTimer = scheduleRange(...MINES.intervalRange) * mutatorMineIntervalScale();
       trySpawnMine(world);
     }
   }

@@ -8,6 +8,16 @@ import { countryFlag, countryName, guessCountry } from "./countries";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input, isTypingTarget } from "./input";
 import { clamp01, hashString, setRunSeed } from "./math";
+import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
+import {
+  clearActiveMutators,
+  getMutatorById,
+  getMutatorsForDate,
+  mutatorViewScale,
+  setActiveMutators,
+  MUTATOR_POOL,
+  type Mutator,
+} from "./mutators";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
@@ -29,6 +39,7 @@ import {
   saveKeyBindings,
   saveSettings,
   dailyAttemptsLeft,
+  dailyBestScoreToday,
   loadDailyAttempts,
   recordDailyResult,
   refundDailyAttempt,
@@ -73,6 +84,49 @@ const DAILY_ONLY = !FULL_GAME;
 
 if (DAILY_ONLY) document.title = "ORION Daily";
 
+/**
+ * Playtest override: ?mutator=<id> (or ?mutator=<id1>,<id2> to preview a
+ * Sunday-style double) forces today's Daily Mutator(s) for this session,
+ * instead of the date-hash pick. Only ever applies where mutators normally
+ * apply (Daily Patrol, via todaysMutators() below) — Classic/Iron Rain/
+ * Training Ground are untouched either way.
+ *
+ * Sandboxed by construction: every call site below that would spend a daily
+ * attempt, submit a score, or record a local medal checks PREVIEW_ACTIVE
+ * first and skips it, so a preview run can't touch boards, streaks, or the
+ * attempt budget. That's also why this is safe to leave live in production
+ * (not gated behind import.meta.env.DEV) — it doubles as an always-available
+ * rehearsal tool.
+ *
+ * Unlike the real picker, no exclusion-tag compatibility check runs here —
+ * the override forces exactly what's asked, including a combo that wouldn't
+ * naturally pair, since testing an odd combo is sometimes the point. Unknown
+ * ids are dropped silently; extra ids past the first two are dropped too
+ * (matches the one-or-two-per-day rule); if nothing valid survives, this
+ * falls back to today's real mutator(s).
+ */
+const PREVIEW_MUTATORS: Mutator[] =
+  new URLSearchParams(location.search)
+    .get("mutator")
+    ?.split(",")
+    .map((id) => getMutatorById(id.trim()))
+    .filter((m): m is Mutator => !!m)
+    .slice(0, 2) ?? [];
+const PREVIEW_ACTIVE = PREVIEW_MUTATORS.length > 0;
+if (PREVIEW_ACTIVE) {
+  console.log(
+    `[preview] forcing ${PREVIEW_MUTATORS.map((m) => m.id).join(" + ")} for this session. ` +
+      "Sandboxed: no daily attempt spent, no score submitted, no medal recorded " +
+      "(game over still shows the medal this score would earn).",
+  );
+  console.log(`Valid mutator ids: ${MUTATOR_POOL.map((m) => m.id).join(", ")}`);
+}
+
+/** Today's Daily Mutator(s): the date-hash pick, or the ?mutator= preview override. */
+function todaysMutators(): Mutator[] {
+  return PREVIEW_ACTIVE ? PREVIEW_MUTATORS : getMutatorsForDate(new Date());
+}
+
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 const input = new Input(canvas);
@@ -102,6 +156,8 @@ let recordBeaten = false;
 /** Daily Patrol: shared-seed run, files on today's board too. */
 let pendingDaily = false;
 let runIsDaily = false;
+/** Today's Daily Mutator arena-size override, applied to viewW/viewH (1 = normal). */
+let currentViewScale = 1;
 /** Training Ground (daily-only site): free, unscored practice run. */
 let pendingTraining = false;
 let runIsTraining = false;
@@ -114,6 +170,9 @@ let lastRunShare: {
   maxMultiplier: number;
   rank: number | null;
   attempt: number;
+  mutatorNames?: string[];
+  medal?: import("./medals").MedalTier | null;
+  preview?: boolean;
 } | null = null;
 /** Game mode picked on the menu; retries reuse it (Daily is always Classic). */
 let pendingGameMode: GameMode = loadGameMode();
@@ -235,8 +294,31 @@ const ui = new Ui(settings, {
     const source =
       state === "gameover" && lastRunShare ? lastRunShare : loadDailyAttempts().best;
     if (!source) return Promise.resolve("failed" as const);
+    // the lobby's "today's best" doesn't carry mutator/medal metadata (it's
+    // a DailyBestResult, not a lastRunShare), so fill it in from today's
+    // date the same way the briefing card does
+    const mutatorsToday = todaysMutators();
+    // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
+    // MUTATORS_START_DATE), so the share card carries no mutator line and
+    // no medal line, exactly like it did before this feature shipped.
+    const todaysMutatorNames = mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined;
+    const asShare = source as Partial<{ mutatorNames: string[]; medal: import("./medals").MedalTier | null }>;
+    const sourceMedal = asShare.medal;
+    const sourceMutatorNames = asShare.mutatorNames;
+    const medal =
+      sourceMedal !== undefined
+        ? sourceMedal
+        : mutatorsToday.length > 0
+          ? medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday))
+          : undefined;
     return shareText(
-      buildShareText({ dayNumber: dailyNumber(), ...source }),
+      buildShareText({
+        dayNumber: dailyNumber(),
+        ...source,
+        mutatorNames: sourceMutatorNames ?? todaysMutatorNames,
+        medal,
+        preview: PREVIEW_ACTIVE,
+      }),
       isTouchDevice(),
     );
   },
@@ -310,6 +392,7 @@ const community = new CommunityUi(
 function showMenu(): void {
   if (DAILY_ONLY) {
     const attempts = loadDailyAttempts();
+    const mutatorsToday = todaysMutators();
     ui.showDailyLobby({
       dayNumber: dailyNumber(),
       attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
@@ -317,6 +400,12 @@ function showMenu(): void {
       best: attempts.best,
       online: api.online,
       touchDevice: isTouchDevice(),
+      mutators: mutatorsToday,
+      // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
+      // MUTATORS_START_DATE), so leave thresholds undefined too. The
+      // lobby then skips the whole briefing card.
+      medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
+      preview: PREVIEW_ACTIVE,
     });
     fillDailyHint();
     fillDailyBoard();
@@ -391,8 +480,9 @@ function fillDailyBoard(): void {
  */
 function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = false): void {
   if (state === "launching") return;
-  // daily-only site: out of attempts → back to the lobby (shows the countdown)
-  if (DAILY_ONLY && daily && dailyAttemptsLeft() <= 0) {
+  // daily-only site: out of attempts → back to the lobby (shows the countdown).
+  // Preview runs don't spend attempts, so they never hit this lockout.
+  if (DAILY_ONLY && daily && !PREVIEW_ACTIVE && dailyAttemptsLeft() <= 0) {
     quitToMenu();
     return;
   }
@@ -421,8 +511,9 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
 
 function doLaunch(quick = false): void {
   if (state === "launching") return;
-  // daily-only retry path (Fly again / Space): the attempt budget still rules
-  if (DAILY_ONLY && pendingDaily && dailyAttemptsLeft() <= 0) {
+  // daily-only retry path (Fly again / Space): the attempt budget still
+  // rules, except for a preview run, which never spends one.
+  if (DAILY_ONLY && pendingDaily && !PREVIEW_ACTIVE && dailyAttemptsLeft() <= 0) {
     quitToMenu();
     return;
   }
@@ -447,19 +538,29 @@ function startRun(): void {
   runIsTraining = pendingTraining;
   runIsDaily = pendingDaily && !pendingTraining;
   runGameMode = runIsDaily || runIsTraining ? "classic" : pendingGameMode;
-  // an attempt is spent the moment a daily run starts (quitting mid-run counts)
-  if (DAILY_ONLY && runIsDaily) useDailyAttempt();
+  // an attempt is spent the moment a daily run starts (quitting mid-run
+  // counts) — a preview run is sandboxed from the budget entirely
+  if (DAILY_ONLY && runIsDaily && !PREVIEW_ACTIVE) useDailyAttempt();
   runRefunded = false;
   // PBs are per game mode — the NEW RECORD beat compares like-for-like
   bestScore = loadBestScore(runGameMode);
   bestTime = loadBestTime(runGameMode);
+  // Daily Mutators apply ONLY to Daily Patrol; Classic/Iron Rain/Training
+  // Ground never see an override (see mutators.ts). todaysMutators() folds
+  // in the ?mutator= preview override, if one's active.
+  if (runIsDaily) {
+    setActiveMutators(todaysMutators(), new Date());
+  } else {
+    clearActiveMutators();
+  }
+  currentViewScale = runIsDaily ? mutatorViewScale() : 1;
   // Daily Patrol deals everyone the same script (and no beginner grace);
   // normal runs soften the opening for a player's first few flights.
   setRunSeed(runIsDaily ? dailySeed() : null);
   const grace = runIsDaily || runIsTraining ? 0 : clamp01(1 - loadRunCount() / 3);
   world = createWorld(
-    renderer.viewW,
-    renderer.viewH,
+    renderer.viewW * currentViewScale,
+    renderer.viewH * currentViewScale,
     false,
     grace,
     runGameMode,
@@ -480,6 +581,8 @@ function startRun(): void {
 /** Flight school: a sandbox world with scripted static drones, no spawner. */
 function startTutorial(): void {
   audio.unlock();
+  clearActiveMutators();
+  currentViewScale = 1;
   world = createWorld(renderer.viewW, renderer.viewH, true);
   particles.clear();
   popups.clear();
@@ -533,6 +636,8 @@ function quitToMenu(): void {
   tutorial = null;
   audio.setThrustLevel(0);
   audio.playTrack("menu");
+  clearActiveMutators();
+  currentViewScale = 1;
   world = createWorld(renderer.viewW, renderer.viewH);
   particles.clear();
   popups.clear();
@@ -573,22 +678,46 @@ function showGameOverUi(): void {
     return;
   }
   const cappedDaily = DAILY_ONLY && runIsDaily;
+  const mutatorsToday = cappedDaily ? todaysMutators() : [];
   // a refunded run never happened as far as the daily books are concerned:
-  // no best-of-day entry, no share card, no daily board submission
+  // no best-of-day entry, no share card, no daily board submission. A
+  // preview run is the same story for a different reason: it's sandboxed by
+  // design, so it never touches the best-of-day record either.
+  let dailyMedal: { tier: import("./medals").MedalTier | null; hint: string | null } | undefined;
   if (cappedDaily && !runRefunded) {
-    // remember the run for the share card (rank arrives with the submit)
-    recordDailyResult({
-      score: Math.floor(world.score),
-      time: world.time,
-      maxMultiplier: world.maxMultiplier,
-      rank: null,
-    });
+    if (!PREVIEW_ACTIVE) {
+      // remember the run for the share card (rank arrives with the submit)
+      recordDailyResult({
+        score: Math.floor(world.score),
+        time: world.time,
+        maxMultiplier: world.maxMultiplier,
+        rank: null,
+      });
+    }
+    // best-of-day medal (score): the real day's running best, or (preview)
+    // this run's own score against the forced mutator's thresholds — a
+    // preview never touches the locally-recorded best-of-day. Pre-launch-gate
+    // days: mutatorsToday is empty (see mutators.ts MUTATORS_START_DATE), so
+    // dailyMedal stays undefined and the game-over screen shows no medal UI,
+    // exactly like it did before this feature shipped.
+    if (mutatorsToday.length > 0) {
+      const thresholds = medalThresholdsFor(mutatorsToday);
+      const bestScoreToday = PREVIEW_ACTIVE ? Math.floor(world.score) : dailyBestScoreToday();
+      const medalTier = medalForScore(bestScoreToday, thresholds);
+      dailyMedal = {
+        tier: medalTier,
+        hint: nextMedalHint(bestScoreToday, thresholds),
+      };
+    }
     lastRunShare = {
       score: Math.floor(world.score),
       time: world.time,
       maxMultiplier: world.maxMultiplier,
       rank: null,
-      attempt: loadDailyAttempts().used,
+      attempt: PREVIEW_ACTIVE ? 1 : loadDailyAttempts().used,
+      mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
+      medal: dailyMedal?.tier,
+      preview: PREVIEW_ACTIVE,
     };
   }
   ui.showGameOver({
@@ -606,9 +735,14 @@ function showGameOverUi(): void {
     daily: runIsDaily,
     gameMode: runGameMode,
     touchDevice: isTouchDevice(),
-    attemptsLeft: cappedDaily ? dailyAttemptsLeft() : undefined,
+    // a preview run's retry never draws from the real budget — same
+    // "uncapped" retry-button styling Classic/Iron Rain use
+    attemptsLeft: cappedDaily && !PREVIEW_ACTIVE ? dailyAttemptsLeft() : undefined,
     showShare: cappedDaily && !runRefunded,
     refunded: runRefunded,
+    mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
+    dailyMedal,
+    preview: cappedDaily && PREVIEW_ACTIVE,
   });
   submitRun();
 }
@@ -649,6 +783,8 @@ function renderRankResult(r: SubmitResult): void {
 
 /** Push the finished run to the leaderboards and show the resulting ranks. */
 function submitRun(): void {
+  // preview runs are sandboxed from every board: no submission, period
+  if (runIsDaily && PREVIEW_ACTIVE) return;
   if (!api.online) return;
   const run = {
     score: Math.floor(world.score),
@@ -709,7 +845,9 @@ document.addEventListener("visibilitychange", () => {
 
 const handleResize = (): void => {
   renderer.resize();
-  resizeWorld(world, renderer.viewW, renderer.viewH);
+  // keep a mutated day's arena-size override (e.g. THE PIT) through rotates/resizes
+  const scale = state === "playing" || state === "paused" ? currentViewScale : 1;
+  resizeWorld(world, renderer.viewW * scale, renderer.viewH * scale);
 };
 window.addEventListener("resize", handleResize);
 // iOS fires these instead of (or before) window resize when the browser
