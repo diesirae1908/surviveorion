@@ -4,6 +4,92 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-10f: MENAGERIE density pass, the zoo was too sparse (main, deployed, second hotfix on today's live day)
+
+- Direct commit to `main` (Lucas explicitly approved, this deploys to prod
+  immediately). Live tuning feedback, roughly an hour after the previous
+  fix: "a minute in, and still not a lot of enemies," with a screenshot at
+  1:19 showing one creature mid-formation, a couple of stray drones, and
+  pickups floating in mostly empty space. The round-e rebuild fixed the
+  "plain drones at the start" bug but landed the ongoing pacing too sparse.
+- **Telemetry-first tuning.** Added a throwaway probe (not committed, see
+  below) reading on-screen counts (`world.drones.length`,
+  `world.assemblies.length`, i.e. creatures currently live/forming) at
+  t=30/60/90/120/150/180 on a scripted, invulnerable-observer run, averaged
+  over 20 seeds, instead of eyeballing event intervals. Confirmed the
+  complaint quantitatively: pre-fix MENAGERIE averaged ~1 concurrent
+  creature or fewer at every checkpoint (0% to 35% of trials ever reaching
+  2 concurrent) and 0-15 drones on screen, well under both reference points
+  Lucas asked for: Classic baseline (0.0-0.8 creatures, but 27-55 drones
+  from ambient/formations) and RED ALERT (0.0-1.0 creatures, 40-79 drones).
+- **Levers pulled (`CREATURE_DAYS.menagerie`, `mutators.ts`):**
+  - Cadence: `eventIntervalEarly` 8-10s → 4-6s, `eventIntervalLate` 4-6s →
+    2.5-3.5s. Deliberately faster than Lucas's own ballpark (5-7s/3-4s):
+    testing his exact numbers still left concurrent-creature rates too low
+    at t=60 (~1.0 avg, <35% of trials at 2+), so judgment call to push
+    further. Chosen so cadence regularly undercuts a creature's own active
+    lifetime (6-9s for hunter/lance/wheel, see `ASSEMBLY.kinds`), producing
+    real overlap (a new creature lands while the last is still live)
+    instead of relying only on explicit double events for concurrency.
+  - Doubles: added a `doubleChanceEarly` floor (new field, was hardcoded to
+    0) so two-kind events start from the very first event, not just late
+    run. `doubleChanceEarly` 0 → 0.25, `doubleChanceLate` 0.25 → 0.5.
+  - Ambient trickle: `ambientRateScale` 0.15 → 0.3. Smaller effect than the
+    cadence/double changes on its own (base ambient rate scales down a lot
+    at 0.3 of normal), but keeps the gaps between creatures from reading
+    fully dead, per Lucas's own fallback suggestion.
+- **Result (20-seed average, invulnerable-observer telemetry):** creatures
+  live/forming climbs 0.9 (t30) → 0.9 (t60) → 1.7 (t90) → 1.5 (t120) → 1.8
+  (t150) → 1.6 (t180), hitting 2+ concurrent in 55-70% of trials by t90
+  onward (was 0-35% everywhere pre-fix). Drones on screen climbs 11 → 11 →
+  17 → 15 → 21 → 19 (was 0-15, flat, pre-fix). Deterministic script check
+  (fixed seed) shows 58 choreography events over a 180s run, up from 26.
+  This clears Lucas's ballpark ("2+ creatures by t=60, climbing from
+  there") most consistently from t90 on; t30/t60 average just under 1,
+  reported honestly rather than rounded up, first creature still lands at
+  its intended t~13s reveal beat so there's little run time before t60 for
+  a second creature to stack on top of the first regardless of cadence.
+  If Lucas wants t60 itself denser, the next lever is loosening the reveal
+  delay or the doubleChanceEarly floor further; flagged, not changed here
+  since it wasn't asked for.
+- **Difficulty factor re-tuned 1.1 → 0.95.** The extra pressure moved the
+  evasive bot's survival ratio from ~1.4-1.6x baseline (WHEELHOUSE's easy
+  territory) down to ~1.2x baseline (LANCER DOCTRINE's territory, factor
+  0.95): baseline medians 14.5-15.9s across runs, MENAGERIE now 17-20s
+  (was 20-23s), score medians 52-73pts (was 61-80pts), landing right
+  alongside LANCER DOCTRINE's own numbers. Today's thresholds shift mid-day
+  a second time as a result; accepted per Lucas (today is already a mixed
+  soft-launch day, now also mid-tuning).
+- **Sim-test additions:** added `menagerie` to the four-day evasive-bot
+  "fair fight" named call-out loop (was only checked by the generic
+  pool-wide playability bar before). Added a durable density regression
+  guard on the fixed-seed script: at least 2 concurrent creatures within
+  the first 60s, and concurrent count at t120 not below t60's peak (i.e.
+  climbing, not fading). This directly encodes today's bug as a permanent
+  check so the day can't quietly go sparse again.
+- **Single-kind creature days: NOT changed**, per Lucas's explicit
+  instruction (telemetry-only, for his own decision on whether they need
+  the same pass). 20-seed-average on-screen counts, unchanged from before
+  this pass:
+  - HUNTING PARTY: creatures 0.8/1.6/1.6/1.7/1.6/2.4 at t30-180, drones
+    4.0-14.0. Reaches 2+ concurrent in 35-60% of trials.
+  - LANCER DOCTRINE: creatures 0.6/1.4/1.3/2.6/2.4/3.5, drones 6.0-27.2.
+    Reaches 2+ concurrent in 25-70% of trials, climbing the most of the
+    four late-run.
+  - WHEELHOUSE: creatures 0.7/1.4/1.9/1.5/3.2/3.1, drones 5.9-31.8.
+    Reaches 2+ concurrent in 10-90% of trials, the densest of the four by
+    t150-180.
+  - DEMOLITION DAY: creatures 0.0/0.4/0.3/0.6/0.3/0.6, drones 4.2-13.3.
+    Never reaches 2+ concurrent in any checkpoint across 20 seeds (0%
+    everywhere), the sparsest of the four by a clear margin (bomb's short
+    ~3.7s active lifecycle disbands before the next deployment lands even
+    late-run). Flagging this one specifically as the strongest candidate
+    if Lucas wants the same density pass applied to the single-kind days.
+- **Verification:** `npm run build` green. `npx tsx scripts/sim-test.ts`
+  green across 5+ consecutive runs (one run hit the pre-existing
+  `pending grab claims the next drop` flake, documented in earlier entries,
+  unrelated to this change, cleared on re-run).
+
 ## 2026-08-10e: MENAGERIE rebuilt on the direct-spawn choreography engine (main, deployed, hotfix on today's live day)
 
 - Direct commit to `main` (Lucas explicitly approved, this deploys to prod

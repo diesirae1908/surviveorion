@@ -264,16 +264,20 @@ export const MUTATOR_POOL: Mutator[] = [
     // "ambient thin + evolutions frequent" tuning. Root cause of the old
     // version's "just drones as usual" opening: conscription needs the
     // ambient crowd to build mass before anything can fuse, so the first
-    // real creature could take well past a minute to show up. Evasive-bot
-    // score median (see JOURNAL.md) lands close to WHEELHOUSE's, the
-    // easiest of the direct-spawn days: one creature at a time, seeded
-    // variety, gives a dodging pilot plenty of room, so the factor sits
-    // just above WHEELHOUSE's 1.0.
-    difficultyFactor: 1.1,
+    // real creature could take well past a minute to show up.
+    // v4 (2026-08-10, density pass): live feedback the same day ("a minute
+    // in, still not a lot of enemies") meant the v3 pacing above was too
+    // sparse; cadence tightened (see CREATURE_DAYS.menagerie) until events
+    // regularly outlast the gap to the next one, producing real overlap
+    // (2+ creatures live/forming at once by mid-run) instead of one lone
+    // animal at a time. The extra pressure moved the evasive-bot survival
+    // ratio down from WHEELHOUSE's territory to LANCER DOCTRINE's, so the
+    // factor follows: 1.1 -> 0.95.
+    difficultyFactor: 0.95,
     tags: ["assembly-kind"],
     overrides: {
       menagerieChoreography: true,
-      ambientRateScale: 0.15, // faint trickle: keeps the reveal beat from reading as a dead arena
+      ambientRateScale: 0.3, // density pass (2026-08-10): raised from 0.15, the thinner trickle still read dead between creatures
       formationIntervalScale: 30,
       firstCreatureDelayRange: [8, 12], // the screenshot moment: a beat of quiet, then the first creature bursts in
     },

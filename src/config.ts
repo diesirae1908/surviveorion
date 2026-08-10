@@ -318,16 +318,21 @@ export const CREATURE_DAYS = {
     deploymentIntervalEarly: [7, 9] as const,
     deploymentIntervalLate: [3, 4.5] as const,
   },
-  // MENAGERIE: one event at a time, kind drawn per event (see creatures.ts
-  // scheduleMenagerieEvent), reusing each kind's own member-count range and
-  // telegraph above. Cadence sits between the four single-kind days' own
-  // pacing rather than matching any one of them.
+  // MENAGERIE: kind drawn per event (see creatures.ts scheduleMenagerieEvent),
+  // reusing each kind's own member-count range and telegraph above. Density
+  // pass (2026-08-10, live tuning feedback: "a minute in, still not a lot of
+  // enemies"): cadence tightened until it runs faster than most single
+  // creatures' own active lifetime (6-9s, see ASSEMBLY.kinds), so events
+  // naturally overlap (a new creature lands while the last one is still
+  // live) instead of reading as one lone animal at a time.
   menagerie: {
-    eventIntervalEarly: [8, 10] as const,
-    eventIntervalLate: [4, 6] as const,
-    // chance a late-run event doubles into two different kinds at once,
-    // lerped from 0 at run start up to this cap by rampMinutes
-    doubleChanceLate: 0.25,
+    eventIntervalEarly: [4, 6] as const,
+    eventIntervalLate: [2.5, 3.5] as const,
+    // chance an event doubles into two different kinds at once, lerped from
+    // the early floor up to the late cap by rampMinutes. Starts nonzero
+    // (doubles from the first event, not just late) per the density pass.
+    doubleChanceEarly: 0.25,
+    doubleChanceLate: 0.5,
   },
 };
 

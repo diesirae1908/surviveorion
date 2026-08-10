@@ -274,7 +274,7 @@ function scheduleMenagerieEvent(world: World, minutes: number): void {
   const [minI, maxI] = rampedInterval(minutes, cfg.eventIntervalEarly, cfg.eventIntervalLate);
   world.creatureTimer = scheduleRange(minI, maxI);
 
-  const doubleChance = lerp(0, cfg.doubleChanceLate, clamp01(minutes / CREATURE_DAYS.rampMinutes));
+  const doubleChance = lerp(cfg.doubleChanceEarly, cfg.doubleChanceLate, clamp01(minutes / CREATURE_DAYS.rampMinutes));
   const isDouble = scheduleRand() < doubleChance;
 
   const kindFirst = drawMenagerieKind(world.creatureLastKind);

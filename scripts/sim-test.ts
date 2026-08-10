@@ -1027,6 +1027,39 @@ function muteAmbientPickups(world: World): void {
     console.log(
       `  MENAGERIE choreography (180s run): ${kinds.length} events, kinds seen: ${[...distinctKinds].join(", ")}, first @ t=${firstTime.toFixed(2)}`,
     );
+
+    // Density regression guard (2026-08-10 live tuning fix: "a minute in,
+    // still not a lot of enemies", a screenshot showing one lone creature in
+    // mostly empty space). Tracks concurrent creatures (world.assemblies) on
+    // an invulnerable observer run, same fixed seed/date as the determinism
+    // check above, so this is a durable, non-flaky guard against the day
+    // going sparse again. Lucas's ballpark: 2+ creatures live/forming by
+    // t=60, climbing from there.
+    setRunSeed(1234567);
+    setActiveMutators([menagerie], menagerieDate);
+    const scale = mutatorViewScale();
+    const densityWorld = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    let maxAssembliesBy60 = 0;
+    let maxAssembliesBy120 = 0;
+    const densitySteps = Math.round(120 / FIXED_DT);
+    for (let i = 0; i < densitySteps; i++) {
+      densityWorld.powers.shieldActive = true; // invulnerable observer: measures density, not survival
+      tick(densityWorld, { ...input, inertia: false, moveVector: { x: 0, y: 0 } }, FIXED_DT);
+      densityWorld.events.length = 0;
+      if (densityWorld.time <= 60) maxAssembliesBy60 = Math.max(maxAssembliesBy60, densityWorld.assemblies.length);
+      maxAssembliesBy120 = Math.max(maxAssembliesBy120, densityWorld.assemblies.length);
+    }
+    clearActiveMutators();
+    check(
+      "MENAGERIE: at least 2 creatures live/forming at once within the first 60s (density guard)",
+      maxAssembliesBy60 >= 2,
+      `peaked at ${maxAssembliesBy60} concurrent by t=60`,
+    );
+    check(
+      "MENAGERIE: concurrent creature count climbs by t=120 vs the first 60s",
+      maxAssembliesBy120 >= maxAssembliesBy60,
+      `peaked at ${maxAssembliesBy120} concurrent by t=120 (vs ${maxAssembliesBy60} by t=60)`,
+    );
   }
 
   // (g) launch-date gate: a pre-gate UTC date yields no mutators at all
@@ -1248,7 +1281,7 @@ function muteAmbientPickups(world: World): void {
   // whole spawn pattern changed. The bot only reacts once drones/telegraphs
   // are close enough to matter (no lookahead into the schedule), so this is
   // a pessimistic proxy, same as STARFALL's reticle-dodge above.
-  for (const id of ["hunting-party", "lancer-doctrine", "wheelhouse", "demolition-day"]) {
+  for (const id of ["hunting-party", "lancer-doctrine", "wheelhouse", "demolition-day", "menagerie"]) {
     const r = results.find((x) => x.id === id);
     check(
       `evasive bot: ${r?.name ?? id} choreography is a fair fight, not a surprise-death trap`,
