@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-09c: evasive-bot baseline bar loosened 12s to 8s (addendum, Sam)
+
+- The round-2 baseline sanity check (`baselineMedian >= 12`) sat exactly at the
+  bot's observed median (11.9-14s across runs) and flaked in Sam's independent
+  verification. The check only guards against a broken harness bot, so the bar
+  now sits at 8s, below normal variance, above genuine breakage.
+
 ## 2026-08-09b: Daily Mutators round 2, tuning fixes + pool expansion (branch, not merged)
 
 - Lucas playtested round 1 on the test link and loved the concept ("very fun

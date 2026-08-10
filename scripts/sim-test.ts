@@ -876,7 +876,9 @@ function muteAmbientPickups(world: World): void {
   const baselineMedian = median(baselineTimes);
   check(
     "evasive bot: baseline (no mutator) survives a sane median time",
-    baselineMedian >= 12,
+    // Harness sanity only (a broken bot dies in ~2s); the observed median
+    // hovers around 12s with real variance, so the bar sits well below it.
+    baselineMedian >= 8,
     `median ${baselineMedian.toFixed(1)}s over ${TRIALS} trials`,
   );
 
