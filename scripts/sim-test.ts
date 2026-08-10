@@ -14,6 +14,7 @@ import {
   getMutatorById,
   getMutatorsForDate,
   MUTATOR_POOL,
+  mutatorAmbientRateScale,
   mutatorViewScale,
   setActiveMutators,
   type Mutator,
@@ -804,6 +805,131 @@ function muteAmbientPickups(world: World): void {
       "STARFALL: cadence ramps up over the run (later gaps tighter than early gaps)",
       gaps.length > 5 && lateGap < earlyGap,
       `early ~${earlyGap.toFixed(2)}s vs late ~${lateGap.toFixed(2)}s`,
+    );
+  }
+
+  // (e) round 4: forced-formation days go to true zero ambient; forced-
+  // creature days keep a thin trickle so conscription (assemblies drawing
+  // members from the free ambient pool) still works; a Sunday pairing of
+  // the two resolves via "most permissive wins" (see mutators.ts).
+  {
+    function countEvents(mutators: Mutator[], seconds: number): { ambientSpawns: number; assemblies: number } {
+      setActiveMutators(mutators, dayA);
+      const scale = mutatorViewScale();
+      const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+      let ambientSpawns = 0;
+      let assemblies = 0;
+      const steps = Math.round(seconds / FIXED_DT);
+      for (let i = 0; i < steps; i++) {
+        world.powers.shieldActive = true; // survive without ram-killing conscripts
+        tick(world, input, FIXED_DT);
+        for (const e of world.events) {
+          if (e.type === "ambientSpawn") ambientSpawns++;
+          if (e.type === "assembly") assemblies++;
+        }
+        world.events.length = 0;
+      }
+      clearActiveMutators();
+      return { ambientSpawns, assemblies };
+    }
+
+    const greatWall = getMutatorById("great-wall")!;
+    const serpent = getMutatorById("year-of-the-serpent")!;
+
+    // The opening must not sit empty: the very first formation has to land
+    // fast (firstFormationDelayCap) AND resolve to a real kind, not fizzle
+    // on an empty weight pool (wall/serpent's own minMinutes ramp-gate would
+    // otherwise still be closed this early; see rollFormationKind's bypass
+    // for a mutator-forced weight table).
+    function firstFormationLanding(m: Mutator): { time: number; kind: string | null } {
+      setActiveMutators([m], dayA);
+      const scale = mutatorViewScale();
+      const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+      const steps = Math.round(20 / FIXED_DT);
+      for (let i = 0; i < steps; i++) {
+        tick(world, input, FIXED_DT);
+        for (const e of world.events) {
+          if (e.type === "formation") {
+            clearActiveMutators();
+            return { time: world.time, kind: e.kind };
+          }
+        }
+        world.events.length = 0;
+      }
+      clearActiveMutators();
+      return { time: -1, kind: null };
+    }
+    const gwOpening = firstFormationLanding(greatWall);
+    const serpentOpening = firstFormationLanding(serpent);
+    check(
+      "GREAT WALL: opening formation lands fast and resolves (no empty-pool fizzle)",
+      gwOpening.kind !== null && gwOpening.time <= 5,
+      `${gwOpening.kind ?? "none"} @ t=${gwOpening.time.toFixed(2)}`,
+    );
+    check(
+      "YEAR OF THE SERPENT: opening formation lands fast and resolves (no empty-pool fizzle)",
+      serpentOpening.kind === "serpent" && serpentOpening.time <= 5,
+      `${serpentOpening.kind ?? "none"} @ t=${serpentOpening.time.toFixed(2)}`,
+    );
+
+    const gwStats = countEvents([greatWall], 90);
+    const serpentStats = countEvents([serpent], 90);
+    check(
+      "GREAT WALL: zero ambient spawn events over a 90s run",
+      gwStats.ambientSpawns === 0,
+      `${gwStats.ambientSpawns} ambient spawns`,
+    );
+    check(
+      "YEAR OF THE SERPENT: zero ambient spawn events over a 90s run",
+      serpentStats.ambientSpawns === 0,
+      `${serpentStats.ambientSpawns} ambient spawns`,
+    );
+
+    const creatureIds = ["lancer-doctrine", "wheelhouse", "hunting-party", "demolition-day"];
+    const creatureResults = creatureIds.map((id) => ({
+      id,
+      ...countEvents([getMutatorById(id)!], 120),
+    }));
+    check(
+      "forced-creature days still produce assemblies with ambient cut hard",
+      creatureResults.every((r) => r.assemblies > 0),
+      creatureResults.map((r) => `${r.id}:${r.assemblies} assemblies`).join(", "),
+    );
+    check(
+      "forced-creature days keep a nonzero ambient trickle (not accidentally zeroed)",
+      creatureResults.every((r) => r.ambientSpawns > 0),
+      creatureResults.map((r) => `${r.id}:${r.ambientSpawns} spawns`).join(", "),
+    );
+
+    // Sunday pairing edge case: GREAT WALL (different exclusion tag from the
+    // forced-creature days) can legally pair with one of them. The creature
+    // day's own (already cut) ambient rate must win over the formation day's
+    // zero, or conscription starves. Construct the pairing explicitly and
+    // check the resolved rate directly, regardless of whether it lands on a
+    // real upcoming Sunday.
+    const lancer = getMutatorById("lancer-doctrine")!;
+    setActiveMutators([greatWall, lancer], dayA);
+    const pairedRate = mutatorAmbientRateScale();
+    clearActiveMutators();
+    check(
+      "Sunday pairing: creature day's ambient rate wins over a zero-ambient formation day",
+      pairedRate === lancer.overrides.ambientRateScale,
+      `resolved ${pairedRate} (formation day wants 0, creature day wants ${lancer.overrides.ambientRateScale})`,
+    );
+
+    // the other direction: with no creature day active, the combine rule
+    // stays multiplicative (RED ALERT x ARSENAL both wanting more ambient
+    // should stack, not just take the higher one).
+    const redAlert = getMutatorById("red-alert")!;
+    const arsenal = getMutatorById("arsenal")!;
+    setActiveMutators([redAlert, arsenal], dayA);
+    const stackedRate = mutatorAmbientRateScale();
+    clearActiveMutators();
+    const expectedStacked = (redAlert.overrides.ambientRateScale ?? 1) * (arsenal.overrides.ambientRateScale ?? 1);
+    check(
+      "no creature day active: ambient rate combine stays multiplicative",
+      Math.abs(stackedRate - expectedStacked) < 1e-9,
+      `${stackedRate.toFixed(3)} vs expected ${expectedStacked.toFixed(3)}`,
     );
   }
 

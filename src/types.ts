@@ -280,6 +280,7 @@ export type GameEvent =
   | { type: "assembly"; x: number; y: number; kind: AssemblyKind }
   | { type: "assemblyBurst"; x: number; y: number; kind: AssemblyKind }
   | { type: "droneSpawn"; x: number; y: number }
+  | { type: "ambientSpawn"; x: number; y: number }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };
 

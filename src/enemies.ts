@@ -8,6 +8,7 @@ import {
   mutatorAssemblyMaxConcurrent,
   mutatorClumpMaxScale,
   mutatorDroneSpeedScale,
+  mutatorFirstFormationDelayCap,
   mutatorFormationIntervalScale,
   mutatorFormationWeights,
   mutatorForceAssemblyKind,
@@ -300,7 +301,15 @@ export function initSpawner(world: World): void {
   // Classic breathes before the first formation; new-pilot grace opens even
   // gentler (smaller burst, later first formation) for the first few runs.
   world.nextFormationDelay += SPAWNER.firstFormationExtraDelay + 8 * world.grace;
-  const burst = Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace));
+  // A zero-ambient formation day (GREAT WALL, YEAR OF THE SERPENT) can cap
+  // the first delay so the run doesn't sit empty waiting on it (see
+  // mutators.ts firstFormationDelayCap; null on every ordinary day).
+  const delayCap = mutatorFirstFormationDelayCap();
+  if (delayCap !== null) world.nextFormationDelay = Math.min(world.nextFormationDelay, delayCap);
+  // opening burst scales with the day's ambient rate so a zero-ambient day
+  // (same knob as the ongoing trickle below) truly opens with nothing but
+  // the scripted patterns, not a free burst that ignores the override.
+  const burst = Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace) * mutatorAmbientRateScale());
   // opening drones start at the far formation radius for a gentle ramp-in
   for (let i = 0; i < burst; i++) {
     const dir = randDir();
@@ -453,6 +462,10 @@ export function spawnRadius(world: World): number {
  * so the crowd arrives in blobs with lanes between them.
  */
 function spawnAmbient(world: World, minutes: number, count = 1): void {
+  // Test-only marker (no visual/audio effect, never handled in main.ts's
+  // drainEvents, same pattern as pickupSpawn): lets sim-test confirm a
+  // zero-ambient day (GREAT WALL, YEAR OF THE SERPENT) really produces none.
+  world.events.push({ type: "ambientSpawn", x: world.ship.x, y: world.ship.y });
   if (rand() < mutatorTelegraphRatio()) {
     telegraphAmbient(world, count);
     return;
@@ -503,12 +516,22 @@ function formationCountBonus(minutes: number): number {
  */
 function rollFormationKind(world: World, minutes: number): FormationKind {
   const cfg = SPAWNER.formations;
+  const mutatorWeights = mutatorFormationWeights();
   const weights =
     world.gameMode === "ironrain"
       ? IRONRAIN.formationWeights
-      : mutatorFormationWeights() ?? cfg.weights;
+      : mutatorWeights ?? cfg.weights;
+  // Iron Rain's pinned minutes already unlock the whole roster from second
+  // zero (see the comment above); a Daily Mutator that fully replaces the
+  // weight table (GREAT WALL, YEAR OF THE SERPENT) gets the same bypass.
+  // The day's curated diet already IS the gate, so stacking the normal
+  // "heavier patterns unlock over time" ramp on top risks an empty pool (and
+  // a silently fizzled formation) before the one allowed kind's own
+  // minMinutes clears (serpent's is 18s, with no wall/megawall to
+  // pinch-hit since every other weight is zeroed by the override).
+  const gateBypassed = world.gameMode === "ironrain" || mutatorWeights !== null;
   const pool = (Object.keys(weights) as FormationKind[]).filter(
-    (kind) => minutes >= (cfg.minMinutes[kind] ?? 0),
+    (kind) => gateBypassed || minutes >= (cfg.minMinutes[kind] ?? 0),
   );
 
   let total = 0;

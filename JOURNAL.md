@@ -4,6 +4,120 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-10a: Daily Mutators round 4, pattern/creature days purified (branch, not merged)
+
+- Still branch `sam/daily-mutators`, still **not merged to main**, pushed the
+  branch only. Lucas's playtest note: pattern-specific days still had normal
+  lone ambient drones diluting the identity, wanted them "purer."
+- **GREAT WALL / YEAR OF THE SERPENT (forced-formation days)**: `ambientRateScale`
+  dropped from 0.4 to a literal `0`. Only the scripted formations spawn now;
+  their members still release to normal homing after their sweep (untouched
+  in `handleFormations`), so the organic accumulation stays intact, only the
+  ambient *trickle* is gone. The opening burst in `initSpawner` (previously a
+  flat 5 drones on every Classic-family run, unconditional on any ambient
+  override) now scales by `mutatorAmbientRateScale()` too, so it goes to zero
+  right alongside the trickle instead of quietly ignoring the override.
+- **Opening-empty risk, found and fixed**: with ambient at zero, the run's
+  only cover is the first formation, and two bugs made that unreliable
+  before this round even shipped: (1) `rollFormationKind`'s `minMinutes`
+  ramp-gate (heavier patterns unlock over real time) was still being applied
+  on top of a mutator's *fully replaced* weight table, and YEAR OF THE
+  SERPENT's only allowed kind (serpent) gates at 18s, with nothing else in
+  the pool to fall back on: every formation attempt before minute
+  0.3 silently fizzled (empty weighted pool, no crash, just nothing spawns)
+  and the true first serpent could take up to 18s to land. Fixed by bypassing
+  the `minMinutes` gate whenever a mutator has replaced the weight table
+  outright (same treatment Iron Rain's pinned-minutes already gets, on the
+  reasoning that the day's own curated diet already IS the gate). (2) Added
+  a new `firstFormationDelayCap` override (GREAT WALL and SERPENT both set it
+  to 4s) that clamps the very first formation's delay via `Math.min`, so the
+  opening never sits empty waiting on the natural 4.5-6.5s range. Verified
+  directly: with the fix, GREAT WALL's first formation is `wall @ t=4.02`
+  and SERPENT's is `serpent @ t=4.02`, every trial, 10-11 drones on screen at
+  4 seconds in. Added a permanent sim-test regression check for this
+  (`GREAT WALL/YEAR OF THE SERPENT: opening formation lands fast and
+  resolves (no empty-pool fizzle)`), since both bugs would otherwise have
+  been invisible to the existing "boots and survives 60s" pool check.
+- **LANCER DOCTRINE / WHEELHOUSE / HUNTING PARTY / DEMOLITION DAY
+  (forced-creature days)**: ambient can't go to zero here, assemblies
+  conscript members *from* the free ambient pool (`tryFormAssembly`'s
+  `gatherRadius` scan in `enemies.ts`); zero ambient means zero creatures and
+  the fusion is the whole telegraph. Added `ambientRateScale: 0.5` to all
+  four (previously unset = normal density, which is exactly what Lucas
+  flagged). Sim-tested over a 120s run: each of the four still produces
+  6-11 assemblies (`lancer-doctrine`, `wheelhouse`, `hunting-party`,
+  `demolition-day` all `>0`, comfortably frequent) while keeping a real
+  ambient trickle (54-60 ambient-spawn events, never zero), so conscription
+  keeps working and the field between evolutions reads sparse. Did not also
+  raise `assemblyIntervalScale`: the existing cadence (roughly one
+  evolution every 12-20s) already reads clearly creatures-first once the
+  background is this thin, no need to force it further. Plain-language
+  sublines rewritten to frame the remaining strays as raw material ("the
+  stragglers are parts waiting to fuse").
+- **Sunday pairing edge case, handled explicitly**: GREAT WALL/SERPENT
+  (`formation-kind`/`density` tags) and the four forced-creature days
+  (`assembly-kind` tag) share no exclusion tag, so a Sunday can legally pair
+  a zero-ambient formation day with a creature day. Multiplying their rates
+  together would land on exactly zero regardless of the creature day's own
+  (already-cut) demand, silently killing conscription. `mutatorAmbientRateScale()`
+  now checks whether any active mutator is a "creature day" (defined as
+  `forceAssemblyKind !== undefined`, a clean semantic hook rather than an id
+  list) and, if so, takes the **max** of the active `ambientRateScale`
+  values instead of the product ("most permissive wins"); with no creature
+  day active, the combine stays multiplicative as before (verified: RED
+  ALERT × ARSENAL still stacks to `1.375`, unchanged). Verified the actual
+  edge case directly: `setActiveMutators([great-wall, lancer-doctrine])`
+  resolves to `0.5` (lancer's own rate), not `0`. Both directions covered by
+  new sim-test checks.
+- **New test-only event** (`ambientSpawn`, pushed once at the top of
+  `spawnAmbient` in `enemies.ts`): needed a way to positively assert "zero
+  ambient spawns happened," since the existing `droneSpawn` event only fires
+  for the telegraph-pop half of ambient spawns, not the edge-sneak half.
+  Same pattern as round 3's `pickupSpawn`: declared in `types.ts`, never
+  handled in `main.ts`'s `drainEvents`, so it's inert in the real game (no
+  visual/audio change), only consumed by `sim-test.ts`.
+- **Difficulty factor re-tune** (all six days; task's framing: fewer drones =
+  fewer kill/graze opportunities = lower score potential, so factors move
+  down from their round-1/2 values):
+  - GREAT WALL: 1.15 → **0.85**. YEAR OF THE SERPENT: 1.1 → **0.8** (a
+    serpent is a single-file train, narrower simultaneous kill cluster than
+    a wall spanning the whole edge). Note: the evasive (dodge-only, never
+    attacks) bot's own SCORE median for these two actually came in *above*
+    baseline (e.g. one run: GW 120pts vs 57pts baseline), that's a graze
+    artifact of a passive bot surviving a long time next to slow-moving
+    walls/trains without ever killing anything, not a real scoring profile.
+    Didn't trust it for these two; went with the reasoned direction instead
+    (fewer total kill targets over a real offensive run) and said so.
+  - LANCER DOCTRINE: 1.05 → **0.9**. WHEELHOUSE: 1.05 → **0.95**. HUNTING
+    PARTY: 1.1 → **0.85** (bot's score median consistently lowest of the
+    four: hunters close in and die one at a time rather than sweeping
+    through in a killable batch). DEMOLITION DAY: 1.05 → **1.0** (bot's
+    score median consistently highest: a fragmented bomb burst offers the
+    most simultaneous graze surface). These four's bot-score ranking was
+    stable enough across repeated runs to trust for relative ordering, even
+    though absolute numbers are noisy (unseeded Math.random gameplay).
+  - Re-checked the evasive-bot playability bar for all six across several
+    repeated `sim-test` runs: comfortably clear every time (GREAT
+    WALL/SERPENT medians 22-27s, the four creature days 14-20s, vs a
+    ~5.3-6.0s bar and a baseline around 13-15s). If anything these two
+    zero-ambient days got *easier* to survive for a passive bot, expected
+    given "fewer things trying to kill you," the factor cut compensates on
+    the scoring side, not survival.
+- **Verification**: `npm run build` green. `npx tsx scripts/sim-test.ts`
+  green, run ~20 times in a row to check the new checks and the (unseeded)
+  evasive-bot numbers for stability; one unrelated pre-existing flake hit
+  once (`pending grab claims the next drop`, the magnet power test in
+  section 3b, unseeded `Math.random` gameplay, not touched by this round,
+  not reproducible on reruns), noted, not fixed, out of scope. New checks
+  added: opening-formation-lands-fast for both formation days, zero
+  ambient-spawn events for both formation days, nonzero assemblies + nonzero
+  ambient trickle for all four creature days, and both directions of the
+  ambient-rate combine rule (creature-day-active → max; no-creature-day →
+  still multiplicative).
+- No SCORING/`server/validate.mjs` changes (the score-side effect here is
+  entirely via the existing difficulty-factor knob, same mechanism as every
+  prior round). No em dashes.
+
 ## 2026-08-09e: Daily Mutators, ?mutator= preview override for playtesting (branch, not merged)
 
 - Still branch `sam/daily-mutators`, still **not merged to main**, pushed the
