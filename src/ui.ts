@@ -1,6 +1,8 @@
 import type { BoardMode } from "./api";
 import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
+import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
+import type { Mutator } from "./mutators";
 import type {
   BooleanSetting,
   ControlMode,
@@ -83,6 +85,10 @@ export interface GameOverStats {
   showShare?: boolean;
   /** Daily-only site: death inside the free-death window — attempt returned. */
   refunded?: boolean;
+  /** Daily-only site: today's mutator name(s), for the "DAILY PATROL" tag. */
+  mutatorNames?: string[];
+  /** Daily-only site: best-of-day medal (by survival time) + next-tier hint. */
+  dailyMedal?: { tier: MedalTier | null; hint: string | null };
 }
 
 /** Everything the daily-only lobby needs to paint itself. */
@@ -95,6 +101,10 @@ export interface DailyLobbyInfo {
   /** Community server reachable → show the inline leaderboard. */
   online: boolean;
   touchDevice: boolean;
+  /** Today's mutator(s): 1 normally, 2 on UTC Sundays. */
+  mutators: Mutator[];
+  /** Today's medal time thresholds (already mutator-adjusted). */
+  medalThresholds: MedalThresholds;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -350,6 +360,34 @@ export class Ui {
     return btn;
   }
 
+  /**
+   * Daily lobby briefing card: today's mutator(s) (name + one-line briefing,
+   * 2 on UTC Sundays) and today's medal time thresholds, shown before launch.
+   */
+  private mutatorBriefingCard(mutators: Mutator[], thresholds: MedalThresholds): HTMLElement {
+    const card = this.el("div", "mutator-card", "");
+    for (const m of mutators) {
+      card.appendChild(
+        this.el(
+          "div",
+          "mutator-row",
+          `<span class="mutator-name">${escapeHtml(m.name)}</span>` +
+            `<span class="mutator-briefing">${escapeHtml(m.briefing)}</span>`,
+        ),
+      );
+    }
+    card.appendChild(
+      this.el(
+        "div",
+        "medal-thresholds",
+        `<span class="medal-pip copper">🥉 ${thresholds.copper}s</span>` +
+          `<span class="medal-pip silver">🥈 ${thresholds.silver}s</span>` +
+          `<span class="medal-pip gold">🥇 ${thresholds.gold}s</span>`,
+      ),
+    );
+    return card;
+  }
+
   showMenu(bestScore: number, touchDevice: boolean, community?: MenuCommunity): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -452,6 +490,7 @@ export class Ui {
     screen.appendChild(this.el("div", "divider", ""));
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
+    screen.appendChild(this.mutatorBriefingCard(info.mutators, info.medalThresholds));
 
     // attempt pips: one per daily try, spent ones dimmed
     const pipsRow = this.el("div", "attempt-pips", "");
@@ -1059,7 +1098,11 @@ export class Ui {
     const screen = this.el("div", "screen gameover-screen", "");
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
     if (stats.daily) {
-      screen.appendChild(this.el("div", "daily-tag", "DAILY PATROL"));
+      const tag =
+        stats.mutatorNames && stats.mutatorNames.length > 0
+          ? `DAILY PATROL &nbsp;·&nbsp; ${escapeHtml(stats.mutatorNames.join(" + "))}`
+          : "DAILY PATROL";
+      screen.appendChild(this.el("div", "daily-tag", tag));
     } else if (stats.gameMode === "ironrain") {
       screen.appendChild(this.el("div", "ironrain-tag", "IRON RAIN"));
     }
@@ -1079,6 +1122,18 @@ export class Ui {
           `<div><span class="label">Best</span><span class="value">${Math.floor(stats.best).toLocaleString()}</span></div>`,
       ),
     );
+
+    // best-of-day medal (survival time), or how close today's best is to the next tier
+    if (stats.dailyMedal) {
+      const { tier, hint } = stats.dailyMedal;
+      screen.appendChild(
+        this.el(
+          "div",
+          `medal-earned${tier ? ` ${tier}` : ""}`,
+          tier ? `${MEDAL_EMOJI[tier]} ${MEDAL_LABEL[tier]} MEDAL` : (hint ?? ""),
+        ),
+      );
+    }
 
     // where the points came from — scoring is opaque without this
     if (stats.score > 0) {

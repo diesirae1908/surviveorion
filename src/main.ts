@@ -8,6 +8,8 @@ import { countryFlag, countryName, guessCountry } from "./countries";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input, isTypingTarget } from "./input";
 import { clamp01, hashString, setRunSeed } from "./math";
+import { medalForTime, medalThresholdsForDate, nextMedalHint } from "./medals";
+import { clearActiveMutators, getMutatorsForDate, mutatorViewScale, setActiveMutators } from "./mutators";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
@@ -29,6 +31,7 @@ import {
   saveKeyBindings,
   saveSettings,
   dailyAttemptsLeft,
+  dailyBestTimeToday,
   loadDailyAttempts,
   recordDailyResult,
   refundDailyAttempt,
@@ -102,6 +105,8 @@ let recordBeaten = false;
 /** Daily Patrol: shared-seed run, files on today's board too. */
 let pendingDaily = false;
 let runIsDaily = false;
+/** Today's Daily Mutator arena-size override, applied to viewW/viewH (1 = normal). */
+let currentViewScale = 1;
 /** Training Ground (daily-only site): free, unscored practice run. */
 let pendingTraining = false;
 let runIsTraining = false;
@@ -114,6 +119,8 @@ let lastRunShare: {
   maxMultiplier: number;
   rank: number | null;
   attempt: number;
+  mutatorNames?: string[];
+  medal?: import("./medals").MedalTier | null;
 } | null = null;
 /** Game mode picked on the menu; retries reuse it (Daily is always Classic). */
 let pendingGameMode: GameMode = loadGameMode();
@@ -235,8 +242,24 @@ const ui = new Ui(settings, {
     const source =
       state === "gameover" && lastRunShare ? lastRunShare : loadDailyAttempts().best;
     if (!source) return Promise.resolve("failed" as const);
+    // the lobby's "today's best" doesn't carry mutator/medal metadata (it's
+    // a DailyBestResult, not a lastRunShare), so fill it in from today's
+    // date the same way the briefing card does
+    const todaysMutatorNames = getMutatorsForDate(new Date()).map((m) => m.name);
+    const asShare = source as Partial<{ mutatorNames: string[]; medal: import("./medals").MedalTier | null }>;
+    const sourceMedal = asShare.medal;
+    const sourceMutatorNames = asShare.mutatorNames;
+    const medal =
+      sourceMedal !== undefined
+        ? sourceMedal
+        : medalForTime(dailyBestTimeToday(), medalThresholdsForDate(new Date()));
     return shareText(
-      buildShareText({ dayNumber: dailyNumber(), ...source }),
+      buildShareText({
+        dayNumber: dailyNumber(),
+        ...source,
+        mutatorNames: sourceMutatorNames ?? todaysMutatorNames,
+        medal,
+      }),
       isTouchDevice(),
     );
   },
@@ -310,6 +333,7 @@ const community = new CommunityUi(
 function showMenu(): void {
   if (DAILY_ONLY) {
     const attempts = loadDailyAttempts();
+    const today = new Date();
     ui.showDailyLobby({
       dayNumber: dailyNumber(),
       attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
@@ -317,6 +341,8 @@ function showMenu(): void {
       best: attempts.best,
       online: api.online,
       touchDevice: isTouchDevice(),
+      mutators: getMutatorsForDate(today),
+      medalThresholds: medalThresholdsForDate(today),
     });
     fillDailyHint();
     fillDailyBoard();
@@ -453,13 +479,18 @@ function startRun(): void {
   // PBs are per game mode — the NEW RECORD beat compares like-for-like
   bestScore = loadBestScore(runGameMode);
   bestTime = loadBestTime(runGameMode);
+  // Daily Mutators apply ONLY to Daily Patrol; Classic/Iron Rain/Training
+  // Ground never see an override (see mutators.ts).
+  if (runIsDaily) setActiveMutators(getMutatorsForDate(new Date()));
+  else clearActiveMutators();
+  currentViewScale = runIsDaily ? mutatorViewScale() : 1;
   // Daily Patrol deals everyone the same script (and no beginner grace);
   // normal runs soften the opening for a player's first few flights.
   setRunSeed(runIsDaily ? dailySeed() : null);
   const grace = runIsDaily || runIsTraining ? 0 : clamp01(1 - loadRunCount() / 3);
   world = createWorld(
-    renderer.viewW,
-    renderer.viewH,
+    renderer.viewW * currentViewScale,
+    renderer.viewH * currentViewScale,
     false,
     grace,
     runGameMode,
@@ -480,6 +511,8 @@ function startRun(): void {
 /** Flight school: a sandbox world with scripted static drones, no spawner. */
 function startTutorial(): void {
   audio.unlock();
+  clearActiveMutators();
+  currentViewScale = 1;
   world = createWorld(renderer.viewW, renderer.viewH, true);
   particles.clear();
   popups.clear();
@@ -533,6 +566,8 @@ function quitToMenu(): void {
   tutorial = null;
   audio.setThrustLevel(0);
   audio.playTrack("menu");
+  clearActiveMutators();
+  currentViewScale = 1;
   world = createWorld(renderer.viewW, renderer.viewH);
   particles.clear();
   popups.clear();
@@ -575,6 +610,7 @@ function showGameOverUi(): void {
   const cappedDaily = DAILY_ONLY && runIsDaily;
   // a refunded run never happened as far as the daily books are concerned:
   // no best-of-day entry, no share card, no daily board submission
+  let dailyMedal: { tier: import("./medals").MedalTier | null; hint: string | null } | undefined;
   if (cappedDaily && !runRefunded) {
     // remember the run for the share card (rank arrives with the submit)
     recordDailyResult({
@@ -583,12 +619,23 @@ function showGameOverUi(): void {
       maxMultiplier: world.maxMultiplier,
       rank: null,
     });
+    // best-of-day medal (survival time), computed fresh now that this run's
+    // time has been folded into today's bestTime
+    const thresholds = medalThresholdsForDate(new Date());
+    const bestTimeToday = dailyBestTimeToday();
+    const medalTier = medalForTime(bestTimeToday, thresholds);
+    dailyMedal = {
+      tier: medalTier,
+      hint: nextMedalHint(bestTimeToday, thresholds),
+    };
     lastRunShare = {
       score: Math.floor(world.score),
       time: world.time,
       maxMultiplier: world.maxMultiplier,
       rank: null,
       attempt: loadDailyAttempts().used,
+      mutatorNames: getMutatorsForDate(new Date()).map((m) => m.name),
+      medal: medalTier,
     };
   }
   ui.showGameOver({
@@ -609,6 +656,8 @@ function showGameOverUi(): void {
     attemptsLeft: cappedDaily ? dailyAttemptsLeft() : undefined,
     showShare: cappedDaily && !runRefunded,
     refunded: runRefunded,
+    mutatorNames: cappedDaily ? getMutatorsForDate(new Date()).map((m) => m.name) : undefined,
+    dailyMedal,
   });
   submitRun();
 }
@@ -709,7 +758,9 @@ document.addEventListener("visibilitychange", () => {
 
 const handleResize = (): void => {
   renderer.resize();
-  resizeWorld(world, renderer.viewW, renderer.viewH);
+  // keep a mutated day's arena-size override (e.g. THE PIT) through rotates/resizes
+  const scale = state === "playing" || state === "paused" ? currentViewScale : 1;
+  resizeWorld(world, renderer.viewW * scale, renderer.viewH * scale);
 };
 window.addEventListener("resize", handleResize);
 // iOS fires these instead of (or before) window resize when the browser

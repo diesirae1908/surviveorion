@@ -4,6 +4,109 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-09 — Daily Mutators + Medals for Daily Patrol (branch, not merged)
+
+- Lucas's ask (via Sam): make every Daily Patrol feel DIFFERENT to play, not
+  just harder, and give it a legible skill target. Two systems, both
+  Daily-Patrol-only (Classic/Iron Rain/Training untouched), both deterministic
+  from the UTC date so every pilot on today's seed sees the identical script.
+  On branch `sam/daily-mutators`, **not merged to main** (Lucas wants a test
+  link first), pushed the branch only.
+
+- **Daily Mutators (`src/mutators.ts`, new)**: a named set of config-value
+  overrides (never logic that changes seeded-draw counts) picked by a
+  deterministic hash of the UTC date, same derivation family as the daily
+  seed. One mutator on weekdays, two compatible ones (tag-excluded, e.g. two
+  arena-size or two monopower days can't co-occur) on UTC Sundays. A cheap
+  yesterday-hash check steps the pick forward once to avoid an immediate
+  repeat. 16 mutators shipped (target was ~14):
+  BLACKOUT (1.15, telegraphs off), OVERDRIVE (1.05, tempo/spawn/pickup pace
+  up ~20%), THE FLOOD (0.9, formations way down, ambient way up), WARGAMES
+  (1.15, ambient way down, formation interval way down, wall/serpent/pincer
+  weighted), MENAGERIE (1.1, assemblies much more frequent), LANCER DOCTRINE /
+  WHEELHOUSE / HUNTING PARTY / DEMOLITION DAY (1.05/1.05/1.1/1.05, every
+  assembly forced to one kind), ARSENAL (0.85, pickup interval halved, a fun
+  power-fantasy day, not a hard one), CRYO WINTER / IRON BARRAGE (0.9/0.95,
+  monopower days via `POWER_SPAWN_WEIGHTS`-style overrides that zero every
+  other candidate so bad-luck-protection demotion can't fight the guarantee),
+  SINGULARITY (0.85, unbenches Vortex for the day and weights it high,
+  verified via sim it opens/absorbs/collapses cleanly), THE PIT (1.2, view
+  scaled to 0.72, a real arena-size shrink, not just a camera crop), GIANTS
+  (1.0, zero-width scale clamp at 1.6 neutralizes the size-speed lerp so
+  `droneSpeedScale` alone makes them slower, bigger only, per the phone
+  visibility note in AGENTS.md), MINEFIELD (1.1, mine interval way down).
+  Wiring: `enemies.ts` (ambient rate, drone speed, scale clamp, telegraph
+  ratio, formation weights/interval, assembly interval/forced kind),
+  `pickups.ts` (pickup interval, extra power ids, power weights),
+  `mines.ts` (mine interval), `main.ts` (`setActiveMutators`/
+  `clearActiveMutators` around daily/non-daily world creation and on every
+  menu/tutorial transition so state never bleeds, `mutatorViewScale()` scales
+  `createWorld`/`resizeWorld`'s viewW/viewH for the daily run).
+- Checked every mutator against `server/validate.mjs`'s anti-cheat ceilings
+  (`MAX_KILLS_PER_SEC` 12, the score-ceiling formula) before including it.
+  None touch `SCORING`, and even WARGAMES's dense set-piece diet (the
+  highest-kill mutator in testing) stayed at ~4.5 kills/sec average against a
+  scripted invulnerable observer, nowhere near the ceiling. No exclusions
+  needed on ceiling grounds.
+- **Daily Medals (`src/medals.ts`, new)**: Copper/Silver/Gold thresholds on
+  SURVIVAL TIME (legible, immune to scoring tuning), base 60s/120s/200s times
+  the day's combined mutator difficulty factor (Sundays multiply both),
+  rounded to 5s. Client-side only (`save.ts`'s `DailyAttempts` gains
+  `bestTime`, tracked independently of the score-picked `best` since the
+  longest flight isn't always the highest score,
+  `dailyBestTimeToday()` helper), no server schema change, no new endpoints,
+  per Sam's instruction (calendar/persistence is a later phase).
+- **UI**: daily lobby gets a briefing card (`Ui.mutatorBriefingCard`) under
+  "PATROL #N" showing today's mutator name(s), one-line briefing(s), and the
+  day's medal thresholds (Cu/Ag/Au pips), styled to match the existing gold
+  and red card look. Game-over screen shows the mutator tag and either the
+  earned medal (glowing, gold pulses) or a "Ns to SILVER" style hint toward
+  the next tier, both computed from `dailyBestTimeToday()` so they reflect
+  the day's best attempt, not just this run's. `src/style.css` gets
+  `.mutator-card`, `.medal-thresholds`/`.medal-pip`, `.medal-earned`
+  (per-tier color).
+- **Share card (`src/share.ts`)**: "ORION Daily #N" becomes "ORION Patrol #N"
+  (the existing July 14, 2026 daily-site-launch epoch is reused, not a new
+  one, same feature, same numbering), plus a mutator-names line and a medal
+  emoji line, still a tight pasteable block, no em dashes anywhere in the
+  new copy.
+- **TODAY'S BOARD** (daily lobby inline leaderboard): left untouched. Its
+  rows only carry `score` (`DailyBoardRow` in `ui.ts`, backed by
+  `dailyLeaderboardCombined()` server-side), no survival time, so there is
+  nothing to compute a time-based medal glyph from without a server change.
+  Flagging this per the task's own "skip and note" instruction rather than
+  guessing at a score-based proxy.
+- **`scripts/sim-test.ts`**: new section covers (a) a mutated day's script is
+  byte-identical across two very differently-played runs (ram vs. drifting
+  shield pilot): formations, power drops (kind + position), and mines all
+  match; (b) two different days land different mutators within 30 days and
+  produce different scripts; (c) every pool mutator boots, runs 60 sim
+  seconds, and never goes non-finite or spawns/kills nothing (dead arena);
+  plus a medal-threshold sanity check (positive, ordered, 5s-rounded) across
+  a sample week. All new checks pass; also caught and confirmed a
+  **pre-existing flake** unrelated to this work: the section-1 "serpent
+  followers trailed" check uses unseeded `Math.random()` and can legitimately
+  roll 0 serpent formations in an unlucky 3-minute window (reran clean 3/3
+  times after; not something this branch caused or fixed).
+- Manual play-sanity (scripted invulnerable-observer eyeball, not committed):
+  ARSENAL nearly doubled pickup count (68 vs. 36 baseline) at similar kill
+  rate, reads as a fun day, not a hard one. THE FLOOD cut formations from 35
+  to 11 and dropped score well below baseline, crowd-navigation texture, not
+  just-harder. WARGAMES more than doubled formation count (77 vs. 35) and led
+  every mutator on kills, a real set-piece gauntlet, still safely under the
+  kill-rate ceiling (see above). GIANTS and THE PIT both cut max concurrent
+  drones (377 and 398 vs. 504 baseline) for a fewer-but-bigger and
+  claustrophobic read respectively. Conclusion: the pool reads as distinct
+  sidegrades, not a difficulty slider, per the brief.
+- Verified: `npm run build` (tsc + vite) green, `npx tsx scripts/sim-test.ts`
+  all green. Branch `sam/daily-mutators` pushed to origin, **main untouched,
+  no deploy triggered**.
+- Open items for Lucas/Sam: (1) no exclusions or ceiling flags ended up
+  needed, the pool shipped in full at 16 entries; (2) TODAY'S BOARD medal
+  glyphs are skipped for the reason above, say if that's worth a future
+  server column; (3) medal-calendar/server persistence is intentionally out
+  of scope per the brief, for whenever that phase comes up.
+
 ## 2026-08-05 — Daily lobby inline board: show country flags (matches fullgame boards)
 
 - Sam asked for the daily-only lobby's "TODAY'S BOARD" (the merged inline

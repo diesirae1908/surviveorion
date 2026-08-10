@@ -140,6 +140,12 @@ export interface DailyAttempts {
   date: string;
   used: number;
   best: DailyBestResult | null;
+  /**
+   * Longest survival time across today's attempts (medals are best-of-day on
+   * TIME, which can differ from `best`'s score-picked attempt). Namespaced
+   * alongside the rest of this key, see `orion.medal*` in save.ts.
+   */
+  bestTime: number;
 }
 
 /** Same UTC day boundary as the Daily Patrol seed in main.ts. */
@@ -149,7 +155,7 @@ export function utcDateString(): string {
 
 /** Today's attempt state; a stale date resets the budget. */
 export function loadDailyAttempts(): DailyAttempts {
-  const fresh: DailyAttempts = { date: utcDateString(), used: 0, best: null };
+  const fresh: DailyAttempts = { date: utcDateString(), used: 0, best: null, bestTime: 0 };
   try {
     const raw = localStorage.getItem(DAILY_ATTEMPTS_KEY);
     if (!raw) return fresh;
@@ -159,6 +165,7 @@ export function loadDailyAttempts(): DailyAttempts {
       date: fresh.date,
       used: Math.max(0, Math.floor(parsed.used)),
       best: parsed.best ?? null,
+      bestTime: typeof parsed.bestTime === "number" ? Math.max(0, parsed.bestTime) : 0,
     };
   } catch {
     return fresh;
@@ -193,6 +200,9 @@ export function recordDailyResult(result: Omit<DailyBestResult, "attempt">): Dai
   const state = loadDailyAttempts();
   const attempt = Math.max(1, state.used);
   const entry: DailyBestResult = { ...result, attempt };
+  // medals are best-of-day on TIME, tracked independently of the
+  // score-picked `best` below (the longest flight isn't always the highest score)
+  state.bestTime = Math.max(state.bestTime, result.time);
   if (!state.best || entry.score >= state.best.score) {
     state.best = entry;
     saveDailyAttempts(state);
@@ -202,9 +212,14 @@ export function recordDailyResult(result: Omit<DailyBestResult, "attempt">): Dai
   // always reflects today's BEST run — so refresh the stored rank regardless
   if (result.rank !== null) {
     state.best.rank = result.rank;
-    saveDailyAttempts(state);
   }
+  saveDailyAttempts(state);
   return state.best;
+}
+
+/** Best-of-day survival time so far (medals are computed from this). */
+export function dailyBestTimeToday(): number {
+  return loadDailyAttempts().bestTime;
 }
 
 function parseSense(v: unknown, fallback: SenseLevel): SenseLevel {

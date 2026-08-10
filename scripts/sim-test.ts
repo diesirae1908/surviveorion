@@ -8,6 +8,15 @@ import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
 import { setRunSeed } from "../src/math";
+import { medalThresholdsForDate } from "../src/medals";
+import {
+  clearActiveMutators,
+  getMutatorsForDate,
+  MUTATOR_POOL,
+  mutatorViewScale,
+  setActiveMutators,
+  type Mutator,
+} from "../src/mutators";
 import { Tutorial } from "../src/tutorial";
 import type { World } from "../src/types";
 
@@ -28,6 +37,8 @@ function step(world: World, seconds: number): void {
     world.events.length = 0;
   }
 }
+
+const MS_PER_DAY = 86_400_000;
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ""): void {
@@ -636,6 +647,158 @@ function muteAmbientPickups(world: World): void {
   const outroShown = hints.some((h) => h.includes("THE GOAL"));
   stepTut(1);
   check("tutorial: shockwave beat + outro reached", pickupAppeared && outroShown && tut.done, hints.length + " hints");
+}
+
+// --- 9. Daily Mutators: determinism, day-to-day variety, pool playability ---
+{
+  interface Script {
+    formations: string[];
+    powers: string[];
+    mines: string[];
+  }
+
+  /** Same shape as the section-7 daily determinism recorder, but with a set
+   * of mutators active for the run (main.ts calls setActiveMutators before
+   * createWorld the same way for a real Daily Patrol launch). */
+  const recordMutated = (mutators: Mutator[], style: "ram" | "drift"): Script => {
+    setRunSeed(1234567);
+    setActiveMutators(mutators);
+    const scale = mutatorViewScale();
+    const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    const script: Script = { formations: [], powers: [], mines: [] };
+    const seenPickups = new Set<unknown>();
+    let t = 0;
+    const steps = Math.round(180 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      t += FIXED_DT;
+      let drive = { x: 0, y: 0 };
+      if (style === "ram") {
+        world.powers.starshellTimer = 9999;
+      } else {
+        world.powers.shieldActive = true;
+        drive = { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
+      }
+      tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
+
+      for (const e of world.events) {
+        if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+      }
+      world.events.length = 0;
+      for (const pu of world.pickups) {
+        if (seenPickups.has(pu)) continue;
+        seenPickups.add(pu);
+        script.powers.push(
+          `${world.time.toFixed(2)}:${pu.power}@${pu.x.toFixed(2)},${pu.y.toFixed(2)}`,
+        );
+      }
+      for (const m of world.mines) {
+        script.mines.push(`${world.time.toFixed(2)}:${m.x.toFixed(2)},${m.y.toFixed(2)}`);
+      }
+      world.mines.length = 0;
+    }
+    setRunSeed(null);
+    clearActiveMutators();
+    return script;
+  };
+
+  // (a) same mutated day, two very different play styles -> identical script
+  const dayA = new Date("2026-08-10T00:00:00Z"); // arbitrary UTC day, not a Sunday
+  const mutatorsA = getMutatorsForDate(dayA);
+  const namesA = mutatorsA.map((m) => m.name).join("+");
+  const a1 = recordMutated(mutatorsA, "ram");
+  const a2 = recordMutated(mutatorsA, "drift");
+  check(
+    `mutated day (${namesA}) determinism: formations match across play styles`,
+    a1.formations.length > 3 && a1.formations.join("|") === a2.formations.join("|"),
+    `${a1.formations.length} formations`,
+  );
+  check(
+    `mutated day (${namesA}) determinism: power drops match across play styles`,
+    a1.powers.join("|") === a2.powers.join("|"),
+    `${a1.powers.length} drops`,
+  );
+  check(
+    `mutated day (${namesA}) determinism: mine schedule matches across play styles`,
+    a1.mines.join("|") === a2.mines.join("|"),
+    `${a1.mines.length} mines`,
+  );
+
+  // (b) two different days pick different mutators, and their scripts diverge
+  let dayB = dayA;
+  let mutatorsB = mutatorsA;
+  for (let i = 1; i <= 30; i++) {
+    const candidate = new Date(dayA.getTime() + i * MS_PER_DAY);
+    const candidateMutators = getMutatorsForDate(candidate);
+    if (candidateMutators.map((m) => m.id).join(",") !== mutatorsA.map((m) => m.id).join(",")) {
+      dayB = candidate;
+      mutatorsB = candidateMutators;
+      break;
+    }
+  }
+  check(
+    "a different mutator turns up within 30 days (no permanent stuck day)",
+    mutatorsB.map((m) => m.id).join(",") !== mutatorsA.map((m) => m.id).join(","),
+    `${namesA} (day A) vs ${mutatorsB.map((m) => m.name).join("+")} (day B, +${Math.round((dayB.getTime() - dayA.getTime()) / MS_PER_DAY)}d)`,
+  );
+  const b1 = recordMutated(mutatorsB, "ram");
+  check(
+    "two days with different mutators produce different scripts",
+    a1.formations.join("|") !== b1.formations.join("|") || a1.powers.join("|") !== b1.powers.join("|"),
+  );
+
+  // (c) every mutator in the pool boots and survives a sim run cleanly
+  let crashedMutator: string | null = null;
+  const deadArena: string[] = [];
+  for (const m of MUTATOR_POOL) {
+    setActiveMutators([m]);
+    const scale = mutatorViewScale();
+    try {
+      const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+      step(world, 60);
+      if (!Number.isFinite(world.score) || !Number.isFinite(world.time)) {
+        crashedMutator = `${m.id}: non-finite score/time`;
+        break;
+      }
+      // the stationary observer ram-kills anything that reaches it, so a
+      // healthy arena always spawns/kills something over a full minute
+      const spawned = world.kills + world.drones.length;
+      if (spawned === 0) deadArena.push(m.id);
+    } catch (e) {
+      crashedMutator = `${m.id}: ${e}`;
+      break;
+    } finally {
+      clearActiveMutators();
+    }
+  }
+  check(
+    `all ${MUTATOR_POOL.length} pool mutators boot + survive 60s (no crash, no NaN)`,
+    crashedMutator === null,
+    crashedMutator ?? "",
+  );
+  check("no mutator produces a zero-spawn dead arena", deadArena.length === 0, deadArena.join(","));
+
+  // medal thresholds stay sane (positive, ordered, 5s-rounded) across a sample week
+  let badThresholds: string | null = null;
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(dayA.getTime() + i * MS_PER_DAY);
+    const t = medalThresholdsForDate(date);
+    const sane =
+      t.copper > 0 &&
+      t.copper < t.silver &&
+      t.silver < t.gold &&
+      t.copper % 5 === 0 &&
+      t.silver % 5 === 0 &&
+      t.gold % 5 === 0;
+    if (!sane) {
+      badThresholds = `${date.toISOString().slice(0, 10)}: ${JSON.stringify(t)}`;
+      break;
+    }
+  }
+  check(
+    "medal thresholds ordered/positive/5s-rounded across a sample week",
+    badThresholds === null,
+    badThresholds ?? "",
+  );
 }
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);

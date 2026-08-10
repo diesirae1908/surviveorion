@@ -8,6 +8,7 @@ import {
   type PowerId,
 } from "./config";
 import { clamp01, lerp, rand, randRange, scheduleRand, scheduleRange } from "./math";
+import { mutatorExtraPowerIds, mutatorPickupIntervalScale, mutatorPowerWeights } from "./mutators";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
 import type { Pickup, World } from "./types";
@@ -22,7 +23,7 @@ function nextInterval(world: World): number {
   const t = clamp01(world.time / 60 / PICKUPS.intervalRampMinutes);
   // dailies have no refill floor, so the baseline schedule runs faster —
   // a flat scale on a single seeded draw keeps the shared script in sync
-  const scale = world.daily ? PICKUPS.dailyIntervalScale : 1;
+  const scale = (world.daily ? PICKUPS.dailyIntervalScale : 1) * mutatorPickupIntervalScale();
   const min = lerp(PICKUPS.secondsBetweenRange[0], PICKUPS.secondsBetweenAtPeak[0], t) * scale;
   const max = lerp(PICKUPS.secondsBetweenRange[1], PICKUPS.secondsBetweenAtPeak[1], t) * scale;
   return scheduleRange(min, max);
@@ -146,10 +147,14 @@ function spawnPickup(world: World): void {
  */
 function rollPowerId(world: World): PowerId {
   const minutes = world.time / 60;
-  const pool = SPAWNABLE_POWER_IDS.filter((id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0));
+  const extra = mutatorExtraPowerIds().filter((id) => !SPAWNABLE_POWER_IDS.includes(id));
+  const pool = [...SPAWNABLE_POWER_IDS, ...extra].filter(
+    (id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0),
+  );
 
+  const overrideWeights = mutatorPowerWeights();
   const weight = (id: PowerId): number =>
-    POWER_SPAWN_WEIGHTS[id] / (1 + 1.5 * (world.powerSpawnCounts[id] ?? 0));
+    (overrideWeights[id] ?? POWER_SPAWN_WEIGHTS[id]) / (1 + 1.5 * (world.powerSpawnCounts[id] ?? 0));
 
   let total = 0;
   for (const id of pool) total += weight(id);

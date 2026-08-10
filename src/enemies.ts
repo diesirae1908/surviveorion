@@ -1,8 +1,23 @@
 import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
+import {
+  mutatorAmbientRateScale,
+  mutatorAssemblyIntervalScale,
+  mutatorDroneSpeedScale,
+  mutatorFormationIntervalScale,
+  mutatorFormationWeights,
+  mutatorForceAssemblyKind,
+  mutatorScaleClamp,
+  mutatorTelegraphRatio,
+} from "./mutators";
 import { halfDiagonal, randomEdgePoint } from "./physics";
 import { registerKill } from "./scoring";
 import type { Assembly, AssemblyKind, Drone, KillSource, World } from "./types";
+
+/** Effective drone-size clamp: a Daily Mutator can widen it (bigger only). */
+function effectiveScaleClamp(): readonly [number, number] {
+  return mutatorScaleClamp() ?? SPAWNER.scaleClamp;
+}
 
 /**
  * Difficulty clock: Classic escalates with real time; Iron Rain is pinned at
@@ -56,7 +71,7 @@ function countFreeDrones(world: World): number {
 
 /** Speed factor from drone size: small = slower, large = faster. */
 function droneSizeSpeedFactor(scale: number): number {
-  const [minScale, maxScale] = SPAWNER.scaleClamp;
+  const [minScale, maxScale] = effectiveScaleClamp();
   // one-size mode (zero-width clamp): no size, no size-speed spread
   if (maxScale <= minScale) return 1;
   const t = clamp((scale - minScale) / (maxScale - minScale), 0, 1);
@@ -177,7 +192,7 @@ export function updateDrones(world: World, dt: number): void {
       hy /= l;
     }
 
-    let speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale);
+    let speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale) * mutatorDroneSpeedScale();
     if (scripted && d.scriptSpeedScale) speed *= d.scriptSpeedScale;
     d.vx = hx * speed;
     d.vy = hy * speed;
@@ -290,7 +305,7 @@ export function updateSpawner(world: World, dt: number): void {
 
   const minutes = difficultyMinutes(world);
   world.spawnAccumulator +=
-    escalate(minutes, SPAWNER.spawnsPerSecond) * graceSpawnScale(world) * dt;
+    escalate(minutes, SPAWNER.spawnsPerSecond) * graceSpawnScale(world) * mutatorAmbientRateScale() * dt;
 
   updateTelegraphs(world, dt, minutes);
   handleFormations(world, minutes, dt);
@@ -372,11 +387,8 @@ function spawnAt(
   // more of them (formations/assemblies still deliver their patterns)
   if (opts?.ambient && countFreeDrones(world) >= SPAWNER.ambientSoftCap) return null;
   // the clamp covers formation sizes too, so a pinned clamp = one size for all
-  const scale = clamp(
-    opts?.scale ?? 0.6 + jitter,
-    SPAWNER.scaleClamp[0],
-    SPAWNER.scaleClamp[1],
-  );
+  const [clampMin, clampMax] = effectiveScaleClamp();
+  const scale = clamp(opts?.scale ?? 0.6 + jitter, clampMin, clampMax);
   const speedMult =
     Math.max(0.1, escalate(minutes, SPAWNER.speedMultiplier)) * (opts?.speedScale ?? 1);
   const drone = createDrone(x, y, scale, speedMult);
@@ -409,7 +421,7 @@ export function spawnRadius(world: World): number {
  * so the crowd arrives in blobs with lanes between them.
  */
 function spawnAmbient(world: World, minutes: number, count = 1): void {
-  if (rand() < SPAWNER.telegraph.ratio) {
+  if (rand() < mutatorTelegraphRatio()) {
     telegraphAmbient(world, count);
     return;
   }
@@ -459,7 +471,9 @@ function formationCountBonus(minutes: number): number {
 function rollFormationKind(world: World, minutes: number): FormationKind {
   const cfg = SPAWNER.formations;
   const weights =
-    world.gameMode === "ironrain" ? IRONRAIN.formationWeights : cfg.weights;
+    world.gameMode === "ironrain"
+      ? IRONRAIN.formationWeights
+      : mutatorFormationWeights() ?? cfg.weights;
   const pool = (Object.keys(weights) as FormationKind[]).filter(
     (kind) => minutes >= (cfg.minMinutes[kind] ?? 0),
   );
@@ -526,7 +540,8 @@ function scheduleNextFormation(world: World): void {
   const t = clamp01(difficultyMinutes(world) / cfg.intervalRampMinutes);
   const min = lerp(cfg.intervalRange[0], cfg.intervalFloor[0], t);
   const max = lerp(cfg.intervalRange[1], cfg.intervalFloor[1], t);
-  world.nextFormationDelay = scheduleRange(min, max);
+  const scale = mutatorFormationIntervalScale();
+  world.nextFormationDelay = scheduleRange(min, max) * scale;
 }
 
 /** A sweeping line of drones approaching from one off-screen direction. */
@@ -1034,10 +1049,11 @@ export function updateAssemblies(world: World, dt: number): void {
 
   world.assemblyTimer -= dt;
   if (world.assemblyTimer <= 0) {
-    world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
+    world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange) * mutatorAssemblyIntervalScale();
     // fixed draws per event — consumed even when the event fizzles
     const count = Math.round(scheduleRange(...ASSEMBLY.countRange));
-    const kind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
+    const rolledKind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
+    const kind = mutatorForceAssemblyKind() ?? rolledKind;
     if (
       difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
       world.assemblies.length < ASSEMBLY.maxConcurrent
@@ -1060,7 +1076,8 @@ export function updateAssemblies(world: World, dt: number): void {
       ASSEMBLY.countRange[0] +
         Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0]),
     );
-    tryFormAssembly(world, count, kinds[Math.floor(Math.random() * kinds.length)]);
+    const kind = mutatorForceAssemblyKind() ?? kinds[Math.floor(Math.random() * kinds.length)];
+    tryFormAssembly(world, count, kind);
   }
 
   const hw = world.viewW / 2;

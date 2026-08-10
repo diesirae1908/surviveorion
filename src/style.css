@@ -352,6 +352,93 @@ button.launch {
   color: #ffd700;
 }
 
+/* daily lobby briefing card: today's mutator(s) + medal thresholds */
+.mutator-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(380px, 92vw);
+  padding: 10px 18px 12px;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  background: rgba(42, 34, 16, 0.4);
+}
+
+.mutator-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.mutator-name {
+  color: #ffd700;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.mutator-briefing {
+  color: #ccaa66;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.medal-thresholds {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(170, 136, 68, 0.3);
+  width: 100%;
+}
+
+.medal-pip {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.medal-pip.copper {
+  color: #cd7f32;
+}
+
+.medal-pip.silver {
+  color: #d7d7d7;
+}
+
+.medal-pip.gold {
+  color: #ffd700;
+}
+
+/* game-over medal callout: earned tier, or a hint toward the next one */
+.medal-earned {
+  color: #8a7a55;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.medal-earned.copper {
+  color: #cd7f32;
+  text-shadow: 0 0 16px rgba(205, 127, 50, 0.4);
+}
+
+.medal-earned.silver {
+  color: #e6e6e6;
+  text-shadow: 0 0 16px rgba(230, 230, 230, 0.4);
+}
+
+.medal-earned.gold {
+  color: #ffd700;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
 /* attempt pips: one diamond per daily try, spent ones dimmed */
 .attempt-pips {
   display: flex;
