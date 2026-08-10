@@ -89,6 +89,8 @@ export interface GameOverStats {
   mutatorNames?: string[];
   /** Daily-only site: best-of-day medal (by score) + next-tier hint. */
   dailyMedal?: { tier: MedalTier | null; hint: string | null };
+  /** This run used the ?mutator= preview override — not submitted anywhere. */
+  preview?: boolean;
 }
 
 /** Everything the daily-only lobby needs to paint itself. */
@@ -105,6 +107,8 @@ export interface DailyLobbyInfo {
   mutators: Mutator[];
   /** Today's medal score thresholds (already mutator-adjusted). */
   medalThresholds: MedalThresholds;
+  /** The ?mutator= preview override is active: unlimited, unscored runs. */
+  preview?: boolean;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -370,8 +374,9 @@ export class Ui {
    * a plain-language subline stating what mechanically changed, 2 on UTC
    * Sundays) and today's medal score thresholds, shown before launch.
    */
-  private mutatorBriefingCard(mutators: Mutator[], thresholds: MedalThresholds): HTMLElement {
+  private mutatorBriefingCard(mutators: Mutator[], thresholds: MedalThresholds, preview?: boolean): HTMLElement {
     const card = this.el("div", "mutator-card", "");
+    if (preview) card.appendChild(this.el("div", "preview-badge", "PREVIEW"));
     for (const m of mutators) {
       card.appendChild(
         this.el(
@@ -497,28 +502,36 @@ export class Ui {
     screen.appendChild(this.el("div", "divider", ""));
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
-    screen.appendChild(this.mutatorBriefingCard(info.mutators, info.medalThresholds));
+    screen.appendChild(this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview));
 
-    // attempt pips: one per daily try, spent ones dimmed
-    const pipsRow = this.el("div", "attempt-pips", "");
-    for (let i = 0; i < info.maxAttempts; i++) {
-      pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, "◆"));
+    // attempt pips: one per daily try, spent ones dimmed. A preview run
+    // never spends one, so its row says so instead of counting down.
+    if (info.preview) {
+      screen.appendChild(
+        this.el("div", "attempt-pips", `<span class="pips-label">unlimited attempts, not scored</span>`),
+      );
+    } else {
+      const pipsRow = this.el("div", "attempt-pips", "");
+      for (let i = 0; i < info.maxAttempts; i++) {
+        pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, "◆"));
+      }
+      pipsRow.appendChild(
+        this.el(
+          "span",
+          "pips-label",
+          info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "done for today",
+        ),
+      );
+      screen.appendChild(pipsRow);
     }
-    pipsRow.appendChild(
-      this.el(
-        "span",
-        "pips-label",
-        info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "done for today",
-      ),
-    );
-    screen.appendChild(pipsRow);
 
     // today's leader, filled in async via setMenuDailyHint
     const hint = this.el("div", "daily-hint lobby-hint", "");
     hint.id = "daily-hint";
     screen.appendChild(hint);
 
-    if (info.attemptsLeft > 0) {
+    // preview ignores the real attempt budget entirely: Launch always shows
+    if (info.preview || info.attemptsLeft > 0) {
       const launch = this.button("Launch", true, () => this.cb.onDaily());
       launch.classList.add("launch");
       screen.appendChild(launch);
@@ -1105,10 +1118,11 @@ export class Ui {
     const screen = this.el("div", "screen gameover-screen", "");
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
     if (stats.daily) {
+      const label = stats.preview ? "DAILY PATROL PREVIEW" : "DAILY PATROL";
       const tag =
         stats.mutatorNames && stats.mutatorNames.length > 0
-          ? `DAILY PATROL &nbsp;·&nbsp; ${escapeHtml(stats.mutatorNames.join(" + "))}`
-          : "DAILY PATROL";
+          ? `${label} &nbsp;·&nbsp; ${escapeHtml(stats.mutatorNames.join(" + "))}`
+          : label;
       screen.appendChild(this.el("div", "daily-tag", tag));
     } else if (stats.gameMode === "ironrain") {
       screen.appendChild(this.el("div", "ironrain-tag", "IRON RAIN"));

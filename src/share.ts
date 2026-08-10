@@ -32,6 +32,8 @@ export interface ShareStats {
   mutatorNames?: string[];
   /** Best-of-day medal, or null if no tier reached yet. */
   medal?: MedalTier | null;
+  /** This card came from a ?mutator= preview run: not scored, not on any board. */
+  preview?: boolean;
 }
 
 export const SHARE_URL = "surviveorion.com";
@@ -48,10 +50,11 @@ export function buildShareText(s: ShareStats): string {
   const medalLine = s.medal ? `${MEDAL_EMOJI[s.medal]} ${MEDAL_LABEL[s.medal]}` : null;
   return [
     `ORION Patrol #${s.dayNumber}`,
+    s.preview ? "PREVIEW (not scored, not submitted)" : null,
     s.mutatorNames && s.mutatorNames.length > 0 ? s.mutatorNames.join(" + ") : null,
     line.join("  ·  "),
     medalLine,
-    `attempt ${Math.min(s.attempt, DAILY_MAX_ATTEMPTS)}/${DAILY_MAX_ATTEMPTS}`,
+    s.preview ? null : `attempt ${Math.min(s.attempt, DAILY_MAX_ATTEMPTS)}/${DAILY_MAX_ATTEMPTS}`,
     SHARE_URL,
   ]
     .filter((l): l is string => l !== null)

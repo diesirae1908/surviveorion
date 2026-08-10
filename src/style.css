@@ -364,6 +364,18 @@ button.launch {
   background: rgba(42, 34, 16, 0.4);
 }
 
+/* ?mutator= preview override badge, on the lobby briefing card */
+.preview-badge {
+  color: #1a1206;
+  background: #ff4444;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  text-shadow: none;
+}
+
 .mutator-row {
   display: flex;
   flex-direction: column;

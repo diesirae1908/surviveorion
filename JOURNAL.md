@@ -4,6 +4,62 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-09e: Daily Mutators, ?mutator= preview override for playtesting (branch, not merged)
+
+- Still branch `sam/daily-mutators`, still **not merged to main**, pushed the
+  branch only. Lucas needed to playtest specific mutators on the test link
+  instead of waiting for the date-hash pick, so `main.ts` now reads
+  `?mutator=<id>` (or `?mutator=<id1>,<id2>` to preview a Sunday-style
+  double) and forces it for the session, wherever Daily Patrol mutators
+  normally apply.
+- **Sandboxed by construction**: every call site that would spend a daily
+  attempt (`useDailyAttempt`, the `dailyAttemptsLeft() <= 0` lockouts),
+  submit a score (`submitRun`), or record a local best/medal
+  (`recordDailyResult`) checks `PREVIEW_ACTIVE` first and skips it. Verified
+  end to end with a headless Playwright run through a full launch → death →
+  game-over cycle: `localStorage`'s daily-attempts record stayed untouched
+  (`used: 0`, `best: null`) through the whole run.
+- Lobby card gets a red "PREVIEW" badge (`.preview-badge` in `style.css`,
+  `mutatorBriefingCard` in `ui.ts`) and the attempt-pips row is replaced with
+  "unlimited attempts, not scored"; Launch always shows regardless of the
+  real budget. Game-over still computes and shows the medal this run's own
+  score would earn (against the forced mutator's thresholds), it just
+  doesn't fold that score into the real best-of-day. The "DAILY PATROL" tag
+  reads "DAILY PATROL PREVIEW" and the retry button drops to the
+  uncapped "Fly again: Daily Patrol" style (no fake attempt count). Share
+  card gets a "PREVIEW (not scored, not submitted)" line and drops the
+  attempt-count line, since neither means anything for a preview run.
+- Unknown ids are dropped silently (`getMutatorById` returns undefined,
+  filtered out); if nothing valid survives, `todaysMutators()` falls back to
+  the real date-hash pick, verified with `?mutator=bogus-id` resolving to
+  the same mutator as no override at all, no crash. No exclusion-tag
+  compatibility check runs on the override itself (unlike the real Sunday
+  picker) since forcing an odd combo on purpose is sometimes the point of a
+  rehearsal; extra ids past the first two are dropped.
+- Not gated behind `import.meta.env.DEV`, this is safe to leave live in
+  production since a preview run can't touch boards, streaks, or attempts,
+  so it doubles as an always-available rehearsal tool. Prints the forced
+  mutator(s) plus the full list of valid ids to the console on boot whenever
+  the override is active.
+- Verification: `npm run build` green, `npx tsx scripts/sim-test.ts` green
+  (untouched by this change). Manual check: headless Playwright against the
+  dev server confirmed `?mutator=starfall` renders the PREVIEW badge,
+  STARFALL's briefing/subline/thresholds, and "unlimited attempts, not
+  scored"; `?mutator=starfall,giants` renders both; `?mutator=bogus-id` and
+  no override both fall back to the same real mutator with no page errors; a
+  full played-out run showed "DAILY PATROL PREVIEW · STARFALL", a correct
+  "N pts to COPPER" hint matching this run's own score against STARFALL's
+  thresholds, and an unchanged (empty) local daily-attempts record after.
+- Valid mutator ids (also printed on boot when the override is active):
+  `blackout, red-alert, the-flood, great-wall, year-of-the-serpent,
+  menagerie, lancer-doctrine, wheelhouse, hunting-party, demolition-day,
+  titanfall, arsenal, overcharge, cryo-winter, iron-barrage, singularity,
+  starfall, the-pit, giants, minefield, solar-wind, magnetic-field`.
+- URL format: `https://<site>/?mutator=<id>` or `?mutator=<id1>,<id2>`, works
+  on both the daily-only root and `/fullgame?mutator=...&fullgame=1` (the
+  override only changes anything once a Daily Patrol run actually starts).
+- Nothing escalated this round.
+
 ## 2026-08-09d: Daily Mutators round 3, STARFALL environmental rework + medals switch to score (branch, not merged)
 
 - Still branch `sam/daily-mutators`, still **not merged to main**, pushed the
