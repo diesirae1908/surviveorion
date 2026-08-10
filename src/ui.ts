@@ -87,7 +87,7 @@ export interface GameOverStats {
   refunded?: boolean;
   /** Daily-only site: today's mutator name(s), for the "DAILY PATROL" tag. */
   mutatorNames?: string[];
-  /** Daily-only site: best-of-day medal (by survival time) + next-tier hint. */
+  /** Daily-only site: best-of-day medal (by score) + next-tier hint. */
   dailyMedal?: { tier: MedalTier | null; hint: string | null };
 }
 
@@ -103,7 +103,7 @@ export interface DailyLobbyInfo {
   touchDevice: boolean;
   /** Today's mutator(s): 1 normally, 2 on UTC Sundays. */
   mutators: Mutator[];
-  /** Today's medal time thresholds (already mutator-adjusted). */
+  /** Today's medal score thresholds (already mutator-adjusted). */
   medalThresholds: MedalThresholds;
 }
 
@@ -165,6 +165,11 @@ export function dailyResetLabel(): string {
 
 function fmtTime(s: number): string {
   return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+}
+
+/** Compact score, e.g. 150000 -> "150k" (thresholds are always round-5k). */
+function fmtScoreShort(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
 }
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
@@ -363,7 +368,7 @@ export class Ui {
   /**
    * Daily lobby briefing card: today's mutator(s) (name + flavor briefing +
    * a plain-language subline stating what mechanically changed, 2 on UTC
-   * Sundays) and today's medal time thresholds, shown before launch.
+   * Sundays) and today's medal score thresholds, shown before launch.
    */
   private mutatorBriefingCard(mutators: Mutator[], thresholds: MedalThresholds): HTMLElement {
     const card = this.el("div", "mutator-card", "");
@@ -382,9 +387,9 @@ export class Ui {
       this.el(
         "div",
         "medal-thresholds",
-        `<span class="medal-pip copper">🥉 ${thresholds.copper}s</span>` +
-          `<span class="medal-pip silver">🥈 ${thresholds.silver}s</span>` +
-          `<span class="medal-pip gold">🥇 ${thresholds.gold}s</span>`,
+        `<span class="medal-pip copper">🥉 ${fmtScoreShort(thresholds.copper)}</span>` +
+          `<span class="medal-pip silver">🥈 ${fmtScoreShort(thresholds.silver)}</span>` +
+          `<span class="medal-pip gold">🥇 ${fmtScoreShort(thresholds.gold)}</span>`,
       ),
     );
     return card;
@@ -1125,7 +1130,7 @@ export class Ui {
       ),
     );
 
-    // best-of-day medal (survival time), or how close today's best is to the next tier
+    // best-of-day medal (score), or how close today's best is to the next tier
     if (stats.dailyMedal) {
       const { tier, hint } = stats.dailyMedal;
       screen.appendChild(

@@ -134,6 +134,10 @@ export interface Blast {
   holdTime: number;
   maxRadius: number;
   color: string;
+  /** STARFALL only: also kills the ship on contact (like a drone hit), not
+   * just drones/mines. Undefined/false for every other blast source, so
+   * Shockwave/Missiles/Meteor Storm/mine explosions are unaffected. */
+  lethalToShip?: boolean;
 }
 
 /** Expanding ring visual (shockwave / shield detonation). */
@@ -196,6 +200,15 @@ export interface SpawnTelegraph {
   y: number;
   timer: number; // counts down to the pop
   duration: number;
+}
+
+/** STARFALL only: a ground reticle marking where a meteor is about to land. */
+export interface MeteorTelegraph {
+  x: number;
+  y: number;
+  timer: number; // counts down to impact
+  duration: number;
+  radius: number; // impact/lethal radius, so the reticle can be sized to match
 }
 
 export interface PowersState {
@@ -329,6 +342,10 @@ export interface World {
   /** Times each power spawned this run (bad-luck protection in the roll). */
   powerSpawnCounts: Partial<Record<PowerId, number>>;
   mineTimer: number;
+  /** STARFALL only: countdown to the next meteor telegraph (schedule stream). */
+  meteorRainTimer: number;
+  /** STARFALL only: pending impact reticles, counting down to their strike. */
+  meteorTelegraphs: MeteorTelegraph[];
   /** Countdown to the next drone-evolution event (schedule stream). */
   assemblyTimer: number;
   /** Cooldown for crowd-pressure evolutions (Math.random side, off-stream). */

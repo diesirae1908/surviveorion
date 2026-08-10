@@ -8,7 +8,7 @@ import { countryFlag, countryName, guessCountry } from "./countries";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input, isTypingTarget } from "./input";
 import { clamp01, hashString, setRunSeed } from "./math";
-import { medalForTime, medalThresholdsForDate, nextMedalHint } from "./medals";
+import { medalForScore, medalThresholdsForDate, nextMedalHint } from "./medals";
 import { clearActiveMutators, getMutatorsForDate, mutatorViewScale, setActiveMutators } from "./mutators";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
@@ -31,7 +31,7 @@ import {
   saveKeyBindings,
   saveSettings,
   dailyAttemptsLeft,
-  dailyBestTimeToday,
+  dailyBestScoreToday,
   loadDailyAttempts,
   recordDailyResult,
   refundDailyAttempt,
@@ -252,7 +252,7 @@ const ui = new Ui(settings, {
     const medal =
       sourceMedal !== undefined
         ? sourceMedal
-        : medalForTime(dailyBestTimeToday(), medalThresholdsForDate(new Date()));
+        : medalForScore(dailyBestScoreToday(), medalThresholdsForDate(new Date()));
     return shareText(
       buildShareText({
         dayNumber: dailyNumber(),
@@ -623,14 +623,14 @@ function showGameOverUi(): void {
       maxMultiplier: world.maxMultiplier,
       rank: null,
     });
-    // best-of-day medal (survival time), computed fresh now that this run's
-    // time has been folded into today's bestTime
+    // best-of-day medal (score), computed fresh now that this run's score
+    // has been folded into today's best
     const thresholds = medalThresholdsForDate(new Date());
-    const bestTimeToday = dailyBestTimeToday();
-    const medalTier = medalForTime(bestTimeToday, thresholds);
+    const bestScoreToday = dailyBestScoreToday();
+    const medalTier = medalForScore(bestScoreToday, thresholds);
     dailyMedal = {
       tier: medalTier,
-      hint: nextMedalHint(bestTimeToday, thresholds),
+      hint: nextMedalHint(bestScoreToday, thresholds),
     };
     lastRunShare = {
       score: Math.floor(world.score),

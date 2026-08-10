@@ -149,6 +149,7 @@ export class Renderer {
     this.drawArenaBoundary(world);
     this.drawOffscreenThreats(world);
     this.drawSpawnTelegraphs(world, opts.uiTime);
+    this.drawMeteorTelegraphs(world, opts.uiTime);
     this.drawTrail(world, opts.uiTime);
     this.drawBlasts(world, opts.uiTime);
     this.drawWaves(world);
@@ -1099,6 +1100,54 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(t.x, t.y, 0.28 + (1 - progress) * 0.55, 0, Math.PI * 2);
       ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** STARFALL only: ground reticle warning where a meteor is about to land. */
+  private drawMeteorTelegraphs(world: World, time: number): void {
+    if (world.meteorTelegraphs.length === 0) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const t of world.meteorTelegraphs) {
+      const progress = clamp01(1 - t.timer / t.duration); // 0 -> 1 as impact nears
+      const pulse = 0.7 + 0.3 * Math.sin(time * 10 + t.x * 2.5);
+
+      // converging ring: starts wide, contracts down onto the blast radius
+      const outerR = t.radius * (1.8 - 0.8 * progress);
+      ctx.globalAlpha = (0.35 + 0.45 * progress) * pulse;
+      ctx.strokeStyle = PALETTE.meteors;
+      ctx.lineWidth = 0.05;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, outerR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // ground footprint: soft glow that brightens as impact nears
+      ctx.globalAlpha = 0.12 + 0.28 * progress;
+      const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.radius);
+      g.addColorStop(0, "#fff3c4");
+      g.addColorStop(0.5, PALETTE.meteors);
+      g.addColorStop(1, "rgba(255,206,85,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // targeting-lock crosshair ticks: slow spin, freezes just before impact
+      ctx.globalAlpha = 0.6 + 0.4 * progress;
+      ctx.strokeStyle = "#fff3c4";
+      ctx.lineWidth = 0.045;
+      const spin = progress < 0.92 ? time * 1.4 : 0;
+      for (let i = 0; i < 4; i++) {
+        const a = spin + (Math.PI / 2) * i;
+        const inner = t.radius * 0.55;
+        const outer = t.radius * 0.85;
+        ctx.beginPath();
+        ctx.moveTo(t.x + Math.cos(a) * inner, t.y + Math.sin(a) * inner);
+        ctx.lineTo(t.x + Math.cos(a) * outer, t.y + Math.sin(a) * outer);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }

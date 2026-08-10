@@ -73,6 +73,8 @@ export interface MutatorOverrides {
   pickupMagnetStrength?: number;
   /** Cosmetic only: renderer shows a subtle red vignette (RED ALERT). */
   redTint?: boolean;
+  /** STARFALL only: turns on the environmental meteor rain (see starfall.ts). */
+  meteorRainActive?: boolean;
 }
 
 export interface Mutator {
@@ -82,7 +84,7 @@ export interface Mutator {
   briefing: string;
   /** Second, plain-language line: what mechanically changed, no flavor. */
   subline: string;
-  /** Multiplies the day's medal time thresholds (>1 = harder, <1 = easier/fun). */
+  /** Multiplies the day's medal score thresholds (>1 = harder, <1 = easier/fun). */
   difficultyFactor: number;
   /** Exclusion tags: two mutators sharing a tag can never fly the same Sunday. */
   tags: string[];
@@ -320,11 +322,20 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "starfall",
     name: "STARFALL",
-    briefing: "The sky is falling. Every drop is a Meteor Storm.",
-    subline: "Every pickup is a Meteor Storm.",
-    difficultyFactor: 0.85,
+    briefing: "The sky itself is falling. Shields up, pilot.",
+    subline: "A constant meteor rain falls all run, each impact flashed by a ground reticle first. The only drop is Shield, a little more often.",
+    difficultyFactor: 0.8,
+    // v3 (round 3, replaced the monopower-Meteor-Storm version): now an
+    // environmental event day, not a power day, but it still zeroes the
+    // drop pool down to one power (see starfall.ts + gameState.ts
+    // handleShipBlastCollisions), so it keeps the "monopower" exclusion
+    // (can't stack with CRYO WINTER/IRON BARRAGE/SINGULARITY on a Sunday).
     tags: ["monopower"],
-    overrides: { powerWeights: monoPowerWeights("meteors") },
+    overrides: {
+      powerWeights: monoPowerWeights("shield"),
+      pickupIntervalScale: 0.8,
+      meteorRainActive: true,
+    },
   },
   {
     id: "the-pit",
@@ -624,4 +635,9 @@ export function mutatorPickupMagnetStrength(): number {
 
 export function mutatorRedTint(): boolean {
   return firstOf((o) => o.redTint) ?? false;
+}
+
+/** STARFALL only: whether the environmental meteor rain should be running. */
+export function mutatorMeteorRainActive(): boolean {
+  return active.some((m) => m.overrides.meteorRainActive);
 }

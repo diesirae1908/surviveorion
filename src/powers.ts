@@ -45,7 +45,7 @@ export function spawnBlast(
   x: number,
   y: number,
   maxRadius: number,
-  opts: { expandTime?: number; holdTime: number; color: string },
+  opts: { expandTime?: number; holdTime: number; color: string; lethalToShip?: boolean },
 ): void {
   world.powers.blasts.push({
     x,
@@ -55,6 +55,7 @@ export function spawnBlast(
     holdTime: opts.holdTime,
     maxRadius,
     color: opts.color,
+    lethalToShip: opts.lethalToShip,
   });
 }
 

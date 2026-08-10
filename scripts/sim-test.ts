@@ -7,7 +7,7 @@ import { droneRadius, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
-import { setRunSeed } from "../src/math";
+import { clamp01, setRunSeed } from "../src/math";
 import { medalThresholdsForDate } from "../src/medals";
 import {
   clearActiveMutators,
@@ -654,6 +654,7 @@ function muteAmbientPickups(world: World): void {
     formations: string[];
     powers: string[];
     mines: string[];
+    meteors: string[];
   }
 
   /** Same shape as the section-7 daily determinism recorder, but with a set
@@ -664,7 +665,7 @@ function muteAmbientPickups(world: World): void {
     setActiveMutators(mutators, date);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
-    const script: Script = { formations: [], powers: [], mines: [] };
+    const script: Script = { formations: [], powers: [], mines: [], meteors: [] };
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -685,6 +686,11 @@ function muteAmbientPickups(world: World): void {
           script.powers.push(
             `${world.time.toFixed(2)}:${e.power}@${e.x.toFixed(2)},${e.y.toFixed(2)}`,
           );
+        }
+        // STARFALL: the meteor rain's impact script (rides schedule + placement
+        // streams only, see starfall.ts), independent of the ship/drones.
+        if (e.type === "meteorStrike") {
+          script.meteors.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
         }
       }
       world.events.length = 0;
@@ -774,7 +780,34 @@ function muteAmbientPickups(world: World): void {
   );
   check("no mutator produces a zero-spawn dead arena", deadArena.length === 0, deadArena.join(","));
 
-  // medal thresholds stay sane (positive, ordered, 5s-rounded) across a sample week
+  // (d) STARFALL: the meteor rain script (timing + impact position) rides
+  // the seeded schedule/placement streams only, so it must be byte-identical
+  // across play styles, same as formations/powers/mines above.
+  {
+    const starfallDate = new Date("2026-08-16T00:00:00Z"); // arbitrary, not a Sunday
+    const starfall = getMutatorById("starfall")!;
+    const s1 = recordMutated([starfall], "ram", starfallDate);
+    const s2 = recordMutated([starfall], "drift", starfallDate);
+    check(
+      "STARFALL determinism: meteor impact script identical across play styles",
+      s1.meteors.length > 5 && s1.meteors.join("|") === s2.meteors.join("|"),
+      `${s1.meteors.length} impacts`,
+    );
+    // sanity: the rain ramps up (later gaps between impacts are tighter)
+    const times = s1.meteors.map((e) => Number(e.split(":")[0]));
+    const gaps = times.slice(1).map((t, i) => t - times[i]);
+    const earlyGap = gaps.slice(0, Math.max(1, Math.floor(gaps.length * 0.3))).reduce((a, b) => a + b, 0) /
+      Math.max(1, Math.floor(gaps.length * 0.3));
+    const lateGap = gaps.slice(-Math.max(1, Math.floor(gaps.length * 0.3))).reduce((a, b) => a + b, 0) /
+      Math.max(1, Math.floor(gaps.length * 0.3));
+    check(
+      "STARFALL: cadence ramps up over the run (later gaps tighter than early gaps)",
+      gaps.length > 5 && lateGap < earlyGap,
+      `early ~${earlyGap.toFixed(2)}s vs late ~${lateGap.toFixed(2)}s`,
+    );
+  }
+
+  // medal SCORE thresholds stay sane (positive, ordered, 5k-rounded) across a sample week
   let badThresholds: string | null = null;
   for (let i = 0; i < 7; i++) {
     const date = new Date(dayA.getTime() + i * MS_PER_DAY);
@@ -783,16 +816,16 @@ function muteAmbientPickups(world: World): void {
       t.copper > 0 &&
       t.copper < t.silver &&
       t.silver < t.gold &&
-      t.copper % 5 === 0 &&
-      t.silver % 5 === 0 &&
-      t.gold % 5 === 0;
+      t.copper % 5000 === 0 &&
+      t.silver % 5000 === 0 &&
+      t.gold % 5000 === 0;
     if (!sane) {
       badThresholds = `${date.toISOString().slice(0, 10)}: ${JSON.stringify(t)}`;
       break;
     }
   }
   check(
-    "medal thresholds ordered/positive/5s-rounded across a sample week",
+    "medal score thresholds ordered/positive/5k-rounded across a sample week",
     badThresholds === null,
     badThresholds ?? "",
   );
@@ -838,12 +871,26 @@ function muteAmbientPickups(world: World): void {
       fx += (dx / dist) * w;
       fy += (dy / dist) * w;
     }
+    // STARFALL only: the ground reticle is visible telegraphed warning, so a
+    // real pilot dodges it too (empty on every other mutator, no effect there).
+    for (const t of world.meteorTelegraphs) {
+      const dx = ship.x - t.x;
+      const dy = ship.y - t.y;
+      const distSq = dx * dx + dy * dy;
+      const avoidR = t.radius + 1.5;
+      if (distSq > avoidR * avoidR) continue;
+      const dist = Math.sqrt(distSq) || 0.05;
+      const urgency = clamp01(1 - t.timer / t.duration); // scarier as impact nears
+      const w = (1 + urgency * 3) / (distSq + 0.2);
+      fx += (dx / dist) * w;
+      fy += (dy / dist) * w;
+    }
     const len = Math.hypot(fx, fy);
     if (len < 0.0001) return { x: 0, y: 0 };
     return { x: fx / len, y: fy / len };
   }
 
-  function runEvasiveTrial(mutators: Mutator[]): number {
+  function runEvasiveTrial(mutators: Mutator[]): { time: number; score: number } {
     setActiveMutators(mutators, evasiveDate);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
@@ -863,7 +910,7 @@ function muteAmbientPickups(world: World): void {
       world.events.length = 0;
     }
     clearActiveMutators();
-    return Math.min(world.time, CAP_SECONDS);
+    return { time: Math.min(world.time, CAP_SECONDS), score: world.score };
   }
 
   function median(values: number[]): number {
@@ -872,8 +919,9 @@ function muteAmbientPickups(world: World): void {
     return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
   }
 
-  const baselineTimes = Array.from({ length: TRIALS }, () => runEvasiveTrial([]));
-  const baselineMedian = median(baselineTimes);
+  const baselineTrials = Array.from({ length: TRIALS }, () => runEvasiveTrial([]));
+  const baselineMedian = median(baselineTrials.map((r) => r.time));
+  const baselineScoreMedian = median(baselineTrials.map((r) => r.score));
   check(
     "evasive bot: baseline (no mutator) survives a sane median time",
     // Harness sanity only (a broken bot dies in ~2s); the observed median
@@ -885,13 +933,21 @@ function muteAmbientPickups(world: World): void {
   // Every mutator gets the same bar: a dodging pilot with no powers must
   // clear either an absolute floor or a fraction of the baseline median,
   // whichever is more lenient, since a genuinely harder day is allowed to
-  // cut survival somewhat, it just can't be an instant-death trap.
+  // cut survival somewhat, it just can't be an instant-death trap. Score
+  // medians are also collected here (dodge-only, so a rough LOWER bound on
+  // real scoring opportunity) to calibrate each mutator's medal difficulty
+  // factor for SCORE — see mutators.ts and JOURNAL.md round 3.
   const FLOOR_SECONDS = 10;
   const FLOOR_FRACTION = 0.4;
-  const results: { id: string; name: string; median: number }[] = [];
+  const results: { id: string; name: string; median: number; medianScore: number }[] = [];
   for (const m of MUTATOR_POOL) {
-    const times = Array.from({ length: TRIALS }, () => runEvasiveTrial([m]));
-    results.push({ id: m.id, name: m.name, median: median(times) });
+    const trials = Array.from({ length: TRIALS }, () => runEvasiveTrial([m]));
+    results.push({
+      id: m.id,
+      name: m.name,
+      median: median(trials.map((r) => r.time)),
+      medianScore: median(trials.map((r) => r.score)),
+    });
   }
   const bar = Math.min(FLOOR_SECONDS, baselineMedian * FLOOR_FRACTION);
   const tooLethal = results.filter((r) => r.median < bar);
@@ -901,13 +957,17 @@ function muteAmbientPickups(world: World): void {
     tooLethal.map((r) => `${r.name} ${r.median.toFixed(1)}s`).join(", "),
   );
   console.log(
-    "  evasive-bot medians: " +
-      results.map((r) => `${r.name} ${r.median.toFixed(1)}s`).join(" | "),
+    `  evasive-bot baseline: ${baselineMedian.toFixed(1)}s / ${Math.round(baselineScoreMedian)}pts median\n` +
+      "  evasive-bot medians: " +
+      results
+        .map((r) => `${r.name} ${r.median.toFixed(1)}s/${Math.round(r.medianScore)}pts`)
+        .join(" | "),
   );
 
-  // Named call-outs from Sam's brief: BLACKOUT and THE FLOOD specifically.
+  // Named call-outs from Sam's brief: BLACKOUT, THE FLOOD, and (round 3) STARFALL.
   const blackout = results.find((r) => r.id === "blackout");
   const flood = results.find((r) => r.id === "the-flood");
+  const starfallResult = results.find((r) => r.id === "starfall");
   check(
     "evasive bot: BLACKOUT is a fair fight, not a surprise-death trap",
     !!blackout && blackout.median >= bar,
@@ -917,6 +977,17 @@ function muteAmbientPickups(world: World): void {
     "evasive bot: THE FLOOD is navigable (a current, not instant death)",
     !!flood && flood.median >= bar,
     `${flood?.median.toFixed(1)}s vs baseline ${baselineMedian.toFixed(1)}s`,
+  );
+  // STARFALL is already covered by the pool-wide bar above (tooLethal); this
+  // named call-out reports the actual number for the round-3 playability
+  // write-up (the bot only steers away from telegraphed reticles, no
+  // reflexes beyond that, so it's a rough proxy for a pilot who reads the
+  // warning and dodges it).
+  check(
+    "evasive bot: STARFALL is navigable for a reticle-aware dodge bot",
+    !!starfallResult && starfallResult.median >= bar,
+    `${starfallResult?.median.toFixed(1)}s / ${Math.round(starfallResult?.medianScore ?? 0)}pts` +
+      ` vs baseline ${baselineMedian.toFixed(1)}s / ${Math.round(baselineScoreMedian)}pts`,
   );
   // sanity: getMutatorById resolves every id used above (catches stale ids)
   check(

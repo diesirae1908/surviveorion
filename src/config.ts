@@ -288,6 +288,23 @@ export const MINES = {
   minDistanceBetween: 2.5,
 };
 
+// STARFALL (Daily Mutator) environmental event: a constant meteor rain, wholly
+// separate from the player-triggered Meteor Storm power above. Cadence rides
+// the seeded schedule stream, impact position rides the seeded placement
+// stream (see starfall.ts), so every pilot on the day sees the identical
+// rain regardless of how they fly. Gated entirely behind the STARFALL
+// mutator; every other day and mode is untouched.
+export const STARFALL_RAIN = {
+  intervalStart: 4.0, // seconds between impacts near minute zero
+  intervalFloor: 1.0, // seconds between impacts once fully ramped
+  rampMinutes: 3.5, // time to go from intervalStart to intervalFloor
+  intervalJitter: 0.15, // +/- fraction of the ramped interval (schedule-stream draw)
+  warningRange: [1.0, 2.0] as const, // ground-reticle warning duration
+  radius: 1.8, // kill/lethal radius on impact, matches the Meteor Storm power's feel
+  holdTime: 1.0, // lingering lethality after impact (same discipline as blasts elsewhere)
+  waveLifetime: 0.6,
+};
+
 // Competitive scoring: skilled play compounds. The multiplier climbs fast on
 // kill streaks (up to x10) but drains faster the higher it is, so holding a
 // big multiplier is the core skill test. Chained kills pay escalating bonuses

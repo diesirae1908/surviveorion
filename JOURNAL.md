@@ -4,6 +4,122 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-09d: Daily Mutators round 3, STARFALL environmental rework + medals switch to score (branch, not merged)
+
+- Still branch `sam/daily-mutators`, still **not merged to main**, pushed the
+  branch only (`surviveorion-test` auto-deploys from it).
+
+- **STARFALL reworked from monopower-Meteor-Storm into an environmental event
+  day (item 1)**. New module `src/starfall.ts`, fully gated behind
+  `mutatorMeteorRainActive()` (true only when STARFALL is active), zero effect
+  on any other day or mode:
+  - Only power drop all day is Shield (`monoPowerWeights("shield")`), with
+    `pickupIntervalScale: 0.8` so shields come a bit more often, the day's
+    sole defense.
+  - Constant meteor rain for the whole run: cadence ramps from one every ~4s
+    at minute 0 to one every ~1s by minute 3.5 (`STARFALL_RAIN` in
+    `config.ts`, uses the existing `ramp()` helper), ±15% schedule-stream
+    jitter so it doesn't feel metronomic.
+  - Each meteor telegraphs a 1-2s ground reticle (schedule-stream draw for
+    duration, placement-stream draw for x/y) before striking; new
+    `drawMeteorTelegraphs` in `render.ts` draws converging rings + a pulsing
+    crosshair in the mutator's meteor palette.
+  - Impacts kill drones and mines in radius (reuses `killDronesInRadius`/
+    `killMinesInRadius`) **and now threaten the ship**: `spawnBlast` gained an
+    optional `lethalToShip` flag (`powers.ts`/`types.ts`), STARFALL's strikes
+    set it, and `gameState.ts` got a new `handleShipBlastCollisions` pass
+    (mirrors the existing ship-vs-drone invuln/shield logic) so a direct hit
+    costs the run unless a banked shield eats it. Checked first: existing
+    blasts (shockwave, meteor-storm power) only ever killed drones/mines, the
+    ship side didn't exist before this, so the new lethality is scoped
+    strictly to blasts that opt in (`lethalToShip: true`), i.e. STARFALL's
+    rain only. Every other blast-spawning power is unaffected.
+  - Determinism: exactly 2 schedule-stream draws (interval, warning duration)
+    + 2 placement-stream draws (x, y) per meteor, same fixed-draws-per-event
+    discipline as `spawnTelegraphs` in `enemies.ts`. New sim-test check
+    confirms an identical meteor-impact script (position + timing) across
+    differently-played runs on the same day.
+  - Evasive bot: extended `evasiveHeading` to repel from `world.meteorTelegraphs`
+    (urgency-weighted, stacks with existing drone/mine avoidance) so the
+    playability check reflects a reticle-aware dodge, not a blind one. Result:
+    median 13.4s survival, same as the no-mutator baseline (13.4s), with score
+    roughly 1.8x baseline (135 vs 74 sim-bot points, free meteor kills). New
+    briefing: "The sky itself is falling. Shields up, pilot." Plain subline:
+    "A constant meteor rain falls all run, each impact flashed by a ground
+    reticle first. The only drop is Shield, a little more often."
+
+- **Medals switched from survival time to score (item 2)**, Lucas's call:
+  score is on-screen and actionable mid-run (grazing/kills/multiplier push it
+  at equal survival time), and isn't monotonic with time, today's live board
+  had 105-121s survival times mapping to 279k-520k scores in the "wrong"
+  order.
+  - `medals.ts` rewritten: `MEDAL_BASE_SCORE` replaces the old
+    `MEDAL_BASE_SECONDS`, rounding is now `roundTo5k` (nearest 5,000),
+    `medalForTime` → `medalForScore`, `nextMedalHint` now reads "N pts to
+    SILVER" instead of "Ns to SILVER". Per-mutator `difficultyFactor` is
+    unchanged in meaning (still multiplies the base, still >1 harder / <1
+    easier) and unchanged in value for every mutator except STARFALL (see
+    below), since round 2's factors were already vetted by Lucas for feel and
+    the score/time ordering they encode (crowd days harder, fun days easier)
+    carries over fine to score.
+  - **Base calibration**: used the live pre-mutator board (3 real pilots,
+    279k/375k/520k at 105-121s, i.e. today's factor-1.0 reference) plus the
+    sim bot's score output. Landed on Copper 60,000 / Silver 130,000 / Gold
+    300,000. Copper sits well under a casual run (sim baseline bot alone
+    scores ~74-94 pts with zero player skill; a real casual pilot clears 60k
+    comfortably), Silver demands a solid run, Gold sits at the bottom of that
+    day's real top three so it stays "genuinely good" rather than a rubber
+    stamp for the board's leaders. These are three constants
+    (`MEDAL_BASE_SCORE` in `medals.ts`) specifically so Lucas can re-tune
+    after a week of real score data without touching anything else.
+  - **STARFALL's factor** eased from Meteor-Storm-era 0.75 to 0.8: the new
+    mechanic hands out free kills (score up) while holding survival flat vs
+    baseline per the evasive bot, so it lands in the "fun/spectacle, mildly
+    easier" bracket alongside ARSENAL/OVERCHARGE rather than the harder
+    crowd-day bracket it inherited by accident from the old monopower design.
+  - **MAGNETIC FIELD** keeps its existing 0.85 factor unchanged. Its sim-bot
+    score median is a 100x+ outlier (14,322 pts) because the passive bot
+    parks near homing pickups all game; a real pilot doesn't get anywhere
+    close to that, so the bot number isn't a usable score signal for this one
+    and the factor stays keyed to its original design intent (generous, fun
+    day) instead.
+  - `save.ts`: `DailyAttempts.bestTime` removed (score is now the only medal
+    currency, keeping two "best" fields around would just invite drift),
+    `dailyBestTimeToday()` replaced with `dailyBestScoreToday()`.
+  - `main.ts`/`ui.ts`: game-over hint and lobby/share cards now read off
+    `dailyBestScoreToday()` + `medalForScore()`; added `fmtScoreShort` (60k
+    style) for the lobby briefing card's threshold row so it stays tight on
+    phones.
+  - Anti-cheat ceiling check (`server/validate.mjs`'s
+    `kills > timeSurvived * MAX_KILLS_PER_SEC` at 12/s, checked the same way
+    as OVERCHARGE in round 2): average kills/timeSurvived across 90s runs,
+    5 seeds, invulnerable stationary bot: baseline 3.6-4.8/s, STARFALL
+    3.4-4.0/s (STARFALL trends *below* baseline: swapping out the drop pool
+    for Shield-only removes several kill-heavy incidental power pickups the
+    baseline observer benefits from), OVERCHARGE 3.7-4.9/s. All comfortably
+    under the 12/s ceiling; nowhere close to a flag risk. (A rolling 5s-window
+    peak-rate probe run first hit up to 26/s on some seeds for *baseline
+    too*, before realizing the server check is on the whole-run average, not
+    a rolling peak, redid the check against the real formula.)
+
+- Sample week (2026-08-10 through 2026-08-16), score thresholds
+  Copper/Silver/Gold:
+  - Aug 10 MENAGERIE: 70,000 / 155,000 / 360,000
+  - Aug 11 IRON BARRAGE: 55,000 / 125,000 / 285,000
+  - Aug 12 WHEELHOUSE: 65,000 / 135,000 / 315,000
+  - Aug 13 THE FLOOD: 55,000 / 125,000 / 285,000
+  - Aug 14 SINGULARITY: 50,000 / 110,000 / 255,000
+  - Aug 15 GIANTS: 60,000 / 130,000 / 300,000
+  - Aug 16 DEMOLITION DAY + ARSENAL (Sunday, double): 55,000 / 115,000 / 270,000
+  - STARFALL (any day it lands): 50,000 / 105,000 / 240,000
+
+- Verification: `npm run build` green, `npx tsx scripts/sim-test.ts` green,
+  including new STARFALL determinism check (identical meteor script across
+  play styles), STARFALL cadence-ramp sanity check, score-based medal
+  threshold sanity check, and the STARFALL-specific evasive-bot playability
+  check.
+- Nothing escalated this round; both items shipped as specced.
+
 ## 2026-08-09c: evasive-bot baseline bar loosened 12s to 8s (addendum, Sam)
 
 - The round-2 baseline sanity check (`baselineMedian >= 12`) sat exactly at the
