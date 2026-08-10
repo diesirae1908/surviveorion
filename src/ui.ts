@@ -103,10 +103,10 @@ export interface DailyLobbyInfo {
   /** Community server reachable → show the inline leaderboard. */
   online: boolean;
   touchDevice: boolean;
-  /** Today's mutator(s): 1 normally, 2 on UTC Sundays. */
+  /** Today's mutator(s): 1 normally, 2 on UTC Sundays, empty before the launch gate opens. */
   mutators: Mutator[];
-  /** Today's medal score thresholds (already mutator-adjusted). */
-  medalThresholds: MedalThresholds;
+  /** Today's medal score thresholds (already mutator-adjusted). Undefined before the launch gate opens. */
+  medalThresholds?: MedalThresholds;
   /** The ?mutator= preview override is active: unlimited, unscored runs. */
   preview?: boolean;
 }
@@ -502,7 +502,12 @@ export class Ui {
     screen.appendChild(this.el("div", "divider", ""));
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
-    screen.appendChild(this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview));
+    // pre-launch-gate days carry no mutators and no thresholds (see
+    // mutators.ts MUTATORS_START_DATE): skip the card entirely so the lobby
+    // looks exactly like it did before this feature shipped.
+    if (info.mutators.length > 0 && info.medalThresholds) {
+      screen.appendChild(this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview));
+    }
 
     // attempt pips: one per daily try, spent ones dimmed. A preview run
     // never spends one, so its row says so instead of counting down.

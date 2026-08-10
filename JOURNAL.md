@@ -4,6 +4,59 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-10c: Daily Mutators launch-date gate (LAUNCH COMMIT, branch, not merged)
+
+- Still branch `sam/daily-mutators`, still **not merged to main** (Sam does
+  that merge). Lucas approved going live, but 3 pilots had already flown
+  today's (2026-08-10 UTC) vanilla daily on prod before the feature shipped,
+  so today's board needs to stay plain to be fair.
+- Added `MUTATORS_START_DATE = "2026-08-11"` in `mutators.ts`, right above
+  `getMutatorsForDate`, the obvious place to find/change it later. Any UTC
+  date strictly before it makes `getMutatorsForDate` return `[]` (early
+  return, before `pickFirst`/`pickSecond` run), so the hash pick for every
+  other date is completely untouched: the gate only suppresses, it never
+  shifts which mutator lands on which future date. Patrol # numbering
+  (`share.ts`, a separate epoch) was never touched by mutator selection to
+  begin with, so it's unaffected either way.
+- The rest of the app already threads an empty mutator array through
+  correctly in most places, but a few spots assumed at least one mutator was
+  always active and needed an explicit `mutators.length > 0` gate so a
+  pre-launch day looks exactly like pre-mutators prod, not "mutators active
+  with a neutral 1.0 factor":
+  - `ui.ts` `showDailyLobby`: skips the whole briefing card (mutator rows +
+    medal thresholds) when `mutators.length === 0`. `DailyLobbyInfo.medalThresholds`
+    is now optional.
+  - `main.ts` `showMenu`: only computes `medalThresholds` when there's a
+    mutator to compute it from.
+  - `main.ts` `showGameOverUi`: `dailyMedal` stays `undefined` (not a
+    `{tier: null}` object, which would still render empty medal UI) pre-gate,
+    so the game-over screen shows no medal section at all.
+  - `main.ts` `onShare`: mutator name line and medal line both drop out of
+    the share card pre-gate.
+- The `?mutator=` preview override is untouched by any of this: `todaysMutators()`
+  still checks `PREVIEW_ACTIVE` first, so `?mutator=starfall` today (still
+  2026-08-10 UTC) forces STARFALL for the session same as always, gate or no
+  gate. It was already sandboxed from boards/attempts, so there's no fairness
+  issue letting it work early.
+- Sim-test: added section (g), a small check that the day before
+  `MUTATORS_START_DATE` resolves to zero mutators and the gate date itself
+  resolves to the normal hash pick. Also had to move the "same mutated day,
+  two play styles" determinism check's reference date (`dayA`) from
+  2026-08-10 (now pre-gate, would resolve to no mutators and break that
+  check's ">3 formations" assumption) to 2026-08-13 (THE FLOOD, post-gate,
+  not a creature day so its formation count is still the normal kind of
+  "plenty").
+- **Verification:** `npm run build` green. `npx tsx scripts/sim-test.ts`
+  green across 4 consecutive runs (one run mid-session hit the
+  pre-existing, previously documented flaky magnet test, unrelated to this
+  change and unseeded by design; reran clean). New gate checks pass: pre-gate
+  date -> 0 mutators, gate date (2026-08-11) -> `iron-barrage`.
+- **Gate behavior right now:** today, 2026-08-10 UTC, is pre-gate: vanilla
+  daily, no briefing card, no medal UI, no medal share lines, matching prod
+  exactly (the `?mutator=` override still works for demos). Tomorrow,
+  2026-08-11 UTC, the gate opens: normal hash pick (`iron-barrage`), full
+  briefing card, medal thresholds, and share lines, no manual flip needed.
+
 ## 2026-08-10b: Daily Mutators round 5, creature days rebuilt as direct-spawn choreography (branch, not merged)
 
 - Still branch `sam/daily-mutators`, still **not merged to main**, pushed the

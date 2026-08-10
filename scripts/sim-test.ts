@@ -14,6 +14,7 @@ import {
   getMutatorById,
   getMutatorsForDate,
   MUTATOR_POOL,
+  MUTATORS_START_DATE,
   mutatorAmbientRateScale,
   mutatorViewScale,
   setActiveMutators,
@@ -713,7 +714,10 @@ function muteAmbientPickups(world: World): void {
   };
 
   // (a) same mutated day, two very different play styles -> identical script
-  const dayA = new Date("2026-08-10T00:00:00Z"); // arbitrary UTC day, not a Sunday
+  // (post launch-gate: MUTATORS_START_DATE is 2026-08-11, see section (g)
+  // below; picked a non-creature-day date since this check expects the
+  // normal formation cadence, not round 5's near-zero-formation choreography)
+  const dayA = new Date("2026-08-13T00:00:00Z"); // arbitrary UTC day, not a Sunday, THE FLOOD
   const mutatorsA = getMutatorsForDate(dayA);
   const namesA = mutatorsA.map((m) => m.name).join("+");
   const a1 = recordMutated(mutatorsA, "ram", dayA);
@@ -975,6 +979,28 @@ function muteAmbientPickups(world: World): void {
       summaries.push(`${m.name} (${label}): ${c1.assemblies.length} events`);
     }
     console.log(`  creature-day choreography counts (180s run): ${summaries.join(" | ")}`);
+  }
+
+  // (g) launch-date gate: a pre-gate UTC date yields no mutators at all
+  // (vanilla daily), a post-gate date resolves the normal hash pick. The
+  // gate only suppresses, so the post-gate date's pick must match what the
+  // same date would have resolved to without a gate (i.e. it isn't shifted).
+  {
+    const gateOpenMs = Date.parse(`${MUTATORS_START_DATE}T00:00:00Z`);
+    const preGateDate = new Date(gateOpenMs - MS_PER_DAY); // the day before the gate opens
+    const postGateDate = new Date(gateOpenMs); // the gate date itself
+    const preGatePick = getMutatorsForDate(preGateDate);
+    const postGatePick = getMutatorsForDate(postGateDate);
+    check(
+      "launch gate: a pre-gate UTC date yields no mutators",
+      preGatePick.length === 0,
+      `${preGatePick.length} mutator(s) picked`,
+    );
+    check(
+      "launch gate: the gate date itself yields the expected hash pick",
+      postGatePick.length > 0,
+      `${postGatePick.map((m) => m.id).join("+") || "(none)"}`,
+    );
   }
 
   // medal SCORE thresholds stay sane (positive, ordered, 5k-rounded) across a sample week

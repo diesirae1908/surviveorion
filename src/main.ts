@@ -298,14 +298,19 @@ const ui = new Ui(settings, {
     // a DailyBestResult, not a lastRunShare), so fill it in from today's
     // date the same way the briefing card does
     const mutatorsToday = todaysMutators();
-    const todaysMutatorNames = mutatorsToday.map((m) => m.name);
+    // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
+    // MUTATORS_START_DATE), so the share card carries no mutator line and
+    // no medal line, exactly like it did before this feature shipped.
+    const todaysMutatorNames = mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined;
     const asShare = source as Partial<{ mutatorNames: string[]; medal: import("./medals").MedalTier | null }>;
     const sourceMedal = asShare.medal;
     const sourceMutatorNames = asShare.mutatorNames;
     const medal =
       sourceMedal !== undefined
         ? sourceMedal
-        : medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday));
+        : mutatorsToday.length > 0
+          ? medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday))
+          : undefined;
     return shareText(
       buildShareText({
         dayNumber: dailyNumber(),
@@ -396,7 +401,10 @@ function showMenu(): void {
       online: api.online,
       touchDevice: isTouchDevice(),
       mutators: mutatorsToday,
-      medalThresholds: medalThresholdsFor(mutatorsToday),
+      // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
+      // MUTATORS_START_DATE), so leave thresholds undefined too. The
+      // lobby then skips the whole briefing card.
+      medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
       preview: PREVIEW_ACTIVE,
     });
     fillDailyHint();
@@ -670,13 +678,13 @@ function showGameOverUi(): void {
     return;
   }
   const cappedDaily = DAILY_ONLY && runIsDaily;
+  const mutatorsToday = cappedDaily ? todaysMutators() : [];
   // a refunded run never happened as far as the daily books are concerned:
   // no best-of-day entry, no share card, no daily board submission. A
   // preview run is the same story for a different reason: it's sandboxed by
   // design, so it never touches the best-of-day record either.
   let dailyMedal: { tier: import("./medals").MedalTier | null; hint: string | null } | undefined;
   if (cappedDaily && !runRefunded) {
-    const mutatorsToday = todaysMutators();
     if (!PREVIEW_ACTIVE) {
       // remember the run for the share card (rank arrives with the submit)
       recordDailyResult({
@@ -688,22 +696,27 @@ function showGameOverUi(): void {
     }
     // best-of-day medal (score): the real day's running best, or (preview)
     // this run's own score against the forced mutator's thresholds — a
-    // preview never touches the locally-recorded best-of-day
-    const thresholds = medalThresholdsFor(mutatorsToday);
-    const bestScoreToday = PREVIEW_ACTIVE ? Math.floor(world.score) : dailyBestScoreToday();
-    const medalTier = medalForScore(bestScoreToday, thresholds);
-    dailyMedal = {
-      tier: medalTier,
-      hint: nextMedalHint(bestScoreToday, thresholds),
-    };
+    // preview never touches the locally-recorded best-of-day. Pre-launch-gate
+    // days: mutatorsToday is empty (see mutators.ts MUTATORS_START_DATE), so
+    // dailyMedal stays undefined and the game-over screen shows no medal UI,
+    // exactly like it did before this feature shipped.
+    if (mutatorsToday.length > 0) {
+      const thresholds = medalThresholdsFor(mutatorsToday);
+      const bestScoreToday = PREVIEW_ACTIVE ? Math.floor(world.score) : dailyBestScoreToday();
+      const medalTier = medalForScore(bestScoreToday, thresholds);
+      dailyMedal = {
+        tier: medalTier,
+        hint: nextMedalHint(bestScoreToday, thresholds),
+      };
+    }
     lastRunShare = {
       score: Math.floor(world.score),
       time: world.time,
       maxMultiplier: world.maxMultiplier,
       rank: null,
       attempt: PREVIEW_ACTIVE ? 1 : loadDailyAttempts().used,
-      mutatorNames: mutatorsToday.map((m) => m.name),
-      medal: medalTier,
+      mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
+      medal: dailyMedal?.tier,
       preview: PREVIEW_ACTIVE,
     };
   }
@@ -727,7 +740,7 @@ function showGameOverUi(): void {
     attemptsLeft: cappedDaily && !PREVIEW_ACTIVE ? dailyAttemptsLeft() : undefined,
     showShare: cappedDaily && !runRefunded,
     refunded: runRefunded,
-    mutatorNames: cappedDaily ? todaysMutators().map((m) => m.name) : undefined,
+    mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
     dailyMedal,
     preview: cappedDaily && PREVIEW_ACTIVE,
   });

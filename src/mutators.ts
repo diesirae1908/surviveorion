@@ -493,9 +493,30 @@ function pickSecond(dateStr: string, first: Mutator): Mutator {
   return fallback ?? first;
 }
 
+/**
+ * Launch gate (UTC date string, obvious place to find/change it): the day
+ * this went live, some pilots had already flown that UTC day's vanilla
+ * daily on prod before the feature shipped, so that day has to stay plain
+ * to keep its board fair. Any UTC date strictly before this one resolves to
+ * no mutators at all (see the early return below): vanilla daily, no
+ * briefing card, no medal thresholds/UI/share lines, exactly like prod
+ * looked pre-launch (main.ts/ui.ts key all of that off an empty mutator
+ * list). From this date onward, selection below runs as normal.
+ *
+ * The ?mutator= preview override (main.ts) bypasses this gate on purpose:
+ * it's sandboxed from boards/attempts either way, so there's no fairness
+ * issue letting Lucas demo it before the gate opens.
+ *
+ * This only suppresses; it never shifts. pickFirst/pickSecond below are
+ * unconditional functions of the date string, so which mutator lands on
+ * which future date is unaffected by this gate.
+ */
+export const MUTATORS_START_DATE = "2026-08-11";
+
 /** Today's (or any date's) mutator(s): 1 normally, 2 on UTC Sundays. */
 export function getMutatorsForDate(date: Date): Mutator[] {
   const dateStr = utcDateStr(date);
+  if (dateStr < MUTATORS_START_DATE) return [];
   const first = pickFirst(dateStr);
   if (!isUtcSunday(date)) return [first];
   return [first, pickSecond(dateStr, first)];
