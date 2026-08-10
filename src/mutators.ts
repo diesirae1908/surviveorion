@@ -494,24 +494,25 @@ function pickSecond(dateStr: string, first: Mutator): Mutator {
 }
 
 /**
- * Launch gate (UTC date string, obvious place to find/change it): the day
- * this went live, some pilots had already flown that UTC day's vanilla
- * daily on prod before the feature shipped, so that day has to stay plain
- * to keep its board fair. Any UTC date strictly before this one resolves to
- * no mutators at all (see the early return below): vanilla daily, no
- * briefing card, no medal thresholds/UI/share lines, exactly like prod
- * looked pre-launch (main.ts/ui.ts key all of that off an empty mutator
- * list). From this date onward, selection below runs as normal.
+ * Launch gate (UTC date string, obvious place to find/change it). Any UTC
+ * date strictly before this one resolves to no mutators at all (see the
+ * early return below): vanilla daily, no briefing card, no medal
+ * thresholds/UI/share lines (main.ts/ui.ts key all of that off an empty
+ * mutator list). From this date onward, selection below runs as normal.
  *
- * The ?mutator= preview override (main.ts) bypasses this gate on purpose:
- * it's sandboxed from boards/attempts either way, so there's no fairness
- * issue letting Lucas demo it before the gate opens.
+ * Live from 2026-08-10 (Lucas's call): a handful of pilots flew that UTC
+ * day's vanilla daily before the feature shipped, so today's board mixes
+ * vanilla and mutator flights. Accepted tradeoff, not a bug.
+ *
+ * The ?mutator= preview override (main.ts) bypasses this gate on purpose
+ * where it's still reachable (see PREVIEW_MUTATORS there: dev-only since
+ * the same change that moved this date up).
  *
  * This only suppresses; it never shifts. pickFirst/pickSecond below are
  * unconditional functions of the date string, so which mutator lands on
  * which future date is unaffected by this gate.
  */
-export const MUTATORS_START_DATE = "2026-08-11";
+export const MUTATORS_START_DATE = "2026-08-10";
 
 /** Today's (or any date's) mutator(s): 1 normally, 2 on UTC Sundays. */
 export function getMutatorsForDate(date: Date): Mutator[] {

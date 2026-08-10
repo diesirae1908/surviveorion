@@ -88,30 +88,37 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * Playtest override: ?mutator=<id> (or ?mutator=<id1>,<id2> to preview a
  * Sunday-style double) forces today's Daily Mutator(s) for this session,
  * instead of the date-hash pick. Only ever applies where mutators normally
- * apply (Daily Patrol, via todaysMutators() below) — Classic/Iron Rain/
+ * apply (Daily Patrol, via todaysMutators() below); Classic/Iron Rain/
  * Training Ground are untouched either way.
  *
  * Sandboxed by construction: every call site below that would spend a daily
  * attempt, submit a score, or record a local medal checks PREVIEW_ACTIVE
  * first and skips it, so a preview run can't touch boards, streaks, or the
- * attempt budget. That's also why this is safe to leave live in production
- * (not gated behind import.meta.env.DEV) — it doubles as an always-available
- * rehearsal tool.
+ * attempt budget.
  *
- * Unlike the real picker, no exclusion-tag compatibility check runs here —
+ * Dev-only (Lucas's call, 2026-08-10): letting anyone rehearse a specific
+ * mutator by id kills the everyone-discovers-the-day-together scarcity
+ * that's the whole point of a daily. Restricted to localhost/127.0.0.1 (so
+ * `npm run dev` keeps the rehearsal tool for tuning); on a production
+ * hostname the query param is ignored entirely: no card, no console id
+ * list, the real day loads exactly as normal.
+ *
+ * Unlike the real picker, no exclusion-tag compatibility check runs here,
  * the override forces exactly what's asked, including a combo that wouldn't
  * naturally pair, since testing an odd combo is sometimes the point. Unknown
  * ids are dropped silently; extra ids past the first two are dropped too
  * (matches the one-or-two-per-day rule); if nothing valid survives, this
  * falls back to today's real mutator(s).
  */
-const PREVIEW_MUTATORS: Mutator[] =
-  new URLSearchParams(location.search)
-    .get("mutator")
-    ?.split(",")
-    .map((id) => getMutatorById(id.trim()))
-    .filter((m): m is Mutator => !!m)
-    .slice(0, 2) ?? [];
+const PREVIEW_ALLOWED_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const PREVIEW_MUTATORS: Mutator[] = PREVIEW_ALLOWED_HOST
+  ? (new URLSearchParams(location.search)
+      .get("mutator")
+      ?.split(",")
+      .map((id) => getMutatorById(id.trim()))
+      .filter((m): m is Mutator => !!m)
+      .slice(0, 2) ?? [])
+  : [];
 const PREVIEW_ACTIVE = PREVIEW_MUTATORS.length > 0;
 if (PREVIEW_ACTIVE) {
   console.log(

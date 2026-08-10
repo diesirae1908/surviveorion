@@ -4,6 +4,51 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-10d: Daily Mutators LIVE from Aug 10, preview override locked to dev (main, deployed)
+
+- Direct commit to `main` (Lucas explicitly approved, this deploys to prod
+  immediately). Two changes:
+- **Mutators are live starting today, not tomorrow.** `MUTATORS_START_DATE`
+  moved from `2026-08-11` to `2026-08-10` in `mutators.ts`. A plain visit to
+  surviveorion.com right now gets today's real hash pick, MENAGERIE (factor
+  1.2), full briefing card, and medal thresholds Copper 70k / Silver 155k /
+  Gold 360k. Lucas's explicit tradeoff: a handful of pilots flew today's
+  vanilla daily before this shipped, so today's board mixes vanilla and
+  mutator flights. Accepted, not a bug. The gate only ever suppresses (see
+  the doc comment on `MUTATORS_START_DATE`), so moving it doesn't shift any
+  future date's pick: 2026-08-11 still resolves to iron-barrage exactly as
+  it always did, now covered by a dedicated regression check in sim-test.
+- **`?mutator=` preview override restricted to localhost/127.0.0.1.**
+  Lucas's concern: with the ids public (they're in this file and in the
+  boot console log), anyone could rehearse a specific mutator on demand via
+  URL, which kills the everyone-discovers-the-day-together scarcity that's
+  the point of a daily. The override in `main.ts` now checks
+  `location.hostname` before touching `?mutator=` at all: on a production
+  hostname the param is ignored completely (no forced mutator, no briefing
+  "PREVIEW" badge, no console id list, the real day loads exactly as
+  normal), on `localhost`/`127.0.0.1` (i.e. `npm run dev`) everything works
+  exactly as before, unrestricted, for tuning work. All the sandboxing code
+  (no attempt spent, no score submitted, no medal recorded) is untouched,
+  it's just unreachable on prod now since the override itself never
+  activates there.
+- Sim-test: the launch-gate section's pre-gate/post-gate dates already
+  derive from `MUTATORS_START_DATE` directly, so moving the constant
+  automatically retargeted that check to 2026-08-09 (none) / 2026-08-10
+  (menagerie) with no test edits needed. Added one new check: 2026-08-11
+  still resolves to iron-barrage after the move, proving the gate move
+  didn't shift the hash.
+- **Verification:** `npm run build` green. `npx tsx scripts/sim-test.ts`
+  green (ran 4x; two unrelated pre-existing flakes surfaced across those
+  runs, the documented magnet-grab test and a bad-luck-protection power
+  distribution check, both unseeded Math.random gameplay checks, neither
+  touched by this change, both passed clean on reruns).
+- **What a visitor sees right now:** MENAGERIE, briefing "The swarm keeps
+  fusing into hunters and worse", subline "Ambient density cut roughly in
+  half. Evolutions form more than twice as often.", medal thresholds Copper
+  70,000 / Silver 155,000 / Gold 360,000. `?mutator=starfall` on prod now
+  does nothing: the param is ignored, the real day (MENAGERIE) loads as
+  normal, no PREVIEW badge, no console output.
+
 ## 2026-08-10c: Daily Mutators launch-date gate (LAUNCH COMMIT, branch, not merged)
 
 - Still branch `sam/daily-mutators`, still **not merged to main** (Sam does

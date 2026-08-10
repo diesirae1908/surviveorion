@@ -1001,6 +1001,16 @@ function muteAmbientPickups(world: World): void {
       postGatePick.length > 0,
       `${postGatePick.map((m) => m.id).join("+") || "(none)"}`,
     );
+    // Regression: MUTATORS_START_DATE moved from 2026-08-11 to 2026-08-10
+    // (Lucas, round 2 of launch). The gate only ever suppresses, so 08-11's
+    // pick must be the same iron-barrage it always was, not shifted by the
+    // gate date moving underneath it.
+    const aug11Pick = getMutatorsForDate(new Date("2026-08-11T00:00:00Z"));
+    check(
+      "launch gate move: 2026-08-11 still resolves to iron-barrage (unshifted)",
+      aug11Pick.length === 1 && aug11Pick[0].id === "iron-barrage",
+      `${aug11Pick.map((m) => m.id).join("+") || "(none)"}`,
+    );
   }
 
   // medal SCORE thresholds stay sane (positive, ordered, 5k-rounded) across a sample week
