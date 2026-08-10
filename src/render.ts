@@ -150,6 +150,7 @@ export class Renderer {
     this.drawOffscreenThreats(world);
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawMeteorTelegraphs(world, opts.uiTime);
+    this.drawCreatureTelegraphs(world, opts.uiTime);
     this.drawTrail(world, opts.uiTime);
     this.drawBlasts(world, opts.uiTime);
     this.drawWaves(world);
@@ -1148,6 +1149,42 @@ export class Renderer {
         ctx.lineTo(t.x + Math.cos(a) * outer, t.y + Math.sin(a) * outer);
         ctx.stroke();
       }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Round 5 creature days: a brief warning at the anchor of a scripted
+   * assembly counting down to materialize (short flash for hunter/lance/
+   * wheel, which are already telegraphed by their inbound motion; a longer
+   * strobe for the bomb, which has none).
+   */
+  private drawCreatureTelegraphs(world: World, time: number): void {
+    if (world.creatureSpawnQueue.length === 0) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const q of world.creatureSpawnQueue) {
+      const progress = clamp01(1 - q.timer / q.duration);
+      const pulse = 0.6 + 0.4 * Math.sin(time * 14 + q.x * 3);
+      const r = 0.7 + Math.sqrt(q.count) * 0.35;
+
+      ctx.globalAlpha = (0.25 + 0.5 * progress) * pulse;
+      ctx.strokeStyle = PALETTE.redBright;
+      ctx.lineWidth = 0.05;
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, r * (1.4 - 0.4 * progress), 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.globalAlpha = 0.1 + 0.22 * progress;
+      const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
+      g.addColorStop(0, "#ffd8dd");
+      g.addColorStop(0.5, PALETTE.redBright);
+      g.addColorStop(1, "rgba(255,68,85,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }

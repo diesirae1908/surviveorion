@@ -4,6 +4,128 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-10b: Daily Mutators round 5, creature days rebuilt as direct-spawn choreography (branch, not merged)
+
+- Still branch `sam/daily-mutators`, still **not merged to main**, pushed the
+  branch only. Lucas's playtest verdict on HUNTING PARTY: "doesn't feel any
+  different, just feels like a lot of hunters at some point. I want the
+  mutations to have a real identity." Root cause: round 4's forced-creature
+  days still ran on the normal game's conscription rhythm (thin ambient
+  drones periodically fusing into a creature), so they inherited the base
+  game's pacing instead of having their own.
+- **Core mechanic (new): direct-spawn assemblies.** New module `creatures.ts`
+  schedules scripted events that materialize an assembly FULLY FORMED via a
+  new `spawnAssemblyDirect` (`enemies.ts`): member drones are created at their
+  rotated slot positions and bound to the assembly immediately, skipping the
+  gather/conscription phase. Slot geometry was factored out of `tryFormAssembly`
+  into shared `assemblySlots`/`assemblyRadiusFor` helpers so both paths produce
+  byte-identical shapes, and the entire active-phase lifecycle (steering,
+  wall-bounce, burst, disband) is 100% reused, untouched, from `updateAssemblies`.
+  On a forced-creature day, `updateAssemblies`'s scheduled-evolution and
+  crowd-pressure blocks are gated off (`mutatorForceAssemblyKind() !== null`);
+  every other day/mode is byte-for-byte unchanged.
+- **Determinism, now stronger than round 4's conscription:** event cadence and
+  member counts ride the seeded schedule stream (`scheduleRand`), anchor
+  positions and headings ride the seeded placement stream (`rand`). Pack/salvo/
+  lane size is a pure function of elapsed run minutes (never field state), so
+  the number of draws per event is identical for every pilot at a given point
+  in the run. Headings are picked from the seed, not aimed at the live ship
+  position, since the ship's position is player-dependent; only the hunter's
+  ongoing per-tick re-aim while active stays on Math.random (explicitly called
+  out as player-dependent, same as normal homing). Added a permanent sim-test
+  check per creature day: two wildly different play styles (aggressive ram vs.
+  evasive drift) produce byte-identical `time:kind@x,y` event scripts. This is
+  new: round 4's conscription-based assemblies were *never* part of the shared
+  determinism check (member selection was positional, hence player-dependent);
+  round 5's scripted events now are.
+- **Per-day choreography** (`CREATURE_DAYS` config in `config.ts`, all ramp
+  from an "early" feel to a "late" feel over 3 minutes):
+  - **HUNTING PARTY, "wolf packs"**: waves of 2-4 hunter vees (member count
+    4-6 each) entering from different edges within a 0.3s stagger, converging
+    on the ship via the hunter's existing turn-rate tracking. Wave interval
+    ramps 11-14s → 6-8s. Pack size ramps 2 → 4 over the run.
+  - **LANCER DOCTRINE, "broadsides"**: salvos of 2-5 parallel lance bars
+    (5-8 members each) sweeping in from ONE edge per salvo, staggered 0.4s
+    apart (volley rhythm). Salvo interval ramps 9-12s → 5-7s.
+  - **WHEELHOUSE, "crossing traffic"**: 1-3 wheels (6-9 members each) rolling
+    in from alternating sides of one axis (left/right or bottom/top per
+    burst), staggered 0.5s apart, Frogger-style. Lane interval ramps 7-9s →
+    3.5-5s.
+  - **DEMOLITION DAY, "area denial"**: bomb slabs (5-9 members) materialize at
+    a seeded arena point and detonate on the existing fuse/shrapnel timer.
+    Deployment interval ramps 7-9s → 3-4.5s; late-game the interval gets close
+    enough to the fuse+telegraph lifecycle that multiple bombs are live at
+    once, which is the "shrinking safe ground" feel, achieved without any
+    field-state-dependent gating (kept the schedule seed-pure).
+  - Telegraphs, per kind (task left this "your call"): hunter/lance/wheel get
+    a brief 0.4s on-screen flash at the entry point (they're already
+    telegraphed by their inbound motion, this is just a beat of warning); the
+    bomb gets a 1.5s warning strobe since it has no inbound motion to read.
+    New `drawCreatureTelegraphs` in `render.ts`, new `creatureSpawnQueue` on
+    `World` (types.ts) holding the pending materializations.
+  - All four: `ambientRateScale: 0` (no ambient at all now, no longer needed
+    as conscription fuel) and `formationIntervalScale: 30` (ordinary
+    formations effectively suppressed within any normal run length). The
+    choreography is the whole day, per Lucas's spec.
+  - Rewrote briefing + subline for all four, dropped the round-4 "stragglers
+    are parts waiting to fuse" framing entirely (no conscription left to
+    describe).
+- **Round-4 cleanup**: the "ambient rate takes the MAX when a creature day is
+  active" combine rule existed only to protect conscription's fuel supply.
+  Direct-spawn removed that need, so `mutatorAmbientRateScale()` is back to
+  plain `scaleOf` (multiplicative). Re-verified the Sunday pairing edge case
+  (a zero-ambient formation day + a creature day): both sides now want zero,
+  the product is zero, which is exactly what both want; no special-casing
+  needed. Updated the round-4 sim-test checks for the new expected behavior
+  (creature days now assert zero ambient instead of a nonzero trickle) and
+  added `formations <= 1` as an explicit near-zero-formations check.
+- **Re-tuned difficulty factors** using the evasive bot's score medians
+  (relative to its no-mutator baseline, since bot medians move around
+  slightly run to run given real unseeded Math.random gameplay):
+  hunting-party 0.75 (survives shortest, lowest score, packs kill members
+  one at a time rather than in a batch), lancer-doctrine 0.95 (roughly at
+  baseline), wheelhouse 1.0 (highest score of the four: lanes give the most
+  room to graze safely while still crossing danger), demolition-day 0.9.
+- **Anti-cheat / population check** (ad hoc script, not a permanent test,
+  same methodology as round 2/3's OVERCHARGE/STARFALL ceiling checks): a
+  maximally aggressive run (permanent starshell + shield, ramming everything)
+  over 5 minutes on each of the four days produced 1.1-3.6 kills/sec, far
+  under `server/validate.mjs`'s `MAX_KILLS_PER_SEC = 12` ceiling, and peak
+  concurrent drone counts of 17-126, far under `SPAWNER.maxDrones = 550`.
+  `spawnAssemblyDirect` also carries its own `maxDrones` safety guard
+  (mirrors `spawnAt`'s), astronomically unlikely to trigger given near-zero
+  ambient on these days.
+- **Manual sanity**: the `?mutator=` preview override's browser tool was
+  unavailable this session (repeated `browser_navigate` calls errored with
+  "no browser tab available" even after creating a tab explicitly; stopped
+  after 4 attempts per the tool's own guidance rather than rabbit-holing).
+  Substituted a direct event-trace of HUNTING PARTY over 90s on a fixed seed,
+  which is arguably a stronger check than an eyeball pass: it confirmed waves
+  of 2-3 hunter vees arriving from different edges within ~0.3-0.6s of each
+  other, wave gaps of 8.6-13.2s (a clear "beat of silence" between packs),
+  and pack size visibly growing from 2 to 3 members over the run, matching
+  the "wolf pack" design exactly. Recommend Lucas spot-check the visual feel
+  on the test link once it redeploys, since a script-level trace can't judge
+  "does this read well on screen."
+- **Verification**: `npm run build` green. `npx tsx scripts/sim-test.ts`
+  green across 4 consecutive runs (one earlier run hit the pre-existing
+  unseeded flake noted in round 4, `pending grab claims the next drop`/
+  `bad-luck protection`, unrelated to this round). New checks: per-day
+  choreography determinism (event script identical across play styles) for
+  all four creature days, choreography event counts over a 180s run
+  (HUNTING PARTY 58, LANCER DOCTRINE 79, WHEELHOUSE 63, DEMOLITION DAY 31),
+  zero-ambient + near-zero-formations assertions for all four, the
+  simplified Sunday-pairing resolution, and four new evasive-bot fair-fight
+  call-outs.
+- **Nothing touched**: `SCORING` in `config.ts`, `server/validate.mjs`,
+  GREAT WALL / YEAR OF THE SERPENT (unaffected, still round 4's zero-ambient
+  scripted-formation design), every other mutator, Classic/Iron Rain/Training
+  Ground.
+- Nothing escalated this round; every design call (telegraph style per kind,
+  ambient/formation suppression level, bomb concurrency via interval alone
+  instead of state-dependent gating) stayed inside the brief's explicit "your
+  call, tune the numbers" latitude.
+
 ## 2026-08-10a: Daily Mutators round 4, pattern/creature days purified (branch, not merged)
 
 - Still branch `sam/daily-mutators`, still **not merged to main**, pushed the

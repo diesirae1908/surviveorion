@@ -16,10 +16,14 @@
 // e.g. two arena-size or two monopower days, can never co-occur). Overrides
 // combine: multiplicative knobs (rates/scales) multiply together, additive
 // knobs (wind/magnet strength) sum, and difficulty factors multiply for the
-// day's medal thresholds. One exception (round 4): ambient rate takes the
-// MAX instead of the product whenever a forced-creature day is active, so a
-// zero-ambient formation day paired with it can't starve out the creature
-// day's own conscription floor; see mutatorAmbientRateScale below.
+// day's medal thresholds.
+//
+// Round 5: the four forced-creature days (lancer-doctrine, wheelhouse,
+// hunting-party, demolition-day) no longer conscript ambient drones into
+// evolutions; they direct-spawn scripted, choreographed assemblies instead
+// (see creatures.ts). Ambient no longer needs to feed conscription, so
+// ambient-rate combine is back to plain multiplication (round 4's "max wins"
+// exception is gone: nothing needs an ambient floor anymore).
 //
 // None of these touch SCORING (src/config.ts); see JOURNAL.md for the
 // server/validate.mjs ceiling analysis (round 1 + round 2, incl. OVERCHARGE)
@@ -254,55 +258,50 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "lancer-doctrine",
     name: "LANCER DOCTRINE",
-    briefing: "Every evolution rides the same spear. The stragglers are parts waiting to fuse.",
-    subline: "Every evolution forms a lance. Ambient density cut hard: the few loose drones left are conscription material, not padding.",
-    // v2 (round 4): ambient can't go to zero here (an assembly conscripts
-    // FROM the free ambient pool, see tryFormAssembly's gatherRadius scan;
-    // zero ambient means zero creatures, and the fusion is the whole
-    // telegraph). Cut hard instead so the field between lances stays sparse
-    // but conscription keeps working. Factor eased from 1.05: half the
-    // ambient throughput is half the passive kill/graze opportunity between
-    // evolutions; see JOURNAL.md for the evasive-bot score-median ranking
-    // across all four (this one landed mid-pack).
-    difficultyFactor: 0.9,
+    briefing: "Broadsides only. Weave the volley or eat the spear.",
+    subline: "Salvos of parallel lance bars sweep in from one edge in sequence. No ambient swarm, no ordinary formations: the artillery is the whole day.",
+    // v3 (round 5): direct-spawn choreography replaces conscription; see
+    // creatures.ts. The evasive bot's score median came out roughly at
+    // baseline for the volley rhythm; see JOURNAL.md for all four numbers.
+    difficultyFactor: 0.95,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "lance", ambientRateScale: 0.5 },
+    overrides: { forceAssemblyKind: "lance", ambientRateScale: 0, formationIntervalScale: 30 },
   },
   {
     id: "wheelhouse",
     name: "WHEELHOUSE",
-    briefing: "Every evolution rolls in like a wrecking ball. The stragglers are parts waiting to fuse.",
-    subline: "Every evolution forms a wheel. Ambient density cut hard: the few loose drones left are conscription material, not padding.",
-    // See LANCER DOCTRINE's comment for the round-4 ambient/factor rationale;
-    // the evasive bot's score median came in a touch higher for WHEELHOUSE.
-    difficultyFactor: 0.95,
+    briefing: "Crossing traffic only. Survive the intersection.",
+    subline: "Wheels roll through in lanes from alternating sides, Frogger-style. No ambient swarm, no ordinary formations: the traffic is the whole day.",
+    // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
+    // bot's score median came in highest of the four (lanes give the most
+    // room to graze safely while still crossing danger).
+    difficultyFactor: 1.0,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "wheel", ambientRateScale: 0.5 },
+    overrides: { forceAssemblyKind: "wheel", ambientRateScale: 0, formationIntervalScale: 30 },
   },
   {
     id: "hunting-party",
     name: "HUNTING PARTY",
-    briefing: "Every evolution hunts you down. The stragglers are parts waiting to fuse.",
-    subline: "Every evolution forms a hunter. Ambient density cut hard: the few loose drones left are conscription material, not padding.",
-    // See LANCER DOCTRINE's comment for the round-4 ambient/factor rationale;
-    // the evasive bot's score median came in lowest of the four here
-    // (hunters close in and get killed one at a time rather than swept
-    // through in a batch), so this keeps the lowest factor of the set.
-    difficultyFactor: 0.85,
+    briefing: "Wolf packs only. You are the prey today.",
+    subline: "Waves of hunters close in from different edges and converge, growing in size and frequency. No ambient swarm, no ordinary formations: the hunt is the whole day.",
+    // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
+    // bot's score median came in lowest of the four here (packs close in and
+    // die one at a time rather than sweeping through in a batch).
+    difficultyFactor: 0.75,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "hunter", ambientRateScale: 0.5 },
+    overrides: { forceAssemblyKind: "hunter", ambientRateScale: 0, formationIntervalScale: 30 },
   },
   {
     id: "demolition-day",
     name: "DEMOLITION DAY",
-    briefing: "Every evolution ends in shrapnel. The stragglers are parts waiting to fuse.",
-    subline: "Every evolution forms a bomb. Ambient density cut hard: the few loose drones left are conscription material, not padding.",
-    // See LANCER DOCTRINE's comment for the round-4 ambient/factor rationale;
-    // the evasive bot's score median came in highest of the four here (a
-    // fragmented bomb burst offers the most simultaneous graze surface).
-    difficultyFactor: 1.0,
+    briefing: "Area denial only. The floor is always about to explode.",
+    subline: "Bomb slabs deploy continuously and detonate into shrapnel, crowding the arena over time. No ambient swarm, no ordinary formations: the minefield is the whole day.",
+    // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
+    // bot's score median came in highest of the four here (a fragmented
+    // shrapnel burst offers the most simultaneous graze surface).
+    difficultyFactor: 0.9,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "bomb", ambientRateScale: 0.5 },
+    overrides: { forceAssemblyKind: "bomb", ambientRateScale: 0, formationIntervalScale: 30 },
   },
   {
     id: "titanfall",
@@ -574,34 +573,19 @@ function firstOf<T>(pick: (o: MutatorOverrides) => T | undefined): T | undefined
   return undefined;
 }
 
-/** A "forced-creature" day (lance/wheel/hunter/bomb) needs a live ambient
- * trickle: assemblies conscript members FROM the free ambient pool (see
- * tryFormAssembly in enemies.ts), so zero ambient means zero creatures ever
- * forms and the day's whole identity silently breaks. */
-function isCreatureDay(m: Mutator): boolean {
-  return m.overrides.forceAssemblyKind !== undefined;
-}
-
 /**
- * Ambient rate combine rule (round 4). Normally multiplicative: RED ALERT
- * and ARSENAL both wanting more ambient stack as expected. But a Sunday can
- * legally pair a zero-ambient formation day (GREAT WALL, YEAR OF THE
- * SERPENT; different exclusion tag, so the pairing is reachable) with a
- * forced-creature day, and multiplying their rates together would leave the
- * creature day's conscription pool at exactly zero regardless of its own
- * (already cut) demand. Resolution: whenever a creature day is active, take
- * the MAX active ambientRateScale instead of the product ("most permissive
- * wins"), so the creature day's own floor is never starved out by a drier
- * partner. No creature day active -> unchanged multiplicative behavior.
+ * Ambient rate combine rule: plain multiplicative, same as every other
+ * scale knob. Round 4 special-cased this (a "max wins" rule) because forced-
+ * creature days conscripted members FROM the ambient pool, so zero ambient
+ * from a paired formation day could starve their conscription floor. Round
+ * 5 removed conscription from creature days entirely (they direct-spawn
+ * choreographed assemblies instead, see creatures.ts), so there's no floor
+ * left to protect: a zero-ambient formation day paired with a now-also-
+ * near-zero-ambient creature day just multiplies down to near zero, which is
+ * exactly what both days want.
  */
 export function mutatorAmbientRateScale(): number {
-  if (!active.some(isCreatureDay)) return scaleOf((o) => o.ambientRateScale);
-  let max: number | null = null;
-  for (const m of active) {
-    const v = m.overrides.ambientRateScale;
-    if (v !== undefined) max = max === null ? v : Math.max(max, v);
-  }
-  return max ?? 1;
+  return scaleOf((o) => o.ambientRateScale);
 }
 
 /** Caps the run's very first formation delay (seconds); null on ordinary days. */

@@ -656,6 +656,7 @@ function muteAmbientPickups(world: World): void {
     powers: string[];
     mines: string[];
     meteors: string[];
+    assemblies: string[];
   }
 
   /** Same shape as the section-7 daily determinism recorder, but with a set
@@ -666,7 +667,7 @@ function muteAmbientPickups(world: World): void {
     setActiveMutators(mutators, date);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
-    const script: Script = { formations: [], powers: [], mines: [], meteors: [] };
+    const script: Script = { formations: [], powers: [], mines: [], meteors: [], assemblies: [] };
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -692,6 +693,12 @@ function muteAmbientPickups(world: World): void {
         // streams only, see starfall.ts), independent of the ship/drones.
         if (e.type === "meteorStrike") {
           script.meteors.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        }
+        // Round 5 creature days: direct-spawn assembly anchors/headings ride
+        // the seeded streams (see creatures.ts), so this is now a shared
+        // script too, unlike conscription's player-dependent member picks.
+        if (e.type === "assembly") {
+          script.assemblies.push(`${world.time.toFixed(2)}:${e.kind}@${e.x.toFixed(2)},${e.y.toFixed(2)}`);
         }
       }
       world.events.length = 0;
@@ -808,17 +815,23 @@ function muteAmbientPickups(world: World): void {
     );
   }
 
-  // (e) round 4: forced-formation days go to true zero ambient; forced-
-  // creature days keep a thin trickle so conscription (assemblies drawing
-  // members from the free ambient pool) still works; a Sunday pairing of
-  // the two resolves via "most permissive wins" (see mutators.ts).
+  // (e) forced-formation days go to true zero ambient. Forced-creature days
+  // (round 5) now direct-spawn choreographed assemblies instead of
+  // conscripting the ambient swarm (see creatures.ts), so they go to true
+  // zero ambient AND near-zero ordinary formations too: the choreography
+  // is the whole day. See section (f) below for the choreography-specific
+  // determinism/shape checks.
   {
-    function countEvents(mutators: Mutator[], seconds: number): { ambientSpawns: number; assemblies: number } {
+    function countEvents(
+      mutators: Mutator[],
+      seconds: number,
+    ): { ambientSpawns: number; assemblies: number; formations: number } {
       setActiveMutators(mutators, dayA);
       const scale = mutatorViewScale();
       const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
       let ambientSpawns = 0;
       let assemblies = 0;
+      let formations = 0;
       const steps = Math.round(seconds / FIXED_DT);
       for (let i = 0; i < steps; i++) {
         world.powers.shieldActive = true; // survive without ram-killing conscripts
@@ -826,11 +839,12 @@ function muteAmbientPickups(world: World): void {
         for (const e of world.events) {
           if (e.type === "ambientSpawn") ambientSpawns++;
           if (e.type === "assembly") assemblies++;
+          if (e.type === "formation") formations++;
         }
         world.events.length = 0;
       }
       clearActiveMutators();
-      return { ambientSpawns, assemblies };
+      return { ambientSpawns, assemblies, formations };
     }
 
     const greatWall = getMutatorById("great-wall")!;
@@ -891,35 +905,38 @@ function muteAmbientPickups(world: World): void {
       ...countEvents([getMutatorById(id)!], 120),
     }));
     check(
-      "forced-creature days still produce assemblies with ambient cut hard",
+      "forced-creature days: direct-spawn choreography produces plenty of assemblies",
       creatureResults.every((r) => r.assemblies > 0),
       creatureResults.map((r) => `${r.id}:${r.assemblies} assemblies`).join(", "),
     );
     check(
-      "forced-creature days keep a nonzero ambient trickle (not accidentally zeroed)",
-      creatureResults.every((r) => r.ambientSpawns > 0),
+      "forced-creature days: zero ambient spawn events over a 120s run (round 5, no more conscription fuel)",
+      creatureResults.every((r) => r.ambientSpawns === 0),
       creatureResults.map((r) => `${r.id}:${r.ambientSpawns} spawns`).join(", "),
+    );
+    check(
+      "forced-creature days: ordinary formations near-zero (choreography is the whole day)",
+      creatureResults.every((r) => r.formations <= 1),
+      creatureResults.map((r) => `${r.id}:${r.formations} formations`).join(", "),
     );
 
     // Sunday pairing edge case: GREAT WALL (different exclusion tag from the
-    // forced-creature days) can legally pair with one of them. The creature
-    // day's own (already cut) ambient rate must win over the formation day's
-    // zero, or conscription starves. Construct the pairing explicitly and
-    // check the resolved rate directly, regardless of whether it lands on a
-    // real upcoming Sunday.
+    // forced-creature days) can legally pair with one of them. Round 5
+    // removed conscription's need for an ambient floor, so both sides now
+    // want zero, so the simplified multiplicative rule should resolve to a
+    // sane, finite, non-negative value (not NaN, not negative) regardless.
     const lancer = getMutatorById("lancer-doctrine")!;
     setActiveMutators([greatWall, lancer], dayA);
     const pairedRate = mutatorAmbientRateScale();
     clearActiveMutators();
     check(
-      "Sunday pairing: creature day's ambient rate wins over a zero-ambient formation day",
-      pairedRate === lancer.overrides.ambientRateScale,
+      "Sunday pairing: zero-ambient formation day + creature day resolves to a sane rate",
+      Number.isFinite(pairedRate) && pairedRate === 0,
       `resolved ${pairedRate} (formation day wants 0, creature day wants ${lancer.overrides.ambientRateScale})`,
     );
 
-    // the other direction: with no creature day active, the combine rule
-    // stays multiplicative (RED ALERT x ARSENAL both wanting more ambient
-    // should stack, not just take the higher one).
+    // the combine rule stays multiplicative everywhere (RED ALERT x ARSENAL
+    // both wanting more ambient should stack).
     const redAlert = getMutatorById("red-alert")!;
     const arsenal = getMutatorById("arsenal")!;
     setActiveMutators([redAlert, arsenal], dayA);
@@ -927,10 +944,37 @@ function muteAmbientPickups(world: World): void {
     clearActiveMutators();
     const expectedStacked = (redAlert.overrides.ambientRateScale ?? 1) * (arsenal.overrides.ambientRateScale ?? 1);
     check(
-      "no creature day active: ambient rate combine stays multiplicative",
+      "ambient rate combine stays multiplicative",
       Math.abs(stackedRate - expectedStacked) < 1e-9,
       `${stackedRate.toFixed(3)} vs expected ${expectedStacked.toFixed(3)}`,
     );
+  }
+
+  // (f) round 5: creature-day choreography determinism + shape checks. Event
+    // timing/anchors/headings ride the seeded streams (see creatures.ts), so,
+    // unlike the old conscription system, these scripts must now be
+    // byte-identical across play styles, same discipline as formations/STARFALL.
+  {
+    const creatureMutatorIds: Array<{ id: string; label: string }> = [
+      { id: "hunting-party", label: "wolf packs" },
+      { id: "lancer-doctrine", label: "broadsides" },
+      { id: "wheelhouse", label: "crossing traffic" },
+      { id: "demolition-day", label: "area denial" },
+    ];
+    const creatureDate = new Date("2026-08-17T00:00:00Z"); // arbitrary, not a Sunday
+    const summaries: string[] = [];
+    for (const { id, label } of creatureMutatorIds) {
+      const m = getMutatorById(id)!;
+      const c1 = recordMutated([m], "ram", creatureDate);
+      const c2 = recordMutated([m], "drift", creatureDate);
+      check(
+        `${m.name} determinism: choreography script (event time/kind/anchor) identical across play styles`,
+        c1.assemblies.length > 3 && c1.assemblies.join("|") === c2.assemblies.join("|"),
+        `${c1.assemblies.length} events`,
+      );
+      summaries.push(`${m.name} (${label}): ${c1.assemblies.length} events`);
+    }
+    console.log(`  creature-day choreography counts (180s run): ${summaries.join(" | ")}`);
   }
 
   // medal SCORE thresholds stay sane (positive, ordered, 5k-rounded) across a sample week
@@ -1115,6 +1159,19 @@ function muteAmbientPickups(world: World): void {
     `${starfallResult?.median.toFixed(1)}s / ${Math.round(starfallResult?.medianScore ?? 0)}pts` +
       ` vs baseline ${baselineMedian.toFixed(1)}s / ${Math.round(baselineScoreMedian)}pts`,
   );
+  // Round 5: the four creature days rebuilt around direct-spawn choreography
+  // (see creatures.ts) need the same fair-fight bar re-checked, since the
+  // whole spawn pattern changed. The bot only reacts once drones/telegraphs
+  // are close enough to matter (no lookahead into the schedule), so this is
+  // a pessimistic proxy, same as STARFALL's reticle-dodge above.
+  for (const id of ["hunting-party", "lancer-doctrine", "wheelhouse", "demolition-day"]) {
+    const r = results.find((x) => x.id === id);
+    check(
+      `evasive bot: ${r?.name ?? id} choreography is a fair fight, not a surprise-death trap`,
+      !!r && r.median >= bar,
+      `${r?.median.toFixed(1)}s / ${Math.round(r?.medianScore ?? 0)}pts vs baseline ${baselineMedian.toFixed(1)}s / ${Math.round(baselineScoreMedian)}pts`,
+    );
+  }
   // sanity: getMutatorById resolves every id used above (catches stale ids)
   check(
     "getMutatorById resolves every pool id",

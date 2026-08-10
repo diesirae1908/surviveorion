@@ -287,6 +287,12 @@ export function initSpawner(world: World): void {
 
   scheduleNextFormation(world);
   world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
+  // Round 5 creature days: starting the countdown at 0 means the very first
+  // choreographed event schedules on the first tick, so its own short
+  // telegraph (0.4-1.5s, see CREATURE_DAYS) is the only opening delay, no
+  // separate "don't open empty" cap needed like the formation-day fix above.
+  world.creatureTimer = 0;
+  world.creatureSpawnQueue = [];
 
   // Iron Rain: no gentle burst — the run opens with an immediate mega-wall
   // and the first regular formation lands seconds later.
@@ -989,14 +995,31 @@ function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void 
     spin: 0,
   };
 
-  // slots in the travel frame: slotX along the heading, slotY perpendicular —
-  // the whole shape rotates with its heading (a lance flips broadside after a
-  // wall bounce, the wheel's spin rides on top of this frame)
-  const half = (members.length - 1) / 2;
-  const ringRadius = Math.max(1.1, (members.length * ASSEMBLY.spacing) / (Math.PI * 2));
-  const cols = Math.max(2, Math.ceil(Math.sqrt(members.length)));
-  const rows = Math.ceil(members.length / cols);
+  const slots = assemblySlots(kind, members.length);
   members.forEach((d, i) => {
+    d.assembly = assembly;
+    d.slotX = slots[i].x;
+    d.slotY = slots[i].y;
+  });
+  assembly.radius = assemblyRadiusFor(kind, members.length);
+
+  world.assemblies.push(assembly);
+  world.events.push({ type: "assembly", x: cx, y: cy, kind });
+}
+
+/**
+ * Slot offsets in the assembly's travel frame (slotX along the heading,
+ * slotY perpendicular) for a given kind + member count. Shared by conscribed
+ * assemblies (tryFormAssembly) and direct-spawned ones (spawnAssemblyDirect,
+ * see creatures.ts) so both paths produce byte-identical shapes.
+ */
+function assemblySlots(kind: AssemblyKind, count: number): { x: number; y: number }[] {
+  const half = (count - 1) / 2;
+  const ringRadius = Math.max(1.1, (count * ASSEMBLY.spacing) / (Math.PI * 2));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(count)));
+  const rows = Math.ceil(count / cols);
+  const slots: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
     let sx: number;
     let sy: number;
     switch (kind) {
@@ -1009,7 +1032,7 @@ function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void 
         break;
       }
       case "wheel": {
-        const a = (i / members.length) * Math.PI * 2;
+        const a = (i / count) * Math.PI * 2;
         sx = Math.cos(a) * ringRadius;
         sy = Math.sin(a) * ringRadius;
         break;
@@ -1028,27 +1051,113 @@ function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void 
         sy = (i - half) * ASSEMBLY.spacing;
       }
     }
-    d.assembly = assembly;
-    d.slotX = sx;
-    d.slotY = sy;
-  });
+    slots.push({ x: sx, y: sy });
+  }
+  return slots;
+}
 
+/** Shape half-extent for a given kind + member count (for wall bounces). */
+function assemblyRadiusFor(kind: AssemblyKind, count: number): number {
+  const half = (count - 1) / 2;
+  const ringRadius = Math.max(1.1, (count * ASSEMBLY.spacing) / (Math.PI * 2));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(count)));
+  const rows = Math.ceil(count / cols);
   switch (kind) {
     case "wheel":
-      assembly.radius = ringRadius;
-      break;
+      return ringRadius;
     case "hunter":
-      assembly.radius = Math.ceil((members.length - 1) / 2) * ASSEMBLY.spacing * 0.9;
-      break;
+      return Math.ceil((count - 1) / 2) * ASSEMBLY.spacing * 0.9;
     case "bomb":
-      assembly.radius = (Math.max(cols, rows) / 2) * ASSEMBLY.spacing * 0.7;
-      break;
+      return (Math.max(cols, rows) / 2) * ASSEMBLY.spacing * 0.7;
     default:
-      assembly.radius = half * ASSEMBLY.spacing;
+      return half * ASSEMBLY.spacing;
+  }
+}
+
+/**
+ * Round 5 Daily Mutator (creature days): spawn an assembly FULLY FORMED.
+ * Member drones are created directly at their rotated slot positions around
+ * `anchorX,anchorY` and bound to the assembly immediately, skipping the
+ * gather/conscription phase entirely. Everything about WHERE/WHEN this event
+ * happens was already decided on the seeded streams by the caller
+ * (creatures.ts); this function only touches Math.random via createDrone's
+ * cosmetic spin/jitter, same as every other drone-creation path.
+ */
+export function spawnAssemblyDirect(
+  world: World,
+  minutes: number,
+  kind: AssemblyKind,
+  count: number,
+  anchorX: number,
+  anchorY: number,
+  dirX: number,
+  dirY: number,
+): void {
+  // safety valve, matches spawnAt's own maxDrones guard: astronomically
+  // unlikely to trigger in a normal run given near-zero ambient on these days
+  if (world.drones.length + count > SPAWNER.maxDrones) return;
+
+  const slots = assemblySlots(kind, count);
+  const theta = Math.atan2(dirY, dirX);
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const [clampMin, clampMax] = effectiveScaleClamp();
+  const scale = clamp(0.6, clampMin, clampMax);
+  const speedMult = Math.max(0.1, escalate(minutes, SPAWNER.speedMultiplier));
+
+  const members: Drone[] = [];
+  for (const slot of slots) {
+    const wx = slot.x * cos - slot.y * sin;
+    const wy = slot.x * sin + slot.y * cos;
+    const d = createDrone(anchorX + wx, anchorY + wy, scale, speedMult);
+    world.drones.push(d);
+    members.push(d);
   }
 
+  const assembly: Assembly = {
+    kind,
+    phase: "active", // fully formed already: no gather telegraph to wait through
+    timer: 0,
+    members,
+    x: anchorX,
+    y: anchorY,
+    dirX,
+    dirY,
+    speed: 0,
+    radius: assemblyRadiusFor(kind, count),
+    bounces: 0,
+    spin: 0,
+  };
+
+  const base = assemblyBaseSpeed(world);
+  const K = ASSEMBLY.kinds;
+  switch (kind) {
+    case "lance":
+      assembly.timer = K.lance.duration;
+      assembly.speed = base * K.lance.speedScale;
+      break;
+    case "wheel":
+      assembly.timer = K.wheel.duration;
+      assembly.speed = base * K.wheel.speedScale;
+      break;
+    case "hunter":
+      assembly.timer = K.hunter.duration;
+      assembly.speed = base * K.hunter.speedScale;
+      break;
+    case "bomb":
+      assembly.timer = K.bomb.fuse;
+      assembly.speed = base * K.bomb.speedScale;
+      break;
+  }
+
+  members.forEach((d, i) => {
+    d.assembly = assembly;
+    d.slotX = slots[i].x;
+    d.slotY = slots[i].y;
+  });
+
   world.assemblies.push(assembly);
-  world.events.push({ type: "assembly", x: cx, y: cy, kind });
+  world.events.push({ type: "assembly", x: anchorX, y: anchorY, kind });
 }
 
 /** Move a member toward its (rotated) slot, capped at `speed`; updates vx/vy. */
@@ -1105,38 +1214,45 @@ export function updateAssemblies(world: World, dt: number): void {
 
   const maxConcurrent = effectiveAssemblyMaxConcurrent();
 
-  world.assemblyTimer -= dt;
-  if (world.assemblyTimer <= 0) {
-    world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange) * mutatorAssemblyIntervalScale();
-    // fixed draws per event — consumed even when the event fizzles
-    const count = Math.round(scheduleRange(...ASSEMBLY.countRange) * mutatorAssemblyCountScale());
-    const rolledKind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
-    const kind = mutatorForceAssemblyKind() ?? rolledKind;
+  // Round 5: on a forced-creature day, updateCreatureChoreography (creatures.ts)
+  // owns spawning entirely: conscription and the crowd-pressure valve stay
+  // off so the scripted schedule isn't diluted by leftover evolutions.
+  // Every other day/mode behaves exactly as before.
+  const directSpawnActive = mutatorForceAssemblyKind() !== null;
+
+  if (!directSpawnActive) {
+    world.assemblyTimer -= dt;
+    if (world.assemblyTimer <= 0) {
+      world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange) * mutatorAssemblyIntervalScale();
+      // fixed draws per event — consumed even when the event fizzles
+      const count = Math.round(scheduleRange(...ASSEMBLY.countRange) * mutatorAssemblyCountScale());
+      const kind = kinds[Math.min(kinds.length - 1, Math.floor(scheduleRand() * kinds.length))];
+      if (
+        difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
+        world.assemblies.length < maxConcurrent
+      ) {
+        tryFormAssembly(world, count, kind);
+      }
+    }
+
+    // Crowd-pressure valve: too many loose homing drones → an extra evolution
+    // fires now, thinning the swarm into one readable creature.
+    world.crowdAssemblyTimer -= dt;
     if (
+      world.crowdAssemblyTimer <= 0 &&
+      world.assemblies.length < maxConcurrent &&
       difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
-      world.assemblies.length < maxConcurrent
+      countFreeDrones(world) >= ASSEMBLY.crowdTrigger
     ) {
+      world.crowdAssemblyTimer = ASSEMBLY.crowdCooldown;
+      const count = Math.round(
+        (ASSEMBLY.countRange[0] +
+          Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0])) *
+          mutatorAssemblyCountScale(),
+      );
+      const kind = kinds[Math.floor(Math.random() * kinds.length)];
       tryFormAssembly(world, count, kind);
     }
-  }
-
-  // Crowd-pressure valve: too many loose homing drones → an extra evolution
-  // fires now, thinning the swarm into one readable creature.
-  world.crowdAssemblyTimer -= dt;
-  if (
-    world.crowdAssemblyTimer <= 0 &&
-    world.assemblies.length < maxConcurrent &&
-    difficultyMinutes(world) >= ASSEMBLY.minMinutes &&
-    countFreeDrones(world) >= ASSEMBLY.crowdTrigger
-  ) {
-    world.crowdAssemblyTimer = ASSEMBLY.crowdCooldown;
-    const count = Math.round(
-      (ASSEMBLY.countRange[0] +
-        Math.random() * (ASSEMBLY.countRange[1] - ASSEMBLY.countRange[0])) *
-        mutatorAssemblyCountScale(),
-    );
-    const kind = mutatorForceAssemblyKind() ?? kinds[Math.floor(Math.random() * kinds.length)];
-    tryFormAssembly(world, count, kind);
   }
 
   const hw = world.viewW / 2;

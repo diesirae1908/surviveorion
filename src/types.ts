@@ -59,6 +59,23 @@ export interface Drone {
  */
 export type AssemblyKind = "lance" | "wheel" | "hunter" | "bomb";
 
+/**
+ * Round 5 Daily Mutator (creature days): a scripted assembly waiting to
+ * materialize fully formed. Timing/anchor/heading were already rolled on the
+ * seeded streams when this was queued (see creatures.ts); `timer` just
+ * counts down the readable telegraph before spawnAssemblyDirect fires.
+ */
+export interface CreatureSpawn {
+  kind: AssemblyKind;
+  timer: number; // seconds left before materializing
+  duration: number; // original warning duration, for telegraph render progress
+  x: number; // anchor position at materialization
+  y: number;
+  dirX: number; // initial heading (unit vector)
+  dirY: number;
+  count: number; // member count, fixed at schedule time
+}
+
 export interface Assembly {
   kind: AssemblyKind;
   phase: "form" | "active";
@@ -352,6 +369,10 @@ export interface World {
   /** Cooldown for crowd-pressure evolutions (Math.random side, off-stream). */
   crowdAssemblyTimer: number;
   assemblies: Assembly[];
+  /** Creature days only: countdown to the next choreographed event (schedule stream). */
+  creatureTimer: number;
+  /** Creature days only: scripted assemblies queued to materialize. */
+  creatureSpawnQueue: CreatureSpawn[];
 
   shake: number; // screen shake amplitude (world units)
 

@@ -1,4 +1,5 @@
 import { MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./config";
+import { updateCreatureChoreography } from "./creatures";
 import { droneRadius, initSpawner, killDrone, updateAssemblies, updateDrones, updateSpawner } from "./enemies";
 import type { InputState } from "./input";
 import { isMineArmed, killMine, mineRadius, updateMines } from "./mines";
@@ -62,6 +63,9 @@ export function createWorld(
     assemblyTimer: 0, // set by initSpawner (schedule stream)
     crowdAssemblyTimer: 0,
     assemblies: [],
+    // Round 5 creature days only (see creatures.ts); harmless everywhere else.
+    creatureTimer: 0,
+    creatureSpawnQueue: [],
     shake: 0,
     events: [],
   };
@@ -91,6 +95,7 @@ export function tick(world: World, input: InputState, dt: number): void {
   updateSpawner(world, dt);
   updateDrones(world, dt);
   updateAssemblies(world, dt);
+  updateCreatureChoreography(world, dt);
   updateMines(world, dt);
   updateStarfallRain(world, dt);
   updatePickups(world, dt);

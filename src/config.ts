@@ -273,6 +273,53 @@ export const ASSEMBLY = {
   },
 };
 
+// Round 5 Daily Mutator system: on the four forced-creature days (Hunting
+// Party, Lancer Doctrine, Wheelhouse, Demolition Day) assemblies stop being
+// conscripted from the ambient swarm and become the spawn pattern itself:
+// scripted events that materialize fully formed (see creatures.ts). Event
+// cadence/counts ride the seeded schedule stream, anchors/headings ride the
+// seeded placement stream, so every pilot on the day gets the identical
+// script no matter how they fly. Every entry ramps from an "early" feel to a
+// "late" feel over `rampMinutes`, same shape as the rest of the escalation.
+export const CREATURE_DAYS = {
+  rampMinutes: 3,
+  telegraph: {
+    // hunter/lance/wheel: a brief on-screen flash at the entry point right
+    // before the member drones pop in (they're already telegraphed by their
+    // inbound motion, this is just a beat of warning so the pop isn't a jump-scare)
+    entryWarning: 0.4,
+    // bomb: no inbound motion to read, so it needs a real warning strobe
+    // before it materializes out of thin air
+    materializeWarning: 1.5,
+  },
+  hunter: {
+    packSizeRange: [2, 4] as const, // vees per wave, ramps up over the run
+    veeMemberRange: [4, 6] as const,
+    veeStagger: 0.3, // seconds between vees within a wave entering
+    waveIntervalEarly: [11, 14] as const,
+    waveIntervalLate: [6, 8] as const,
+  },
+  lance: {
+    salvoSizeRange: [2, 5] as const, // bars per salvo, ramps up over the run
+    barMemberRange: [5, 8] as const,
+    barStagger: 0.4, // volley rhythm: each bar a beat behind the last
+    salvoIntervalEarly: [9, 12] as const,
+    salvoIntervalLate: [5, 7] as const,
+  },
+  wheel: {
+    laneCountRange: [1, 3] as const, // concurrent lanes per burst, ramps up
+    wheelMemberRange: [6, 9] as const,
+    laneStagger: 0.5,
+    laneIntervalEarly: [7, 9] as const,
+    laneIntervalLate: [3.5, 5] as const,
+  },
+  bomb: {
+    memberRange: [5, 9] as const,
+    deploymentIntervalEarly: [7, 9] as const,
+    deploymentIntervalLate: [3, 4.5] as const,
+  },
+};
+
 // Stationary hazards that deny space. Capped low and spawned away from the
 // ship so the arena never turns into a minefield mess.
 export const MINES = {
