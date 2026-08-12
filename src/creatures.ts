@@ -18,7 +18,7 @@
 // Fully gated behind mutatorForceAssemblyKind() (non-null only on the four
 // creature days): every other day and mode never calls into this file.
 
-import { CREATURE_DAYS, SPAWNER } from "./config";
+import { CREATURE_DAYS, SPAWNER, type CreatureLateGrowth } from "./config";
 import { difficultyMinutes, spawnAssemblyDirect } from "./enemies";
 import { clamp01, lerp, randRange, scheduleRand, scheduleRange } from "./math";
 import { mutatorForceAssemblyKind, mutatorMenagerieActive } from "./mutators";
@@ -62,20 +62,66 @@ function jitterHeading(dirX: number, dirY: number, angle: number): { x: number; 
   return { x: dirX * cos - dirY * sin, y: dirX * sin + dirY * cos };
 }
 
-/** [min,max] interval lerped from an "early" feel to a "late" feel over CREATURE_DAYS.rampMinutes. */
-function rampedInterval(
+// --- shared escalation math (early ramp + endless late leg) ---
+//
+// Every creature day uses these four helpers, so the late-growth SHAPE is the
+// same everywhere and only the per-day numbers differ (CREATURE_DAYS.*.late,
+// see config.ts CreatureLateGrowth). All four are pure functions of elapsed
+// run minutes: a given point in the run consumes the same number of seeded
+// draws for every pilot, so the shared daily script is unaffected.
+
+/** Run minutes past the early ramp (0 while still ramping). */
+function lateMinutes(minutes: number): number {
+  return Math.max(0, minutes - CREATURE_DAYS.rampMinutes);
+}
+
+/**
+ * [min,max] interval lerped from an "early" feel to a "late" feel over
+ * CREATURE_DAYS.rampMinutes, then tightened forever after it (hyperbolic, so
+ * the first late minutes bite hardest), bottoming out at intervalFloorScale
+ * of the late range.
+ */
+function escalateInterval(
   minutes: number,
   early: readonly [number, number],
   late: readonly [number, number],
+  growth: CreatureLateGrowth,
 ): [number, number] {
   const t = clamp01(minutes / CREATURE_DAYS.rampMinutes);
-  return [lerp(early[0], late[0], t), lerp(early[1], late[1], t)];
+  const lateScale = Math.max(
+    growth.intervalFloorScale,
+    1 / (1 + growth.intervalTighten * lateMinutes(minutes)),
+  );
+  return [lerp(early[0], late[0], t) * lateScale, lerp(early[1], late[1], t) * lateScale];
 }
 
-/** Integer count ramped purely from elapsed run time (never field state). */
-function rampedCount(minutes: number, range: readonly [number, number]): number {
+/**
+ * Structures per event (hunter vees / lance bars / wheel lanes / bomb slabs /
+ * menagerie animals): ramps over the early ramp, then keeps growing linearly
+ * up to growth.groupMax.
+ */
+function escalateCount(
+  minutes: number,
+  range: readonly [number, number],
+  growth: CreatureLateGrowth,
+): number {
   const t = clamp01(minutes / CREATURE_DAYS.rampMinutes);
-  return Math.round(lerp(range[0], range[1], t));
+  const grown = lerp(range[0], range[1], t) + growth.groupPerMinute * lateMinutes(minutes);
+  return Math.max(1, Math.round(Math.min(growth.groupMax, grown)));
+}
+
+/** Extra member drones per structure late in the run (added to the seeded roll). */
+function lateMemberBonus(minutes: number, growth: CreatureLateGrowth): number {
+  return Math.min(growth.memberMax, growth.memberPerMinute * lateMinutes(minutes));
+}
+
+/**
+ * Travel-speed multiplier for creatures spawned this late in the run. The
+ * drone baseline speed ramp is deliberately near-flat (see SPAWNER.speedMultiplier),
+ * so without this a creature day's pace never changes at all.
+ */
+function lateSpeedScale(minutes: number, growth: CreatureLateGrowth): number {
+  return Math.min(growth.speedMax, 1 + growth.speedPerMinute * lateMinutes(minutes));
 }
 
 function queueSpawn(
@@ -88,18 +134,31 @@ function queueSpawn(
   count: number,
   duration: number,
   extraDelay: number,
+  speedScale: number,
 ): void {
-  const spawn: CreatureSpawn = { kind, timer: duration + extraDelay, duration, x, y, dirX, dirY, count };
+  const spawn: CreatureSpawn = {
+    kind,
+    timer: duration + extraDelay,
+    duration,
+    x,
+    y,
+    dirX,
+    dirY,
+    count,
+    speedScale,
+  };
   world.creatureSpawnQueue.push(spawn);
 }
 
 /** HUNTING PARTY: waves of 2-4 hunter vees entering from different edges, converging. */
 function scheduleHunterWave(world: World, minutes: number): void {
   const cfg = CREATURE_DAYS.hunter;
-  const [minI, maxI] = rampedInterval(minutes, cfg.waveIntervalEarly, cfg.waveIntervalLate);
+  const [minI, maxI] = escalateInterval(minutes, cfg.waveIntervalEarly, cfg.waveIntervalLate, cfg.late);
   world.creatureTimer = scheduleRange(minI, maxI);
 
-  const packSize = rampedCount(minutes, cfg.packSizeRange);
+  const packSize = escalateCount(minutes, cfg.packSizeRange, cfg.late);
+  const memberBonus = lateMemberBonus(minutes, cfg.late);
+  const speedScale = lateSpeedScale(minutes, cfg.late);
   const startEdge = Math.floor(scheduleRand() * EDGE_COUNT);
   const warning = CREATURE_DAYS.telegraph.entryWarning;
   for (let i = 0; i < packSize; i++) {
@@ -107,18 +166,31 @@ function scheduleHunterWave(world: World, minutes: number): void {
     const lateral = randRange(-geo.span * 0.35, geo.span * 0.35);
     const anchor = edgeAnchor(geo, lateral);
     const heading = jitterHeading(geo.dirX, geo.dirY, randRange(-0.35, 0.35));
-    const count = Math.round(scheduleRange(...cfg.veeMemberRange));
-    queueSpawn(world, "hunter", anchor.x, anchor.y, heading.x, heading.y, count, warning, i * cfg.veeStagger);
+    const count = Math.round(scheduleRange(...cfg.veeMemberRange) + memberBonus);
+    queueSpawn(
+      world,
+      "hunter",
+      anchor.x,
+      anchor.y,
+      heading.x,
+      heading.y,
+      count,
+      warning,
+      i * cfg.veeStagger,
+      speedScale,
+    );
   }
 }
 
 /** LANCER DOCTRINE: salvos of 2-5 parallel lance bars sweeping from one edge. */
 function scheduleLanceSalvo(world: World, minutes: number): void {
   const cfg = CREATURE_DAYS.lance;
-  const [minI, maxI] = rampedInterval(minutes, cfg.salvoIntervalEarly, cfg.salvoIntervalLate);
+  const [minI, maxI] = escalateInterval(minutes, cfg.salvoIntervalEarly, cfg.salvoIntervalLate, cfg.late);
   world.creatureTimer = scheduleRange(minI, maxI);
 
-  const salvoSize = rampedCount(minutes, cfg.salvoSizeRange);
+  const salvoSize = escalateCount(minutes, cfg.salvoSizeRange, cfg.late);
+  const memberBonus = lateMemberBonus(minutes, cfg.late);
+  const speedScale = lateSpeedScale(minutes, cfg.late);
   const edge = Math.floor(scheduleRand() * EDGE_COUNT);
   const geo = edgeGeometry(world, edge);
   const warning = CREATURE_DAYS.telegraph.entryWarning;
@@ -126,18 +198,31 @@ function scheduleLanceSalvo(world: World, minutes: number): void {
     const lateral = randRange(-geo.span * 0.4, geo.span * 0.4);
     const anchor = edgeAnchor(geo, lateral);
     const heading = jitterHeading(geo.dirX, geo.dirY, randRange(-0.12, 0.12));
-    const count = Math.round(scheduleRange(...cfg.barMemberRange));
-    queueSpawn(world, "lance", anchor.x, anchor.y, heading.x, heading.y, count, warning, i * cfg.barStagger);
+    const count = Math.round(scheduleRange(...cfg.barMemberRange) + memberBonus);
+    queueSpawn(
+      world,
+      "lance",
+      anchor.x,
+      anchor.y,
+      heading.x,
+      heading.y,
+      count,
+      warning,
+      i * cfg.barStagger,
+      speedScale,
+    );
   }
 }
 
 /** WHEELHOUSE: wheels rolling through in lanes from alternating sides. */
 function scheduleWheelLanes(world: World, minutes: number): void {
   const cfg = CREATURE_DAYS.wheel;
-  const [minI, maxI] = rampedInterval(minutes, cfg.laneIntervalEarly, cfg.laneIntervalLate);
+  const [minI, maxI] = escalateInterval(minutes, cfg.laneIntervalEarly, cfg.laneIntervalLate, cfg.late);
   world.creatureTimer = scheduleRange(minI, maxI);
 
-  const laneCount = rampedCount(minutes, cfg.laneCountRange);
+  const laneCount = escalateCount(minutes, cfg.laneCountRange, cfg.late);
+  const memberBonus = lateMemberBonus(minutes, cfg.late);
+  const speedScale = lateSpeedScale(minutes, cfg.late);
   // one axis pair per burst (left/right or bottom/top) so lanes read as
   // consistent crossing traffic rather than a random scatter of directions
   const axisPair = Math.floor(scheduleRand() * 2) * 2;
@@ -146,37 +231,60 @@ function scheduleWheelLanes(world: World, minutes: number): void {
     const geo = edgeGeometry(world, axisPair + (i % 2));
     const lateral = randRange(-geo.span * 0.4, geo.span * 0.4);
     const anchor = edgeAnchor(geo, lateral);
-    const count = Math.round(scheduleRange(...cfg.wheelMemberRange));
+    const count = Math.round(scheduleRange(...cfg.wheelMemberRange) + memberBonus);
     // no heading jitter: a clean lane crossing reads best straight across
-    queueSpawn(world, "wheel", anchor.x, anchor.y, geo.dirX, geo.dirY, count, warning, i * cfg.laneStagger);
+    queueSpawn(
+      world,
+      "wheel",
+      anchor.x,
+      anchor.y,
+      geo.dirX,
+      geo.dirY,
+      count,
+      warning,
+      i * cfg.laneStagger,
+      speedScale,
+    );
   }
 }
 
 /** DEMOLITION DAY: continuous scripted bomb deployments that materialize with a warning strobe. */
 function scheduleBombDeployment(world: World, minutes: number): void {
   const cfg = CREATURE_DAYS.bomb;
-  const [minI, maxI] = rampedInterval(minutes, cfg.deploymentIntervalEarly, cfg.deploymentIntervalLate);
+  const [minI, maxI] = escalateInterval(
+    minutes,
+    cfg.deploymentIntervalEarly,
+    cfg.deploymentIntervalLate,
+    cfg.late,
+  );
   world.creatureTimer = scheduleRange(minI, maxI);
 
+  const slabCount = escalateCount(minutes, cfg.deploymentCountRange, cfg.late);
+  const memberBonus = lateMemberBonus(minutes, cfg.late);
   const hw = world.viewW / 2 - 1.5;
   const hh = world.viewH / 2 - 1.5;
-  const x = randRange(-hw, hw);
-  const y = randRange(-hh, hh);
-  const angle = randRange(0, Math.PI * 2);
-  const count = Math.round(scheduleRange(...cfg.memberRange));
-  // no crowd left to "lean on" (no conscription anymore), so a slow seeded
-  // drift stands in for the old crowd-lean heading
-  queueSpawn(
-    world,
-    "bomb",
-    x,
-    y,
-    Math.cos(angle) * 0.15,
-    Math.sin(angle) * 0.15,
-    count,
-    CREATURE_DAYS.telegraph.materializeWarning,
-    0,
-  );
+  for (let i = 0; i < slabCount; i++) {
+    const x = randRange(-hw, hw);
+    const y = randRange(-hh, hh);
+    const angle = randRange(0, Math.PI * 2);
+    const count = Math.round(scheduleRange(...cfg.memberRange) + memberBonus);
+    // no crowd left to "lean on" (no conscription anymore), so a slow seeded
+    // drift stands in for the old crowd-lean heading. Slabs within one
+    // deployment are staggered so their fuses don't all pop on the same
+    // frame: a deployment should deny space in waves, not flash-fry the arena.
+    queueSpawn(
+      world,
+      "bomb",
+      x,
+      y,
+      Math.cos(angle) * 0.15,
+      Math.sin(angle) * 0.15,
+      count,
+      CREATURE_DAYS.telegraph.materializeWarning,
+      i * cfg.slabStagger,
+      1,
+    );
+  }
 }
 
 /** MENAGERIE: the four kinds in seeded draw order (stable indices, used by
@@ -210,7 +318,13 @@ function telegraphFor(kind: AssemblyKind): number {
  * `extraDelay` lets a double event force strict materialization order (see
  * scheduleMenagerieEvent) regardless of the two kinds' own telegraph lengths.
  */
-function spawnMenagerieKind(world: World, kind: AssemblyKind, extraDelay: number): void {
+function spawnMenagerieKind(
+  world: World,
+  kind: AssemblyKind,
+  extraDelay: number,
+  memberBonus: number,
+  speedScale: number,
+): void {
   const warning = telegraphFor(kind);
   switch (kind) {
     case "hunter": {
@@ -218,8 +332,8 @@ function spawnMenagerieKind(world: World, kind: AssemblyKind, extraDelay: number
       const geo = edgeGeometry(world, Math.floor(scheduleRand() * EDGE_COUNT));
       const anchor = edgeAnchor(geo, randRange(-geo.span * 0.35, geo.span * 0.35));
       const heading = jitterHeading(geo.dirX, geo.dirY, randRange(-0.35, 0.35));
-      const count = Math.round(scheduleRange(...cfg.veeMemberRange));
-      queueSpawn(world, "hunter", anchor.x, anchor.y, heading.x, heading.y, count, warning, extraDelay);
+      const count = Math.round(scheduleRange(...cfg.veeMemberRange) + memberBonus);
+      queueSpawn(world, "hunter", anchor.x, anchor.y, heading.x, heading.y, count, warning, extraDelay, speedScale);
       return;
     }
     case "lance": {
@@ -227,17 +341,17 @@ function spawnMenagerieKind(world: World, kind: AssemblyKind, extraDelay: number
       const geo = edgeGeometry(world, Math.floor(scheduleRand() * EDGE_COUNT));
       const anchor = edgeAnchor(geo, randRange(-geo.span * 0.4, geo.span * 0.4));
       const heading = jitterHeading(geo.dirX, geo.dirY, randRange(-0.12, 0.12));
-      const count = Math.round(scheduleRange(...cfg.barMemberRange));
-      queueSpawn(world, "lance", anchor.x, anchor.y, heading.x, heading.y, count, warning, extraDelay);
+      const count = Math.round(scheduleRange(...cfg.barMemberRange) + memberBonus);
+      queueSpawn(world, "lance", anchor.x, anchor.y, heading.x, heading.y, count, warning, extraDelay, speedScale);
       return;
     }
     case "wheel": {
       const cfg = CREATURE_DAYS.wheel;
       const geo = edgeGeometry(world, Math.floor(scheduleRand() * EDGE_COUNT));
       const anchor = edgeAnchor(geo, randRange(-geo.span * 0.4, geo.span * 0.4));
-      const count = Math.round(scheduleRange(...cfg.wheelMemberRange));
+      const count = Math.round(scheduleRange(...cfg.wheelMemberRange) + memberBonus);
       // no heading jitter: a clean lane crossing reads best straight across
-      queueSpawn(world, "wheel", anchor.x, anchor.y, geo.dirX, geo.dirY, count, warning, extraDelay);
+      queueSpawn(world, "wheel", anchor.x, anchor.y, geo.dirX, geo.dirY, count, warning, extraDelay, speedScale);
       return;
     }
     case "bomb": {
@@ -247,8 +361,21 @@ function spawnMenagerieKind(world: World, kind: AssemblyKind, extraDelay: number
       const x = randRange(-hw, hw);
       const y = randRange(-hh, hh);
       const angle = randRange(0, Math.PI * 2);
-      const count = Math.round(scheduleRange(...cfg.memberRange));
-      queueSpawn(world, "bomb", x, y, Math.cos(angle) * 0.15, Math.sin(angle) * 0.15, count, warning, extraDelay);
+      const count = Math.round(scheduleRange(...cfg.memberRange) + memberBonus);
+      queueSpawn(
+        world,
+        "bomb",
+        x,
+        y,
+        Math.cos(angle) * 0.15,
+        Math.sin(angle) * 0.15,
+        count,
+        warning,
+        extraDelay,
+        // a bomb's drift is its identity; late growth gives it more shrapnel,
+        // not more pace (matches DEMOLITION DAY's own late block)
+        1,
+      );
       return;
     }
   }
@@ -257,36 +384,52 @@ function spawnMenagerieKind(world: World, kind: AssemblyKind, extraDelay: number
 /**
  * MENAGERIE: draws one kind per event from the seeded schedule stream
  * across all four kinds (consecutive-repeat avoidance so the variety
- * actually reads), occasionally doubling into two different kinds at once
- * as the run escalates. Cadence sits between the four single-kind days' own
- * pacing (see CREATURE_DAYS.menagerie), it doesn't match any one of them.
+ * actually reads), doubling into two different kinds at once more and more
+ * often as the run escalates, and, deep into the run, stacking a third and
+ * fourth animal per event (CREATURE_DAYS.menagerie.late.groupPerMinute).
+ * Cadence sits between the four single-kind days' own pacing (see
+ * CREATURE_DAYS.menagerie), it doesn't match any one of them.
  *
- * A double event forces kindSecond to materialize strictly after kindFirst
- * (extraDelay below), no matter which two kinds are drawn: telegraphFor
- * varies per kind (bomb is longer), so without this a short-telegraph
- * kindSecond could pop in before kindFirst and land next to whatever kind
- * ended the PREVIOUS event instead of next to kindFirst, silently defeating
- * the repeat guard on the visible script. Forcing the order keeps "visible
- * order == draw order", so avoiding kind1 for kind2 is enough.
+ * Every animal after the first materializes strictly after the one before it
+ * (extraDelay below), no matter which kinds are drawn: telegraphFor varies
+ * per kind (bomb is longer), so without this a short-telegraph animal could
+ * pop in before its predecessor and land next to whatever kind ended the
+ * PREVIOUS event instead, silently defeating the repeat guard on the visible
+ * script. Forcing the order keeps "visible order == draw order", so avoiding
+ * only the immediately preceding kind is enough.
  */
 function scheduleMenagerieEvent(world: World, minutes: number): void {
   const cfg = CREATURE_DAYS.menagerie;
-  const [minI, maxI] = rampedInterval(minutes, cfg.eventIntervalEarly, cfg.eventIntervalLate);
+  const [minI, maxI] = escalateInterval(minutes, cfg.eventIntervalEarly, cfg.eventIntervalLate, cfg.late);
   world.creatureTimer = scheduleRange(minI, maxI);
 
-  const doubleChance = lerp(cfg.doubleChanceEarly, cfg.doubleChanceLate, clamp01(minutes / CREATURE_DAYS.rampMinutes));
+  const rampT = clamp01(minutes / CREATURE_DAYS.rampMinutes);
+  const doubleChance = Math.min(
+    1,
+    lerp(cfg.doubleChanceEarly, cfg.doubleChanceLate, rampT) +
+      cfg.doubleChanceLatePerMinute * lateMinutes(minutes),
+  );
   const isDouble = scheduleRand() < doubleChance;
+  const memberBonus = lateMemberBonus(minutes, cfg.late);
+  const speedScale = lateSpeedScale(minutes, cfg.late);
 
-  const kindFirst = drawMenagerieKind(world.creatureLastKind);
-  spawnMenagerieKind(world, kindFirst, 0);
+  // 1 animal, +1 on a successful double roll, +1 per late-growth step past
+  // the ramp (escalateCount's [1,1] range keeps the early game at exactly one)
+  const animals = (isDouble ? 2 : 1) + escalateCount(minutes, [1, 1], cfg.late) - 1;
 
-  if (isDouble) {
-    const kindSecond = drawMenagerieKind(kindFirst); // avoid repeating kindFirst within the same double
-    spawnMenagerieKind(world, kindSecond, telegraphFor(kindFirst) + 0.1);
-    world.creatureLastKind = kindSecond;
-  } else {
-    world.creatureLastKind = kindFirst;
+  let prev = world.creatureLastKind;
+  let prevLanding = 0; // when the animal before this one materializes
+  for (let i = 0; i < animals; i++) {
+    const kind = drawMenagerieKind(prev);
+    // each animal's own telegraph runs on TOP of its predecessor's landing, so
+    // the order holds for any mix of kinds (this is the pre-existing double
+    // formula, generalized to a chain: extraDelay = prevLanding + 0.1)
+    const extraDelay = i === 0 ? 0 : prevLanding + 0.1;
+    spawnMenagerieKind(world, kind, extraDelay, memberBonus, speedScale);
+    prevLanding = telegraphFor(kind) + extraDelay;
+    prev = kind;
   }
+  world.creatureLastKind = prev;
 }
 
 /**
@@ -306,7 +449,17 @@ export function updateCreatureChoreography(world: World, dt: number): void {
     q.timer -= dt;
     if (q.timer <= 0) {
       world.creatureSpawnQueue.splice(i, 1);
-      spawnAssemblyDirect(world, difficultyMinutes(world), q.kind, q.count, q.x, q.y, q.dirX, q.dirY);
+      spawnAssemblyDirect(
+        world,
+        difficultyMinutes(world),
+        q.kind,
+        q.count,
+        q.x,
+        q.y,
+        q.dirX,
+        q.dirY,
+        q.speedScale,
+      );
     }
   }
 

@@ -273,6 +273,39 @@ export const ASSEMBLY = {
   },
 };
 
+/**
+ * Late growth for a creature day (2026-08-11): the early→late ramp below is
+ * done by `CREATURE_DAYS.rampMinutes`, and these keep the day escalating
+ * FOREVER past it, the same endless-leg shape Classic gets from `escalate()`
+ * (see math.ts and SPAWNER.spawnsPerSecond's `latePerMinute`). Without this a
+ * creature day hard-plateaus at minute 3 and can be farmed indefinitely
+ * (WHEELHOUSE was flown for 25 minutes on 2026-08-11).
+ *
+ * Every field is a pure function of elapsed run minutes (never field state),
+ * so the shared Daily Patrol script stays identical for every pilot: the
+ * number of seeded draws at a given point in the run is unchanged from pilot
+ * to pilot even though it now grows with time. See creatures.ts helpers
+ * (escalateInterval / escalateCount / lateMemberBonus / lateSpeedScale).
+ */
+export interface CreatureLateGrowth {
+  /** Event interval keeps shrinking: late range / (1 + intervalTighten * lateMinutes). */
+  intervalTighten: number;
+  /** Floor: never tighter than this fraction of the day's late interval range. */
+  intervalFloorScale: number;
+  /** Extra structures per event (lanes / vees / bars / slabs) per late minute. */
+  groupPerMinute: number;
+  /** Hard cap on structures per event. */
+  groupMax: number;
+  /** Extra member drones per structure per late minute (added to the seeded roll). */
+  memberPerMinute: number;
+  /** Hard cap on that member bonus. */
+  memberMax: number;
+  /** Creature travel speed gained per late minute (1.0 = the kind's normal speed). */
+  speedPerMinute: number;
+  /** Hard cap on the speed multiplier. */
+  speedMax: number;
+}
+
 // Round 5 Daily Mutator system: on the four forced-creature days (Hunting
 // Party, Lancer Doctrine, Wheelhouse, Demolition Day) assemblies stop being
 // conscripted from the ambient swarm and become the spawn pattern itself:
@@ -280,7 +313,8 @@ export const ASSEMBLY = {
 // cadence/counts ride the seeded schedule stream, anchors/headings ride the
 // seeded placement stream, so every pilot on the day gets the identical
 // script no matter how they fly. Every entry ramps from an "early" feel to a
-// "late" feel over `rampMinutes`, same shape as the rest of the escalation.
+// "late" feel over `rampMinutes`, then keeps growing forever on its `late`
+// block (see CreatureLateGrowth above).
 export const CREATURE_DAYS = {
   rampMinutes: 3,
   telegraph: {
@@ -298,6 +332,20 @@ export const CREATURE_DAYS = {
     veeStagger: 0.3, // seconds between vees within a wave entering
     waveIntervalEarly: [11, 14] as const,
     waveIntervalLate: [6, 8] as const,
+    // The pack keeps growing and closing faster after minute 3. Speed grows
+    // least of the four: a hunter is meant to be outflown, not outrun (its
+    // turn rate is the counterplay), so pace stays readable while the pack
+    // size and cadence carry the late pressure.
+    late: {
+      intervalTighten: 0.22,
+      intervalFloorScale: 0.5,
+      groupPerMinute: 0.5,
+      groupMax: 7,
+      memberPerMinute: 0.7,
+      memberMax: 5,
+      speedPerMinute: 0.05,
+      speedMax: 1.4,
+    } as CreatureLateGrowth,
   },
   lance: {
     salvoSizeRange: [2, 5] as const, // bars per salvo, ramps up over the run
@@ -305,6 +353,17 @@ export const CREATURE_DAYS = {
     barStagger: 0.4, // volley rhythm: each bar a beat behind the last
     salvoIntervalEarly: [9, 12] as const,
     salvoIntervalLate: [5, 7] as const,
+    // Salvos get wider bars, more bars per volley, and a faster volley rhythm.
+    late: {
+      intervalTighten: 0.22,
+      intervalFloorScale: 0.5,
+      groupPerMinute: 0.5,
+      groupMax: 8,
+      memberPerMinute: 0.7,
+      memberMax: 5,
+      speedPerMinute: 0.06,
+      speedMax: 1.5,
+    } as CreatureLateGrowth,
   },
   wheel: {
     laneCountRange: [1, 3] as const, // concurrent lanes per burst, ramps up
@@ -312,11 +371,48 @@ export const CREATURE_DAYS = {
     laneStagger: 0.5,
     laneIntervalEarly: [7, 9] as const,
     laneIntervalLate: [3.5, 5] as const,
+    // The 2026-08-11 calibration target (Lucas: 25-minute WHEELHOUSE runs must
+    // stop being possible, skilled runs should land ~5 min and cap out at
+    // 7-8): ~4 lanes and ~9-member wheels by m=5, ~5 lanes / ~11-member
+    // wheels and a ~2.0-2.5s burst cadence by m=7, with the traffic itself
+    // ~25% faster by then. Everything before minute 3 is untouched.
+    late: {
+      intervalTighten: 0.25,
+      intervalFloorScale: 0.5,
+      groupPerMinute: 0.5,
+      groupMax: 6,
+      memberPerMinute: 0.9,
+      memberMax: 6,
+      speedPerMinute: 0.08,
+      speedMax: 1.6,
+    } as CreatureLateGrowth,
   },
   bomb: {
+    // slabs per deployment: 1 at the open (the original behavior), a second
+    // one from ~m1.5, then late growth from there. DEMOLITION DAY was by far
+    // the most farmable day of the pool (an assisted dodge bot ran it to a
+    // 10-minute cap, see JOURNAL.md 2026-08-11), because one short-fused slab
+    // at a time disbands before the next one lands.
+    deploymentCountRange: [1, 2] as const,
+    slabStagger: 0.6, // seconds between slabs of one deployment materializing
     memberRange: [5, 9] as const,
     deploymentIntervalEarly: [7, 9] as const,
     deploymentIntervalLate: [3, 4.5] as const,
+    // No speed growth: a bomb drifts by design (the shrapnel is the threat),
+    // so its late pressure is more slabs, bigger slabs, deployed faster.
+    late: {
+      intervalTighten: 0.25,
+      // tightest floor of the pool (~1.2-1.8s between deployments): a slab is
+      // a stationary threat, the most farmable kind, so cadence has to carry
+      // what pace can't
+      intervalFloorScale: 0.4,
+      groupPerMinute: 0.5,
+      groupMax: 6,
+      memberPerMinute: 0.8,
+      memberMax: 6,
+      speedPerMinute: 0,
+      speedMax: 1,
+    } as CreatureLateGrowth,
   },
   // MENAGERIE: kind drawn per event (see creatures.ts scheduleMenagerieEvent),
   // reusing each kind's own member-count range and telegraph above. Density
@@ -333,6 +429,22 @@ export const CREATURE_DAYS = {
     // (doubles from the first event, not just late) per the density pass.
     doubleChanceEarly: 0.25,
     doubleChanceLate: 0.5,
+    // ...and past the ramp the double stops being a coin flip and becomes the
+    // norm (capped at certainty), so the zoo keeps compounding late.
+    doubleChanceLatePerMinute: 0.12,
+    // One creature per event is MENAGERIE's identity, so its `groupPerMinute`
+    // is the gentlest of the pool: a guaranteed double gains a third animal
+    // only around m=6 and a fourth around m=9.
+    late: {
+      intervalTighten: 0.2,
+      intervalFloorScale: 0.55,
+      groupPerMinute: 0.35,
+      groupMax: 4,
+      memberPerMinute: 0.7,
+      memberMax: 5,
+      speedPerMinute: 0.06,
+      speedMax: 1.5,
+    } as CreatureLateGrowth,
   },
 };
 
@@ -361,6 +473,12 @@ export const STARFALL_RAIN = {
   intervalStart: 4.0, // seconds between impacts near minute zero
   intervalFloor: 1.0, // seconds between impacts once fully ramped
   rampMinutes: 3.5, // time to go from intervalStart to intervalFloor
+  // Past the ramp the sky keeps opening up (2026-08-11 late-growth pass): the
+  // interval keeps shrinking instead of sitting on intervalFloor forever, so
+  // STARFALL's rain has an endless leg like Classic's density does. Reaches
+  // ~0.7s by m=7 and bottoms out at intervalHardFloor around m=13.
+  lateTightenPerMinute: 0.14,
+  intervalHardFloor: 0.45,
   intervalJitter: 0.15, // +/- fraction of the ramped interval (schedule-stream draw)
   warningRange: [1.0, 2.0] as const, // ground-reticle warning duration
   radius: 1.8, // kill/lethal radius on impact, matches the Meteor Storm power's feel

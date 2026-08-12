@@ -50,6 +50,7 @@ export function createWorld(
     chainCount: 0,
     chainTimer: 0,
     spawnAccumulator: 0,
+    lateAmbientAccumulator: 0,
     formationTimer: 0,
     nextFormationDelay: 0,
     sustainedSpawnCooldown: 0,

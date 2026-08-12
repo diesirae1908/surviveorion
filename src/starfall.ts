@@ -23,13 +23,24 @@ import { mutatorMeteorRainActive } from "./mutators";
 import { spawnBlast } from "./powers";
 import type { World } from "./types";
 
-/** Ramped base interval between impacts (seconds), before schedule jitter. */
+/**
+ * Ramped base interval between impacts (seconds), before schedule jitter.
+ * Past the ramp the rain keeps intensifying instead of sitting on
+ * intervalFloor forever (2026-08-11 late-growth pass: a plateaued rain is a
+ * farmable rain), down to a hard floor so the sky never becomes a solid sheet.
+ */
 function baseInterval(world: World): number {
-  return ramp(world.time / 60, {
+  const minutes = world.time / 60;
+  const ramped = ramp(minutes, {
     from: STARFALL_RAIN.intervalStart,
     to: STARFALL_RAIN.intervalFloor,
     plateauMinutes: STARFALL_RAIN.rampMinutes,
   });
+  const late = Math.max(0, minutes - STARFALL_RAIN.rampMinutes);
+  return Math.max(
+    STARFALL_RAIN.intervalHardFloor,
+    ramped / (1 + STARFALL_RAIN.lateTightenPerMinute * late),
+  );
 }
 
 /** Schedule the next impact: fixed draws regardless of run state. */

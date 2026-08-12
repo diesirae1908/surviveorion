@@ -97,6 +97,27 @@ export interface MutatorOverrides {
    * empty screen waiting for it. Only ever tightens the delay (Math.min),
    * never lengthens it. */
   firstFormationDelayCap?: number;
+  /** Late-run pressure growth for a zero-ambient formation day (GREAT WALL,
+   * YEAR OF THE SERPENT). Those days replace Classic's endless ambient leg
+   * with a formation diet whose interval floors out after
+   * SPAWNER.formations.intervalRampMinutes, so without this they plateau and
+   * can be farmed for 20+ minutes (see JOURNAL.md 2026-08-11). Both knobs are
+   * pure time-driven value changes, no extra seeded draws. */
+  lateFormationGrowth?: LateFormationGrowth;
+}
+
+/** See MutatorOverrides.lateFormationGrowth. */
+export interface LateFormationGrowth {
+  /** Formation interval keeps shrinking past the ramp: interval / (1 + tighten * lateMinutes). */
+  intervalTighten: number;
+  /** Floor: never tighter than this fraction of the day's ramped interval. */
+  intervalFloorScale: number;
+  /** Run minutes before the late ambient trickle starts (identity stays pure early). */
+  ambientStartMinutes: number;
+  /** Ambient spawns/sec added per minute past ambientStartMinutes. */
+  ambientPerMinute: number;
+  /** Cap on that added ambient rate (spawns/sec). */
+  ambientMax: number;
 }
 
 export interface Mutator {
@@ -206,7 +227,7 @@ export const MUTATOR_POOL: Mutator[] = [
     id: "great-wall",
     name: "GREAT WALL",
     briefing: "Today the enemy builds walls. Find the gaps.",
-    subline: "No ambient drones at all. Only walls, mega walls, and pincers, faster than usual, released to hunt after their sweep.",
+    subline: "No ambient drones at all. Only walls, mega walls, and pincers, faster than usual, released to hunt after their sweep. Deep in the run the walls keep coming faster and stray drones start leaking in.",
     // v3 (round 4): ambient to true zero ("purer" per Lucas's playtest note;
     // no more lone stray drones diluting the identity). Scripted members
     // still release to normal homing after their sweep (see handleFormations
@@ -233,13 +254,26 @@ export const MUTATOR_POOL: Mutator[] = [
       // minMinutes bypass) or just feel slow to arrive; cap it so the wall
       // shows up fast on a screen with nothing else on it.
       firstFormationDelayCap: 4,
+      // v4 (2026-08-11 late-growth pass): the formation interval floors out at
+      // ~2 min, and this day has no ambient leg to keep growing, so the late
+      // run used to plateau (a shield-assisted dodge bot ran it 3.5 min, see
+      // JOURNAL.md). Walls keep coming faster forever now, and from minute 4
+      // a stray-drone trickle leaks in and grows, enough late pressure to end
+      // a farm without touching the pure "walls only" opening.
+      lateFormationGrowth: {
+        intervalTighten: 0.18,
+        intervalFloorScale: 0.45,
+        ambientStartMinutes: 4,
+        ambientPerMinute: 0.25,
+        ambientMax: 1.5,
+      },
     },
   },
   {
     id: "year-of-the-serpent",
     name: "YEAR OF THE SERPENT",
     briefing: "Every formation slithers today. Watch the trains.",
-    subline: "No ambient drones at all. Only serpent trains, more of them, released to hunt after their sweep.",
+    subline: "No ambient drones at all. Only serpent trains, more of them, released to hunt after their sweep. Deep in the run the trains keep coming faster and stray drones start leaking in.",
     // v3 (round 4): same "ambient to true zero" treatment as GREAT WALL; see
     // that entry's comment. Eased slightly further than GREAT WALL's 0.85:
     // a serpent is a single-file train, so each formation offers a narrower
@@ -251,6 +285,16 @@ export const MUTATOR_POOL: Mutator[] = [
       formationIntervalScale: 0.45,
       formationWeights: { ...NO_WALL, serpent: 1 },
       firstFormationDelayCap: 4,
+      // v4 (2026-08-11 late-growth pass): same plateau as GREAT WALL, same
+      // fix. A serpent train is a narrower threat than a wall, so this day
+      // leans slightly harder on the late ambient trickle to fill the arena.
+      lateFormationGrowth: {
+        intervalTighten: 0.18,
+        intervalFloorScale: 0.45,
+        ambientStartMinutes: 4,
+        ambientPerMinute: 0.3,
+        ambientMax: 1.8,
+      },
     },
   },
   {
@@ -360,7 +404,8 @@ export const MUTATOR_POOL: Mutator[] = [
     tags: ["power-amp"],
     // Drop RATE is deliberately untouched (per Sam's ask); only magnitude.
     // See powers.ts for exactly which dimension gets amplified per power;
-    // checked against server/validate.mjs's MAX_KILLS_PER_SEC (12) via the
+    // checked against server/validate.mjs's MAX_KILLS_PER_SEC (raised 12 to 20
+    // on 2026-08-11 for the late-growth pass) via the
     // same invulnerable-observer harness used for round 1 (see JOURNAL.md).
     overrides: { powerAmpScale: 1.4 },
   },
@@ -640,6 +685,35 @@ export function mutatorAmbientRateScale(): number {
 /** Caps the run's very first formation delay (seconds); null on ordinary days. */
 export function mutatorFirstFormationDelayCap(): number | null {
   return firstOf((o) => o.firstFormationDelayCap) ?? null;
+}
+
+/** Late-run growth for a zero-ambient formation day; null on every other day. */
+export function mutatorLateFormationGrowth(): LateFormationGrowth | null {
+  return firstOf((o) => o.lateFormationGrowth) ?? null;
+}
+
+/**
+ * Extra formation-interval tightening for a plateau-prone formation day, as a
+ * multiplier on the already-ramped interval (1 on every ordinary day).
+ */
+export function mutatorLateFormationIntervalScale(minutes: number): number {
+  const growth = mutatorLateFormationGrowth();
+  if (growth === null) return 1;
+  const late = Math.max(0, minutes - SPAWNER.formations.intervalRampMinutes);
+  return Math.max(growth.intervalFloorScale, 1 / (1 + growth.intervalTighten * late));
+}
+
+/**
+ * Late ambient trickle (spawns/sec) added on a zero-ambient formation day, so
+ * the late run can't be farmed on a pure formation diet. Zero before
+ * ambientStartMinutes and on every day that doesn't set the override, so early
+ * identity ("no ambient drones at all") is untouched.
+ */
+export function mutatorLateAmbientRate(minutes: number): number {
+  const growth = mutatorLateFormationGrowth();
+  if (growth === null) return 0;
+  const late = Math.max(0, minutes - growth.ambientStartMinutes);
+  return Math.min(growth.ambientMax, growth.ambientPerMinute * late);
 }
 
 export function mutatorDroneSpeedScale(): number {

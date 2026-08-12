@@ -14,6 +14,8 @@ import {
   mutatorFormationWeights,
   mutatorForceAssemblyKind,
   mutatorAmbientSoftCapActive,
+  mutatorLateAmbientRate,
+  mutatorLateFormationIntervalScale,
   mutatorMenagerieActive,
   mutatorScaleClamp,
   mutatorTelegraphDurationScale,
@@ -364,6 +366,22 @@ export function updateSpawner(world: World, dt: number): void {
   updateTelegraphs(world, dt, minutes);
   handleFormations(world, minutes, dt);
 
+  // Late-run stray-drone trickle on a zero-ambient formation day (GREAT WALL,
+  // YEAR OF THE SERPENT (see mutators.ts lateFormationGrowth); zero on every
+  // other day and mode). It runs on its own accumulator, ahead of the
+  // post-formation cooldown, on purpose: those days fire a formation every
+  // ~1.2s late in the run, and each one both zeroes world.spawnAccumulator and
+  // re-arms sustainedSpawnCooldown, so a trickle sharing the normal ambient
+  // path would be swallowed entirely (measured: exactly zero spawns).
+  const lateAmbientRate = mutatorLateAmbientRate(minutes);
+  if (lateAmbientRate > 0) {
+    world.lateAmbientAccumulator += lateAmbientRate * dt;
+    while (world.lateAmbientAccumulator >= 1) {
+      world.lateAmbientAccumulator -= 1;
+      spawnAmbient(world, minutes, 1);
+    }
+  }
+
   if (world.sustainedSpawnCooldown > 0) {
     world.sustainedSpawnCooldown -= dt;
     return;
@@ -608,10 +626,14 @@ function handleFormations(world: World, minutes: number, dt: number): void {
 function scheduleNextFormation(world: World): void {
   world.formationTimer = 0;
   const cfg = SPAWNER.formations;
-  const t = clamp01(difficultyMinutes(world) / cfg.intervalRampMinutes);
+  const minutes = difficultyMinutes(world);
+  const t = clamp01(minutes / cfg.intervalRampMinutes);
   const min = lerp(cfg.intervalRange[0], cfg.intervalFloor[0], t);
   const max = lerp(cfg.intervalRange[1], cfg.intervalFloor[1], t);
-  const scale = mutatorFormationIntervalScale();
+  // A zero-ambient formation day keeps tightening past the ramp instead of
+  // plateauing on the floor (see mutators.ts lateFormationGrowth); 1x on
+  // every ordinary day and mode.
+  const scale = mutatorFormationIntervalScale() * mutatorLateFormationIntervalScale(minutes);
   world.nextFormationDelay = scheduleRange(min, max) * scale;
 }
 
@@ -1084,6 +1106,28 @@ function assemblyRadiusFor(kind: AssemblyKind, count: number): number {
 }
 
 /**
+ * Population valve for the drone cap: silently retire up to `n` drones that
+ * belong to no live creature, farthest from the ship first, so a scheduled
+ * creature always has room to arrive. Frozen drones are spared (the pilot paid
+ * for those shatters). Not a kill: no score, no multiplier, no event.
+ */
+function retireDistantFreeDrones(world: World, n: number): void {
+  const loose = world.drones
+    .filter((d) => d.alive && !d.assembly && d.frozen <= 0)
+    .sort(
+      (a, b) =>
+        Math.hypot(b.x - world.ship.x, b.y - world.ship.y) -
+        Math.hypot(a.x - world.ship.x, a.y - world.ship.y),
+    )
+    .slice(0, n);
+  for (const d of loose) {
+    d.alive = false;
+    const i = world.drones.indexOf(d);
+    if (i >= 0) world.drones.splice(i, 1);
+  }
+}
+
+/**
  * Round 5 Daily Mutator (creature days): spawn an assembly FULLY FORMED.
  * Member drones are created directly at their rotated slot positions around
  * `anchorX,anchorY` and bound to the assembly immediately, skipping the
@@ -1091,6 +1135,11 @@ function assemblyRadiusFor(kind: AssemblyKind, count: number): number {
  * happens was already decided on the seeded streams by the caller
  * (creatures.ts); this function only touches Math.random via createDrone's
  * cosmetic spin/jitter, same as every other drone-creation path.
+ *
+ * `speedScale` is the creature day's late-growth pace multiplier (see
+ * creatures.ts lateSpeedScale): the drone baseline speed ramp is deliberately
+ * near-flat, so this is what makes a late-run creature actually move faster
+ * than an early-run one. 1 = the kind's normal ASSEMBLY.kinds speed.
  */
 export function spawnAssemblyDirect(
   world: World,
@@ -1101,9 +1150,18 @@ export function spawnAssemblyDirect(
   anchorY: number,
   dirX: number,
   dirY: number,
+  speedScale = 1,
 ): void {
-  // safety valve, matches spawnAt's own maxDrones guard: astronomically
-  // unlikely to trigger in a normal run given near-zero ambient on these days
+  // Late growth (2026-08-11) made the drone cap genuinely reachable on these
+  // days (a 10-minute run peaks in the 300-500 range against SPAWNER.maxDrones
+  // 550, where it used to peak near 100), and skipping a scheduled creature
+  // would make the shared daily script depend on how much the pilot had
+  // killed. So clear space instead: retire the loose leftovers farthest from
+  // the ship (drones shed by earlier creatures, no longer part of any shape).
+  // No score, no kill event: this is a population valve, not a reward.
+  const overflow = world.drones.length + count - SPAWNER.maxDrones;
+  if (overflow > 0) retireDistantFreeDrones(world, overflow);
+  // nothing loose left to clear (every drone is in a live shape): the cap wins
   if (world.drones.length + count > SPAWNER.maxDrones) return;
 
   const slots = assemblySlots(kind, count);
@@ -1138,7 +1196,7 @@ export function spawnAssemblyDirect(
     spin: 0,
   };
 
-  const base = assemblyBaseSpeed(world);
+  const base = assemblyBaseSpeed(world) * speedScale;
   const K = ASSEMBLY.kinds;
   switch (kind) {
     case "lance":

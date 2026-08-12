@@ -1126,56 +1126,60 @@ function muteAmbientPickups(world: World): void {
 // dodger (steer away from the nearest drones/mines, no powers, no offense:
 // a deliberately pessimistic lower bound) and measures real survival time.
 // Not seeded on purpose (playability, not determinism): Math.random gameplay.
+/**
+ * Steer away from every nearby drone/mine, weighted by inverse-square distance.
+ * Shared by the section-10 playability harness and the section-11 late-growth
+ * survival guard (same pilot model, different cap and shield support).
+ */
+function evasiveHeading(world: World): { x: number; y: number } {
+  let fx = 0;
+  let fy = 0;
+  const ship = world.ship;
+  for (const d of world.drones) {
+    if (!d.alive) continue;
+    const dx = ship.x - d.x;
+    const dy = ship.y - d.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > 36) continue; // only threats within 6 units matter
+    const dist = Math.sqrt(distSq) || 0.05;
+    const w = 1 / (distSq + 0.2);
+    fx += (dx / dist) * w;
+    fy += (dy / dist) * w;
+  }
+  for (const m of world.mines) {
+    if (!m.alive) continue;
+    const dx = ship.x - m.x;
+    const dy = ship.y - m.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > 16) continue;
+    const dist = Math.sqrt(distSq) || 0.05;
+    const w = 1.5 / (distSq + 0.2);
+    fx += (dx / dist) * w;
+    fy += (dy / dist) * w;
+  }
+  // STARFALL only: the ground reticle is visible telegraphed warning, so a
+  // real pilot dodges it too (empty on every other mutator, no effect there).
+  for (const t of world.meteorTelegraphs) {
+    const dx = ship.x - t.x;
+    const dy = ship.y - t.y;
+    const distSq = dx * dx + dy * dy;
+    const avoidR = t.radius + 1.5;
+    if (distSq > avoidR * avoidR) continue;
+    const dist = Math.sqrt(distSq) || 0.05;
+    const urgency = clamp01(1 - t.timer / t.duration); // scarier as impact nears
+    const w = (1 + urgency * 3) / (distSq + 0.2);
+    fx += (dx / dist) * w;
+    fy += (dy / dist) * w;
+  }
+  const len = Math.hypot(fx, fy);
+  if (len < 0.0001) return { x: 0, y: 0 };
+  return { x: fx / len, y: fy / len };
+}
+
 {
   const CAP_SECONDS = 90;
   const TRIALS = 10;
   const evasiveDate = new Date("2026-08-10T00:00:00Z");
-
-  /** Steer away from every nearby drone/mine, weighted by inverse-square distance. */
-  function evasiveHeading(world: World): { x: number; y: number } {
-    let fx = 0;
-    let fy = 0;
-    const ship = world.ship;
-    for (const d of world.drones) {
-      if (!d.alive) continue;
-      const dx = ship.x - d.x;
-      const dy = ship.y - d.y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq > 36) continue; // only threats within 6 units matter
-      const dist = Math.sqrt(distSq) || 0.05;
-      const w = 1 / (distSq + 0.2);
-      fx += (dx / dist) * w;
-      fy += (dy / dist) * w;
-    }
-    for (const m of world.mines) {
-      if (!m.alive) continue;
-      const dx = ship.x - m.x;
-      const dy = ship.y - m.y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq > 16) continue;
-      const dist = Math.sqrt(distSq) || 0.05;
-      const w = 1.5 / (distSq + 0.2);
-      fx += (dx / dist) * w;
-      fy += (dy / dist) * w;
-    }
-    // STARFALL only: the ground reticle is visible telegraphed warning, so a
-    // real pilot dodges it too (empty on every other mutator, no effect there).
-    for (const t of world.meteorTelegraphs) {
-      const dx = ship.x - t.x;
-      const dy = ship.y - t.y;
-      const distSq = dx * dx + dy * dy;
-      const avoidR = t.radius + 1.5;
-      if (distSq > avoidR * avoidR) continue;
-      const dist = Math.sqrt(distSq) || 0.05;
-      const urgency = clamp01(1 - t.timer / t.duration); // scarier as impact nears
-      const w = (1 + urgency * 3) / (distSq + 0.2);
-      fx += (dx / dist) * w;
-      fy += (dy / dist) * w;
-    }
-    const len = Math.hypot(fx, fy);
-    if (len < 0.0001) return { x: 0, y: 0 };
-    return { x: fx / len, y: fy / len };
-  }
 
   function runEvasiveTrial(mutators: Mutator[]): { time: number; score: number } {
     setActiveMutators(mutators, evasiveDate);
@@ -1293,6 +1297,257 @@ function muteAmbientPickups(world: World): void {
   check(
     "getMutatorById resolves every pool id",
     MUTATOR_POOL.every((m) => getMutatorById(m.id)?.id === m.id),
+  );
+}
+
+// --- 11. late growth: no plateau-farming on the choreographed / zero-ambient days ---
+//
+// The 2026-08-11 pass: every creature day used to hard-plateau at
+// CREATURE_DAYS.rampMinutes (3 min) and the two zero-ambient formation days
+// floored out on their formation interval, so a skilled pilot could farm a run
+// for 20+ minutes (a WHEELHOUSE 25-minute flight is what triggered this work).
+// Two guards below.
+//
+// (a) Pressure telemetry on a seeded, invulnerable observer: pressure at
+// minute 6-8 must be well above minute 3-4 on EVERY day that grows, and
+// WHEELHOUSE has to hit Lucas's explicit calibration targets. This is the
+// durable guard: it measures the escalation curve directly instead of
+// inferring it from a bot's survival.
+{
+  const lateDate = new Date("2026-08-17T00:00:00Z"); // arbitrary, not a Sunday
+  const MINUTES = 8;
+
+  interface Pressure {
+    /** average concurrent creatures per minute bucket (index 0 = minute 0-1) */
+    concurrent: number[];
+    /** average member count of creatures spawned in each bucket */
+    members: number[];
+    /** average travel speed of creatures spawned in each bucket */
+    speed: number[];
+    /** average seconds between consecutive creature arrivals in each bucket */
+    gap: number[];
+    formations: number[];
+    ambient: number[];
+    meteors: number[];
+  }
+
+  function measurePressure(id: string): Pressure {
+    setRunSeed(1234567);
+    setActiveMutators([getMutatorById(id)!], lateDate);
+    const scale = mutatorViewScale();
+    const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    const zeros = (): number[] => new Array(MINUTES).fill(0);
+    const events = zeros();
+    const memberSum = zeros();
+    const speedSum = zeros();
+    const concurrentSum = zeros();
+    const samples = zeros();
+    const gapSum = zeros();
+    const gapCount = zeros();
+    const formations = zeros();
+    const ambient = zeros();
+    const meteors = zeros();
+    let prevArrival = -1;
+
+    const steps = Math.round(MINUTES * 60 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      // invulnerable observer: measures the escalation curve, not survival
+      world.powers.shieldActive = true;
+      world.powers.starshellTimer = 9999;
+      tick(world, { ...input, inertia: false, moveVector: { x: 0, y: 0 } }, FIXED_DT);
+      const b = Math.min(MINUTES - 1, Math.floor(world.time / 60));
+      for (const e of world.events) {
+        if (e.type === "assembly") {
+          const newest = world.assemblies[world.assemblies.length - 1];
+          events[b]++;
+          memberSum[b] += newest?.members.length ?? 0;
+          speedSum[b] += newest?.speed ?? 0;
+          if (prevArrival >= 0) {
+            gapSum[b] += world.time - prevArrival;
+            gapCount[b]++;
+          }
+          prevArrival = world.time;
+        }
+        if (e.type === "formation") formations[b]++;
+        if (e.type === "ambientSpawn") ambient[b]++;
+        if (e.type === "meteorStrike") meteors[b]++;
+      }
+      world.events.length = 0;
+      concurrentSum[b] += world.assemblies.length;
+      samples[b]++;
+    }
+    clearActiveMutators();
+    setRunSeed(null);
+    return {
+      concurrent: concurrentSum.map((s, i) => s / Math.max(1, samples[i])),
+      members: memberSum.map((s, i) => s / Math.max(1, events[i])),
+      speed: speedSum.map((s, i) => s / Math.max(1, events[i])),
+      gap: gapSum.map((s, i) => s / Math.max(1, gapCount[i])),
+      formations,
+      ambient,
+      meteors,
+    };
+  }
+
+  /** Mean of a [from,to) window of minute buckets. */
+  const window = (values: number[], from: number, to: number): number =>
+    values.slice(from, to).reduce((a, b) => a + b, 0) / (to - from);
+
+  const creatureDays = ["wheelhouse", "hunting-party", "lancer-doctrine", "demolition-day", "menagerie"];
+  const pressures = new Map(creatureDays.map((id) => [id, measurePressure(id)] as const));
+
+  // Shared shape: every creature day keeps escalating past the ramp, and by a
+  // comparable factor (they run the same helpers in creatures.ts, only the
+  // per-day numbers differ). Pre-pass these ratios were ~1.0 (flat) everywhere.
+  const GROWTH_BAR = 1.6;
+  const growth = creatureDays.map((id) => {
+    const p = pressures.get(id)!;
+    return { id, ratio: window(p.concurrent, 5, 8) / Math.max(0.01, window(p.concurrent, 2, 4)) };
+  });
+  check(
+    `creature days: concurrent-creature pressure keeps climbing past the ramp (>=${GROWTH_BAR}x minute 6-8 vs 3-4)`,
+    growth.every((g) => g.ratio >= GROWTH_BAR),
+    growth.map((g) => `${g.id} ${g.ratio.toFixed(1)}x`).join(", "),
+  );
+
+  // WHEELHOUSE's own calibration targets (Lucas, 2026-08-11: ~5-6 concurrent
+  // wheels by m=5, ~10-12 members and a ~2.0-2.5s burst cadence by m=7, and
+  // the traffic itself meaningfully faster, not a +1%/min creep).
+  {
+    const w = pressures.get("wheelhouse")!;
+    check(
+      "WHEELHOUSE: >=5 concurrent wheels on average through minute 5",
+      w.concurrent[4] >= 5,
+      `${w.concurrent[4].toFixed(1)} avg concurrent in minute 5 (minute 3: ${w.concurrent[2].toFixed(1)})`,
+    );
+    check(
+      "WHEELHOUSE: wheels reach >=10 members by minute 7",
+      w.members[6] >= 10,
+      `${w.members[6].toFixed(1)} members/wheel in minute 7 (minute 3: ${w.members[2].toFixed(1)})`,
+    );
+    check(
+      "WHEELHOUSE: lane cadence keeps tightening (<=0.8s between wheel arrivals by minute 7)",
+      w.gap[6] <= 0.8,
+      `${w.gap[6].toFixed(2)}s between arrivals in minute 7 (minute 3: ${w.gap[2].toFixed(2)}s)`,
+    );
+    check(
+      "WHEELHOUSE: traffic gets meaningfully faster late (>=1.2x wheel speed by minute 7)",
+      w.speed[6] >= w.speed[2] * 1.2,
+      `${w.speed[6].toFixed(2)} vs ${w.speed[2].toFixed(2)} units/s`,
+    );
+  }
+
+  // STARFALL: the rain used to sit on STARFALL_RAIN.intervalFloor forever
+  // after 3.5 min; it now keeps intensifying toward intervalHardFloor.
+  {
+    const s = measurePressure("starfall");
+    check(
+      "STARFALL: the rain keeps intensifying past its ramp (more impacts in minute 7-8 than 3-4)",
+      window(s.meteors, 5, 8) > window(s.meteors, 2, 4) * 1.15,
+      `${window(s.meteors, 2, 4).toFixed(0)}/min at 3-4 vs ${window(s.meteors, 5, 8).toFixed(0)}/min at 6-8`,
+    );
+  }
+
+  // GREAT WALL / YEAR OF THE SERPENT: formation cadence keeps tightening past
+  // the interval floor AND a stray-drone trickle starts leaking in, but only
+  // after lateFormationGrowth.ambientStartMinutes, so the day's "no ambient
+  // drones at all" identity is intact for the whole early run.
+  for (const id of ["great-wall", "year-of-the-serpent"]) {
+    const p = measurePressure(id);
+    const name = getMutatorById(id)!.name;
+    check(
+      `${name}: formations keep coming faster past the interval floor (>=1.3x minute 7-8 vs 3)`,
+      window(p.formations, 5, 8) >= p.formations[2] * 1.3,
+      `${p.formations[2]}/min in minute 3 vs ${window(p.formations, 5, 8).toFixed(0)}/min in minute 6-8`,
+    );
+    check(
+      `${name}: zero ambient for the first 4 minutes, then a growing trickle`,
+      p.ambient.slice(0, 4).every((n) => n === 0) && window(p.ambient, 5, 8) > 0,
+      `first 4 min: ${p.ambient.slice(0, 4).join(",")} | minute 5-8: ${p.ambient.slice(4).join(",")}`,
+    );
+  }
+}
+
+// (b) Longer-cap survival guard. The dodge bot from section 10 dies around
+// minute 1 (its median is ~12s at the 90s cap), far short of a skilled human
+// (Lucas flew this WHEELHOUSE to 2.5 min, a friend farmed it to 25 min), so
+// it cannot see a minute-3 plateau at all. This harness gives the same bot a
+// rebankable shield every 7s (a stand-in for a pilot converting drops into
+// extra lives), which pushes it into the 2-7 minute band where the late curve
+// actually bites. Calibration measured on 2026-08-11 (25 trials/day):
+// vanilla Classic (the endless reference) medians ~83s and never reaches 5
+// minutes; pre-pass WHEELHOUSE ran to 9.6 min and DEMOLITION DAY hit the
+// 10-minute cap in 10 of 25 trials. Post-pass nothing reaches 7.1 min. The
+// bars below are deliberately loose (this bot is unseeded and high-variance);
+// they catch a return of the plateau, not small tuning drift.
+{
+  const CAP = 300;
+  const TRIALS = 10;
+  // >=50% of trials must END before the cap. Deliberately loose: this bot is
+  // unseeded and its run-to-run spread is wide (observed 7/10 to 10/10 dying
+  // across consecutive sim-test runs post-pass, vs DEMOLITION DAY's pre-pass
+  // 40%). The telemetry checks in (a) are the sharp guard; this one is the
+  // end-to-end sanity that a pilot with extra lives can't just sit in the day.
+  const CAP_ESCAPE_BAR = 0.5;
+  const lateDate = new Date("2026-08-17T00:00:00Z");
+
+  function shieldedTrial(mutators: Mutator[]): number {
+    setActiveMutators(mutators, lateDate);
+    const scale = mutatorViewScale();
+    const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    const botInput: InputState = {
+      turn: 0,
+      thrust: 0,
+      heading: null,
+      moveVector: { x: 0, y: 0 },
+      inertia: false,
+      cruiseSpeed: 8,
+    };
+    let nextShield = 0;
+    const steps = Math.round(CAP / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      if (world.phase !== "playing") break;
+      if (world.time >= nextShield) {
+        world.powers.shieldActive = true; // banked extra life, re-armed every 7s
+        nextShield = world.time + 7;
+      }
+      botInput.moveVector = evasiveHeading(world);
+      tick(world, botInput, FIXED_DT);
+      world.events.length = 0;
+    }
+    clearActiveMutators();
+    return Math.min(world.time, CAP);
+  }
+
+  const plateauProneIds = [
+    "wheelhouse",
+    "hunting-party",
+    "lancer-doctrine",
+    "demolition-day",
+    "menagerie",
+    "great-wall",
+    "year-of-the-serpent",
+  ];
+  const rows = plateauProneIds.map((id) => {
+    const times = Array.from({ length: TRIALS }, () => shieldedTrial([getMutatorById(id)!]));
+    const ended = times.filter((t) => t < CAP - 0.5).length;
+    return { id, name: getMutatorById(id)!.name, times, ended };
+  });
+  const farmable = rows.filter((r) => r.ended / TRIALS < CAP_ESCAPE_BAR);
+  check(
+    `shield-assisted dodge bot: every plateau-prone day ends the run (>=${CAP_ESCAPE_BAR * 100}% of trials die inside ${CAP}s)`,
+    farmable.length === 0,
+    farmable.map((r) => `${r.name} ${r.ended}/${TRIALS}`).join(", "),
+  );
+  console.log(
+    "  shield-assisted bot (cap 300s): " +
+      rows
+        .map((r) => {
+          const sorted = [...r.times].sort((a, b) => a - b);
+          const med = sorted[Math.floor(TRIALS / 2)];
+          return `${r.name} med ${med.toFixed(0)}s, ${r.ended}/${TRIALS} died`;
+        })
+        .join(" | "),
   );
 }
 
