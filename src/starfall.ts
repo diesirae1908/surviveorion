@@ -36,7 +36,7 @@ function baseInterval(world: World): number {
     to: STARFALL_RAIN.intervalFloor,
     plateauMinutes: STARFALL_RAIN.rampMinutes,
   });
-  const late = Math.max(0, minutes - STARFALL_RAIN.rampMinutes);
+  const late = Math.max(0, minutes - STARFALL_RAIN.lateStartMinutes);
   return Math.max(
     STARFALL_RAIN.intervalHardFloor,
     ramped / (1 + STARFALL_RAIN.lateTightenPerMinute * late),

@@ -157,6 +157,22 @@ function monoPowerWeights(target: PowerId): Record<PowerId, number> {
   return zeroed;
 }
 
+/**
+ * Shared pickup-drop slowdown for the choreography days (2026-08-12 mid-ramp
+ * densify). Daily Patrol runs the whole drop schedule at
+ * PICKUPS.dailyIntervalScale (0.7x intervals) because it has no refill floor;
+ * on a creature day that compensation overshot badly. Those days have no
+ * ambient swarm and no ordinary formations, so between choreographed events
+ * there was nothing to spend a power on, and drops kept arriving 30% faster
+ * than normal: Lucas could sit on a full board of banked powers through the
+ * whole mid-game (live feedback, WHEELHOUSE, 2026-08-12).
+ *
+ * 1.3 x 0.7 = 0.91, i.e. these days land just under the ordinary non-daily
+ * drop rate. Deliberately not a starve: the powers are the counterplay to a
+ * dense field, they just stop stockpiling faster than the day can drain them.
+ */
+const CREATURE_DAY_PICKUP_SCALE = 1.3;
+
 const NO_WALL: Record<FormationKind, number> = {
   line: 0,
   ring: 0,
@@ -301,7 +317,7 @@ export const MUTATOR_POOL: Mutator[] = [
     id: "menagerie",
     name: "MENAGERIE",
     briefing: "The Zoo is open. Every cage, every kind. You never know what fuses next.",
-    subline: "A brief calm, then hunters, lances, wheels, and bombs take turns, drawn at random with no repeats back to back. Ambient is a faint trickle, ordinary formations are gone, and late in the run two kinds sometimes fuse in at once.",
+    subline: "A brief calm, then hunters, lances, wheels, and bombs take turns, drawn at random with no repeats back to back. Ambient is a faint trickle, ordinary formations are gone, and from a couple of minutes in two kinds usually fuse in at once. Power drops come a little slower than a usual Daily.",
     // v3 (round 5, this fix): moved onto the direct-spawn choreography
     // engine like the four single-kind days (see creatures.ts
     // scheduleMenagerieEvent), replacing round 2's conscription-based
@@ -324,55 +340,76 @@ export const MUTATOR_POOL: Mutator[] = [
       ambientRateScale: 0.3, // density pass (2026-08-10): raised from 0.15, the thinner trickle still read dead between creatures
       formationIntervalScale: 30,
       firstCreatureDelayRange: [8, 12], // the screenshot moment: a beat of quiet, then the first creature bursts in
+      pickupIntervalScale: CREATURE_DAY_PICKUP_SCALE,
     },
   },
   {
     id: "lancer-doctrine",
     name: "LANCER DOCTRINE",
     briefing: "Broadsides only. Weave the volley or eat the spear.",
-    subline: "Salvos of parallel lance bars sweep in from one edge in sequence. No ambient swarm, no ordinary formations: the artillery is the whole day.",
+    subline: "Salvos of parallel lance bars sweep in from one edge in sequence, more of them every minute past the first. No ambient swarm, no ordinary formations: the artillery is the whole day. Power drops come a little slower than a usual Daily.",
     // v3 (round 5): direct-spawn choreography replaces conscription; see
     // creatures.ts. The evasive bot's score median came out roughly at
     // baseline for the volley rhythm; see JOURNAL.md for all four numbers.
     difficultyFactor: 0.95,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "lance", ambientRateScale: 0, formationIntervalScale: 30 },
+    overrides: {
+      forceAssemblyKind: "lance",
+      ambientRateScale: 0,
+      formationIntervalScale: 30,
+      pickupIntervalScale: CREATURE_DAY_PICKUP_SCALE,
+    },
   },
   {
     id: "wheelhouse",
     name: "WHEELHOUSE",
     briefing: "Crossing traffic only. Survive the intersection.",
-    subline: "Wheels roll through in lanes from alternating sides, Frogger-style. No ambient swarm, no ordinary formations: the traffic is the whole day.",
+    subline: "Wheels roll through in lanes from alternating sides, Frogger-style. One lane at the open, then rush hour builds fast. No ambient swarm, no ordinary formations: the traffic is the whole day. Power drops come a little slower than a usual Daily.",
     // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
     // bot's score median came in highest of the four (lanes give the most
     // room to graze safely while still crossing danger).
     difficultyFactor: 1.0,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "wheel", ambientRateScale: 0, formationIntervalScale: 30 },
+    overrides: {
+      forceAssemblyKind: "wheel",
+      ambientRateScale: 0,
+      formationIntervalScale: 30,
+      pickupIntervalScale: CREATURE_DAY_PICKUP_SCALE,
+    },
   },
   {
     id: "hunting-party",
     name: "HUNTING PARTY",
     briefing: "Wolf packs only. You are the prey today.",
-    subline: "Waves of hunters close in from different edges and converge, growing in size and frequency. No ambient swarm, no ordinary formations: the hunt is the whole day.",
+    subline: "Waves of hunters close in from different edges and converge, growing in size and frequency fast after the first wave. No ambient swarm, no ordinary formations: the hunt is the whole day. Power drops come a little slower than a usual Daily.",
     // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
     // bot's score median came in lowest of the four here (packs close in and
     // die one at a time rather than sweeping through in a batch).
     difficultyFactor: 0.75,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "hunter", ambientRateScale: 0, formationIntervalScale: 30 },
+    overrides: {
+      forceAssemblyKind: "hunter",
+      ambientRateScale: 0,
+      formationIntervalScale: 30,
+      pickupIntervalScale: CREATURE_DAY_PICKUP_SCALE,
+    },
   },
   {
     id: "demolition-day",
     name: "DEMOLITION DAY",
     briefing: "Area denial only. The floor is always about to explode.",
-    subline: "Bomb slabs deploy continuously and detonate into shrapnel, crowding the arena over time. No ambient swarm, no ordinary formations: the minefield is the whole day.",
+    subline: "Bomb slabs deploy continuously and detonate into shrapnel, crowding the arena fast after the first minute. No ambient swarm, no ordinary formations: the minefield is the whole day. Power drops come a little slower than a usual Daily.",
     // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
     // bot's score median came in highest of the four here (a fragmented
     // shrapnel burst offers the most simultaneous graze surface).
     difficultyFactor: 0.9,
     tags: ["assembly-kind"],
-    overrides: { forceAssemblyKind: "bomb", ambientRateScale: 0, formationIntervalScale: 30 },
+    overrides: {
+      forceAssemblyKind: "bomb",
+      ambientRateScale: 0,
+      formationIntervalScale: 30,
+      pickupIntervalScale: CREATURE_DAY_PICKUP_SCALE,
+    },
   },
   {
     id: "titanfall",

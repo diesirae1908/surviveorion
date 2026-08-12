@@ -316,7 +316,36 @@ export interface CreatureLateGrowth {
 // "late" feel over `rampMinutes`, then keeps growing forever on its `late`
 // block (see CreatureLateGrowth above).
 export const CREATURE_DAYS = {
-  rampMinutes: 3,
+  // --- shared early/mid ramp shape (2026-08-12 mid-ramp densify) ---
+  //
+  // Live feedback (Lucas, WHEELHOUSE, 2026-08-12): "after 30 secs it needs to
+  // ramp up a bit more, people will get bored otherwise". The old shape was a
+  // straight lerp from the early feel to the late feel over 3 minutes starting
+  // at t=0, which spent the whole first two minutes barely off the opening
+  // (~2.4 concurrent wheels at 1:55) and only got interesting right as the
+  // late leg took over. The shape is now: hold the opening flat, then climb
+  // hard. Three knobs, shared by every creature day so the feel stays
+  // consistent across the pool:
+  //
+  //   progress(m) = clamp01((m - openingMinutes) / (rampMinutes - openingMinutes)) ^ rampCurve
+  //
+  // `openingMinutes` is the readable opening beat (the screenshot moment, and
+  // the reason the first burst is still one lane): the day is pinned at its
+  // early values for that long. `rampCurve < 1` makes the climb steepest right
+  // after it, so 0:30-2:00 is where the day actually wakes up.
+  openingMinutes: 0.5,
+  rampMinutes: 2,
+  rampCurve: 0.65,
+  // Where the endless late leg (CreatureLateGrowth above) starts counting.
+  // Deliberately decoupled from `rampMinutes`, which used to double as the
+  // late-growth anchor: shortening the early ramp must NOT drag the whole
+  // shipped late curve forward with it, or the two passes compound and minute
+  // 4-8 runs away (measured: with the anchor pulled to 2.5, WHEELHOUSE hit 9
+  // concurrent wheels before minute 3, which used to be minute-6 pressure).
+  // Held at the 2026-08-11 value, so minute 3+ keeps exactly the shape that
+  // shipped, just starting from a denser mid-game. Minute 2-3 is a short flat
+  // shelf at full early-ramp pressure.
+  lateStartMinutes: 3,
   telegraph: {
     // hunter/lance/wheel: a brief on-screen flash at the entry point right
     // before the member drones pop in (they're already telegraphed by their
@@ -327,11 +356,13 @@ export const CREATURE_DAYS = {
     materializeWarning: 1.5,
   },
   hunter: {
-    packSizeRange: [2, 4] as const, // vees per wave, ramps up over the run
+    // mid-ramp densify: the pack tops out at 5 vees instead of 4, and it gets
+    // there by ~m2 instead of m3 (see the ramp shape above)
+    packSizeRange: [2, 5] as const, // vees per wave, ramps up over the run
     veeMemberRange: [4, 6] as const,
     veeStagger: 0.3, // seconds between vees within a wave entering
     waveIntervalEarly: [11, 14] as const,
-    waveIntervalLate: [6, 8] as const,
+    waveIntervalLate: [6, 7.5] as const,
     // The pack keeps growing and closing faster after minute 3. Speed grows
     // least of the four: a hunter is meant to be outflown, not outrun (its
     // turn rate is the counterplay), so pace stays readable while the pack
@@ -348,11 +379,14 @@ export const CREATURE_DAYS = {
     } as CreatureLateGrowth,
   },
   lance: {
+    // left at 5 bars: a salvo of parallel sweeping bars is the most lethal
+    // shape in the pool, so this day's densify is the faster ramp to 5 plus a
+    // slightly tighter volley cadence, not a 6th bar
     salvoSizeRange: [2, 5] as const, // bars per salvo, ramps up over the run
     barMemberRange: [5, 8] as const,
     barStagger: 0.4, // volley rhythm: each bar a beat behind the last
     salvoIntervalEarly: [9, 12] as const,
-    salvoIntervalLate: [5, 7] as const,
+    salvoIntervalLate: [4.6, 6.2] as const,
     // Salvos get wider bars, more bars per volley, and a faster volley rhythm.
     late: {
       intervalTighten: 0.22,
@@ -366,11 +400,18 @@ export const CREATURE_DAYS = {
     } as CreatureLateGrowth,
   },
   wheel: {
-    laneCountRange: [1, 3] as const, // concurrent lanes per burst, ramps up
+    // mid-ramp densify (2026-08-12): 4 lanes at the top of the ramp instead of
+    // 3, reached by ~m2. The opening is still a single lane crossing.
+    laneCountRange: [1, 4] as const, // concurrent lanes per burst, ramps up
     wheelMemberRange: [6, 9] as const,
     laneStagger: 0.5,
     laneIntervalEarly: [7, 9] as const,
-    laneIntervalLate: [3.5, 5] as const,
+    // slightly LOOSER than the pre-densify [3.5, 5]: the 4th lane above adds
+    // more traffic per burst than the tighter cadence it replaces, and lanes
+    // read better as traffic than a machine-gun of single crossings. Net
+    // arrival rate at the top of the ramp is still ~1.4x what it was, and it
+    // now lands at minute 2 instead of minute 3.
+    laneIntervalLate: [4, 5.4] as const,
     // The 2026-08-11 calibration target (Lucas: 25-minute WHEELHOUSE runs must
     // stop being possible, skilled runs should land ~5 min and cap out at
     // 7-8): ~4 lanes and ~9-member wheels by m=5, ~5 lanes / ~11-member
@@ -393,11 +434,12 @@ export const CREATURE_DAYS = {
     // the most farmable day of the pool (an assisted dodge bot ran it to a
     // 10-minute cap, see JOURNAL.md 2026-08-11), because one short-fused slab
     // at a time disbands before the next one lands.
-    deploymentCountRange: [1, 2] as const,
+    // mid-ramp densify: a third slab at the top of the ramp (reached ~m2)
+    deploymentCountRange: [1, 3] as const,
     slabStagger: 0.6, // seconds between slabs of one deployment materializing
     memberRange: [5, 9] as const,
     deploymentIntervalEarly: [7, 9] as const,
-    deploymentIntervalLate: [3, 4.5] as const,
+    deploymentIntervalLate: [3.2, 4.6] as const,
     // No speed growth: a bomb drifts by design (the shrapnel is the threat),
     // so its late pressure is more slabs, bigger slabs, deployed faster.
     late: {
@@ -423,12 +465,14 @@ export const CREATURE_DAYS = {
   // live) instead of reading as one lone animal at a time.
   menagerie: {
     eventIntervalEarly: [4, 6] as const,
-    eventIntervalLate: [2.5, 3.5] as const,
+    eventIntervalLate: [2.4, 3.2] as const,
     // chance an event doubles into two different kinds at once, lerped from
     // the early floor up to the late cap by rampMinutes. Starts nonzero
     // (doubles from the first event, not just late) per the density pass.
     doubleChanceEarly: 0.25,
-    doubleChanceLate: 0.5,
+    // mid-ramp densify: the double is the norm by ~m2 (was a coin flip at m3),
+    // which is the zoo's version of "more lanes" on the single-kind days
+    doubleChanceLate: 0.7,
     // ...and past the ramp the double stops being a coin flip and becomes the
     // norm (capped at certainty), so the zoo keeps compounding late.
     doubleChanceLatePerMinute: 0.12,
@@ -472,11 +516,19 @@ export const MINES = {
 export const STARFALL_RAIN = {
   intervalStart: 4.0, // seconds between impacts near minute zero
   intervalFloor: 1.0, // seconds between impacts once fully ramped
-  rampMinutes: 3.5, // time to go from intervalStart to intervalFloor
+  // 2026-08-12 mid-ramp densify: 3.5 to 2.5, so the rain thickens noticeably
+  // across the first two minutes instead of creeping. Lighter touch than the
+  // creature days (this day's early game already had real pressure), and the
+  // opening is untouched: the first impacts still land intervalStart apart.
+  rampMinutes: 2.5, // time to go from intervalStart to intervalFloor
   // Past the ramp the sky keeps opening up (2026-08-11 late-growth pass): the
   // interval keeps shrinking instead of sitting on intervalFloor forever, so
   // STARFALL's rain has an endless leg like Classic's density does. Reaches
   // ~0.7s by m=7 and bottoms out at intervalHardFloor around m=13.
+  // The late leg is anchored separately from `rampMinutes` (same reasoning as
+  // CREATURE_DAYS.lateStartMinutes): shortening the early ramp must not pull
+  // the shipped late curve forward with it.
+  lateStartMinutes: 3.5,
   lateTightenPerMinute: 0.14,
   intervalHardFloor: 0.45,
   intervalJitter: 0.15, // +/- fraction of the ramped interval (schedule-stream draw)

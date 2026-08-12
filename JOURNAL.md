@@ -4,6 +4,149 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-12: mid-ramp densify, the choreography days wake up at 0:30 instead of 3:00 (branch `sam/mid-ramp-densify`, NOT merged)
+
+- **Trigger.** Lucas played the live WHEELHOUSE daily right after the
+  late-growth deploy: at 1:55 the field was still sparse (screenshot showed a
+  handful of wheels and a lot of empty arena) and he was hoarding powers
+  without pressure. His call: "after 30 secs, it needs to ramp up a bit more i
+  think. People will get bored otherwise". So the first ~30s stays the readable
+  opening beat, and 0:30 onward has to climb hard. This sits ON TOP of
+  yesterday's late growth; that curve is deliberately untouched.
+- **Root cause.** The late-growth pass only starts past `rampMinutes: 3`, and
+  minutes 1-3 were left bit-identical to the plateau-era curve on purpose. That
+  early curve was a straight lerp from the early feel to the late feel starting
+  at t=0, so at 1:55 WHEELHOUSE was ~40% of the way from "one lane" to "three
+  lanes": ~2.4 concurrent wheels, ~27 drones, a wheel arriving every ~3s. The
+  interesting part of the day only began as the late leg took over.
+- **New shared shape (`CREATURE_DAYS`, applied by `rampProgress` in
+  `creatures.ts`).** The early ramp is no longer a straight line from zero:
+  `progress(m) = clamp01((m - openingMinutes) / (rampMinutes - openingMinutes)) ^ rampCurve`
+  with `openingMinutes: 0.5`, `rampMinutes: 2` (was 3), `rampCurve: 0.65`. Flat
+  through the opening (so the first 30s is bit-comparable to before), then
+  concave, so the steepest climb lands exactly in the 0:30-2:00 window Lucas
+  was bored in. `escalateInterval` / `escalateCount` / MENAGERIE's double-roll
+  all read the same function, so the shape is identical across the pool.
+- **`lateStartMinutes: 3` is a new, separate knob, and it matters.**
+  `rampMinutes` used to double as the late-growth anchor. Shortening it to 2
+  therefore dragged the whole shipped late curve 1 minute earlier, and the two
+  passes compounded: measured with the anchor at 2.5, WHEELHOUSE hit 9
+  concurrent wheels before minute 3, which used to be minute-6 pressure. Anchor
+  held at 3, so minute 3+ keeps exactly the curve that shipped yesterday, just
+  starting from a denser mid-game. Minutes 2-3 are a short flat shelf at full
+  early-ramp pressure. `STARFALL_RAIN.lateStartMinutes: 3.5` does the same job
+  for the rain (its `rampMinutes` moved 3.5 to 2.5).
+- **Per-day coefficients** (only the ramp ENDPOINTS moved; every day's late
+  block is untouched): wheel `laneCountRange` [1,3] to [1,4] with
+  `laneIntervalLate` [3.5,5] to [4,5.4] (deliberately looser: the 4th lane adds
+  more traffic per burst than the cadence it replaces, and lanes read better as
+  traffic than a machine-gun of single crossings); hunter `packSizeRange` [2,4]
+  to [2,5], `waveIntervalLate` [6,8] to [6,7.5]; lance stays at 5 bars (the most
+  lethal shape in the pool) with `salvoIntervalLate` [5,7] to [4.6,6.2]; bomb
+  `deploymentCountRange` [1,2] to [1,3], `deploymentIntervalLate` [3,4.5] to
+  [3.2,4.6]; MENAGERIE `eventIntervalLate` [2.5,3.5] to [2.4,3.2] and
+  `doubleChanceLate` 0.5 to 0.7.
+- **Pickup economy (the hoarding half of the complaint).** New shared
+  `CREATURE_DAY_PICKUP_SCALE = 1.3` in `mutators.ts`, set as
+  `pickupIntervalScale` on all five choreography days. Daily Patrol runs the
+  drop schedule at 0.7x intervals because it has no refill floor; on a day with
+  no ambient swarm and no ordinary formations there was nothing to spend powers
+  on between events, so a 30%-faster schedule meant a permanently full board.
+  1.3 x 0.7 = 0.91, i.e. just under the ordinary non-daily rate: measured 77-79
+  drops per 8 minutes against a plain Daily's 100. Not a starve on purpose, the
+  powers are the counterplay to a dense field.
+- **Before/after density** (seeded invulnerable observer, 30-second buckets,
+  `avg concurrent creatures` then `drones on the field`, buckets 0:00 / 0:30 /
+  1:00 / 1:30 / 2:00 / 2:30 / 3:00):
+  - WHEELHOUSE concurrent 1.1 1.6 2.5 2.4 2.5 4.2 4.8 becomes
+    1.1 1.9 3.7 4.2 6.6 5.0 6.1; drones 13 14 28 27 35 70 50 becomes
+    13 18 39 53 76 80 63; arrival gap 8.0 4.9 3.3 3.0 2.2 1.6 1.4 becomes
+    8.2 4.3 2.0 1.4 1.3 1.1 1.2. The 1:55 bucket Lucas complained about is
+    1.75x the concurrent wheels and 2x the drones; the first 30s is unchanged.
+  - HUNTING PARTY 1.0 1.0 1.2 1.6 1.8 2.1 2.8 becomes 1.0 1.2 2.0 2.7 3.4 3.3 3.7.
+  - LANCER DOCTRINE 1.5 2.3 2.7 2.6 3.8 5.1 6.0 becomes 1.5 2.0 3.5 5.2 7.4 6.4 7.4.
+  - DEMOLITION DAY 0.3 0.3 0.4 0.8 1.0 1.0 1.4 becomes 0.3 0.6 0.8 1.8 1.8 2.0 2.0.
+  - MENAGERIE 0.5 1.7 1.9 1.9 1.9 1.6 2.7 becomes 0.8 2.0 2.3 2.6 3.8 3.3 3.5.
+  - STARFALL impacts/min by minute: 16 22 32 becomes 17 27 54, i.e. the
+    lighter touch it was meant to be early and a real thickening by minute 3;
+    minutes 4-8 are unchanged within noise (57/min at 3-4, 84/min at 6-8)
+    because the late anchor didn't move.
+  - Minute 5-8 across the creature days lands within noise of yesterday's
+    numbers (WHEELHOUSE 12.8 12.1 12.4 10.8 19.7 17.0 vs 7.4 11.3 10.1 17.2
+    16.7 13.9 per 30s bucket), which is the point: this is a mid-game fix, not
+    a second late-game buff.
+- **Kill-rate ceiling: NOT raised, and not close in the window that matters.**
+  `MAX_KILLS_PER_SEC` is 20 and `validateRun` compares it against CUMULATIVE
+  kills/time, so that's what was measured. A max-throughput invulnerable
+  rammer (the hardest possible case, far above any human) sits at 6.0-12.5
+  cumulative kills/s across minutes 5-8, up from 4.7-10.9: no ceiling risk in
+  the 5-8 minute band the tripwire named. It does cross 20 deep into a
+  12-minute run (DEMOLITION DAY 20.0 at 11:00, 22.3 at 12:00), but that is
+  pre-existing, not new: the same observer on the current `main` build crosses
+  it at 11:30 (20.7 at 12:00). Runs that long shouldn't exist on these days
+  anymore (the shield-assisted bot dies around minute 2), so this is a report,
+  not a request.
+- **Medal factors: NOT changed** (same tripwire as yesterday). The
+  `difficultyFactor` calibration harness is the 90-second evasive bot, and its
+  medians moved inside their own noise band: WHEELHOUSE 22.0s, MENAGERIE 18.6s,
+  LANCER DOCTRINE 12.6s, HUNTING PARTY 14.0-14.4s, DEMOLITION DAY 17.0-18.9s.
+  Worth a re-look on real player data once these days come around, since the
+  first 90 seconds is precisely the stretch this pass changed.
+- **Sim-test additions.** (a) 30-second-resolution telemetry in section 11
+  (`halfConcurrent` / `halfGap` / `halfArrivals`), since minute buckets can't
+  tell "calm open, then a climb" from "flat for two minutes". (b) An opening
+  guard: no creature day may exceed 2.5 avg concurrent creatures or 8 arrivals
+  in its first 30 seconds, so a future densify can't ship a jump-scare open.
+  (c) Mid-ramp floors per day at 60-120s and 120-180s. These are ABSOLUTE, not
+  growth ratios, because a ratio cannot see this bug: the pre-pass curve grew a
+  respectable 1.8x from minute 1 to minute 2, it was just doing it from nothing
+  to almost nothing. Each floor sits ~20-25% above the pre-pass measurement and
+  ~20% below the post-pass one. (d) WHEELHOUSE lane cadence <=2s by t=60s.
+  (e) The two-sided pickup-economy check above. (f) STARFALL's rain must
+  thicken >=1.4x from minute 1 to minute 2.
+- **Sim flake fixed** (the follow-up left open yesterday). Both bot harnesses
+  were fully unseeded, so their medians swung wildly run to run (WHEELHOUSE
+  188s then 125s) and any bar near its threshold flapped. Each trial now runs
+  on its own fixed seed from a shared `TRIAL_SEEDS` list: the bot still faces
+  10 different run scripts, but the SAME 10 every time. The evasive-bot medians
+  are now stable to a couple of tenths across runs. Sections 1, 1b and 5 were
+  seeded too, all for the same reason: section 1's "population stayed under
+  cap" bar caught a run at 265 against a <=250 bar on a build where nothing
+  about vanilla Classic had changed (now a steady 158-168), and section 5's
+  bad-luck-protection bar came back 7 against a >=8 bar on the next run (now a
+  steady 8, exactly on the bar, which is what that protection actually delivers
+  in 15 drops). Residual spread in the 300s
+  shield-assisted harness is real and expected: per-drone jitter seeds, lance
+  and wheel shatter scatter, and the crowd-pressure valve are all deliberately
+  off-stream `Math.random` (they must be, or Daily Patrol determinism breaks),
+  so its bar stays deliberately loose and the seeded telemetry checks remain
+  the sharp guard.
+- **Verification.** `npm run build` (tsc --noEmit + vite) green; three
+  consecutive full `npx tsx scripts/sim-test.ts` runs all green. Shield-assisted
+  bot at the 300s cap: WHEELHOUSE median 124-154s, HUNTING PARTY 111s, LANCER
+  DOCTRINE 126-154s, DEMOLITION DAY 111-173s, MENAGERIE 103-125s, GREAT WALL
+  103-231s, YEAR OF THE SERPENT 77-126s, everything 7-10 of 10 trials dying
+  inside the cap.
+- **Pool frozen, as instructed.** No `MUTATOR_POOL` order, id, or membership
+  changes, so every date-to-mutator assignment pilots are already seeing is
+  untouched. The only pool edits are the five `pickupIntervalScale` overrides
+  and the sublines that disclose them (each creature day's subline now says
+  drops come a little slower, and WHEELHOUSE / HUNTING PARTY / DEMOLITION DAY /
+  MENAGERIE mention the faster build-up), so the days still read honestly.
+  Subline copy is player-facing: flagged for Lucas rather than assumed.
+- **Not merged, not deployed.** Branch only, per the dispatch.
+- **Open risks.** (1) The mid-game is now roughly the old minute 3-4 at minute
+  2, so skilled runs will come in shorter; if Lucas wants the 5-minute typical
+  back, `rampCurve` toward 0.8 or `rampMinutes` back toward 2.5 is the dial,
+  not the per-day counts. (2) LANCER DOCTRINE is the densest day at t=120s (7.0
+  concurrent bars) and its bars are the most lethal shape in the pool, so it is
+  the first candidate if the mid-game reads brutal in live play. (3) GREAT WALL
+  and YEAR OF THE SERPENT were left alone on purpose: their formation interval
+  already floors at ~2.7s by minute 1 (~22 formations/min), so their early game
+  was never the sparse one. Their evasive-bot medians (20.5s / 23.8-24.4s) stay
+  the highest in the pool, which is a hint they could take a pass of their own
+  later.
+
 ## 2026-08-12: late-growth pass merged + deployed, kill-rate ceiling raised to 20 (main, DEPLOYED)
 
 - **Shipped.** Lucas green-lit the late-growth pass, so

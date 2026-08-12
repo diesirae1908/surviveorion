@@ -62,24 +62,35 @@ function jitterHeading(dirX: number, dirY: number, angle: number): { x: number; 
   return { x: dirX * cos - dirY * sin, y: dirX * sin + dirY * cos };
 }
 
-// --- shared escalation math (early ramp + endless late leg) ---
+// --- shared escalation math (opening beat + fast mid ramp + endless late leg) ---
 //
-// Every creature day uses these four helpers, so the late-growth SHAPE is the
+// Every creature day uses these five helpers, so the escalation SHAPE is the
 // same everywhere and only the per-day numbers differ (CREATURE_DAYS.*.late,
-// see config.ts CreatureLateGrowth). All four are pure functions of elapsed
-// run minutes: a given point in the run consumes the same number of seeded
-// draws for every pilot, so the shared daily script is unaffected.
+// see config.ts CreatureLateGrowth). All are pure functions of elapsed run
+// minutes: a given point in the run consumes the same number of seeded draws
+// for every pilot, so the shared daily script is unaffected.
 
-/** Run minutes past the early ramp (0 while still ramping). */
+/**
+ * Early-ramp progress, 0 at the end of the opening beat to 1 at rampMinutes.
+ * Flat through CREATURE_DAYS.openingMinutes (the readable opening), then
+ * concave (rampCurve < 1) so the climb is steepest right after it. The
+ * 2026-08-12 mid-ramp densify, see the comment on CREATURE_DAYS.
+ */
+function rampProgress(minutes: number): number {
+  const span = Math.max(0.01, CREATURE_DAYS.rampMinutes - CREATURE_DAYS.openingMinutes);
+  return Math.pow(clamp01((minutes - CREATURE_DAYS.openingMinutes) / span), CREATURE_DAYS.rampCurve);
+}
+
+/** Run minutes past the late-growth anchor (0 before it). */
 function lateMinutes(minutes: number): number {
-  return Math.max(0, minutes - CREATURE_DAYS.rampMinutes);
+  return Math.max(0, minutes - CREATURE_DAYS.lateStartMinutes);
 }
 
 /**
- * [min,max] interval lerped from an "early" feel to a "late" feel over
- * CREATURE_DAYS.rampMinutes, then tightened forever after it (hyperbolic, so
- * the first late minutes bite hardest), bottoming out at intervalFloorScale
- * of the late range.
+ * [min,max] interval taken from an "early" feel to a "late" feel over the
+ * mid ramp, then tightened forever past lateStartMinutes (hyperbolic, so the
+ * first late minutes bite hardest), bottoming out at intervalFloorScale of
+ * the late range.
  */
 function escalateInterval(
   minutes: number,
@@ -87,7 +98,7 @@ function escalateInterval(
   late: readonly [number, number],
   growth: CreatureLateGrowth,
 ): [number, number] {
-  const t = clamp01(minutes / CREATURE_DAYS.rampMinutes);
+  const t = rampProgress(minutes);
   const lateScale = Math.max(
     growth.intervalFloorScale,
     1 / (1 + growth.intervalTighten * lateMinutes(minutes)),
@@ -97,7 +108,7 @@ function escalateInterval(
 
 /**
  * Structures per event (hunter vees / lance bars / wheel lanes / bomb slabs /
- * menagerie animals): ramps over the early ramp, then keeps growing linearly
+ * menagerie animals): ramps over the mid ramp, then keeps growing linearly
  * up to growth.groupMax.
  */
 function escalateCount(
@@ -105,7 +116,7 @@ function escalateCount(
   range: readonly [number, number],
   growth: CreatureLateGrowth,
 ): number {
-  const t = clamp01(minutes / CREATURE_DAYS.rampMinutes);
+  const t = rampProgress(minutes);
   const grown = lerp(range[0], range[1], t) + growth.groupPerMinute * lateMinutes(minutes);
   return Math.max(1, Math.round(Math.min(growth.groupMax, grown)));
 }
@@ -403,7 +414,7 @@ function scheduleMenagerieEvent(world: World, minutes: number): void {
   const [minI, maxI] = escalateInterval(minutes, cfg.eventIntervalEarly, cfg.eventIntervalLate, cfg.late);
   world.creatureTimer = scheduleRange(minI, maxI);
 
-  const rampT = clamp01(minutes / CREATURE_DAYS.rampMinutes);
+  const rampT = rampProgress(minutes);
   const doubleChance = Math.min(
     1,
     lerp(cfg.doubleChanceEarly, cfg.doubleChanceLate, rampT) +
