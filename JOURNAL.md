@@ -4,8 +4,22 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-12: mid-ramp densify, the choreography days wake up at 0:30 instead of 3:00 (branch `sam/mid-ramp-densify`, NOT merged)
+## 2026-08-12: mid-ramp densify merged + deployed, the choreography days wake up at 0:30 instead of 3:00 (main, DEPLOYED)
 
+- **Shipped.** Lucas green-lit the pass ("push live"), so
+  `sam/mid-ramp-densify` was merged into `main` as merge commit `4f1dc63`
+  (`--no-ff`, matching this repo's style for `sam/*` branches) on top of the
+  single content commit `24b3bf2`, and pushed, which auto-deploys the Render
+  service `surviveorion`. Bundle `index-BnR92Xoc.js` before the deploy,
+  `index-LnPMPnt2.js` after; CSS unchanged (`index-Bp4CgbiJ.css`), no styles
+  moved. `npm run build` green and a full `npx tsx scripts/sim-test.ts` ALL
+  CHECKS PASSED on the merge commit before the push.
+- **Mid-day deploy, boards deliberately left alone.** The UTC 2026-08-12
+  daily was already running, so pilots who played before this deploy flew the
+  sparser pre-densify script and pilots after it fly the denser one. Lucas's
+  call was to ship now and not clear the boards. Day-to-mutator mapping is
+  unaffected (`MUTATOR_POOL` order and ids frozen), and the player-facing
+  subline rewrites flagged below ship with the same green light.
 - **Trigger.** Lucas played the live WHEELHOUSE daily right after the
   late-growth deploy: at 1:55 the field was still sparse (screenshot showed a
   handful of wheels and a lot of empty arena) and he was hoarding powers
@@ -134,7 +148,8 @@ why, commit hash, follow-ups), committed together with the work. See
   drops come a little slower, and WHEELHOUSE / HUNTING PARTY / DEMOLITION DAY /
   MENAGERIE mention the faster build-up), so the days still read honestly.
   Subline copy is player-facing: flagged for Lucas rather than assumed.
-- **Not merged, not deployed.** Branch only, per the dispatch.
+- **Merged and deployed.** See the Shipped bullet at the top of this entry;
+  the branch-only note that stood here is superseded.
 - **Open risks.** (1) The mid-game is now roughly the old minute 3-4 at minute
   2, so skilled runs will come in shorter; if Lucas wants the 5-minute typical
   back, `rampCurve` toward 0.8 or `rampMinutes` back toward 2.5 is the dial,
