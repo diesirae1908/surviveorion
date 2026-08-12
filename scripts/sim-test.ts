@@ -50,7 +50,15 @@ function check(name: string, ok: boolean, detail = ""): void {
 }
 
 // --- 1. formations over 3 minutes of game time ---
+//
+// Seeded (2026-08-12): this smoke test asserts a population ceiling on a
+// 3-minute vanilla Classic run, and unseeded that peak wanders right across
+// the bar (observed 265 against a <=250 bar on a run where nothing about
+// Classic had changed). The seed pins the spawn script so the ceiling means
+// "the cap logic works" instead of "today's dice were kind"; variety across
+// scripts is covered by the seeded bot trials in sections 10-11.
 {
+  setRunSeed(90_210);
   const world = createWorld(17.8, 10);
   let sawStraight = 0;
   let sawFollow = 0;
@@ -69,15 +77,18 @@ function check(name: string, ok: boolean, detail = ""): void {
   check("drone population grew but stayed under cap", maxDrones > 20 && maxDrones <= 250, `max ${maxDrones}`);
   check("kills accumulated (starshell ram)", world.kills > 50, `${world.kills} kills`);
   check("score is finite and positive", Number.isFinite(world.score) && world.score > 0, `${Math.round(world.score)}`);
+  setRunSeed(null);
 }
 
 // --- 1b. swarmy by 20 seconds ---
 {
+  setRunSeed(90_211);
   const world = createWorld(17.8, 10);
   step(world, 20);
   // the starshell observer rams constantly, so spawned = kills + alive
   const spawned = world.kills + world.drones.length;
   check("swarmy by 20s (>=25 drones spawned)", spawned >= 25, `${spawned} spawned in 20s`);
+  setRunSeed(null);
 }
 
 // --- 2. scripted drones release back to homing ---
@@ -196,7 +207,13 @@ function muteAmbientPickups(world: World): void {
 }
 
 // --- 5. pickup pool includes new powers from minute zero ---
+//
+// Seeded (2026-08-12), same reason as section 1: the "distinct powers in the
+// first 15 drops" bar sits close enough to the bad-luck protection's actual
+// behavior that an unseeded roll flips it (observed 7 against a >=8 bar). What
+// this section is testing is the demotion logic, not the dice.
 {
+  setRunSeed(51_500);
   const world = createWorld(17.8, 10);
   const seen = new Set<string>();
   const first15 = new Set<string>();
@@ -227,6 +244,7 @@ function muteAmbientPickups(world: World): void {
     first15.size >= 8,
     `${first15.size} distinct`,
   );
+  setRunSeed(null);
 }
 
 // --- 6. long run with the full pattern roster (tightring/swarm/megawall live past 1.5 min) ---
@@ -1125,7 +1143,16 @@ function muteAmbientPickups(world: World): void {
 // actually has to dodge survive it". This harness flies a simple repulsion
 // dodger (steer away from the nearest drones/mines, no powers, no offense:
 // a deliberately pessimistic lower bound) and measures real survival time.
-// Not seeded on purpose (playability, not determinism): Math.random gameplay.
+//
+// Each trial runs on its OWN fixed seed (TRIAL_SEEDS below) instead of on
+// Math.random: the bot still faces TRIALS different run scripts, so a median
+// still measures playability across varied days, but it faces the SAME
+// TRIALS scripts every time, so the medians are reproducible run to run.
+// Both bot harnesses (here and the section-11 survival guard) used to be
+// fully unseeded and their medians swung hard between sim-test runs
+// (WHEELHOUSE 188s on one run, 125s on the next, see JOURNAL.md 2026-08-12),
+// which made any bar near its threshold flap and let a real regression hide
+// behind "probably the flaky one".
 /**
  * Steer away from every nearby drone/mine, weighted by inverse-square distance.
  * Shared by the section-10 playability harness and the section-11 late-growth
@@ -1176,12 +1203,19 @@ function evasiveHeading(world: World): { x: number; y: number } {
   return { x: fx / len, y: fy / len };
 }
 
+/**
+ * One fixed seed per bot trial, shared by both bot harnesses: varied run
+ * scripts, reproducible results (see the section-10 header comment).
+ */
+const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909_091, 1_010_101];
+
 {
   const CAP_SECONDS = 90;
   const TRIALS = 10;
   const evasiveDate = new Date("2026-08-10T00:00:00Z");
 
-  function runEvasiveTrial(mutators: Mutator[]): { time: number; score: number } {
+  function runEvasiveTrial(mutators: Mutator[], seed: number): { time: number; score: number } {
+    setRunSeed(seed);
     setActiveMutators(mutators, evasiveDate);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
@@ -1201,6 +1235,7 @@ function evasiveHeading(world: World): { x: number; y: number } {
       world.events.length = 0;
     }
     clearActiveMutators();
+    setRunSeed(null);
     return { time: Math.min(world.time, CAP_SECONDS), score: world.score };
   }
 
@@ -1210,7 +1245,7 @@ function evasiveHeading(world: World): { x: number; y: number } {
     return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
   }
 
-  const baselineTrials = Array.from({ length: TRIALS }, () => runEvasiveTrial([]));
+  const baselineTrials = TRIAL_SEEDS.slice(0, TRIALS).map((seed) => runEvasiveTrial([], seed));
   const baselineMedian = median(baselineTrials.map((r) => r.time));
   const baselineScoreMedian = median(baselineTrials.map((r) => r.score));
   check(
@@ -1232,7 +1267,7 @@ function evasiveHeading(world: World): { x: number; y: number } {
   const FLOOR_FRACTION = 0.4;
   const results: { id: string; name: string; median: number; medianScore: number }[] = [];
   for (const m of MUTATOR_POOL) {
-    const trials = Array.from({ length: TRIALS }, () => runEvasiveTrial([m]));
+    const trials = TRIAL_SEEDS.slice(0, TRIALS).map((seed) => runEvasiveTrial([m], seed));
     results.push({
       id: m.id,
       name: m.name,
@@ -1316,6 +1351,13 @@ function evasiveHeading(world: World): { x: number; y: number } {
 {
   const lateDate = new Date("2026-08-17T00:00:00Z"); // arbitrary, not a Sunday
   const MINUTES = 8;
+  // The mid-ramp (2026-08-12) lives inside the first three minutes, so the
+  // minute buckets below are too coarse to see it: they can't tell "calm open,
+  // then a hard climb" from "flat and boring for two minutes". These 30-second
+  // buckets cover the first HALF_BUCKETS / 2 minutes at the resolution the
+  // shape is tuned at.
+  const HALF = 30;
+  const HALF_BUCKETS = 8;
 
   interface Pressure {
     /** average concurrent creatures per minute bucket (index 0 = minute 0-1) */
@@ -1329,11 +1371,20 @@ function evasiveHeading(world: World): { x: number; y: number } {
     formations: number[];
     ambient: number[];
     meteors: number[];
+    /** scheduled pickup drops per minute bucket (daily runs land every one) */
+    pickups: number[];
+    /** average concurrent creatures per 30s bucket (index 0 = 0-30s) */
+    halfConcurrent: number[];
+    /** average seconds between arrivals per 30s bucket */
+    halfGap: number[];
+    /** creature arrivals per 30s bucket */
+    halfArrivals: number[];
   }
 
-  function measurePressure(id: string): Pressure {
+  /** `id === null` measures a plain Daily run (no mutator), the reference. */
+  function measurePressure(id: string | null): Pressure {
     setRunSeed(1234567);
-    setActiveMutators([getMutatorById(id)!], lateDate);
+    setActiveMutators(id === null ? [] : [getMutatorById(id)!], lateDate);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
     const zeros = (): number[] => new Array(MINUTES).fill(0);
@@ -1347,6 +1398,13 @@ function evasiveHeading(world: World): { x: number; y: number } {
     const formations = zeros();
     const ambient = zeros();
     const meteors = zeros();
+    const pickups = zeros();
+    const halfZeros = (): number[] => new Array(HALF_BUCKETS).fill(0);
+    const halfConcurrentSum = halfZeros();
+    const halfSamples = halfZeros();
+    const halfArrivals = halfZeros();
+    const halfGapSum = halfZeros();
+    const halfGapCount = halfZeros();
     let prevArrival = -1;
 
     const steps = Math.round(MINUTES * 60 / FIXED_DT);
@@ -1356,25 +1414,36 @@ function evasiveHeading(world: World): { x: number; y: number } {
       world.powers.starshellTimer = 9999;
       tick(world, { ...input, inertia: false, moveVector: { x: 0, y: 0 } }, FIXED_DT);
       const b = Math.min(MINUTES - 1, Math.floor(world.time / 60));
+      const h = Math.floor(world.time / HALF);
       for (const e of world.events) {
         if (e.type === "assembly") {
           const newest = world.assemblies[world.assemblies.length - 1];
           events[b]++;
           memberSum[b] += newest?.members.length ?? 0;
           speedSum[b] += newest?.speed ?? 0;
+          if (h < HALF_BUCKETS) halfArrivals[h]++;
           if (prevArrival >= 0) {
             gapSum[b] += world.time - prevArrival;
             gapCount[b]++;
+            if (h < HALF_BUCKETS) {
+              halfGapSum[h] += world.time - prevArrival;
+              halfGapCount[h]++;
+            }
           }
           prevArrival = world.time;
         }
         if (e.type === "formation") formations[b]++;
         if (e.type === "ambientSpawn") ambient[b]++;
         if (e.type === "meteorStrike") meteors[b]++;
+        if (e.type === "pickupSpawn") pickups[b]++;
       }
       world.events.length = 0;
       concurrentSum[b] += world.assemblies.length;
       samples[b]++;
+      if (h < HALF_BUCKETS) {
+        halfConcurrentSum[h] += world.assemblies.length;
+        halfSamples[h]++;
+      }
     }
     clearActiveMutators();
     setRunSeed(null);
@@ -1386,6 +1455,10 @@ function evasiveHeading(world: World): { x: number; y: number } {
       formations,
       ambient,
       meteors,
+      pickups,
+      halfConcurrent: halfConcurrentSum.map((s, i) => s / Math.max(1, halfSamples[i])),
+      halfGap: halfGapSum.map((s, i) => s / Math.max(1, halfGapCount[i])),
+      halfArrivals,
     };
   }
 
@@ -1410,11 +1483,102 @@ function evasiveHeading(world: World): { x: number; y: number } {
     growth.map((g) => `${g.id} ${g.ratio.toFixed(1)}x`).join(", "),
   );
 
+  // Mid-ramp shape (Lucas, 2026-08-12, live WHEELHOUSE: "after 30 secs it
+  // needs to ramp up a bit more, people will get bored otherwise"). Two halves
+  // that pull against each other on purpose: the opening has to stay readable
+  // AND the 0:30-3:00 stretch has to climb hard out of it.
+  //
+  // The mid-ramp bars are ABSOLUTE, per day, unlike the growth-ratio guard
+  // above, because a ratio can't see this bug: the pre-pass curve grew by a
+  // perfectly respectable 1.8x from minute 1 to minute 2, it was just doing it
+  // from nothing to almost nothing. Each floor sits roughly 20-25% above the
+  // pre-pass measurement and 20% below the post-pass one, so the pre-pass
+  // curve fails it and normal tuning drift doesn't (avg concurrent creatures,
+  // seeded invulnerable observer, `before` = the 2026-08-11 late-growth build):
+  //
+  //   day               60-120s  before      120-180s  before
+  //   wheelhouse        3.0      2.5         4.5       3.3
+  //   hunting-party     1.9      1.4         2.5       2.0
+  //   lancer-doctrine   3.4      2.7         5.5       4.5
+  //   demolition-day    1.0      0.6         1.5       1.0
+  //   menagerie         2.1      1.9         2.8       1.8
+  {
+    const OPENING_CONCURRENT_CEILING = 2.5; // no jump-scare open
+    const OPENING_ARRIVAL_CEILING = 8; // creatures materializing in the first 30s
+    const MID_FLOORS: Record<string, readonly [number, number]> = {
+      wheelhouse: [3.0, 4.5],
+      "hunting-party": [1.9, 2.5],
+      "lancer-doctrine": [3.4, 5.5],
+      "demolition-day": [1.0, 1.5],
+      menagerie: [2.1, 2.8],
+    };
+    const rows = creatureDays.map((id) => {
+      const p = pressures.get(id)!;
+      return {
+        id,
+        open: window(p.halfConcurrent, 0, 2),
+        openArrivals: p.halfArrivals[0],
+        at60: window(p.halfConcurrent, 2, 4),
+        at120: window(p.halfConcurrent, 4, 6),
+        floors: MID_FLOORS[id],
+      };
+    });
+    const brutal = rows.filter(
+      (r) => r.open > OPENING_CONCURRENT_CEILING || r.openArrivals > OPENING_ARRIVAL_CEILING,
+    );
+    check(
+      "creature days: the first 30s stays a readable opening (the screenshot moment)",
+      brutal.length === 0,
+      rows.map((r) => `${r.id} ${r.open.toFixed(1)} concurrent / ${r.openArrivals} arrivals`).join(", "),
+    );
+    check(
+      "creature days: pressure climbs out of the opening by t=60s (per-day mid-ramp floors)",
+      rows.every((r) => r.at60 >= r.floors[0]),
+      rows.map((r) => `${r.id} ${r.at60.toFixed(1)} vs floor ${r.floors[0]}`).join(", "),
+    );
+    check(
+      "creature days: and keeps climbing through t=120s (per-day mid-ramp floors)",
+      rows.every((r) => r.at120 >= r.floors[1]),
+      rows.map((r) => `${r.id} ${r.at120.toFixed(1)} vs floor ${r.floors[1]}`).join(", "),
+    );
+  }
+
+  // Pickup economy on the choreography days (2026-08-12, same live feedback:
+  // "I could hoard powers easily"). Daily Patrol runs the drop schedule 30%
+  // faster because it has no refill floor; on a day with no ambient swarm to
+  // spend powers on, that meant a permanently full board. These days now sit
+  // just under the ordinary drop rate, and the bars are two-sided: slower than
+  // a plain Daily, but nowhere near starved (the powers ARE the counterplay).
+  {
+    const daily = measurePressure(null);
+    const SLOWER_THAN = 0.9; // fraction of a plain Daily's drops, upper bound
+    const NOT_STARVED = 0.6; // ...and lower bound
+    const reference = daily.pickups.reduce((a, b) => a + b, 0);
+    const rows = creatureDays.map((id) => {
+      const drops = pressures.get(id)!.pickups.reduce((a, b) => a + b, 0);
+      return { id, drops, ratio: drops / Math.max(1, reference) };
+    });
+    check(
+      `creature days: power drops slowed vs a plain Daily (${NOT_STARVED}-${SLOWER_THAN}x), so powers can't be carpet-hoarded`,
+      rows.every((r) => r.ratio >= NOT_STARVED && r.ratio <= SLOWER_THAN),
+      `plain Daily ${reference} drops in ${MINUTES} min | ` +
+        rows.map((r) => `${r.id} ${r.drops} (${r.ratio.toFixed(2)}x)`).join(", "),
+    );
+  }
+
   // WHEELHOUSE's own calibration targets (Lucas, 2026-08-11: ~5-6 concurrent
   // wheels by m=5, ~10-12 members and a ~2.0-2.5s burst cadence by m=7, and
-  // the traffic itself meaningfully faster, not a +1%/min creep).
+  // the traffic itself meaningfully faster, not a +1%/min creep; plus the
+  // 2026-08-12 mid-ramp numbers, measured on the live day that triggered it:
+  // ~2.4 concurrent wheels at 1:55 was "still sparse, I can hoard powers").
   {
     const w = pressures.get("wheelhouse")!;
+    check(
+      "WHEELHOUSE: lanes arrive <=2s apart by t=60s (the mid-ramp cadence Lucas asked for)",
+      window(w.halfGap, 2, 4) <= 2,
+      `${window(w.halfGap, 2, 4).toFixed(2)}s between arrivals over 60-120s ` +
+        `(first 30s: ${w.halfGap[0].toFixed(2)}s)`,
+    );
     check(
       "WHEELHOUSE: >=5 concurrent wheels on average through minute 5",
       w.concurrent[4] >= 5,
@@ -1445,6 +1609,15 @@ function evasiveHeading(world: World): { x: number; y: number } {
       "STARFALL: the rain keeps intensifying past its ramp (more impacts in minute 7-8 than 3-4)",
       window(s.meteors, 5, 8) > window(s.meteors, 2, 4) * 1.15,
       `${window(s.meteors, 2, 4).toFixed(0)}/min at 3-4 vs ${window(s.meteors, 5, 8).toFixed(0)}/min at 6-8`,
+    );
+    // 2026-08-12 mid-ramp densify, lighter touch than the creature days: the
+    // ramp to intervalFloor is 2.5 min instead of 3.5, so the sky thickens
+    // noticeably while the player is still in minute 1-2 (the late leg's own
+    // anchor, STARFALL_RAIN.lateStartMinutes, deliberately did NOT move).
+    check(
+      "STARFALL: the rain thickens across the first two minutes (>=1.4x minute 2 vs minute 1)",
+      s.meteors[1] >= s.meteors[0] * 1.4,
+      `${s.meteors[0]}/min in minute 1 vs ${s.meteors[1]}/min in minute 2 (minute 3: ${s.meteors[2]})`,
     );
   }
 
@@ -1483,15 +1656,17 @@ function evasiveHeading(world: World): { x: number; y: number } {
 {
   const CAP = 300;
   const TRIALS = 10;
-  // >=50% of trials must END before the cap. Deliberately loose: this bot is
-  // unseeded and its run-to-run spread is wide (observed 7/10 to 10/10 dying
-  // across consecutive sim-test runs post-pass, vs DEMOLITION DAY's pre-pass
-  // 40%). The telemetry checks in (a) are the sharp guard; this one is the
-  // end-to-end sanity that a pilot with extra lives can't just sit in the day.
+  // >=50% of trials must END before the cap. Deliberately loose: the spread
+  // across days is wide (observed 7/10 to 10/10 dying post-late-growth, vs
+  // DEMOLITION DAY's pre-pass 40%), and the seeds below are a sample of run
+  // scripts, not a proof. The telemetry checks in (a) are the sharp guard;
+  // this one is the end-to-end sanity that a pilot with extra lives can't
+  // just sit in the day.
   const CAP_ESCAPE_BAR = 0.5;
   const lateDate = new Date("2026-08-17T00:00:00Z");
 
-  function shieldedTrial(mutators: Mutator[]): number {
+  function shieldedTrial(mutators: Mutator[], seed: number): number {
+    setRunSeed(seed);
     setActiveMutators(mutators, lateDate);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
@@ -1516,6 +1691,7 @@ function evasiveHeading(world: World): { x: number; y: number } {
       world.events.length = 0;
     }
     clearActiveMutators();
+    setRunSeed(null);
     return Math.min(world.time, CAP);
   }
 
@@ -1529,7 +1705,7 @@ function evasiveHeading(world: World): { x: number; y: number } {
     "year-of-the-serpent",
   ];
   const rows = plateauProneIds.map((id) => {
-    const times = Array.from({ length: TRIALS }, () => shieldedTrial([getMutatorById(id)!]));
+    const times = TRIAL_SEEDS.slice(0, TRIALS).map((seed) => shieldedTrial([getMutatorById(id)!], seed));
     const ended = times.filter((t) => t < CAP - 0.5).length;
     return { id, name: getMutatorById(id)!.name, times, ended };
   });
