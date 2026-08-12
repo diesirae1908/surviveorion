@@ -13,7 +13,11 @@ const CHAIN_POINTS = 40; // chainBonusPoints
 const PULSE_MULTI_POINTS = 60; // pulseMultiKillPoints (paid per kill past the threshold)
 const GRAZE_POINTS = 10; // grazePoints
 const MAX_GRAZES_PER_SEC = 8; // generous ceiling (per-drone 1.5s cooldown in practice)
-const MAX_KILLS_PER_SEC = 12; // generous physical ceiling (spawn rate reaches ~8/s late)
+// Generous physical ceiling. Ambient spawn rate reaches ~8/s late, but the
+// late-growth pass (2026-08-11) keeps creature and plateau mutator days
+// escalating past minute 3, so a max-throughput observer at m8-10 can
+// legitimately sustain ~11-16 kills/s. 12 was rejecting real skilled runs.
+const MAX_KILLS_PER_SEC = 20;
 const MAX_TIME_SECONDS = 4 * 3600;
 
 // Board modes (one leaderboard each): desktop keyboard, phone touch stick,

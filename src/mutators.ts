@@ -404,7 +404,8 @@ export const MUTATOR_POOL: Mutator[] = [
     tags: ["power-amp"],
     // Drop RATE is deliberately untouched (per Sam's ask); only magnitude.
     // See powers.ts for exactly which dimension gets amplified per power;
-    // checked against server/validate.mjs's MAX_KILLS_PER_SEC (12) via the
+    // checked against server/validate.mjs's MAX_KILLS_PER_SEC (raised 12 to 20
+    // on 2026-08-11 for the late-growth pass) via the
     // same invulnerable-observer harness used for round 1 (see JOURNAL.md).
     overrides: { powerAmpScale: 1.4 },
   },
