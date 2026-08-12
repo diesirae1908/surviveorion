@@ -4,6 +4,141 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-11: late-growth pass, the plateau days keep escalating forever (branch `sam/creature-late-growth`, NOT merged, NOT deployed)
+
+- **Trigger.** Today's Daily Patrol (WHEELHOUSE) was farmable: Lucas ~2.5 min,
+  a friend ~25 min. Target skilled run length is ~5 min typical and 7-8 min
+  MAX. Requirement from Lucas: the fix must be a shape shared by every
+  plateau-prone mutator, not a WHEELHOUSE-only hack.
+- **Root cause.** Creature days ramp "early feel" to "late feel" over
+  `CREATURE_DAYS.rampMinutes: 3` and then hard-stop: `rampedInterval` /
+  `rampedCount` both clamp at `m/3`, `wheelMemberRange` never scaled with time
+  at all, `ASSEMBLY.kinds.*.speedScale` is fixed, and the drone baseline speed
+  ramp is near-flat. Classic keeps growing forever through
+  `SPAWNER.spawnsPerSecond.latePerMinute`, but these days set
+  `ambientRateScale: 0`, so they threw Classic's endless leg away and replaced
+  it with nothing. Same story for STARFALL (sits on `intervalFloor` after
+  m3.5) and for the zero-ambient formation days GREAT WALL / YEAR OF THE
+  SERPENT (formation interval floors out around m2).
+- **Shared helpers (`src/creatures.ts`), replacing `rampedInterval` /
+  `rampedCount`.** All four are pure functions of elapsed run minutes, with
+  `lateMin = max(0, m - 3)`:
+  - `escalateInterval` = ramped range x `max(intervalFloorScale, 1 / (1 + intervalTighten * lateMin))`
+    (hyperbolic, so the first late minutes bite hardest)
+  - `escalateCount` = `max(1, round(min(groupMax, rampedCount + groupPerMinute * lateMin)))`
+  - `lateMemberBonus` = `min(memberMax, memberPerMinute * lateMin)`, added to the seeded member roll
+  - `lateSpeedScale` = `min(speedMax, 1 + speedPerMinute * lateMin)`, threaded
+    through `CreatureSpawn.speedScale` into `spawnAssemblyDirect`
+  Per-day numbers live in `CREATURE_DAYS.*.late` (new `CreatureLateGrowth`
+  interface in `config.ts`), so the curve shape is identical everywhere and
+  only the coefficients differ: WHEELHOUSE leans hardest on members + speed
+  (0.9/min, 0.08/min), HUNTING PARTY least on speed (0.05/min, a hunter is
+  meant to be outflown), DEMOLITION DAY gets zero speed growth and the
+  tightest cadence floor (0.4) because a slab is stationary, MENAGERIE gets
+  the gentlest group growth (0.35/min) plus
+  `doubleChanceLatePerMinute: 0.12` so its double becomes the norm late.
+- **DEMOLITION DAY also needed a mid-ramp fix**, not just a late leg: one
+  short-fused slab at a time disbands before the next lands, so it was the
+  most farmable day in the pool (assisted bot ran it to the 10-minute cap in
+  10 of 25 trials). Added `deploymentCountRange: [1, 2]` and
+  `slabStagger: 0.6`. Minute 1 is unchanged (8 events, same 7.8s gap); minute
+  2 onward is denser by design.
+- **STARFALL** (`starfall.ts`): past `rampMinutes` the interval keeps
+  shrinking, `max(intervalHardFloor 0.45, ramped / (1 + 0.14 * lateMin))`,
+  reaching ~0.7s by m7 and bottoming out around m13.
+- **GREAT WALL / YEAR OF THE SERPENT** (`mutators.ts`, new
+  `lateFormationGrowth` override): formation interval keeps tightening
+  (`intervalTighten: 0.18`, floor 0.45 of the ramped value) and a stray-drone
+  trickle starts at m4 and grows (`ambientPerMinute` 0.25 / 0.3, capped at
+  1.5 / 1.8 spawns/sec). The trickle needed its own accumulator
+  (`World.lateAmbientAccumulator`): these days arrive formations so often that
+  the shared `spawnAccumulator` is reset to 0 before it can ever fire.
+  Sublines updated to disclose the late leak, so the day still reads honestly.
+- **Drone cap valve (`enemies.ts`).** Late growth makes `SPAWNER.maxDrones`
+  (550) genuinely reachable (a 10-minute invulnerable run now peaks 240-505
+  where it used to peak near 100). Skipping a scheduled creature at the cap
+  would make the shared daily script depend on how much the pilot had killed,
+  so `spawnAssemblyDirect` now calls `retireDistantFreeDrones` first: silently
+  removes the loose non-assembly, non-frozen drones farthest from the ship, no
+  score, no kill event, no multiplier. Verified script-identical across play
+  styles at the cap: creature arrivals over a 600s run match exactly between a
+  ram-everything observer and a never-kill observer (WHEELHOUSE 879/879,
+  LANCER DOCTRINE 887/887, DEMOLITION DAY 874/874, HUNTING PARTY 649/649,
+  MENAGERIE 757/757).
+- **Sim before/after** (seeded invulnerable observer, per-minute buckets 1-8,
+  `avg concurrent creatures` and `members/event` and `avg gap`):
+  - WHEELHOUSE concurrent 1.4 2.5 3.3 5.1 4.2 3.9 3.8 4.7 becomes
+    1.4 2.5 3.4 5.4 9.1 9.5 11.6 14.5; members 7.6 flat-ish becomes
+    7.6 7.5 7.4 8.0 8.7 9.8 10.6 11.4; gap 5.9 3.2 1.9 1.4 1.4 1.4 1.4 1.4
+    becomes 5.9 3.2 1.9 1.3 0.8 0.7 0.5 0.4; wheel speed 1.9 flat becomes
+    1.9 1.9 1.9 2.0 2.2 2.4 2.6 2.8. Minutes 1-3 are bit-identical.
+  - HUNTING PARTY concurrent 2.6 at m8 becomes 9.0; LANCER DOCTRINE 4.5
+    becomes 15.1; DEMOLITION DAY 0.5 becomes 5.3; MENAGERIE 2.7 becomes 12.2.
+  - STARFALL impacts/min 55 59 60 59 61 (m4-8) become 56 68 75 85 89.
+  - GREAT WALL formations/min 27 27 27 26 27 become 34 39 43 50 52, ambient/min
+    0 0 0 0 becomes 7 22 38 52 (m5-8). SERPENT formations 30 30 29 30 30 become
+    38 43 49 53 59, ambient 8 27 45 63.
+  - Assisted dodge bot (rebankable shield every 7s, the stand-in for a skilled
+    pilot banking drops): pre-pass WHEELHOUSE reached 9.6 min and DEMOLITION
+    DAY hit the 10-minute cap in 10 of 25 trials; post-pass nothing reaches
+    7.1 min. At the committed 300s cap in sim-test, medians across two
+    consecutive runs (10 trials each, the bot is unseeded so this is the real
+    spread): WHEELHOUSE 104-173s, HUNTING PARTY 146s, LANCER DOCTRINE 161-223s,
+    DEMOLITION DAY 196-203s, MENAGERIE 160-168s, GREAT WALL 104-168s,
+    YEAR OF THE SERPENT 88-91s. Every day ended 10 of 10 trials inside the cap
+    except GREAT WALL (8-9 of 10).
+- **Sim-test additions (section 11).** (a) Pressure telemetry on a seeded
+  invulnerable observer: every growing day must show minute 6-8 concurrent
+  pressure >= 1.6x minute 3-4 (observed 2.1x to 3.9x), plus WHEELHOUSE's four
+  explicit calibration targets (>=5 concurrent wheels through m5, >=10
+  members/wheel by m7, <=0.8s between arrivals by m7, >=1.2x speed by m7), plus
+  STARFALL intensity growth and the GREAT WALL / SERPENT "zero ambient for 4
+  minutes, then a growing trickle" shape. (b) A 300s-cap assisted-bot guard
+  requiring >=50% of trials to end inside the cap on every plateau-prone day.
+  Bot-to-human mapping documented in the file: this bot dies around minute 1
+  at the old 90s cap, so it cannot see a minute-3 plateau at all; the shield
+  stand-in pushes it into the 2-7 minute band where the late curve bites.
+- **Medal factors: NOT changed** (deliberately, per Lucas's tripwire). The
+  90s-cap evasive bot that `difficultyFactor` was calibrated against sees
+  almost none of this: minutes 1-3 are bit-identical on WHEELHOUSE, HUNTING
+  PARTY, LANCER DOCTRINE and MENAGERIE, so their calibration inputs cannot
+  have moved. Measured ratios before/after over 20 trials: WHEELHOUSE
+  1.69x/1.46x, HUNTING PARTY 0.97x/0.87x, LANCER DOCTRINE 0.93x/1.27x,
+  DEMOLITION DAY 1.22x/1.15x, MENAGERIE 1.40x/1.31x, STARFALL 1.08x/1.04x,
+  GREAT WALL 1.55x/1.62x, SERPENT 1.74x/1.61x. The spread is harness noise
+  (unseeded bot, wide run-to-run variance), not signal. Worth a real-data
+  re-look: skilled players now score less per day on creature days because
+  runs are shorter, and STARFALL's median bot score moved 297 to 551 points
+  (more meteors clearing crowds for free), which is the one number that could
+  justify a threshold revisit.
+- **Anti-cheat ceiling: flagged for Lucas, NOT changed.**
+  `server/validate.mjs` rejects a run when `kills > timeSurvived * 12`
+  (`MAX_KILLS_PER_SEC`, commented "spawn rate reaches ~8/s late"). A
+  max-throughput invulnerable observer now averages 10.9-11.2 kills/s at m8 and
+  13-16 kills/s at m10 on WHEELHOUSE / LANCER DOCTRINE / DEMOLITION DAY /
+  MENAGERIE / SERPENT (was well under 12 everywhere). A human dying at 5-8
+  minutes should stay under it, but the margin is now thin and a long
+  starshell-heavy run could trip it, which would silently refuse to save a
+  legitimate score. Recommend raising `MAX_KILLS_PER_SEC` to ~20 in the same
+  change that ships this; it needs Lucas's sign-off because it is a server
+  deploy and a validation loosening.
+- **Remaining risks.** (1) GREAT WALL still touches the 550 drone cap in a
+  10-minute invulnerable run (t=473s), which is a frame-rate question on weak
+  devices more than a balance one; the late ambient trickle is the new
+  contributor and `ambientMax` is the knob. (2) DEMOLITION DAY's minute 2-3 is
+  now denser than before, a deliberate deviation from "late growth only"
+  because its plateau started before the ramp ended; minute 1 is untouched.
+  (3) Coefficients were tuned against a bot, not a human. Lucas's own run on a
+  preview build is the real test, and the per-day `late` blocks are the single
+  place to tune. (4) Sublines for GREAT WALL / SERPENT changed, so their
+  briefing copy is no longer the version that shipped on 2026-08-10.
+- Verified: `npx tsc --noEmit`, `npm run build`, `npx tsx scripts/sim-test.ts`
+  all green (122 checks). Pool order, ids and date-hash assignments untouched
+  (sim-test's launch-gate check still resolves 2026-08-11 to `iron-barrage`).
+  Local preview: `npm run dev`, then `?mutator=wheelhouse` (also
+  `hunting-party`, `lancer-doctrine`, `demolition-day`, `menagerie`,
+  `great-wall`, `year-of-the-serpent`, `starfall`).
+
 ## 2026-08-10f: MENAGERIE density pass, the zoo was too sparse (main, deployed, second hotfix on today's live day)
 
 - Direct commit to `main` (Lucas explicitly approved, this deploys to prod

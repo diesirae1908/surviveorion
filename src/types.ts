@@ -74,6 +74,9 @@ export interface CreatureSpawn {
   dirX: number; // initial heading (unit vector)
   dirY: number;
   count: number; // member count, fixed at schedule time
+  /** Late-growth travel-speed multiplier for this creature, fixed at schedule
+   * time (see creatures.ts lateSpeedScale; 1 = the kind's normal speed). */
+  speedScale: number;
 }
 
 export interface Assembly {
@@ -353,6 +356,10 @@ export interface World {
 
   // spawner state
   spawnAccumulator: number;
+  /** Zero-ambient formation days only: budget for the late stray-drone trickle,
+   * kept off spawnAccumulator (which their formation cadence keeps zeroing).
+   * See mutators.ts lateFormationGrowth; stays 0 on every other day and mode. */
+  lateAmbientAccumulator: number;
   formationTimer: number;
   nextFormationDelay: number;
   sustainedSpawnCooldown: number;
