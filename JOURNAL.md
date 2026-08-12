@@ -4,7 +4,46 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-11: late-growth pass, the plateau days keep escalating forever (branch `sam/creature-late-growth`, NOT merged, NOT deployed)
+## 2026-08-12: late-growth pass merged + deployed, kill-rate ceiling raised to 20 (main, DEPLOYED)
+
+- **Shipped.** Lucas green-lit the late-growth pass, so
+  `sam/creature-late-growth` was merged into `main` (merge commit, matching this
+  repo's style for `sam/*` branches) and pushed, which auto-deploys the Render
+  service `surviveorion`. Two content commits: `7c2a8e3` the late-growth pass
+  itself (creature days, STARFALL, GREAT WALL / YEAR OF THE SERPENT, the
+  drone-cap valve, new sim guards) and `6d4b662` the companion anti-cheat
+  change below.
+- **Anti-cheat ceiling raised, and it was required, not cosmetic.**
+  `MAX_KILLS_PER_SEC` in `server/validate.mjs` goes 12 to 20. The whole point of
+  the pass is that these days keep escalating past minute 3 instead of
+  plateauing, so the crowd a skilled pilot legitimately clears late is far
+  bigger than when the ceiling was set: a max-throughput observer at minute
+  8-10 sustains roughly 11-16 kills/s. Left at 12, long skilled runs on
+  creature days would have come back rejected as "impossible kill rate", i.e.
+  the pass would have punished exactly the players it was built for.
+  `validateRun`'s per-run score upper bound is derived from `kills`, so it
+  tracked the raise on its own; nothing in `SCORING` changed. The stale "(12)"
+  reference in the OVERCHARGE comment in `src/mutators.ts` was synced to match.
+- **Pool deliberately frozen.** No `MUTATOR_POOL` order or id changes and no
+  medal-base changes, so the day-to-mutator mapping pilots are already seeing
+  stays exactly as it was. The only pool edits are the two new
+  `lateFormationGrowth` overrides on GREAT WALL / YEAR OF THE SERPENT and their
+  subline rewrites, which disclose the late ambient leak so those days still
+  read honestly.
+- **Verification.** `npm run build` (tsc --noEmit + vite) green. Bundle
+  `index-BopFbpFD.js` before the deploy, `index-BnR92Xoc.js` after, confirmed
+  live at surviveorion.com. CSS hash unchanged (`index-Bp4CgbiJ.css`), as
+  expected for a gameplay-only change.
+- **Follow-up: the sim suite is mildly flaky.** `scripts/sim-test.ts` passed on
+  four of five runs; one run reported a single failed check that never
+  reproduced across four further runs. The bot-median checks (evasive and
+  shield-assisted) run unseeded `Math.random` trials, so day medians swing a
+  lot between runs (WHEELHOUSE came in at 188s on one run and 125s on the next)
+  and any bar close to a threshold will flap. Worth seeding those trials or
+  widening the bars, otherwise a genuine regression will get waved through as
+  "probably the flaky one".
+
+## 2026-08-11: late-growth pass, the plateau days keep escalating forever (branch `sam/creature-late-growth`, merged + deployed 2026-08-12, see the entry above)
 
 - **Trigger.** Today's Daily Patrol (WHEELHOUSE) was farmable: Lucas ~2.5 min,
   a friend ~25 min. Target skilled run length is ~5 min typical and 7-8 min
