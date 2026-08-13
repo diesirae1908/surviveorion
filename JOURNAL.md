@@ -4,8 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-12: "no chill" densify, the creature days stop having a calm pocket to screenshot from (branch `sam/no-chill-midgame`, NOT merged)
+## 2026-08-12: "no chill" densify merged + deployed, the creature days stop having a calm pocket to screenshot from (main, DEPLOYED)
 
+- **Shipped.** Lucas green-lit the pass ("push live"), so
+  `sam/no-chill-midgame` was merged into `main` as merge commit `2aab5d3`
+  (`--no-ff`, matching this repo's style for `sam/*` branches) on top of the
+  single content commit `b115a93`, and pushed, which auto-deploys the Render
+  service `surviveorion`. Bundle `index-LnPMPnt2.js` before the deploy,
+  `index--LdUHUyN.js` after; CSS unchanged (`index-Bp4CgbiJ.css`), no styles
+  moved. `npm run build` green and a full `npx tsx scripts/sim-test.ts` ALL
+  CHECKS PASSED on the merge commit before the push.
+- **Second mid-day deploy on the same UTC day, boards again left alone.** This
+  is the second ship into the running 2026-08-12 daily (the mid-ramp densify
+  went out earlier the same day), so today's board now mixes three scripts:
+  pre-densify, mid-ramp, and this one. Lucas's standing call is to ship and not
+  clear the boards. `MUTATOR_POOL` order and ids stay frozen, so the
+  day-to-mutator mapping is untouched, and no medal or `validate.mjs` change
+  rode along.
 - **Trigger.** Lucas hard-refreshed onto the mid-ramp build shipped earlier the
   same day (bundle `index-LnPMPnt2.js` confirmed live) and screenshotted
   WHEELHOUSE at **1:43**: near-empty arena, one pickup, ship parked shielded in
@@ -131,9 +146,9 @@ why, commit hash, follow-ups), committed together with the work. See
   (WHEELHOUSE 163 events, MENAGERIE 107 events, identical script across two
   play styles) still pass — `randRange` consumes exactly one draw regardless of
   its bounds, so the banded placement keeps the fixed-draw contract.
-- **Follow-ups.** (a) Lucas to eyeball the preview at 1:00-2:00 before any
-  merge; the open question is readability at 8-10 concurrent wheels, not
-  density. (b) If minute 5-8 is judged too hot as a knock-on, the fix is a
+- **Follow-ups.** (a) Shipped without the preview eyeball Lucas was asked for
+  (he called "push live" instead); the open question is still readability at
+  8-10 concurrent wheels, not density, and it is now a live-play question. (b) If minute 5-8 is judged too hot as a knock-on, the fix is a
   `lateStartMinutes` nudge rather than undoing the mid ramp. (c) HUNTING PARTY
   is still visibly the sparsest day of the five and would need a pursuit-shaped
   fix (longer hunter lifetime, which is global `ASSEMBLY` config) rather than
