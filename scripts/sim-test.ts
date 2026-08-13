@@ -1358,6 +1358,10 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
   // shape is tuned at.
   const HALF = 30;
   const HALF_BUCKETS = 8;
+  // "A drone this close and you must already be moving" — the radius used by
+  // the pocket search below. Roughly a second and a half of warning against
+  // creature-day traffic in a 17.8 x 10 arena.
+  const POCKET_R = 3;
 
   interface Pressure {
     /** average concurrent creatures per minute bucket (index 0 = minute 0-1) */
@@ -1379,6 +1383,18 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     halfGap: number[];
     /** creature arrivals per 30s bucket */
     halfArrivals: number[];
+    /** LONGEST gap between arrivals in each 30s bucket (the dead air) */
+    halfMaxGap: number[];
+    /**
+     * Felt pressure (2026-08-12 "no chill" pass): mean over the bucket of the
+     * longest time the ROOMIEST spot on a coarse arena grid stays clear of
+     * drones, looking forward from each sample. In other words, "if the pilot
+     * parked in the best available pocket right now, how long could they sit
+     * there?" — which is literally what Lucas did when he screenshotted a calm
+     * arena at 1:43 while the average-concurrent telemetry said the day was
+     * busy. Averages and arrival rates cannot see this; only coverage can.
+     */
+    halfPocket: number[];
   }
 
   /** `id === null` measures a plain Daily run (no mutator), the reference. */
@@ -1405,7 +1421,27 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     const halfArrivals = halfZeros();
     const halfGapSum = halfZeros();
     const halfGapCount = halfZeros();
+    const halfMaxGap = halfZeros();
     let prevArrival = -1;
+
+    // Pocket search grid (see Pressure.halfPocket). Sampled at POCKET_HZ over
+    // the buckets we report on only — an 8-minute full-resolution sweep would
+    // dominate the runtime of this whole script for no extra signal.
+    const POCKET_HZ = 4;
+    const pocketSteps = Math.max(1, Math.round(1 / (POCKET_HZ * FIXED_DT)));
+    const pocketDt = pocketSteps * FIXED_DT;
+    const pocketWindow = HALF_BUCKETS * HALF;
+    const grid: { x: number; y: number }[] = [];
+    for (let gi = 0; gi < 11; gi++) {
+      for (let gj = 0; gj < 6; gj++) {
+        grid.push({
+          x: (-0.5 + (gi + 0.5) / 11) * world.viewW,
+          y: (-0.5 + (gj + 0.5) / 6) * world.viewH,
+        });
+      }
+    }
+    const occupancy: boolean[][] = grid.map(() => []);
+    const occupancyTime: number[] = [];
 
     const steps = Math.round(MINUTES * 60 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -1428,6 +1464,7 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
             if (h < HALF_BUCKETS) {
               halfGapSum[h] += world.time - prevArrival;
               halfGapCount[h]++;
+              halfMaxGap[h] = Math.max(halfMaxGap[h], world.time - prevArrival);
             }
           }
           prevArrival = world.time;
@@ -1444,9 +1481,47 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
         halfConcurrentSum[h] += world.assemblies.length;
         halfSamples[h]++;
       }
+      if (world.time <= pocketWindow && i % pocketSteps === 0) {
+        occupancyTime.push(world.time);
+        for (let p = 0; p < grid.length; p++) {
+          const g = grid[p];
+          let occupied = false;
+          for (const d of world.drones) {
+            if (!d.alive) continue;
+            const dx = d.x - g.x;
+            const dy = d.y - g.y;
+            if (dx * dx + dy * dy <= POCKET_R * POCKET_R) {
+              occupied = true;
+              break;
+            }
+          }
+          occupancy[p].push(occupied);
+        }
+      }
     }
     clearActiveMutators();
     setRunSeed(null);
+
+    // Backward pass per grid point: how long that point stays clear from each
+    // sample onward; halfPocket takes the most generous spot at each sample.
+    const pn = occupancyTime.length;
+    const bestDwell = new Array(pn).fill(0);
+    for (let p = 0; p < grid.length; p++) {
+      const occ = occupancy[p];
+      let dwell = 0;
+      for (let s = pn - 1; s >= 0; s--) {
+        dwell = occ[s] ? 0 : dwell + pocketDt;
+        if (dwell > bestDwell[s]) bestDwell[s] = dwell;
+      }
+    }
+    const pocketSum = halfZeros();
+    const pocketSamples = halfZeros();
+    for (let s = 0; s < pn; s++) {
+      const h = Math.floor(occupancyTime[s] / HALF);
+      if (h >= HALF_BUCKETS) continue;
+      pocketSum[h] += bestDwell[s];
+      pocketSamples[h]++;
+    }
     return {
       concurrent: concurrentSum.map((s, i) => s / Math.max(1, samples[i])),
       members: memberSum.map((s, i) => s / Math.max(1, events[i])),
@@ -1459,6 +1534,8 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
       halfConcurrent: halfConcurrentSum.map((s, i) => s / Math.max(1, halfSamples[i])),
       halfGap: halfGapSum.map((s, i) => s / Math.max(1, halfGapCount[i])),
       halfArrivals,
+      halfMaxGap,
+      halfPocket: pocketSum.map((s, i) => s / Math.max(1, pocketSamples[i])),
     };
   }
 
@@ -1468,6 +1545,22 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
 
   const creatureDays = ["wheelhouse", "hunting-party", "lancer-doctrine", "demolition-day", "menagerie"];
   const pressures = new Map(creatureDays.map((id) => [id, measurePressure(id)] as const));
+
+  // Tuning aid for the next densify pass: `ORION_FELT_DUMP=1 npx tsx
+  // scripts/sim-test.ts` prints the raw 30-second telemetry the bars below are
+  // derived from (0-30s, 30-60s, ... 210-240s), which is how the numbers in the
+  // calibration tables in this section were measured. Off by default because
+  // it is three dense rows per day.
+  if (process.env.ORION_FELT_DUMP) {
+    const f = (v: number[]): string => v.map((x) => x.toFixed(1).padStart(6)).join("");
+    for (const id of creatureDays) {
+      const p = pressures.get(id)!;
+      console.log(
+        `  DUMP ${id}\n    concurrent ${f(p.halfConcurrent)}\n` +
+          `    pocket     ${f(p.halfPocket)}\n    maxQuietGap${f(p.halfMaxGap)}`,
+      );
+    }
+  }
 
   // Shared shape: every creature day keeps escalating past the ramp, and by a
   // comparable factor (they run the same helpers in creatures.ts, only the
@@ -1502,34 +1595,59 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
   //   lancer-doctrine   3.4      2.7         5.5       4.5
   //   demolition-day    1.0      0.6         1.5       1.0
   //   menagerie         2.1      1.9         2.8       1.8
+  //
+  // 2026-08-12 (second pass) raised every floor again, measured on the same
+  // harness — Lucas screenshotted a calm arena at 1:43 on the build that set
+  // the floors above, so those floors were provably too low to mean anything:
+  //
+  //   day               60-120s  was   shipped     120-180s  was   shipped
+  //   wheelhouse        6.6      3.0   (3.9)       7.4       4.5   (5.9)
+  //   hunting-party     3.8      1.9   (2.4)       3.9       2.5   (3.4)
+  //   lancer-doctrine   6.1      3.4   (4.4)       6.6       5.5   (7.0)
+  //   demolition-day    1.6      1.0   (1.3)       1.6       1.5   (1.8)
+  //   menagerie         3.0      2.1   (2.6)       3.2       2.8   (3.3)
   {
     const OPENING_CONCURRENT_CEILING = 2.5; // no jump-scare open
     const OPENING_ARRIVAL_CEILING = 8; // creatures materializing in the first 30s
+    // ...and the other side of the same coin: the opening must stay ROOMY. A
+    // future densify that drags the pocket search below this has eaten the
+    // readable opening, whatever the concurrent counts say.
+    const OPENING_POCKET_FLOOR = 8;
     const MID_FLOORS: Record<string, readonly [number, number]> = {
-      wheelhouse: [3.0, 4.5],
-      "hunting-party": [1.9, 2.5],
-      "lancer-doctrine": [3.4, 5.5],
-      "demolition-day": [1.0, 1.5],
-      menagerie: [2.1, 2.8],
+      wheelhouse: [6.6, 7.4],
+      "hunting-party": [3.8, 3.9],
+      "lancer-doctrine": [6.1, 6.6],
+      "demolition-day": [1.6, 1.6],
+      menagerie: [3.0, 3.2],
     };
     const rows = creatureDays.map((id) => {
       const p = pressures.get(id)!;
       return {
         id,
-        open: window(p.halfConcurrent, 0, 2),
+        // bucket 0 only: this check is named "the first 30s" and used to average
+        // the first SIXTY seconds, which put it on a collision course with the
+        // mid ramp it is not supposed to police (it read 2.3 against its own
+        // 2.5 ceiling purely because 0:30-1:00 got busier, as intended).
+        open: p.halfConcurrent[0],
         openArrivals: p.halfArrivals[0],
+        openPocket: p.halfPocket[0],
         at60: window(p.halfConcurrent, 2, 4),
         at120: window(p.halfConcurrent, 4, 6),
         floors: MID_FLOORS[id],
       };
     });
     const brutal = rows.filter(
-      (r) => r.open > OPENING_CONCURRENT_CEILING || r.openArrivals > OPENING_ARRIVAL_CEILING,
+      (r) =>
+        r.open > OPENING_CONCURRENT_CEILING ||
+        r.openArrivals > OPENING_ARRIVAL_CEILING ||
+        r.openPocket < OPENING_POCKET_FLOOR,
     );
     check(
       "creature days: the first 30s stays a readable opening (the screenshot moment)",
       brutal.length === 0,
-      rows.map((r) => `${r.id} ${r.open.toFixed(1)} concurrent / ${r.openArrivals} arrivals`).join(", "),
+      rows
+        .map((r) => `${r.id} ${r.open.toFixed(1)} concurrent / ${r.openArrivals} arrivals / ${r.openPocket.toFixed(0)}s pocket`)
+        .join(", "),
     );
     check(
       "creature days: pressure climbs out of the opening by t=60s (per-day mid-ramp floors)",
@@ -1540,6 +1658,64 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
       "creature days: and keeps climbing through t=120s (per-day mid-ramp floors)",
       rows.every((r) => r.at120 >= r.floors[1]),
       rows.map((r) => `${r.id} ${r.at120.toFixed(1)} vs floor ${r.floors[1]}`).join(", "),
+    );
+  }
+
+  // FELT pressure at t=60-120s (2026-08-12 "no chill" pass). The two checks
+  // below exist because the ones above passed comfortably on a build where
+  // Lucas could still line up a screenshot at 1:43: average concurrent
+  // creatures and mean arrival rate are both blind to the two things that
+  // actually make a moment feel calm.
+  //
+  // (a) DEAD AIR. Every day fired its event as a clump and then went silent;
+  //     the MEAN arrival gap looked healthy while the LONGEST one was 5-9s.
+  // (b) COVERAGE. Crossing traffic can be dense on average and still leave one
+  //     roomy corner, and a competent pilot will find it and sit in it. The
+  //     pocket search measures that corner directly.
+  //
+  // Measured at 60-120s on this harness (`shipped` = the build Lucas
+  // screenshotted, which every bar below is calibrated to FAIL):
+  //
+  //   day               longest quiet gap   roomiest pocket
+  //   wheelhouse        1.9   (5.6)         1.7   (6.6)
+  //   hunting-party     2.4   (9.0)        10.2  (27.8)
+  //   lancer-doctrine   3.2   (8.8)         2.2   (7.9)
+  //   demolition-day    3.7   (6.2)         4.3   (6.3)
+  //   menagerie         3.1   (4.6)         4.6   (6.3)
+  {
+    const QUIET_GAP_CEILING = 4.2; // seconds of nothing-arriving, anywhere in 60-120s
+    // Per-day, because the geometry differs enormously. HUNTING PARTY is the
+    // loose one on purpose: its hunters TRACK the ship, so they cluster around
+    // the pilot and genuinely do leave the far side of the arena empty — the
+    // roomy spot is real but unusable, since taking it means turning your back
+    // on the pack. WHEELHOUSE and LANCER DOCTRINE, pure crossing traffic, are
+    // the sharp bars. DEMOLITION DAY and MENAGERIE sit in between: single point
+    // threats rather than sweeps, so a clear spot always exists somewhere.
+    const POCKET_CEILING: Record<string, number> = {
+      wheelhouse: 3.0,
+      "hunting-party": 14.0,
+      "lancer-doctrine": 3.5,
+      "demolition-day": 5.5,
+      menagerie: 6.0,
+    };
+    const rows = creatureDays.map((id) => {
+      const p = pressures.get(id)!;
+      return {
+        id,
+        quiet: Math.max(...p.halfMaxGap.slice(2, 4)),
+        pocket: window(p.halfPocket, 2, 4),
+        ceiling: POCKET_CEILING[id],
+      };
+    });
+    check(
+      `creature days: no dead air in the 60-120s stretch (longest gap with nothing arriving <=${QUIET_GAP_CEILING}s)`,
+      rows.every((r) => r.quiet <= QUIET_GAP_CEILING),
+      rows.map((r) => `${r.id} ${r.quiet.toFixed(1)}s`).join(", "),
+    );
+    check(
+      "creature days: no calm pocket to park in at 60-120s (Lucas's 1:45 screenshot test)",
+      rows.every((r) => r.pocket <= r.ceiling),
+      rows.map((r) => `${r.id} ${r.pocket.toFixed(1)}s vs ceiling ${r.ceiling}s`).join(", "),
     );
   }
 

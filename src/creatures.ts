@@ -135,6 +135,57 @@ function lateSpeedScale(minutes: number, growth: CreatureLateGrowth): number {
   return Math.min(growth.speedMax, 1 + growth.speedPerMinute * lateMinutes(minutes));
 }
 
+/**
+ * Seconds between the structures of ONE event (2026-08-12 "no chill" pass).
+ *
+ * Every day used to use a fixed per-kind stagger, which meant an event fired
+ * as a clump and the arena then went quiet until the next one: at 1:45 on
+ * WHEELHOUSE, four lanes landed inside 1.5s and were followed by ~4s of
+ * nothing, which is what Lucas screenshotted. Spreading the same structures
+ * across `staggerSpread` of the gap to the next event converts that into
+ * continuous traffic WITHOUT adding a single drone.
+ *
+ * `floor` is the day's old fixed stagger (so a late-game event with a tiny
+ * interval still arrives as a tight volley) and `max` keeps a wave/salvo
+ * reading as one attack instead of unrelated singles. Dividing by `count`
+ * rather than `count - 1` spaces the last structure of this event and the
+ * first of the next one by the same beat as the rest.
+ *
+ * Pure arithmetic on an already-drawn interval: no seeded draws, so the shared
+ * Daily Patrol script is unaffected.
+ */
+function eventStagger(interval: number, count: number, floor: number, max: number): number {
+  if (count <= 1) return floor;
+  return Math.min(max, Math.max(floor, (interval * CREATURE_DAYS.staggerSpread) / count));
+}
+
+/**
+ * Lateral offset along an edge for structure `i` of `count` (2026-08-12 "no
+ * chill" pass). Each structure gets its own band of the edge instead of all of
+ * them rolling the whole span, because independent rolls happily stack three
+ * lanes in the same third of the screen and leave an obvious free corridor.
+ *
+ * Bands are handed out CENTRE-OUT (`laneBands`), so the first structure always
+ * crosses the middle — the opening's single lane has to be a real threat, not a
+ * polite pass along one wall — and each extra structure fans further toward the
+ * edges, progressively denying the corners a pilot would otherwise park in.
+ *
+ * Exactly one placement draw per structure either way, and for `count === 1`
+ * the distribution is identical to the plain full-span roll it replaced, so
+ * the shared Daily Patrol script and the readable opening both hold.
+ */
+function laneBands(count: number): number[] {
+  const mid = (count - 1) / 2;
+  return Array.from({ length: count }, (_, b) => b).sort(
+    (a, b) => Math.abs(a - mid) - Math.abs(b - mid) || a - b,
+  );
+}
+
+function bandedLateral(geo: EdgeGeometry, band: number, count: number, spanFactor: number): number {
+  const u = randRange(0, 1);
+  return geo.span * spanFactor * 2 * ((band + u) / count - 0.5);
+}
+
 function queueSpawn(
   world: World,
   kind: AssemblyKind,
@@ -170,6 +221,7 @@ function scheduleHunterWave(world: World, minutes: number): void {
   const packSize = escalateCount(minutes, cfg.packSizeRange, cfg.late);
   const memberBonus = lateMemberBonus(minutes, cfg.late);
   const speedScale = lateSpeedScale(minutes, cfg.late);
+  const stagger = eventStagger(world.creatureTimer, packSize, cfg.veeStagger, cfg.veeStaggerMax);
   const startEdge = Math.floor(scheduleRand() * EDGE_COUNT);
   const warning = CREATURE_DAYS.telegraph.entryWarning;
   for (let i = 0; i < packSize; i++) {
@@ -187,7 +239,7 @@ function scheduleHunterWave(world: World, minutes: number): void {
       heading.y,
       count,
       warning,
-      i * cfg.veeStagger,
+      i * stagger,
       speedScale,
     );
   }
@@ -202,12 +254,15 @@ function scheduleLanceSalvo(world: World, minutes: number): void {
   const salvoSize = escalateCount(minutes, cfg.salvoSizeRange, cfg.late);
   const memberBonus = lateMemberBonus(minutes, cfg.late);
   const speedScale = lateSpeedScale(minutes, cfg.late);
+  const stagger = eventStagger(world.creatureTimer, salvoSize, cfg.barStagger, cfg.barStaggerMax);
   const edge = Math.floor(scheduleRand() * EDGE_COUNT);
   const geo = edgeGeometry(world, edge);
+  const bands = laneBands(salvoSize);
   const warning = CREATURE_DAYS.telegraph.entryWarning;
   for (let i = 0; i < salvoSize; i++) {
-    const lateral = randRange(-geo.span * 0.4, geo.span * 0.4);
-    const anchor = edgeAnchor(geo, lateral);
+    // banded like WHEELHOUSE's lanes: a salvo of five bars that all rolled the
+    // same span left gaps a pilot could sit in while the volley swept past
+    const anchor = edgeAnchor(geo, bandedLateral(geo, bands[i], salvoSize, 0.4));
     const heading = jitterHeading(geo.dirX, geo.dirY, randRange(-0.12, 0.12));
     const count = Math.round(scheduleRange(...cfg.barMemberRange) + memberBonus);
     queueSpawn(
@@ -219,7 +274,7 @@ function scheduleLanceSalvo(world: World, minutes: number): void {
       heading.y,
       count,
       warning,
-      i * cfg.barStagger,
+      i * stagger,
       speedScale,
     );
   }
@@ -234,28 +289,25 @@ function scheduleWheelLanes(world: World, minutes: number): void {
   const laneCount = escalateCount(minutes, cfg.laneCountRange, cfg.late);
   const memberBonus = lateMemberBonus(minutes, cfg.late);
   const speedScale = lateSpeedScale(minutes, cfg.late);
+  const stagger = eventStagger(world.creatureTimer, laneCount, cfg.laneStagger, cfg.laneStaggerMax);
   // one axis pair per burst (left/right or bottom/top) so lanes read as
   // consistent crossing traffic rather than a random scatter of directions
   const axisPair = Math.floor(scheduleRand() * 2) * 2;
+  const bands = laneBands(laneCount);
   const warning = CREATURE_DAYS.telegraph.entryWarning;
   for (let i = 0; i < laneCount; i++) {
-    const geo = edgeGeometry(world, axisPair + (i % 2));
-    const lateral = randRange(-geo.span * 0.4, geo.span * 0.4);
-    const anchor = edgeAnchor(geo, lateral);
+    // Lanes 0-1 cross on the drawn axis, 2-3 on the perpendicular one, then
+    // back (2026-08-12 "no chill" pass). A burst that only ever crossed ONE
+    // axis left the perpendicular direction as a free escape and, once it had
+    // swept through, left the middle of the screen empty. Three or more lanes
+    // now make the centre a genuine intersection, which is this day's own
+    // briefing ("Survive the intersection"). Small bursts still cross a single
+    // axis, so the opening reads exactly as before.
+    const geo = edgeGeometry(world, axisPair + (i % 2) + (Math.floor(i / 2) % 2) * 2);
+    const anchor = edgeAnchor(geo, bandedLateral(geo, bands[i], laneCount, 0.4));
     const count = Math.round(scheduleRange(...cfg.wheelMemberRange) + memberBonus);
     // no heading jitter: a clean lane crossing reads best straight across
-    queueSpawn(
-      world,
-      "wheel",
-      anchor.x,
-      anchor.y,
-      geo.dirX,
-      geo.dirY,
-      count,
-      warning,
-      i * cfg.laneStagger,
-      speedScale,
-    );
+    queueSpawn(world, "wheel", anchor.x, anchor.y, geo.dirX, geo.dirY, count, warning, i * stagger, speedScale);
   }
 }
 
@@ -272,6 +324,7 @@ function scheduleBombDeployment(world: World, minutes: number): void {
 
   const slabCount = escalateCount(minutes, cfg.deploymentCountRange, cfg.late);
   const memberBonus = lateMemberBonus(minutes, cfg.late);
+  const stagger = eventStagger(world.creatureTimer, slabCount, cfg.slabStagger, cfg.slabStaggerMax);
   const hw = world.viewW / 2 - 1.5;
   const hh = world.viewH / 2 - 1.5;
   for (let i = 0; i < slabCount; i++) {
@@ -292,7 +345,7 @@ function scheduleBombDeployment(world: World, minutes: number): void {
       Math.sin(angle) * 0.15,
       count,
       CREATURE_DAYS.telegraph.materializeWarning,
-      i * cfg.slabStagger,
+      i * stagger,
       1,
     );
   }
@@ -428,14 +481,17 @@ function scheduleMenagerieEvent(world: World, minutes: number): void {
   // the ramp (escalateCount's [1,1] range keeps the early game at exactly one)
   const animals = (isDouble ? 2 : 1) + escalateCount(minutes, [1, 1], cfg.late) - 1;
 
+  const stagger = eventStagger(world.creatureTimer, animals, 0, cfg.animalStaggerMax);
   let prev = world.creatureLastKind;
   let prevLanding = 0; // when the animal before this one materializes
   for (let i = 0; i < animals; i++) {
     const kind = drawMenagerieKind(prev);
     // each animal's own telegraph runs on TOP of its predecessor's landing, so
     // the order holds for any mix of kinds (this is the pre-existing double
-    // formula, generalized to a chain: extraDelay = prevLanding + 0.1)
-    const extraDelay = i === 0 ? 0 : prevLanding + 0.1;
+    // formula, generalized to a chain: extraDelay = prevLanding + 0.1). The
+    // de-clumping pass (2026-08-12) can only push an animal LATER than that
+    // minimum, never earlier, so strict visible order still holds.
+    const extraDelay = i === 0 ? 0 : Math.max(prevLanding + 0.1, i * stagger);
     spawnMenagerieKind(world, kind, extraDelay, memberBonus, speedScale);
     prevLanding = telegraphFor(kind) + extraDelay;
     prev = kind;

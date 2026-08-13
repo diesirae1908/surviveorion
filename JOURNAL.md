@@ -4,6 +4,141 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-12: "no chill" densify, the creature days stop having a calm pocket to screenshot from (branch `sam/no-chill-midgame`, NOT merged)
+
+- **Trigger.** Lucas hard-refreshed onto the mid-ramp build shipped earlier the
+  same day (bundle `index-LnPMPnt2.js` confirmed live) and screenshotted
+  WHEELHOUSE at **1:43**: near-empty arena, one pickup, ship parked shielded in
+  the centre. "I shouldnt be chill taking a screenshot at 1:45". The bar for
+  this pass: at ~1:45 a competent pilot must not have a calm pocket to casually
+  line up a screenshot from.
+- **Why the shipped telemetry missed it (the useful lesson).** Every number the
+  mid-ramp pass optimised went the right way (concurrent wheels 2.4 to 4.2 at
+  1:30) and the day still felt empty, because **average concurrent creatures
+  and mean arrival rate are both blind to how a moment feels**. Two things they
+  cannot see:
+  - **Dead air.** Each day fired its whole event as a clump (4 wheel lanes 0.5s
+    apart) and then went silent. The MEAN arrival gap read a healthy 1.7s while
+    the LONGEST gap in the same 30 seconds was 5.6s.
+  - **Coverage.** Crossing traffic can be dense on average and still leave one
+    roomy corner, and a competent pilot finds it and sits in it. Measured
+    directly (see the new pocket metric): at 60-120s the roomiest spot on the
+    WHEELHOUSE grid stayed clear of drones for **6.6 seconds**. That is Lucas's
+    screenshot, quantified.
+- **New sim metric: the pocket search** (`halfPocket` in sim-test section 11).
+  A coarse arena grid is sampled at 4Hz and, per sample, a backward pass asks
+  "if the pilot parked in the best available spot right now, how long before a
+  drone comes within 3 units?" It is pilot-independent (no bot behaviour in the
+  loop) and it is the only metric here that could see the bug. Also added
+  `halfMaxGap`, the LONGEST arrival gap per 30s bucket, next to the existing
+  mean. `ORION_FELT_DUMP=1` prints both.
+- **Fix 1, de-clumping (`eventStagger` in creatures.ts). Costs no extra
+  drones.** The per-kind stagger constant is now a FLOOR; structures of one
+  event spread across `CREATURE_DAYS.staggerSpread` (0.85) of the gap to the
+  next event, capped by a new per-kind `*StaggerMax`. So "clump, silence,
+  clump" becomes continuous traffic at the same average density. Late-game
+  events with tiny intervals still floor out at the old tight volley.
+- **Fix 2, the ramp moves earlier and steeper.** `openingMinutes` 0.5 to 0.45,
+  `rampMinutes` 2 to 1.4, `rampCurve` 0.65 to 0.5, so full mid pressure lands
+  ~1:25 instead of 2:00 (`progress` at m=1: 0.49 shipped, 0.76 now).
+  **`lateStartMinutes` stays 3**, as instructed.
+- **Fix 3, coverage geometry.** WHEELHOUSE bursts of 3+ lanes now cross BOTH
+  axes (lanes 0-1 on the drawn axis pair, 2-3 on the perpendicular one), making
+  the centre a real intersection, which is the day's own briefing. And lanes
+  (WHEELHOUSE) / bars (LANCER DOCTRINE) take stratified bands of their edge
+  instead of each rolling the full span, handed out **centre-out** so the first
+  structure always crosses the middle and extra ones fan toward the corners a
+  pilot would park in. Still exactly one placement draw per structure, and for
+  a single-structure event the distribution is identical to the old full-span
+  roll, so the shared daily script and the readable opening both hold.
+- **Per-day cadence endpoints** (ramp endpoints only; no `late` block touched):
+  wheel `laneCountRange` [1,4] to [1,5] and `laneIntervalLate` [4,5.4] to
+  [3.4,4.6]; hunter `waveIntervalLate` [6,7.5] to [4.2,5.4] (the biggest move —
+  a vee only lives 6s, so waves 6-7.5s apart meant the pack was reliably dead
+  before the next one arrived); lance `salvoIntervalLate` [4.6,6.2] to [3.8,5];
+  bomb `deploymentIntervalLate` [3.2,4.6] to [3,4.2] (gentlest: slabs deny
+  space for their whole fuse); MENAGERIE `eventIntervalLate` [2.4,3.2] to
+  [2.1,2.8] and `doubleChanceLate` 0.7 to 0.85.
+- **Render fix.** A staggered event queues every structure up front, so
+  `drawCreatureTelegraphs` now skips items still waiting out their stagger
+  (`timer > duration`). Without it, spreading a burst over ~3s littered the
+  edges with warning rings seconds ahead of the arrivals and gave the whole
+  event away.
+- **Before/after, 60-120s** (seeded invulnerable observer, `before` = the build
+  Lucas screenshotted). Pocket is the headline:
+
+  | day | roomiest pocket | longest quiet gap | avg concurrent |
+  | --- | --- | --- | --- |
+  | WHEELHOUSE | 6.6s to **1.7s** | 5.6s to 1.9s | 4.0 to 8.3 |
+  | HUNTING PARTY | 28.3s to **10.2s** | 9.0s to 2.4s | 2.4 to 4.7 |
+  | LANCER DOCTRINE | 7.8s to **2.2s** | 8.8s to 3.2s | 4.3 to 7.6 |
+  | DEMOLITION DAY | 6.7s to **4.3s** | 6.2s to 3.7s | 1.3 to 2.0 |
+  | MENAGERIE | 6.4s to **4.8s** | 4.6s to 3.1s | 2.5 to 3.8 |
+
+  HUNTING PARTY stays the loose one on purpose: its hunters TRACK the ship, so
+  they cluster on the pilot and genuinely do leave the far side of the arena
+  empty. That roomy spot is real but unusable — taking it means turning your
+  back on the pack — so its bar is set loose and the reason is in the code.
+- **The opening is untouched, and now guarded on both sides.** First 30s on
+  WHEELHOUSE: 1.1 avg concurrent, 4 arrivals, 8.7s arrival gap, all
+  bit-comparable to before. The opening guard used to *average the first sixty
+  seconds* despite being named "the first 30s", which put it on a collision
+  course with the mid ramp it is not meant to police (it read 2.3 against its
+  own 2.5 ceiling purely because 0:30-1:00 got busier, as intended); it now
+  reads bucket 0 only, and gained a POCKET FLOOR (>=8s) so a future pass cannot
+  quietly eat the readable opening either.
+- **Every new/raised bar was checked against the shipped build and FAILS
+  there** (that is the point of a guard): raised mid floors, the dead-air
+  ceiling, and the pocket ceiling all go red on `main`'s `src/`, green here.
+- **FLAG FOR LUCAS, the honest cost: minute 2 now carries roughly what minute 5
+  used to.** Max-throughput observer, concurrent creatures per minute on
+  WHEELHOUSE: before 0.2 1.1 1.4 2.0 3.8 6.8 9.7 11.2, after 0.5 3.1 4.7 5.2
+  7.8 11.4 12.6 12.0. Minutes 5-8 rose ~1.3-1.5x on WHEELHOUSE / HUNTING PARTY
+  / LANCER DOCTRINE as a knock-on: the late leg's SHAPE is untouched and its
+  anchor stayed at 3, but it now multiplies up from a denser shelf, which is
+  unavoidable if the mid game is to be tightened at all. The shield-assisted
+  dodge bot's WHEELHOUSE median dropped from 124-154s to 77-97s, so **skilled
+  run length will shorten** — that is the price of "no calm pocket at 1:45",
+  and it wants Lucas's eyes on the preview before any ship. The one knob to
+  dial it back is `CREATURE_DAYS.rampMinutes` / `rampCurve`.
+- **Kill-rate ceiling: NOT raised, and not breached where the tripwire cares.**
+  `MAX_KILLS_PER_SEC` is 20 against CUMULATIVE kills/time. Inside the 5-8
+  minute band the tripwire named, a max-throughput invulnerable rammer (far
+  above any human) peaks at 16.6 kills/s on WHEELHOUSE, up from 12.7. It does
+  cross 20 deeper into a 12-minute run (WHEELHOUSE 21.3 at m10, DEMOLITION DAY
+  22.5 at m11), but that is pre-existing rather than new — the same observer on
+  `main` crosses it at m11-12 — and the shield-assisted bot dies around 90s, so
+  runs that long are not plausible on these days. Reported, not raised.
+- **Medal factors: NOT changed** (same tripwire as the last two passes). The
+  `difficultyFactor` calibration harness is the 90-second evasive bot, which
+  dies inside the opening this pass deliberately did not touch, and its medians
+  moved inside their own documented noise band: WHEELHOUSE 22.0-23.0s (22.0
+  before), MENAGERIE 18.6s (18.6), HUNTING PARTY 15.2-15.4s (14.0-14.4),
+  DEMOLITION DAY 17.1-17.9s (17.0-18.9), LANCER DOCTRINE 11.9-18.8s (12.6 —
+  that spread is the off-stream `Math.random` jitter the last pass documented,
+  not a shift).
+- **Pool frozen and player-facing copy untouched.** No `MUTATOR_POOL` order, id,
+  or membership change, so every date-to-mutator assignment holds; `mutators.ts`
+  is not in this diff at all. Sublines were deliberately NOT rewritten: they
+  still read true ("One lane at the open, then rush hour builds fast", "lanes
+  from alternating sides"), and public copy is Lucas's call, not a tuning pass's.
+  Pickup throttle left at `CREATURE_DAY_PICKUP_SCALE` 1.3 (measured 75-79 drops
+  per 8 min against a plain Daily's 100, inside the existing 0.6-0.9x bars).
+- **Verification.** `npm run build` (tsc --noEmit + vite) green, bundle
+  `index--LdUHUyN.js`, CSS unchanged (`index-Bp4CgbiJ.css`). Three consecutive
+  full `npx tsx scripts/sim-test.ts` runs ALL CHECKS PASSED, with the seeded
+  telemetry stable to a tenth across runs. Daily Patrol determinism checks
+  (WHEELHOUSE 163 events, MENAGERIE 107 events, identical script across two
+  play styles) still pass — `randRange` consumes exactly one draw regardless of
+  its bounds, so the banded placement keeps the fixed-draw contract.
+- **Follow-ups.** (a) Lucas to eyeball the preview at 1:00-2:00 before any
+  merge; the open question is readability at 8-10 concurrent wheels, not
+  density. (b) If minute 5-8 is judged too hot as a knock-on, the fix is a
+  `lateStartMinutes` nudge rather than undoing the mid ramp. (c) HUNTING PARTY
+  is still visibly the sparsest day of the five and would need a pursuit-shaped
+  fix (longer hunter lifetime, which is global `ASSEMBLY` config) rather than
+  more waves.
+
 ## 2026-08-12: mid-ramp densify merged + deployed, the choreography days wake up at 0:30 instead of 3:00 (main, DEPLOYED)
 
 - **Shipped.** Lucas green-lit the pass ("push live"), so

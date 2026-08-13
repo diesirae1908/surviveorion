@@ -1165,6 +1165,12 @@ export class Renderer {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const q of world.creatureSpawnQueue) {
+      // A staggered event queues every structure up front, so items still
+      // waiting out their stagger have timer > duration and are not telegraphed
+      // yet (2026-08-12 de-clumping pass: without this, spreading a burst over
+      // ~3s would litter the edges with warning rings seconds ahead of the
+      // arrivals and give the whole event away).
+      if (q.timer > q.duration) continue;
       const progress = clamp01(1 - q.timer / q.duration);
       const pulse = 0.6 + 0.4 * Math.sin(time * 14 + q.x * 3);
       const r = 0.7 + Math.sqrt(q.count) * 0.35;

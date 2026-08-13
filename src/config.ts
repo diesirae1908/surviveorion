@@ -332,10 +332,30 @@ export const CREATURE_DAYS = {
   // `openingMinutes` is the readable opening beat (the screenshot moment, and
   // the reason the first burst is still one lane): the day is pinned at its
   // early values for that long. `rampCurve < 1` makes the climb steepest right
-  // after it, so 0:30-2:00 is where the day actually wakes up.
-  openingMinutes: 0.5,
-  rampMinutes: 2,
-  rampCurve: 0.65,
+  // after it, so 0:30-1:30 is where the day actually wakes up.
+  //
+  // 2026-08-12 (second pass, "no chill" densify): the whole ramp moves earlier
+  // and steeper. Lucas hard-refreshed onto the shipped mid-ramp build and
+  // screenshotted a calm arena at 1:43 ("I shouldnt be chill taking a
+  // screenshot at 1:45"), and the probe agreed: the roomiest parking spot in
+  // the arena still stayed clear for ~10s at 1:00-1:15. So full mid pressure
+  // now lands by ~1:25 instead of 2:00, and minute 1 sits much further up the
+  // curve (progress at m=1: 0.49 shipped, 0.76 now). The opening beat keeps its
+  // own flat shelf; it just ends a hair earlier and climbs off it much harder.
+  openingMinutes: 0.45,
+  rampMinutes: 1.4,
+  rampCurve: 0.5,
+  // De-clumping (2026-08-12, second pass). THE fix for the screenshot, and it
+  // costs no extra drones. Every day used to fire its whole event as a clump
+  // (4 wheel lanes 0.5s apart) and then go silent until the next one, so even
+  // at 6.6 average concurrent wheels the pilot got unbroken 4-8 second
+  // stretches with nothing within 3 units of the ship — measurably enough time
+  // to line up a screenshot. The structures of one event now spread across
+  // this fraction of the gap to the NEXT event (see eventStagger in
+  // creatures.ts), turning "clump, silence, clump" into continuous traffic at
+  // the same average density. Below 1 so the event still lands fully before
+  // its successor starts.
+  staggerSpread: 0.85,
   // Where the endless late leg (CreatureLateGrowth above) starts counting.
   // Deliberately decoupled from `rampMinutes`, which used to double as the
   // late-growth anchor: shortening the early ramp must NOT drag the whole
@@ -360,9 +380,18 @@ export const CREATURE_DAYS = {
     // there by ~m2 instead of m3 (see the ramp shape above)
     packSizeRange: [2, 5] as const, // vees per wave, ramps up over the run
     veeMemberRange: [4, 6] as const,
-    veeStagger: 0.3, // seconds between vees within a wave entering
+    veeStagger: 0.3, // FLOOR for the gap between vees of one wave (see eventStagger)
+    // ...and the ceiling: past this a "wave" stops reading as a converging
+    // pack and becomes unrelated single hunters.
+    veeStaggerMax: 1.4,
     waveIntervalEarly: [11, 14] as const,
-    waveIntervalLate: [6, 7.5] as const,
+    // 2026-08-12 "no chill" pass: [6, 7.5] to [4.2, 5.4], the biggest cadence
+    // move in this pass. A hunter vee only lives 6s (ASSEMBLY.kinds.hunter),
+    // so waves 6-7.5s apart meant the pack was reliably DEAD before the next
+    // one arrived: this day measured a 9.5s longest quiet gap and a 18.3s
+    // best-available parking spot at 60-120s, the worst of the pool by far.
+    // Overlapping waves is the whole point of a hunting party.
+    waveIntervalLate: [4.2, 5.4] as const,
     // The pack keeps growing and closing faster after minute 3. Speed grows
     // least of the four: a hunter is meant to be outflown, not outrun (its
     // turn rate is the counterplay), so pace stays readable while the pack
@@ -384,9 +413,13 @@ export const CREATURE_DAYS = {
     // slightly tighter volley cadence, not a 6th bar
     salvoSizeRange: [2, 5] as const, // bars per salvo, ramps up over the run
     barMemberRange: [5, 8] as const,
-    barStagger: 0.4, // volley rhythm: each bar a beat behind the last
+    barStagger: 0.4, // volley rhythm FLOOR: each bar a beat behind the last
+    // tightest ceiling of the pool: a salvo is a volley, and bars more than a
+    // second apart read as separate attacks instead of one sweep
+    barStaggerMax: 1.0,
     salvoIntervalEarly: [9, 12] as const,
-    salvoIntervalLate: [4.6, 6.2] as const,
+    // 2026-08-12 "no chill" pass: [4.6, 6.2] to [3.8, 5.0]
+    salvoIntervalLate: [3.8, 5] as const,
     // Salvos get wider bars, more bars per volley, and a faster volley rhythm.
     late: {
       intervalTighten: 0.22,
@@ -402,16 +435,19 @@ export const CREATURE_DAYS = {
   wheel: {
     // mid-ramp densify (2026-08-12): 4 lanes at the top of the ramp instead of
     // 3, reached by ~m2. The opening is still a single lane crossing.
-    laneCountRange: [1, 4] as const, // concurrent lanes per burst, ramps up
+    laneCountRange: [1, 5] as const, // concurrent lanes per burst, ramps up
     wheelMemberRange: [6, 9] as const,
-    laneStagger: 0.5,
+    laneStagger: 0.5, // FLOOR for the gap between lanes of one burst
+    // widest ceiling of the pool: crossing traffic is exactly the thing that
+    // SHOULD arrive as a steady stream rather than in packs, and a lane 1.5s
+    // behind the last still reads as the same rush hour
+    laneStaggerMax: 1.6,
     laneIntervalEarly: [7, 9] as const,
-    // slightly LOOSER than the pre-densify [3.5, 5]: the 4th lane above adds
-    // more traffic per burst than the tighter cadence it replaces, and lanes
-    // read better as traffic than a machine-gun of single crossings. Net
-    // arrival rate at the top of the ramp is still ~1.4x what it was, and it
-    // now lands at minute 2 instead of minute 3.
-    laneIntervalLate: [4, 5.4] as const,
+    // 2026-08-12 "no chill" pass: [4, 5.4] to [3.4, 4.6]. The de-clumping
+    // stagger is what removes the dead air; this is the density half, and it
+    // stays modest on purpose because the late leg multiplies down from this
+    // endpoint (see the calibration note below).
+    laneIntervalLate: [3.4, 4.6] as const,
     // The 2026-08-11 calibration target (Lucas: 25-minute WHEELHOUSE runs must
     // stop being possible, skilled runs should land ~5 min and cap out at
     // 7-8): ~4 lanes and ~9-member wheels by m=5, ~5 lanes / ~11-member
@@ -436,10 +472,17 @@ export const CREATURE_DAYS = {
     // at a time disbands before the next one lands.
     // mid-ramp densify: a third slab at the top of the ramp (reached ~m2)
     deploymentCountRange: [1, 3] as const,
-    slabStagger: 0.6, // seconds between slabs of one deployment materializing
+    slabStagger: 0.6, // FLOOR for the gap between slabs of one deployment
+    // a slab denies space for its whole fuse, so spreading a deployment out is
+    // pure gain here: the arena is never briefly empty between deployments
+    slabStaggerMax: 1.6,
     memberRange: [5, 9] as const,
     deploymentIntervalEarly: [7, 9] as const,
-    deploymentIntervalLate: [3.2, 4.6] as const,
+    // 2026-08-12 "no chill" pass: [3.2, 4.6] to [3.0, 4.2]. Gentlest move of
+    // the pool: slabs deny space for their whole fuse, so this day already had
+    // the tightest parking spot of the five, and the de-clumping stagger does
+    // most of the work here.
+    deploymentIntervalLate: [3, 4.2] as const,
     // No speed growth: a bomb drifts by design (the shrapnel is the threat),
     // so its late pressure is more slabs, bigger slabs, deployed faster.
     late: {
@@ -465,14 +508,21 @@ export const CREATURE_DAYS = {
   // live) instead of reading as one lone animal at a time.
   menagerie: {
     eventIntervalEarly: [4, 6] as const,
-    eventIntervalLate: [2.4, 3.2] as const,
+    // 2026-08-12 "no chill" pass: [2.4, 3.2] to [2.1, 2.8]
+    eventIntervalLate: [2.1, 2.8] as const,
+    // De-clumping ceiling for a multi-animal event. The zoo already chains its
+    // animals (each materializes strictly after the one before, see
+    // scheduleMenagerieEvent), so this only pushes them further apart when the
+    // chain would otherwise finish long before the next event.
+    animalStaggerMax: 1.3,
     // chance an event doubles into two different kinds at once, lerped from
     // the early floor up to the late cap by rampMinutes. Starts nonzero
     // (doubles from the first event, not just late) per the density pass.
     doubleChanceEarly: 0.25,
     // mid-ramp densify: the double is the norm by ~m2 (was a coin flip at m3),
-    // which is the zoo's version of "more lanes" on the single-kind days
-    doubleChanceLate: 0.7,
+    // which is the zoo's version of "more lanes" on the single-kind days.
+    // 2026-08-12 "no chill" pass: 0.7 to 0.85, and it lands by ~m1.5.
+    doubleChanceLate: 0.85,
     // ...and past the ramp the double stops being a coin flip and becomes the
     // norm (capped at certainty), so the zoo keeps compounding late.
     doubleChanceLatePerMinute: 0.12,
