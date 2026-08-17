@@ -99,6 +99,8 @@ export interface GameOverStats {
   closestCallLabel?: string | null;
   /** Opt-in local recording produced a clip for this run (see recorder.ts). */
   clipReady?: boolean;
+  /** That clip got cut short by the recorder's safety cap instead of stopping at game over. */
+  clipCapped?: boolean;
 }
 
 /** Compact "today's board" slot on the game-over screen (see setGameOverBoard). */
@@ -1243,6 +1245,11 @@ export class Ui {
     }
     if (stats.clipReady) {
       screen.appendChild(this.saveClipButton());
+      if (stats.clipCapped) {
+        screen.appendChild(
+          this.el("div", "field-hint center", "Clip capped at 10:00 — saved up to the cutoff."),
+        );
+      }
     }
 
     // 7. DETAILS: everything else, demoted into one muted panel below the

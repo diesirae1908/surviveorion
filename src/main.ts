@@ -22,6 +22,7 @@ import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
 import { closestCallLabel } from "./highlights";
+import { sanitizeCallsignForDisplay } from "./nickname";
 import { clipExtension, downloadClip, startRecording, type RecordingHandle } from "./recorder";
 import {
   loadBestScore,
@@ -176,6 +177,8 @@ let runRefunded = false;
 let activeRecording: RecordingHandle | null = null;
 /** Finished clip for the run that just ended, ready to download from the result screen. */
 let lastClipBlob: Blob | null = null;
+/** True if that clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
+let lastClipCapped = false;
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -476,11 +479,19 @@ function fillDailyBoard(): void {
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
       }));
+      // This board is rendered as a public-shaped leaderboard component
+      // (screenshots of it are the exact scenario that started this whole
+      // pass), so the pinned "me" row — built client-side from the
+      // account's own raw callsign, never touched by the server's
+      // sanitizeEntry — must be sanitized here too. A blocked legacy name
+      // still shows the account owner their real callsign on account/
+      // settings screens (that carve-out is unchanged); it just doesn't
+      // get to sit in a leaderboard-shaped, screenshot-prone list.
       const pinned =
         d.me && d.me.rank > entries.length && myCallsign
           ? {
               rank: d.me.rank,
-              callsign: myCallsign,
+              callsign: sanitizeCallsignForDisplay(myCallsign),
               country: api.user?.country ?? "",
               score: d.me.best,
               mode: d.me.mode,
@@ -598,6 +609,7 @@ function startRun(): void {
   // Training Ground never reaches the game-over screen (no save-clip
   // button to use it), so skip it there rather than burn CPU for nothing.
   lastClipBlob = null;
+  lastClipCapped = false;
   activeRecording = settings.recordRuns && !runIsTraining ? startRecording(canvas) : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
@@ -691,6 +703,7 @@ function onGameOver(): void {
     activeRecording = null;
     void rec.stop().then((blob) => {
       lastClipBlob = blob;
+      lastClipCapped = rec.hitCap;
     });
   }
   // Training Ground runs are unscored: no PBs, no run count, no submission
@@ -787,6 +800,7 @@ function showGameOverUi(): void {
     preview: cappedDaily && PREVIEW_ACTIVE,
     closestCallLabel: closestCallLabel(world.closestCall),
     clipReady: lastClipBlob !== null,
+    clipCapped: lastClipCapped,
   });
   if (cappedDaily && !runRefunded && !PREVIEW_ACTIVE) fillGameOverBoard();
   submitRun();
@@ -812,11 +826,14 @@ function fillGameOverBoard(): void {
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
       }));
+      // Same sanitize-the-client-built-pinned-row fix as fillDailyBoard
+      // above — this result-screen board is the exact "screenshot after a
+      // run" surface, so a blocked legacy callsign can't ride along here.
       const pinned =
         d.me && d.me.rank > entries.length && myCallsign
           ? {
               rank: d.me.rank,
-              callsign: myCallsign,
+              callsign: sanitizeCallsignForDisplay(myCallsign),
               country: api.user?.country ?? "",
               score: d.me.best,
               mode: d.me.mode,

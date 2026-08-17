@@ -4,21 +4,33 @@
 // callsign on register/guest-signup/reclaim/profile-update regardless of
 // what this file says, so a hand-crafted request can't bypass the filter.
 //
-// Keep BLOCKED_TERMS / LEET_MAP / normalizeForFilter in sync with
-// server/nickname.mjs (same convention this repo already uses for
-// SCORING vs validate.mjs). The two runtimes can't share a module (Vite/TS
-// client vs zero-dependency Node ESM server), so this is a deliberate,
-// documented duplication rather than an oversight.
+// Keep every list/function here in sync with server/nickname.mjs (same
+// convention this repo already uses for SCORING vs validate.mjs). The two
+// runtimes can't share a module (Vite/TS client vs zero-dependency Node ESM
+// server), so this is a deliberate, documented duplication rather than an
+// oversight. See server/nickname.mjs for the full three-tier matching
+// rationale (SUBSTRING / TOKEN / PHRASE) and the "niger"/"Nigeria" note on
+// why elongation uses a per-letter regex floor instead of collapsing.
 
-const BLOCKED_TERMS = [
-  "nigger", "nigga", "faggot", "fag", "chink", "spic", "kike", "tranny",
+const SUBSTRING_BLOCKED_TERMS = [
+  "nigger", "nigga", "faggot", "fag", "chink", "kike", "tranny",
   "retard", "retarded", "coon", "gook", "wetback", "cripple",
-  "fuck", "shit", "cunt", "dick", "pussy", "whore", "slut", "bastard",
+  "fuck", "shit", "cunt", "pussy", "whore", "slut", "bastard",
   "bitch", "asshole", "motherfucker", "dildo",
-  "pedo", "pedophile", "rapist", "rape", "nazi", "hitler", "isis", "terrorist",
-  "kys", "suicide", "grelo",
-  "porn", "cock", "vagina",
+  "pedophile", "nazi", "hitler", "terrorist", "kys", "suicide", "grelo",
+  "porn", "vagina",
 ];
+
+const TOKEN_BLOCKED_TERMS = [
+  "dick",
+  "rape", "raped", "rapes", "raping", "rapist", "rapists",
+  "pedo", "pedos",
+  "spic", "spics",
+  "isis",
+  "cock", "cocks",
+];
+
+const PHRASE_BLOCKED_SUBSTRINGS = ["is a pedo", "is a pedophile", "is a rapist"];
 
 const SAFE_EXCEPTIONS: string[] = [];
 
@@ -40,27 +52,46 @@ const LEET_MAP: Record<string, string> = {
   "|": "i",
 };
 
-/** See server/nickname.mjs normalizeForFilter for the full rationale. */
-export function normalizeForFilter(raw: string): string {
+function mapChars(raw: string): string {
   const stripped = raw
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
   let out = "";
   for (const ch of stripped) out += LEET_MAP[ch] ?? ch;
-  out = out.replace(/[^a-z0-9]/g, "");
-  out = out.replace(/(.)\1+/g, "$1");
   return out;
 }
 
-const NORMALIZED_BLOCKED_TERMS = BLOCKED_TERMS.map((t) => normalizeForFilter(t));
+/** See server/nickname.mjs normalizeForFilter for the full rationale. */
+export function normalizeForFilter(raw: string): string {
+  return mapChars(raw).replace(/[^a-z0-9]/g, "");
+}
+
+function tokensOf(raw: string): string[] {
+  return mapChars(raw).match(/[a-z0-9]+/g) ?? [];
+}
+
+function letterFloorSource(term: string): string {
+  return [...term].map((ch) => `${ch}+`).join("");
+}
+
+const buildSubstringPattern = (term: string) => new RegExp(letterFloorSource(normalizeForFilter(term)));
+const buildTokenPattern = (term: string) => new RegExp(`^${letterFloorSource(normalizeForFilter(term))}$`);
+
+const SUBSTRING_PATTERNS = SUBSTRING_BLOCKED_TERMS.map(buildSubstringPattern);
+const PHRASE_PATTERNS = PHRASE_BLOCKED_SUBSTRINGS.map(buildSubstringPattern);
+const TOKEN_PATTERNS = TOKEN_BLOCKED_TERMS.map(buildTokenPattern);
+const NORMALIZED_SAFE_EXCEPTIONS = new Set(SAFE_EXCEPTIONS.map(normalizeForFilter));
 
 export function isNicknameBlocked(raw: string): boolean {
   if (typeof raw !== "string") return true;
-  const normalized = normalizeForFilter(raw);
-  if (!normalized) return false;
-  if (SAFE_EXCEPTIONS.some((safe) => normalized === safe)) return false;
-  return NORMALIZED_BLOCKED_TERMS.some((term) => normalized.includes(term));
+  const compact = normalizeForFilter(raw);
+  if (!compact) return false;
+  if (NORMALIZED_SAFE_EXCEPTIONS.has(compact)) return false;
+  if (SUBSTRING_PATTERNS.some((re) => re.test(compact))) return true;
+  if (PHRASE_PATTERNS.some((re) => re.test(compact))) return true;
+  const tokens = tokensOf(raw);
+  return tokens.some((tok) => TOKEN_PATTERNS.some((re) => re.test(tok)));
 }
 
 const REJECTION_MESSAGES = [

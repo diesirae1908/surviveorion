@@ -122,6 +122,113 @@ why, commit hash, follow-ups), committed together with the work. See
   replay clip (see closest-call section above), no live browser playtest of
   the redesigned result screen this session (tooling issue, see above).
 
+### 2026-08-16 review correction (same branch, follow-up commit)
+
+Sam's review of the above found two real bugs plus a related display leak.
+All three fixed on `sam/pilot-safety-and-highlights` as a new commit (not
+an amend).
+
+- **Nickname filter: flat substring matching was catching real names.**
+  "Dickson" (contains "dick"), "grapefruit"/"drape"/"therapist" (contain
+  "rape"/"rapist"), and — found while redesigning, not in the original
+  report — "torpedo" ("pedo"), "spice"/"despicable" ("spic"),
+  "crisis"/"narcissism" ("isis"), "peacock"/"hancock"/"cockpit" ("cock"),
+  and "Nigeria"/"Nigerian" (the old collapse-repeated-letters step shrank
+  "nigger" to "niger", which then matched). Rebuilt `isNicknameBlocked` as
+  three explicit tiers instead of one flat substring check, and instead of
+  growing `SAFE_EXCEPTIONS` per false positive (which the sibling worktree
+  doing the same review finding chose — see the collision note above; that
+  approach doesn't converge):
+  1. **SUBSTRING** — high-confidence terms with no realistic legitimate
+     collision (slurs, explicit profanity, "pedophile"/"nazi"/"hitler"/
+     etc.), matched anywhere in the fully space/punctuation-stripped name,
+     same as before.
+  2. **TOKEN** — ambiguous roots that ARE substrings of common words/names
+     (dick, rape/rapist and inflections, pedo, spic, isis, cock), matched
+     only as a COMPLETE word (split on the name's own original spaces/
+     punctuation) — so "Dickson" is one token that doesn't equal "dick",
+     but standalone "pedo" or spaced "u are a rapist" still hit.
+  3. **PHRASE** — the actual motivating pattern, "\<name\> is a pedo/
+     rapist", checked as a substring so it still lands even with every
+     space removed ("trumpisapedo") — no real word contains "isapedo".
+  Elongation/leet evasion ("fuuuuck", "n1gg3r") moved from a global
+  "collapse any repeated letter to one" normalization step (the actual
+  cause of the Nigeria bug) to a per-term regex requiring one-or-more of
+  each of the term's own letters in sequence — this keeps "nigger"
+  requiring its natural double-g (so "Nigeria", one g, no longer matches)
+  while "niggger" (3+ g's) still does. `SAFE_EXCEPTIONS` stays in the code
+  as a last-resort escape hatch but is empty again.
+  **Accepted residual gap**, documented in `server/nickname.mjs`: a TOKEN-
+  tier word spaced letter-by-letter with no accusatory phrase around it
+  ("p e d o" alone, no "is a") isn't caught, because token-splitting on
+  spaces turns every letter into its own token. Reintroducing substring
+  matching for these roots to close that gap reopens the Dickson/
+  grapefruit/torpedo false positives, so this is the deliberate trade-off.
+  Bare bad-faith callsigns using the exact blocked word ("pedo", "rapist",
+  "isis", "dick", "spic", "cock") and the specific defamation sentence
+  Lucas's screenshot showed are both still caught, spaced/punctuated/leet
+  variants included. Added 20 new fixture names to
+  `scripts/test-nickname.ts` (Dickson, grapefruit, torpedo, crisis,
+  Nigeria, etc. as ALLOWED; bare pedo/rapist/isis/dick/spic/cock and glued
+  "trumpisapedo"/"heisarapist" as BLOCKED). `npm run test:nickname`: 64
+  names x 2 implementations, all green.
+- **Recording cap was shorter than the runs it was meant to capture.**
+  Orion's intended skilled-run ceiling is ~7-8 minutes; the shipped
+  `RECORDING_MAX_SECONDS` (360s / 6:00) could cut off the death/ending on
+  exactly the longest, most impressive runs — the ones most worth saving.
+  Raised to 600s (10:00), comfortably above the ceiling. To keep the new,
+  larger worst case safe on a low-end phone, added an explicit
+  `videoBitsPerSecond` cap (`BITRATE_BPS`, 1.2Mbps — a "small social clip"
+  target, not codec-default quality), bounding the true worst case to
+  ~90MB for a full 10-minute recording. Corrected a misleading comment: the
+  1s `MediaRecorder.start(1000)` chunk interval does NOT bound total memory
+  by itself (every flushed chunk is retained in the `chunks` array for the
+  whole recording) — it only bounds how much sits unflushed inside the
+  encoder between flushes. Total memory is duration × bitrate, which is
+  exactly why both are now capped explicitly instead of just the interval.
+  Considered and rejected a true rolling buffer (drop old chunks, memory
+  capped independent of duration): MediaRecorder puts the WebM container
+  header in the first chunk, so discarding early chunks produces a file
+  most players can't open, not a shorter clip — unsafe for what's supposed
+  to be a "one-click download and it just works" feature. `RecordingHandle`
+  now exposes a readonly `hitCap` flag (true once the safety timer, not the
+  player reaching game over, ended the recording); `main.ts` reads it right
+  after `stop()` resolves and the result screen shows "Clip capped at
+  10:00 — saved up to the cutoff." under the Save clip button when it
+  fired, so a shortened clip is never silently handed back as if it were
+  the whole run. Updated `scripts/test-recorder.ts`: cap must clear the
+  ~8min skilled-run ceiling, and worst-case size (duration × bitrate) must
+  stay under 200MB. `npm run test:recorder` green.
+- **Bonus find while checking for the leak Sam asked about.** Audited every
+  server response shape that surfaces another player's callsign
+  (leaderboards, friends, profiles, gap-to-goal) — all already routed
+  through `sanitizeEntry`/`sanitizeCallsignForDisplay` from the original
+  pass, no gaps found server-side. The actual gap was client-side: the
+  daily lobby board and the new result-screen compact board
+  (`fillDailyBoard` / `fillGameOverBoard` in `main.ts`) both build a
+  "pinned" row for the viewer's own rank-outside-the-window case directly
+  from `api.user.callsign` — the account's raw, unsanitized own callsign
+  (by design, so Settings can show it to the owner for editing) — and drop
+  it straight into a leaderboard-shaped list component. That's exactly the
+  kind of thing that gets screenshotted (it's the literal bug Lucas
+  reported), so a legacy-blocked owner would see their own blocked name
+  rendered on both the lobby board and their own result screen. Fixed by
+  running that one field through `sanitizeCallsignForDisplay` before it
+  goes into the pinned row in both functions; the owner's real name is
+  still shown, unfiltered, on account/Settings screens where they'd need it
+  to change it. No server route needed a change; no existing DB rows
+  touched.
+- **Tests / build.** `npm run test` (nickname 64 cases, highlights, recorder,
+  sim) and `npm run build` both green on this follow-up commit.
+- **Collision status unchanged.** `.worktrees/callsign-safety-fixes` (still
+  no commits ahead of the shared base as of this pass) independently
+  solved false positive #1 above via a growing `SAFE_EXCEPTIONS` list
+  (Scunthorpe, Grape, Grapefruit, Drape, Therapist, Despicable,
+  Retardant...) plus a different elongation-floor technique — worth
+  comparing the two approaches when reconciling the branches; this pass
+  was explicitly steered toward the categorized-tier design instead of the
+  exceptions-list one.
+
 ## 2026-08-12: "no chill" densify merged + deployed, the creature days stop having a calm pocket to screenshot from (main, DEPLOYED)
 
 - **Shipped.** Lucas green-lit the pass ("push live"), so

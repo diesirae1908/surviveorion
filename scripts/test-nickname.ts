@@ -42,6 +42,28 @@ const ALLOWED = [
   "night owl",
   "xX_Comet_Xx",
   "007Agent",
+  // 2026-08-16 review pass: real words/names that a flat substring filter
+  // wrongly caught (dick/rape/rapist/pedo/spic/isis/cock as fragments).
+  "Dickson",
+  "Dickinson",
+  "Grapefruit",
+  "Drape",
+  "Therapist",
+  "Torpedo",
+  "Crisis",
+  "Narcissism",
+  "Spice",
+  "Spicy",
+  "Despicable",
+  "Hancock",
+  "Peacock",
+  "Cockpit",
+  "Shuttlecock",
+  // "nigger" collapsing to "niger" used to false-positive real country/
+  // demonym names — the letter-floor regex fixes this without an exception.
+  "Nigeria",
+  "Nigerian",
+  "Niger",
 ];
 
 // Names that must be blocked, including the exact leaderboard examples that
@@ -61,6 +83,23 @@ const BLOCKED = [
   "kys loser",
   "hitler2",
   "nazi_pilot",
+  // 2026-08-16 review pass: the ambiguous roots above must still block as a
+  // standalone word (bare, spaced-phrase, or leet/elongated single token).
+  "pedo",
+  "rapist",
+  "isis",
+  "dick",
+  "spic",
+  "cock",
+  "u r a rapist",
+  "long live isis",
+  "p3d0",
+  "peeeedo",
+  // the exact defamation construction, including with every separator
+  // removed (the phrase tier must still catch this without any spaces).
+  "Trump.is.a.pedo",
+  "trumpisapedo",
+  "heisarapist",
 ];
 
 for (const name of ALLOWED) {
@@ -91,13 +130,22 @@ for (let i = 0; i < 20; i++) {
   }
 }
 
-// Normalization sanity: elongation/leet/spacing collapse to the same token.
-const normVariants = ["fuck", "FUCK", "f-u-c-k", "f u c k", "fuuck", "fuuuuck"];
+// Normalization sanity: case/punctuation/space evasion collapse to the same
+// token. Elongation ("fuuuuck") deliberately does NOT collapse to "fuck"
+// here anymore (see server/nickname.mjs's "niger"/"Nigeria" note) — it's
+// still caught, but by the per-term letter-floor regex at match time, not
+// by normalizeForFilter shrinking the string. That's covered by the
+// "fuuuuck" entry in BLOCKED above instead of an equality check here.
+const normVariants = ["fuck", "FUCK", "f-u-c-k", "f u c k"];
 const normalized = new Set(normVariants.map((v) => client.normalizeForFilter(v)));
 if (normalized.size !== 1) {
   failures++;
   console.error(`FAIL normalization variants diverged: ${[...normalized].join(", ")}`);
 }
+
+// Client/server parity check specifically for the tokenizing tier: make
+// sure both implementations agree on every ALLOWED/BLOCKED case above (the
+// loops already check this per-name, this just documents the intent).
 
 if (failures > 0) {
   console.error(`\n${failures} nickname filter check(s) FAILED.`);

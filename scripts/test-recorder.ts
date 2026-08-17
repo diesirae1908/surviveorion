@@ -6,7 +6,7 @@
 //
 //   npx tsx scripts/test-recorder.ts
 
-import { clipExtension, recordingSupported, RECORDING_MAX_SECONDS } from "../src/recorder";
+import { clipExtension, recordingSupported, RECORDING_MAX_SECONDS, BITRATE_BPS } from "../src/recorder";
 
 let failures = 0;
 
@@ -34,11 +34,31 @@ try {
 check("recordingSupported does not throw without a DOM", threw, false);
 check("recordingSupported reports false without a DOM", supported, false);
 
-// Sanity on the safety cap: long enough to cover a normal Daily Patrol /
-// Classic run, short enough to bound memory on a long Iron Rain session.
-if (RECORDING_MAX_SECONDS < 120 || RECORDING_MAX_SECONDS > 1800) {
+// Sanity on the safety cap: long enough to clear Orion's ~7-8 minute
+// skilled-run ceiling (a cap under that would cut off the death/ending on
+// exactly the best, most shareable runs — the 2026-08-16 review finding),
+// short enough to keep the worst-case recording bounded.
+const SKILLED_RUN_CEILING_SECONDS = 8 * 60;
+if (RECORDING_MAX_SECONDS <= SKILLED_RUN_CEILING_SECONDS) {
+  failures++;
+  console.error(
+    `FAIL RECORDING_MAX_SECONDS (${RECORDING_MAX_SECONDS}) does not clear the ~8min skilled-run ceiling`,
+  );
+}
+if (RECORDING_MAX_SECONDS > 1800) {
   failures++;
   console.error(`FAIL RECORDING_MAX_SECONDS out of a sane range: ${RECORDING_MAX_SECONDS}`);
+}
+
+// Worst-case memory: duration x bitrate is the real bound (1s chunking does
+// NOT bound total memory by itself — see the recorder.ts module comment).
+// Keep the worst case comfortably inside what a low-end mobile browser tab
+// can hold: a few hundred MB, not a few GB.
+const worstCaseBytes = (RECORDING_MAX_SECONDS * BITRATE_BPS) / 8;
+const worstCaseMB = worstCaseBytes / (1024 * 1024);
+if (worstCaseMB > 200) {
+  failures++;
+  console.error(`FAIL worst-case recording size too large for a low-end phone: ${worstCaseMB.toFixed(0)}MB`);
 }
 
 if (failures > 0) {
