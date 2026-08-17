@@ -4,7 +4,24 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-17: closest-call highlight + opt-in local recording reconciled from `sam/pilot-safety-and-highlights` onto a clean branch off main
+## 2026-08-17: reconciled pilot extras MERGED + DEPLOYED (main `08a1a72`)
+
+- Lucas approved the production deploy. Merged
+  `sam/highlights-recording-reconciled` (`581d3d9`) into `main` with
+  merge commit `08a1a72` and pushed, triggering Render auto-deploy.
+- Production bundle changed from `index-o2JuUmy7.js` to
+  `index-jHlTHP4B.js`, exactly matching the reviewed local build.
+- Live bundle contains the `Record runs`, `Save clip`, and
+  `Razor-thin dodge` feature strings. Daily and world leaderboard checks
+  still mask userId 54 and the second blocked account as
+  `Callsign redacted`, with zero unmasked blocked names.
+- The branch had already passed build, all seven test suites, full
+  simulation tests, and desktop Chromium smoke testing before merge.
+- Remaining caveat: recording is feature-gated and safely degrades, but its
+  360-second, approximately 36 MB ceiling has not been measured on a
+  physical iPhone or low-end Android device.
+
+## 2026-08-17: closest-call highlight + opt-in local recording reconciled from `sam/pilot-safety-and-highlights` onto a clean branch off main (`08a1a72`, deployed)
 
 - **Trigger.** Sam dispatch to reconcile the two unmerged branches called out
   in the entry below: `sam/pilot-safety-and-highlights` (`fa9d25e`) has an
