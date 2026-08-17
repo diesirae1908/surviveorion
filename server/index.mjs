@@ -281,7 +281,7 @@ const routes = {
         return json(res, 409, { error: "that callsign belongs to a registered pilot" });
       if (existing.guest_secret_hash) {
         if (!guestSecretMatches(guestSecret, existing.guest_secret_hash))
-          return json(res, 409, { error: "that callsign is taken — pick another name" });
+          return json(res, 409, { error: "that callsign is taken, pick another name" });
         return json(res, 200, {
           token: issueSession(existing.id),
           user: publicUser(existing),
@@ -441,7 +441,7 @@ const routes = {
     // localStorage — a forged client can't flood the daily board. (Refunded
     // <15s deaths never submit as daily, so legit players can't hit this.)
     if (dailyDate && store.countDailyScores(user.id, dailyDate) >= DAILY_MAX_ATTEMPTS)
-      return json(res, 429, { error: "daily attempt limit reached — next patrol at UTC midnight" });
+      return json(res, 429, { error: "daily attempt limit reached, next patrol at UTC midnight" });
 
     store.insertScore(user.id, { ...run, dailyDate });
     store.insertRun(user.id, { ...run, platform: cleanPlatform(body.platform) });

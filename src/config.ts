@@ -888,5 +888,5 @@ export const POWER_HINTS: Record<PowerId, string> = {
   arc: "lightning chains through the swarm",
   autocannon: "turret auto-fires at the nearest drone",
   meteors: "explosions rain on drone packs",
-  vortex: "drags drones in — you're untouchable",
+  vortex: "drags drones in, you're untouchable",
 };

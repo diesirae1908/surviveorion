@@ -7,6 +7,7 @@ import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_HINTS, PO
 import { guessCountry } from "./countries";
 import { isThirdPartyCrashNoise } from "./crashFilter";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
+import { closestCallLabel } from "./highlights";
 import { Input, isTypingTarget } from "./input";
 import { clamp01, hashString, setRunSeed } from "./math";
 import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
@@ -22,6 +23,7 @@ import {
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
+import { clipExtension, downloadClip, startRecording, type RecordingHandle } from "./recorder";
 import {
   loadBestScore,
   loadBestTime,
@@ -171,6 +173,12 @@ let pendingTraining = false;
 let runIsTraining = false;
 /** Daily death inside the free-death window: the attempt was returned. */
 let runRefunded = false;
+/** Opt-in local recording of the run in progress (see recorder.ts), if any. */
+let activeRecording: RecordingHandle | null = null;
+/** Finished clip for the run that just ended, ready to download from the result screen. */
+let lastClipBlob: Blob | null = null;
+/** True if that clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
+let lastClipCapped = false;
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -371,6 +379,12 @@ const ui = new Ui(settings, {
   },
   onFeedback: async (message, email) => {
     await api.sendFeedback(message, email);
+  },
+  onSaveClip: () => {
+    if (!lastClipBlob) return false;
+    const label = runIsDaily ? `daily-${dailyNumber()}` : runGameMode;
+    downloadClip(lastClipBlob, `orion-${label}-${Date.now()}.${clipExtension(lastClipBlob)}`);
+    return true;
   },
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
@@ -586,6 +600,13 @@ function startRun(): void {
   state = "playing";
   ui.hideAll();
   audio.playTrack("game");
+  // opt-in local recording (settings toggle + browser support gate both live
+  // in recorder.ts); starts fresh every run, previous clip discarded. Training
+  // Ground never reaches the game-over screen (no save-clip button to use it),
+  // so skip it there rather than burn CPU for nothing.
+  lastClipBlob = null;
+  lastClipCapped = false;
+  activeRecording = settings.recordRuns && !runIsTraining ? startRecording(canvas) : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
 }
@@ -648,6 +669,13 @@ function quitToMenu(): void {
   tutorial = null;
   audio.setThrustLevel(0);
   audio.playTrack("menu");
+  // an unfinished run (quit mid-flight, no game-over screen) never offers a
+  // clip: stop and discard rather than leaving the recorder running
+  if (activeRecording) {
+    const rec = activeRecording;
+    activeRecording = null;
+    void rec.stop();
+  }
   clearActiveMutators();
   currentViewScale = 1;
   world = createWorld(renderer.viewW, renderer.viewH);
@@ -663,6 +691,17 @@ function onGameOver(): void {
   gameOverUiShown = false;
   audio.setThrustLevel(0);
   audio.playTrack("gameover");
+  // stop recording now, not when the game-over UI shows: finalizing the clip
+  // (MediaRecorder flush) overlaps the death cinematic instead of adding a
+  // delay before the result screen appears
+  if (activeRecording) {
+    const rec = activeRecording;
+    activeRecording = null;
+    void rec.stop().then((blob) => {
+      lastClipBlob = blob;
+      lastClipCapped = rec.hitCap;
+    });
+  }
   // Training Ground runs are unscored: no PBs, no run count, no submission
   if (runIsTraining) return;
   // instant wipeouts are free: a daily death inside the grace window hands
@@ -755,6 +794,9 @@ function showGameOverUi(): void {
     mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
     dailyMedal,
     preview: cappedDaily && PREVIEW_ACTIVE,
+    closestCallLabel: closestCallLabel(world.closestCall),
+    clipReady: lastClipBlob !== null,
+    clipCapped: lastClipCapped,
   });
   submitRun();
 }
@@ -820,7 +862,7 @@ function submitRun(): void {
         }
         renderRankResult(await api.submitScore(run));
         // the name matched this device's existing guest pilot: scores merge
-        if (reusedName) ui.appendGameOverRankNote(`Welcome back, “${name.trim()}” — this run counts for your existing pilot.`);
+        if (reusedName) ui.appendGameOverRankNote(`Welcome back, “${name.trim()}”: this run counts for your existing pilot.`);
       },
       // full sign-in: back to this screen after, where submitRun files the score
       onSignIn: () => community.showAuth(showGameOverUi),

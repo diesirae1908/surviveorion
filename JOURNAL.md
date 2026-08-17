@@ -4,6 +4,157 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-17: closest-call highlight + opt-in local recording reconciled from `sam/pilot-safety-and-highlights` onto a clean branch off main
+
+- **Trigger.** Sam dispatch to reconcile the two unmerged branches called out
+  in the entry below: `sam/pilot-safety-and-highlights` (`fa9d25e`) has an
+  overlapping callsign filter and game-over redesign (redundant, since
+  main already shipped its own version of both in `88e7632`) plus two
+  features main never got: the closest-call highlight and opt-in local
+  recording. Rather than merge or rebase that branch (which would drag the
+  redundant/alternate implementations along), a new branch,
+  `sam/highlights-recording-reconciled`, was cut fresh off main (`2f6f1e2`)
+  and only the two worthwhile pieces were hand-ported. Unmerged, unpushed,
+  no production deploy, no DB access.
+- **Ported: closest-call highlight** (`src/highlights.ts`, copied unchanged
+  from the branch: `grazeClearance`, `trackClosestCall`, `closestCallTier`,
+  `closestCallLabel`, all pure functions). Wired into `src/gameState.ts`'s
+  `handleGrazes` (tracks the tightest graze via `world.closestCall`, a new
+  field on `World` in `src/types.ts`) and surfaced on the existing
+  simplified game-over screen as a single gold-bordered line
+  (`⚡ Razor-thin dodge at 1:24`, `.result-highlight` in `src/style.css`)
+  right under the "New best score" line, ahead of the divider. It reads
+  world state only, never touches `Math.random` or the seeded schedule
+  streams, so Daily Patrol determinism is untouched (confirmed by
+  `sim-test.ts`'s determinism checks passing unchanged). Unit tests ported
+  verbatim as `scripts/test-highlights.ts` (`npm run test:highlights`).
+- **Ported: opt-in local recording** (`src/recorder.ts`, copied unchanged
+  from the branch: `canvas.captureStream()` + `MediaRecorder`, capped at
+  600s / ~1.2Mbps so the worst case is ~90MB, degrades to "no clip" via
+  `recordingSupported()` on any unsupported browser or runtime failure,
+  never uploads or persists anything, only ever offers a same-device
+  download). Wired into `src/save.ts` (`recordRuns` boolean setting, OFF by
+  default), `src/ui.ts` (a "Record runs" toggle in Settings, hidden
+  entirely when `recordingSupported()` is false; a "Save clip" button on
+  game over when a clip is ready, with a capped-at-10:00 hint if the safety
+  timer cut it short), and `src/main.ts` (starts fresh every run in
+  `startRun` when the setting is on and it's not Training Ground, discarded
+  on a mid-run quit in `quitToMenu`, finalized in `onGameOver` so the
+  MediaRecorder flush overlaps the death cinematic instead of adding a
+  delay, downloaded via the new `onSaveClip` UI callback). Unit tests
+  ported verbatim as `scripts/test-recorder.ts` (`npm run test:recorder`,
+  covers the safety-cap sanity math and that feature detection never throws
+  outside a browser).
+- **Left behind, deliberately.** The branch's own callsign content filter
+  and display-sanitization pass (`8f39f9b`/`e3dbe69`/`fa9d25e`) is fully
+  redundant: main already shipped a different implementation of the same
+  thing in `88e7632`, and per the prior entry the two designs disagree on
+  normalization (main's avoids the branch's character-collapsing
+  false-positive risk on words like "Nigeria"/"falcon"). The branch's
+  large game-over redesign (hero score treatment, a demoted "details"
+  panel, and a compact "today's board" mini-leaderboard slot fed by
+  `fillGameOverBoard`/`setGameOverBoard`) was also left out entirely per
+  the task brief: main's simplified game-over board (from `88e7632`) is a
+  deliberate simplification and the two new features fit into it as two
+  small additions (a highlight line, a save-clip button) with zero
+  restructuring needed, so there was no "small required portion" of the
+  redesign to carry over.
+- **Escalation: found, not fixed, flagged for Lucas/Sam.** While diffing
+  the branch's `fillDailyBoard`/`fillGameOverBoard` sanitization fix against
+  main, found that main's `fillDailyBoard` (`src/main.ts`) still builds its
+  client-side "pinned me" row from the account's raw `api.user.callsign`
+  (`callsign: myCallsign`, unsanitized) on the daily lobby's inline board.
+  That's the same class of gap the branch fixed elsewhere (a legacy blocked
+  callsign riding along, unmasked, on a public-shaped, screenshot-prone
+  leaderboard row) but landed on a surface `88e7632` didn't touch. This is
+  a pre-existing gap on main, not something introduced or worsened by this
+  session, and it's a content-moderation-adjacent call outside this
+  session's scope (port the highlight/recording, preserve main's masking
+  as-is): flagging rather than silently patching it, per the "stop and
+  return the question" guardrail for anything callsign/moderation-related.
+  A one-line fix (`sanitizeCallsignForDisplay(myCallsign)`, same pattern
+  already used server-side) is available whenever Lucas wants it shipped.
+- **Copy sweep: em dashes in player-facing text, fixed.** Lucas's
+  no-em-dash rule is absolute for anything a player can see. Swept
+  `index.html`, all of `src/`, and the community server's player-facing
+  response strings (excluding comments, `JOURNAL.md`, dev scripts, and the
+  Bearer-key-gated `/admin` dashboard, none of which a player ever sees).
+  Fixed 10 occurrences, replacing each with the punctuation that reads most
+  naturally in context (colon, comma, or period, matching this codebase's
+  existing voice):
+  - `server/index.mjs`: the 409 "that callsign is taken" message and the
+    429 daily-attempt-limit message.
+  - `src/main.ts`: the guest-reclaim "Welcome back" note appended to the
+    game-over rank line.
+  - `src/config.ts`: the vortex power's `POWER_HINTS` description.
+  - `src/ui.ts`: the main-menu launch button label (now "Launch: Classic"),
+    the Iron Rain mode card's sub-line, and the daily free-death "that
+    one's free" note on the game-over screen.
+  - `index.html`: the SEO/social meta description and both `og:title`/
+    `twitter:title` tags (now "ORION: a daily survival patrol").
+  - Left untouched (out of scope, not player-facing): comments throughout
+    the codebase (which use em dashes constantly as this repo's writing
+    style), the `/admin` mission-control dashboard's internal display
+    formatting (`server/index.mjs` lines 798-1120, gated by Bearer
+    `ORION_ADMIN_KEY`, seen only by Lucas), a SQL schema comment in
+    `server/db.mjs`, and all historical `JOURNAL.md` text.
+  - **Regression guard added:** `scripts/test-no-em-dash.ts`
+    (`npm run test:no-em-dash`, included in `npm test`). Scans `index.html`,
+    `src/*.ts`/`src/*.css`, and the community server's route files for an
+    em dash outside comments/block-comments/HTML-comments, with an explicit
+    skip range for the admin dashboard's embedded HTML and `server/db.mjs`
+    excluded entirely (SQL-only, no player-facing strings, its one em dash
+    lives in a `--` SQL comment this script doesn't parse). Smoke-tested
+    against a deliberately reintroduced em dash to confirm it fails loudly,
+    then confirmed it passes clean on the fixed tree.
+- **Verification.** `npm run build` clean (`tsc --noEmit` + `vite build`).
+  Full `npm test` green: nickname (existing), touch-input (existing),
+  game-over rank (existing), crash filter (existing), highlights (new),
+  recorder (new), no-em-dash (new). Full `npx tsx scripts/sim-test.ts`: ALL
+  CHECKS PASSED, including both Daily Patrol determinism checks and every
+  mutator/creature-day suite, confirming the closest-call tracking (which
+  runs inside the hot graze-detection path every tick) has zero effect on
+  the seeded schedule streams or scoring.
+- **Browser-verified live** in a real Chromium session against the local
+  dev server (`npm run dev`, `/?fullgame=1`): gate → intro → menu showed
+  "Launch: Classic" (colon, not em dash); Settings showed a working
+  "Record runs" toggle; started a Classic run with recording on, forced an
+  instant death via the existing dev-only `window.orionWorld` console hook
+  (`import.meta.env.DEV` only, never in prod builds); the game-over screen
+  showed `⚡ Clean dodge at 0:10` and a working "Save clip" button that
+  changed to "Saved!" after a click actually produced and downloaded a
+  clip via `captureStream`/`MediaRecorder` in a real browser tab, not a
+  mock. No console errors, no visual glitches, no em dashes anywhere in the
+  rendered UI.
+- **Browser/mobile caveats (recording feature, unverified beyond desktop
+  Chromium).** `recordingSupported()` gates on `HTMLCanvasElement.
+  prototype.captureStream` and `window.MediaRecorder`, both existing but
+  behaving unevenly across browsers: (1) **Safari/iOS**: `captureStream` on
+  `<canvas>` has historically had partial/late support and inconsistent
+  codec negotiation across Safari versions; the feature will silently
+  no-op there if either API is missing or throws, but was not verified on
+  an actual iOS device or Safari desktop in this session. (2) **Firefox**:
+  generally supports both APIs, not verified here either. (3) **Low-end
+  Android/older Chromium**: the 90MB worst-case (10min cap x ~1.2Mbps) is
+  sized for "a modern mobile browser tab" per the recorder.ts module
+  comment, an assumption carried over from the original branch, not
+  re-verified against a real low-memory device in this session. (4) On any
+  browser where `MediaRecorder` throws mid-run (a codec/permission quirk),
+  the code path resolves to "no clip" rather than surfacing an error, by
+  design, so a broken recording is invisible to the player except by the
+  Save Clip button simply not appearing. None of this affects gameplay,
+  scoring, or determinism either way (recorder.ts never touches game
+  state), only whether a player on an unsupported/flaky browser gets a
+  clip. Recommend a manual pass on an actual iPhone/Android before this
+  ships, since Orion's install base skews mobile.
+- **Guardrail/scope checks.** New branch off main (not main itself,
+  confirmed `git log --oneline -1` before starting), no push, no merge, no
+  deploy, no production data read or touched (this whole session ran
+  against local source only). `SCORING`/`server/validate.mjs` untouched
+  (nothing here changes point values or anti-cheat ceilings). No secrets
+  touched. The one out-of-scope finding (daily-lobby pinned-row
+  sanitization gap, above) was flagged, not silently fixed.
+
 ## 2026-08-17: callsign safety pass MERGED + DEPLOYED (main `88e7632`)
 
 - Lucas gave the go ("push live"). `sam/callsign-safety-and-fixes` (`d873574`)

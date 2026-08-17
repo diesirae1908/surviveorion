@@ -1,4 +1,5 @@
 import type { GameMode, PowerId } from "./config";
+import type { ClosestCall } from "./highlights";
 
 export interface Ship {
   x: number;
@@ -386,4 +387,7 @@ export interface World {
   shake: number; // screen shake amplitude (world units)
 
   events: GameEvent[];
+
+  /** Tightest graze of the run so far (the game-over "closest call" highlight). */
+  closestCall: ClosestCall | null;
 }
