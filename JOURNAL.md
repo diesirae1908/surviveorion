@@ -4,7 +4,52 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-16: callsign moderation + display sanitization, touch-drag lockup fix, game-over rank slot simplified, crash-noise filter (`sam/callsign-safety-and-fixes`, NOT merged/pushed)
+## 2026-08-17: callsign safety pass MERGED + DEPLOYED (main `88e7632`)
+
+- Lucas gave the go ("push live"). `sam/callsign-safety-and-fixes` (`d873574`)
+  merged into `main` as `--no-ff` merge commit `88e7632` and pushed, which
+  auto-deployed the Render `surviveorion` service.
+- Re-verified on the branch before merging (not just trusting the build
+  session): `npm run build` clean, all four new suites green (nickname 71
+  names x 2 implementations, touch-input lifecycle, game-over rank,
+  crash filter), and full `scripts/sim-test.ts` ALL CHECKS PASSED, so the
+  `src/input.ts` touch change carries no gameplay regression.
+- Verified live after the deploy: served bundle flipped
+  `index--LdUHUyN.js` -> `index-o2JuUmy7.js` (matches the local production
+  build hash exactly); `/api/leaderboard/daily?mode=all` now returns
+  `"Callsign redacted"` for the offending row (userId 54) instead of the
+  real string; `/api/leaderboard/world` shows 2 masked rows and zero
+  remaining unmasked blocked names, so a second offensive callsign that
+  nobody had spotted got covered by the same pass.
+- The server-side filter module is confirmed loaded and classifying
+  correctly in production, since the display masking above is
+  `sanitizeCallsignForDisplay` -> `isNicknameBlocked`, the same predicate
+  the write paths call. A live write-path probe was deliberately NOT run to
+  completion: posting a blocked-but-untaken callsign to
+  `POST /api/auth/guest` would create a junk account if the wiring were
+  wrong, and there is no admin delete endpoint to clean it up. (The probe
+  with the exact existing name returns 409 "taken" first, since the
+  uniqueness check precedes the content check.)
+- **No production DB write.** userId 54's stored callsign is untouched and
+  needs no operational step: masking solves the public exposure. Correcting
+  the stored value would still require a manual, Lucas-approved
+  `UPDATE users SET callsign = ... WHERE id = 54` against the Render DB.
+- Follow-up found while verifying, NOT fixed here: Orion still has
+  pre-existing em dashes in a few player-facing strings, which breaks
+  Lucas's absolute no-em-dash rule. Confirmed offenders: the server's
+  "that callsign is taken" 409 message, `src/main.ts` "Welcome back, ...
+  this run counts for your existing pilot.", and the `vortex` power
+  description in `src/config.ts`. Today's change introduced none of them
+  (verified against the diff); a small copy sweep is worth its own pass.
+- Still unreconciled: `sam/pilot-safety-and-highlights` (now `fa9d25e`,
+  pushed but unmerged) has an overlapping callsign filter and its own
+  game-over redesign plus the closest-call highlight and opt-in local
+  recording. Now that main carries this branch's filter and game-over
+  changes, that branch needs a rebase and a decision about which pieces
+  survive before it can merge. Its callsign/game-over work is redundant;
+  the highlight and recording features are not.
+
+## 2026-08-16: callsign moderation + display sanitization, touch-drag lockup fix, game-over rank slot simplified, crash-noise filter (`sam/callsign-safety-and-fixes`, merged 2026-08-17 as `88e7632`)
 
 - **Trigger.** A cohesive live-feedback fix pass, dispatched with four
   ordered tasks: block offensive callsigns (server-authoritative, with
