@@ -67,7 +67,7 @@ const SUBSTRING_BLOCKED_TERMS = [
   "fuck", "shit", "cunt", "pussy", "whore", "slut", "bastard",
   "bitch", "asshole", "motherfucker", "dildo",
   // harassment / hateful ideology (long/specific enough to be substring-safe)
-  "pedophile", "nazi", "hitler", "terrorist", "kys", "suicide", "grelo",
+  "pedophile", "nazi", "hitler", "terrorist", "kys", "suicide",
   // sexual content not covered above
   "porn", "vagina",
 ];

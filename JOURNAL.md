@@ -126,7 +126,10 @@ why, commit hash, follow-ups), committed together with the work. See
 
 Sam's review of the above found two real bugs plus a related display leak.
 All three fixed on `sam/pilot-safety-and-highlights` as a new commit (not
-an amend).
+an amend). A later Sam pass also removed `"grelo"` from the substring block
+list: it had been added from the Aug 16 lobby screenshot ("chapo grelo"),
+but that callsign is ordinary player slang, not an offensive term, and the
+false positive was covered by a regression test.
 
 - **Nickname filter: flat substring matching was catching real names.**
   "Dickson" (contains "dick"), "grapefruit"/"drape"/"therapist" (contain

@@ -17,7 +17,7 @@ const SUBSTRING_BLOCKED_TERMS = [
   "retard", "retarded", "coon", "gook", "wetback", "cripple",
   "fuck", "shit", "cunt", "pussy", "whore", "slut", "bastard",
   "bitch", "asshole", "motherfucker", "dildo",
-  "pedophile", "nazi", "hitler", "terrorist", "kys", "suicide", "grelo",
+  "pedophile", "nazi", "hitler", "terrorist", "kys", "suicide",
   "porn", "vagina",
 ];
 

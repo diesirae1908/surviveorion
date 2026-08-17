@@ -64,13 +64,15 @@ const ALLOWED = [
   "Nigeria",
   "Nigerian",
   "Niger",
+  // Real player callsign from the Aug 16 board screenshot. "grelo" was
+  // briefly blocked by mistake; it is not an offensive term.
+  "chapo grelo",
 ];
 
 // Names that must be blocked, including the exact leaderboard examples that
 // motivated this pass, and deliberate evasion variants of each.
 const BLOCKED = [
   "Trump is a pedo",
-  "chapo grelo",
   "fuck you",
   "F.U.C.K",
   "f u c k",
