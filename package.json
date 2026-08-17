@@ -14,7 +14,10 @@
     "test:touch-input": "npx tsx scripts/test-touch-input.ts",
     "test:gameover-rank": "npx tsx scripts/test-gameover-rank.ts",
     "test:crash-filter": "npx tsx scripts/test-crash-filter.ts",
-    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter"
+    "test:highlights": "npx tsx scripts/test-highlights.ts",
+    "test:recorder": "npx tsx scripts/test-recorder.ts",
+    "test:no-em-dash": "npx tsx scripts/test-no-em-dash.ts",
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:recorder && npm run test:no-em-dash"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

@@ -13,6 +13,7 @@ import {
 import { BADGES, TIER_LABEL, type BadgeProgressStats } from "./badges";
 import { GAME_MODES, GAME_MODE_LABEL, type GameMode } from "./config";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
+import { sanitizePinnedRow } from "./nickname";
 import { dailyResetLabel } from "./ui";
 
 const BOARD_MODE_KEY = "orion.boardMode";
@@ -771,12 +772,20 @@ export class CommunityUi {
       table.appendChild(row);
     });
     if (me && me.rank > entries.length) {
+      // pinned "me" row, built client-side from the raw account callsign
+      // (unlike `entries` above, which the server already sanitizes): same
+      // display-time masking as every other pinned-row leaderboard surface
+      // (sanitizePinnedRow, 2026-08-17 review finding), since this board
+      // (World Arena / friends squadron / arena boards) is exactly the
+      // shareable, screenshot-prone shape that needs it.
+      const myCallsign = this.api.user?.callsign;
+      const { callsign: displayCallsign } = sanitizePinnedRow({ callsign: myCallsign ?? "you" });
       table.appendChild(
         this.el(
           "div",
           "board-row me",
           `<span class="rank">${me.rank}</span><span class="flag"></span>` +
-            `<span class="name">${escapeHtml(this.api.user?.callsign ?? "you")}</span>` +
+            `<span class="name">${escapeHtml(displayCallsign)}</span>` +
             `<span class="pts">${me.best.toLocaleString()}</span>`,
         ),
       );

@@ -117,17 +117,34 @@ function baseInput(overrides: Partial<GameOverRankInput> = {}): GameOverRankInpu
 }
 
 // --- me: carries the submitting pilot's own callsign/score/country through
-// unchanged, for the board's highlighted own-row. ---
+// for the board's highlighted own-row, EXCEPT the callsign is masked if it
+// would be blocked today (2026-08-17 review finding: `me` renders straight
+// into the exact board-row markup a player screenshots to share their run,
+// same shape as a public leaderboard row, so a blocked legacy callsign
+// can't ride along here either, just like it can't on a public board). ---
 {
   const r = deriveGameOverRank(baseInput({ best: 777 }), { isDaily: false, callsign: "Voyager", country: "jp" });
-  check("me.callsign passthrough", r.me.callsign === "Voyager");
+  check("me.callsign passthrough for a clean callsign", r.me.callsign === "Voyager");
   check("me.score passthrough", r.me.score === 777);
   check("me.country passthrough", r.me.country === "jp");
+}
+{
+  // reproduces the exact leak: a blocked legacy callsign must come out of
+  // deriveGameOverRank already redacted, not the raw string, since this is
+  // the only place the game-over screen's own-row sanitization can happen
+  // (the account owner's private views elsewhere are deliberately exempt).
+  const r = deriveGameOverRank(baseInput({ best: 1200 }), {
+    isDaily: false,
+    callsign: "trump rapes kids",
+    country: "us",
+  });
+  check("me.callsign is redacted for a blocked legacy callsign, not the raw string", r.me.callsign === "Callsign redacted");
+  check("me.score still passes through for a blocked callsign", r.me.score === 1200);
 }
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);
   process.exit(1);
 } else {
-  console.log("ALL CHECKS PASSED: game-over rank slot (null-rank bug, single primary rank, country rank, wingmate/stranger/no target).");
+  console.log("ALL CHECKS PASSED: game-over rank slot (null-rank bug, single primary rank, country rank, wingmate/stranger/no target, own-callsign masking).");
 }

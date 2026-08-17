@@ -19,7 +19,8 @@ import {
   formatKeyList,
 } from "./save";
 import type { ShareOutcome } from "./share";
-import { isNicknameBlocked, pickRejectionMessage } from "./nickname";
+import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
+import { RECORDING_MAX_SECONDS, recordingSupported } from "./recorder";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -52,6 +53,8 @@ export interface UiCallbacks {
   onResetKeyBindings: () => KeyBindings;
   /** Submit player feedback (email optional); rejects with a message on failure. */
   onFeedback: (message: string, email: string) => Promise<void>;
+  /** Save the just-finished run's local clip (see recorder.ts); false = nothing to save. */
+  onSaveClip: () => boolean;
 }
 
 export interface MenuCommunity {
@@ -92,6 +95,12 @@ export interface GameOverStats {
   dailyMedal?: { tier: MedalTier | null; hint: string | null };
   /** This run used the ?mutator= preview override — not submitted anywhere. */
   preview?: boolean;
+  /** "Razor-thin dodge at 1:24" style highlight line, or undefined for no grazes (see highlights.ts). */
+  closestCallLabel?: string | null;
+  /** Opt-in local recording (see recorder.ts): a clip is ready to save. */
+  clipReady?: boolean;
+  /** That clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
+  clipCapped?: boolean;
 }
 
 /**
@@ -148,7 +157,12 @@ export function deriveGameOverRank(
     primaryRank,
     country: opts.country && r.countryRank !== null ? { code: opts.country, rank: r.countryRank } : null,
     target,
-    me: { callsign: opts.callsign, score: r.best, country: opts.country },
+    // `me.callsign` renders into the exact board-row markup a player
+    // screenshots to share their run (see setGameOverRank), and unlike
+    // `target` (server-sanitized before it ever reaches this function) it's
+    // the account's own raw callsign passed straight from main.ts, so it
+    // needs the same display-time masking here (2026-08-17 review finding).
+    me: { callsign: sanitizeCallsignForDisplay(opts.callsign), score: r.best, country: opts.country },
   };
 }
 
@@ -428,6 +442,21 @@ export class Ui {
     return btn;
   }
 
+  /** Save-clip button for the opt-in local recording feature (see recorder.ts). */
+  private saveClipButton(): HTMLButtonElement {
+    const btn = this.button("Save clip", false, () => {
+      btn.disabled = true;
+      const outcome = this.cb.onSaveClip();
+      btn.textContent = outcome ? "Saved!" : "Couldn't save clip";
+      setTimeout(() => {
+        btn.textContent = "Save clip";
+        btn.disabled = false;
+      }, 1600);
+    });
+    btn.classList.add("share-btn");
+    return btn;
+  }
+
   /**
    * Daily lobby briefing card: today's mutator(s) (name + flavor briefing +
    * a plain-language subline stating what mechanically changed, 2 on UTC
@@ -478,7 +507,7 @@ export class Ui {
       );
     }
 
-    const launch = this.button("Launch — Classic", true, () => this.cb.onPlay("classic"));
+    const launch = this.button("Launch: Classic", true, () => this.cb.onPlay("classic"));
     launch.classList.add("launch");
     screen.appendChild(launch);
 
@@ -486,7 +515,7 @@ export class Ui {
     const ironRain = this.el("button", "menu-mode-btn ironrain", "");
     ironRain.innerHTML =
       `<span class="daily-name">⚙ Iron Rain</span>` +
-      `<span class="daily-sub">max difficulty from second zero. Skip the warm-up — its own board</span>`;
+      `<span class="daily-sub">max difficulty from second zero. Skip the warm-up, its own board</span>`;
     ironRain.addEventListener("click", () => this.cb.onPlay("ironrain"));
     screen.appendChild(ironRain);
 
@@ -817,6 +846,20 @@ export class Ui {
           "Inertia ON adds thrust-and-drift piloting for flavor. Leaderboards don't care either way.",
       ),
     );
+
+    // opt-in local recording: hidden entirely on browsers that can't do it
+    // (recordingSupported gates capture too, this just avoids a dead toggle)
+    if (recordingSupported()) {
+      screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Saves a local clip of each run for you to download. Stays on this device: " +
+            "nothing is uploaded, nothing is stored on our end.",
+        ),
+      );
+    }
 
     const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
     const manual = this.el("div", "manual", "");
@@ -1194,6 +1237,10 @@ export class Ui {
     if (stats.isNewBest) {
       screen.appendChild(this.el("div", "new-best", "New best score"));
     }
+    // one memorable moment from the run, if it earned one (see highlights.ts)
+    if (stats.closestCallLabel) {
+      screen.appendChild(this.el("div", "result-highlight", `⚡ ${escapeHtml(stats.closestCallLabel)}`));
+    }
     screen.appendChild(this.el("div", "divider", ""));
     // survival time leads: it's the number players intuitively compare
     screen.appendChild(
@@ -1254,7 +1301,7 @@ export class Ui {
         this.el(
           "div",
           "run-delta gold",
-          `Down inside ${DAILY_FREE_DEATH_SECONDS}s — that one's free, no attempt spent`,
+          `Down inside ${DAILY_FREE_DEATH_SECONDS}s: that one's free, no attempt spent`,
         ),
       );
     }
@@ -1279,6 +1326,18 @@ export class Ui {
 
     if (stats.showShare) {
       screen.appendChild(this.shareButton());
+    }
+    if (stats.clipReady) {
+      screen.appendChild(this.saveClipButton());
+      if (stats.clipCapped) {
+        screen.appendChild(
+          this.el(
+            "div",
+            "field-hint center",
+            `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
+          ),
+        );
+      }
     }
 
     // daily-only site: retries draw from the daily attempt budget
