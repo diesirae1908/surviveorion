@@ -184,11 +184,34 @@ check(
   "Callsign redacted",
 );
 
+// --- sanitizePinnedRow (2026-08-17 review finding): client-built "pinned
+// me" rows (fillDailyBoard, community.ts's renderBoard) assemble their own
+// row from the account's raw callsign, bypassing the server's sanitizeEntry
+// pass that only covers `entries` it returns itself. This reproduces the
+// exact leak: a blocked legacy callsign must come out redacted, everything
+// else on the row must pass through untouched. ---
+
+check(
+  "sanitizePinnedRow redacts a blocked legacy callsign",
+  client.sanitizePinnedRow({ callsign: "trump rapes kids", rank: 12, score: 4200, isMe: true }).callsign,
+  "Callsign redacted",
+);
+check(
+  "sanitizePinnedRow preserves non-callsign fields on a blocked row",
+  JSON.stringify(client.sanitizePinnedRow({ callsign: "trump rapes kids", rank: 12, score: 4200, isMe: true })),
+  JSON.stringify({ callsign: "Callsign redacted", rank: 12, score: 4200, isMe: true }),
+);
+check(
+  "sanitizePinnedRow leaves a clean callsign's row untouched",
+  JSON.stringify(client.sanitizePinnedRow({ callsign: "Ace", rank: 3, score: 9001 })),
+  JSON.stringify({ callsign: "Ace", rank: 3, score: 9001 }),
+);
+
 if (failures > 0) {
   console.error(`\n${failures} nickname filter check(s) FAILED.`);
   process.exit(1);
 }
 console.log(
   `ALL CHECKS PASSED: ${ALLOWED.length + BLOCKED.length} names x 2 implementations, ` +
-    `messages, elongation tolerance, display sanitization.`,
+    `messages, elongation tolerance, display sanitization, pinned-row masking.`,
 );

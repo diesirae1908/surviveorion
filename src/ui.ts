@@ -19,8 +19,8 @@ import {
   formatKeyList,
 } from "./save";
 import type { ShareOutcome } from "./share";
-import { isNicknameBlocked, pickRejectionMessage } from "./nickname";
-import { recordingSupported } from "./recorder";
+import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
+import { RECORDING_MAX_SECONDS, recordingSupported } from "./recorder";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -157,7 +157,12 @@ export function deriveGameOverRank(
     primaryRank,
     country: opts.country && r.countryRank !== null ? { code: opts.country, rank: r.countryRank } : null,
     target,
-    me: { callsign: opts.callsign, score: r.best, country: opts.country },
+    // `me.callsign` renders into the exact board-row markup a player
+    // screenshots to share their run (see setGameOverRank), and unlike
+    // `target` (server-sanitized before it ever reaches this function) it's
+    // the account's own raw callsign passed straight from main.ts, so it
+    // needs the same display-time masking here (2026-08-17 review finding).
+    me: { callsign: sanitizeCallsignForDisplay(opts.callsign), score: r.best, country: opts.country },
   };
 }
 
@@ -1326,7 +1331,11 @@ export class Ui {
       screen.appendChild(this.saveClipButton());
       if (stats.clipCapped) {
         screen.appendChild(
-          this.el("div", "field-hint center", "Clip capped at 10:00: saved up to the cutoff."),
+          this.el(
+            "div",
+            "field-hint center",
+            `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
+          ),
         );
       }
     }

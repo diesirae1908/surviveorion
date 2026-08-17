@@ -9,6 +9,7 @@ import { isThirdPartyCrashNoise } from "./crashFilter";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { closestCallLabel } from "./highlights";
 import { Input, isTypingTarget } from "./input";
+import { sanitizePinnedRow } from "./nickname";
 import { clamp01, hashString, setRunSeed } from "./math";
 import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
 import {
@@ -483,16 +484,25 @@ function fillDailyBoard(): void {
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
       }));
+      // The pinned "me" row is built client-side from the account's raw
+      // callsign (never touched by the server's own sanitizeEntry pass on
+      // `entries` above), so it needs the same display-time masking the
+      // server applies everywhere else a callsign reaches a leaderboard-
+      // shaped, screenshot-prone surface (sanitizePinnedRow, 2026-08-17
+      // review finding). A blocked legacy name still shows the account
+      // owner their real callsign on account/settings screens (nickname.ts's
+      // carve-out is unchanged); it just doesn't get to sit pinned into
+      // this board's row markup.
       const pinned =
         d.me && d.me.rank > entries.length && myCallsign
-          ? {
+          ? sanitizePinnedRow({
               rank: d.me.rank,
               callsign: myCallsign,
               country: api.user?.country ?? "",
               score: d.me.best,
               mode: d.me.mode,
               isMe: true,
-            }
+            })
           : null;
       ui.setDailyBoard({ entries, pinned });
     })
@@ -814,6 +824,9 @@ function renderRankResult(r: SubmitResult): void {
     });
   }
   ui.setGameOverRank(
+    // deriveGameOverRank sanitizes opts.callsign internally (it's the
+    // account's raw callsign, and `me` renders into a screenshot-prone
+    // board row), so this call site doesn't need to do it itself.
     deriveGameOverRank(r, {
       isDaily: runIsDaily,
       callsign: api.user?.callsign ?? "You",

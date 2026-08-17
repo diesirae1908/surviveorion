@@ -7,38 +7,53 @@
 // (unsupported codec, permission quirk, mid-run exception) resolves to
 // "no clip" instead of throwing into the game loop.
 //
-// Cap picked from actual gameplay ceiling, not a round number (2026-08-16
-// review pass). Orion's intended skilled-run ceiling is ~7-8 minutes; the
-// original 360s (6:00) cap could cut off the death/ending on exactly the
-// best, most shareable runs. RECORDING_MAX_SECONDS is now 600 (10:00), with
-// headroom above the ceiling instead of under it.
+// Memory correction (2026-08-16 review pass, still true): the 1s chunk
+// interval passed to recorder.start() does NOT bound total memory by
+// itself: it only bounds how much is buffered inside the encoder between
+// flushes; every flushed chunk still gets pushed onto `chunks` and held
+// until stop(), so total memory scales with duration x bitrate regardless
+// of chunk size. A true rolling buffer (drop old chunks so memory is
+// capped independent of duration) was considered and rejected as unsafe
+// here: MediaRecorder emits a single WebM header in the FIRST chunk, so
+// discarding early chunks to keep a fixed-size window produces a file most
+// players can't open, not a clip. The fix is capping duration AND setting
+// an explicit bitrate (below) so the worst case is small enough to be safe
+// on a phone.
 //
-// Memory correction: the 1s chunk interval passed to recorder.start() does
-// NOT bound total memory by itself — it only bounds how much is buffered
-// inside the encoder between flushes; every flushed chunk still gets
-// pushed onto `chunks` and held until stop(), so total memory scales with
-// duration x bitrate regardless of chunk size. A true rolling buffer (drop
-// old chunks so memory is capped independent of duration) was considered
-// and rejected as unsafe here: MediaRecorder emits a single WebM header in
-// the FIRST chunk, so discarding early chunks to keep a fixed-size window
-// produces a file most players can't open, not a clip. Given a full-run
-// recording was requested and 10 minutes is a bounded, known worst case,
-// the simpler fix is capping duration AND setting an explicit bitrate
-// (below) so that worst case is small enough to be safe: ~9MB/min at
-// BITRATE_BPS, ~90MB for the full 10-minute cap on a low-end phone, well
-// within what a modern mobile browser tab can hold in memory.
-export const RECORDING_MAX_SECONDS = 600;
+// Cap reassessed 2026-08-17 (follow-up review): the 2026-08-16 pass raised
+// this from 360s to 600s specifically so the cap wouldn't cut off the
+// death/ending on Orion's best runs (skilled-run ceiling is ~7-8 minutes,
+// per AGENTS.md). But at the bitrate that bump kept (1.2Mbps), 600s means
+// an ~86MB worst case in memory (600 x 1.2Mbps / 8), which is not a safe
+// default for the mobile traffic this feature actually ships to: Orion's
+// install base skews mobile, and a low-end Android tab can OOM well below
+// that. Reverted to the original 360s (6:00) cap and lowered the bitrate
+// instead of raising the duration again: 360s x BITRATE_BPS below is a
+// ~34MB (36,000,000 byte) worst case, comfortably under a 40MB budget. A
+// canvas-captured 2D game (flat shapes, dark background, no film-grain
+// detail) reads fine well below the "small social clip" bitrates real
+// video needs, so this trades a small amount of headroom on Orion's rare
+// 7-8 minute runs (their clip auto-stops at 6:00, with a visible "capped"
+// note, not a silent truncation) for a materially safer memory ceiling on
+// every run. If full-length clips on long runs matter enough later, the
+// right fix is a resolution/fps reduction (smaller frames, same duration)
+// rather than a rolling buffer (see above for why that doesn't work) or
+// raising bitrate x duration again.
+export const RECORDING_MAX_SECONDS = 360;
 
 /** Capture at a modest fixed rate: plenty for a social clip, cheap to encode. */
 const CAPTURE_FPS = 24;
 
 /**
- * Explicit modest cap, not codec-default quality: a canvas-captured
- * 2D-game clip doesn't need archival bitrate, and an unbounded default
- * could push the RECORDING_MAX_SECONDS worst case well past the ~90MB
- * this was sized for. ~1.2Mbps is a common "small social clip" target.
+ * Explicit modest cap, not codec-default quality: a canvas-captured 2D-game
+ * clip doesn't need archival bitrate, and an unbounded default could push
+ * the RECORDING_MAX_SECONDS worst case well past the ~40MB budget this was
+ * sized for (see the module comment above). 0.8Mbps keeps VP9/VP8 output
+ * readable for simple 2D gameplay footage while landing the 360s worst
+ * case at ~34MB (36,000,000 bytes: 360 x 800,000 / 8), not the ~86MB the
+ * previous 1.2Mbps/600s combination worked out to.
  */
-export const BITRATE_BPS = 1_200_000;
+export const BITRATE_BPS = 800_000;
 
 const PREFERRED_MIME_TYPES = [
   "video/webm;codecs=vp9",

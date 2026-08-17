@@ -104,3 +104,21 @@ export function sanitizeCallsignForDisplay(raw: string): string {
   if (typeof raw !== "string") return REDACTED_CALLSIGN;
   return isNicknameBlocked(raw) ? REDACTED_CALLSIGN : raw;
 }
+
+/**
+ * Sanitizes the callsign on a client-built "pinned me" row before it reaches
+ * a leaderboard-shaped display (2026-08-17 review finding: `fillDailyBoard`
+ * and `community.ts`'s `renderBoard` both build their pinned "me" row from
+ * the account's own raw callsign, since the server can only sanitize the
+ * `entries` it returns, not a row the client assembles locally afterward).
+ * Every such row is a shareable, screenshot-prone surface (a daily-board
+ * pin, a world/arena/squadron board pin, the game-over rank comparison),
+ * so it needs the same masking the server applies everywhere else a
+ * callsign reaches the public eye. Never applied to the account owner's own
+ * private views of their own callsign (profile edit field, the menu's
+ * "signed in as" indicator): those need the real value, same carve-out as
+ * sanitizeCallsignForDisplay above.
+ */
+export function sanitizePinnedRow<T extends { callsign: string }>(row: T): T {
+  return { ...row, callsign: sanitizeCallsignForDisplay(row.callsign) };
+}
