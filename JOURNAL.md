@@ -4,6 +4,200 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-16: callsign moderation + display sanitization, touch-drag lockup fix, game-over rank slot simplified, crash-noise filter (`sam/callsign-safety-and-fixes`, NOT merged/pushed)
+
+- **Trigger.** A cohesive live-feedback fix pass, dispatched with four
+  ordered tasks: block offensive callsigns (server-authoritative, with
+  public-display sanitization for legacy rows), fix a reported touch-drag
+  lockup, simplify the end-of-game rank display, and classify a batch of
+  Aug 16 Brave/iPhone crash reports. Everything below is on a feature
+  branch (built in an isolated `git worktree` at
+  `.worktrees/callsign-safety-fixes`, off `40080a9`), unmerged, unpushed, no
+  DB migration, no production data touched or queried.
+- **Mid-session collision, noted for the record.** Partway through, the main
+  checkout showed live, unscheduled edits from a concurrent agent (untracked
+  `src/gameState.ts`/`src/types.ts`/`src/highlights.ts`/
+  `scripts/test-highlights.ts`), so this work moved into the isolated
+  worktree above per `AGENTS.md`'s parallel-dispatch guidance. That other
+  session finished and committed as `8f39f9b` on branch
+  `sam/pilot-safety-and-highlights` (also unmerged/unpushed): its own
+  callsign filter (normalizes by collapsing repeated characters, which
+  false-positives on real words like "Nigeria"/"falcon" — the exact issue
+  this branch's filter design avoids, see below) plus a game-over redesign,
+  a "closest call" highlight, and opt-in local recording — a superset that
+  overlaps this branch's Task 1 and Task 3 but is NOT the same
+  implementation. **Two unmerged branches now both touch callsign
+  moderation and the game-over screen; flagged back to Sam/Lucas rather
+  than silently picking a winner or merging them myself** — reconciling
+  which (if either, or some combination) ships is a product call, not an
+  engineering one.
+- **Callsign content filter is server-authoritative** (`server/nickname.mjs`,
+  mirrored cosmetically in `src/nickname.ts` for instant client feedback,
+  same pattern as `SCORING`/`validate.mjs`). Wired into every route that
+  writes a callsign: `POST /api/auth/register`, `POST /api/auth/guest`
+  (new-account branch only — see below), `PATCH /api/me`, and
+  `uniqueCallsign` (Google/Clerk auto-name, falls back to "Pilot" on a
+  blocked provider-supplied name). `CALLSIGN_RE` still only checks
+  shape/charset; this checks content and can't be bypassed by a
+  hand-crafted request.
+  - **Normalization deliberately does NOT collapse repeated characters.**
+    An earlier pass did (kills "fuuuuck"-style elongation) but that same
+    collapse turns "coon" into "con" and "niger" into a substring of
+    "Nigeria" — false-positives on real words/names, an explicit guardrail
+    violation ("avoid excessive false positives"). Instead each blocklist
+    term compiles to a regex requiring one-or-more of each character
+    (`c+o+o+n+`), so `normalizeForFilter` only lowercases, strips
+    diacritics, maps common leetspeak (0→o, 1→i, 3→e, @→a…), and strips
+    non-alphanumerics — elongation and spacing/punctuation evasion are
+    still caught, ordinary words with a blocked term's letters scattered
+    inside them are not.
+  - **Dropped `cock`/`anal` from the blocklist entirely** (collide too hard
+    with `cockpit`/`analyst`/`analog`); added `SAFE_EXCEPTIONS` (exact-match
+    only) for `Scunthorpe`, `Grape`, `Therapist`, `Despicable`,
+    `Retardant` — words that contain `rape`/`spic`/etc. as substrings but
+    are themselves entirely legitimate.
+  - On rejection: 400 with one of several short, randomized, lightly
+    in-world lines (`pickRejectionMessage()`), no em dashes. Nothing is
+    silently renamed; no existing rows touched.
+  - **Guest reclaim doesn't run the filter.** Reclaiming an *existing*
+    account by its device secret is not a create-or-rename, so a legacy
+    callsign that predates the filter (or a future blocklist addition)
+    stays reachable by its own device — the alternative (locking a real
+    player out of their own account and scores over a name they didn't
+    just type) is worse than the display-time fix below, which already
+    solves the actual complaint (public exposure).
+  - Tests: `scripts/test-nickname.ts` (`npm run test:nickname`) — allowed
+    list (incl. deliberate false-positive tripwires: Nigeria, falcon,
+    Constantine, cockpit, analyst, Scunthorpe, grape, therapist, despicable,
+    retardant…), blocked list (incl. leetspeak/spacing/elongation
+    variants, "trump is a pedo"/"trump rapes kids" and obfuscations
+    thereof), non-string input, rejection-message shape, and
+    `sanitizeCallsignForDisplay` (below) — run against BOTH the server
+    `.mjs` and client `.ts` copies so a drift between them fails loudly.
+- **Display-time sanitization masks legacy blocked rows without touching the
+  DB.** `sanitizeCallsignForDisplay(raw)` returns `"Callsign redacted"` for
+  any callsign that would be blocked today, applied at every
+  public-facing response boundary that shows another player's name:
+  `/api/leaderboard/world`, `/api/leaderboard/daily` (both combined and
+  per-mode), `/api/friends` (friends + incoming + outgoing),
+  `/api/friends/leaderboard`, `/api/friends/activity`,
+  `/api/players/:callsign` (public profile), arena leaderboards, and the
+  `nextAbove`/`nextWingmate` gap-to-goal targets on `/api/scores`.
+  Deliberately NOT applied to `publicUser()` — the account owner still
+  sees their own real callsign on their own session. Verified live: seeded
+  a temp SQLite DB with a user callsigned `"trump is a pedo"` + a score,
+  confirmed `/api/leaderboard/world` and `/api/players/trump%20is%20a%20pedo`
+  both return `"Callsign redacted"` instead of the real string, then
+  cleaned up the temp DB/server. **No production data was read, queried, or
+  touched at any point.**
+  - **Operational step for userId 54 after this deploys: none required.**
+    The moment this code ships, `sanitizeCallsignForDisplay` masks that
+    row everywhere it's rendered publicly — no rename, no DB write, no
+    risk to the account/scores/badges/history. The row's actual stored
+    callsign is untouched (out of scope: no destructive changes without
+    Lucas) but can no longer be re-submitted through any write path either.
+    If Lucas separately wants the DB row's *stored* value corrected (not
+    just masked) rather than left as-is: there's no admin endpoint for it
+    today (`/api/admin/*` is stats/feedback read-only), so the only path is
+    a one-off, Lucas-approved manual `UPDATE users SET callsign = '...'
+    WHERE id = 54` run by a human against the Render DB — optional,
+    not needed for the public-exposure problem, and not something this
+    session did or should do unilaterally.
+- **Touch drag lockup fixed** (`src/input.ts`). Root cause: some
+  WebKit-based mobile browsers can silently stop delivering events for an
+  active touch mid-drag — most concretely, backgrounding (app switch,
+  incoming call, Control Center/notification swipe) drops the touch with
+  **no** `touchend`/`touchcancel` ever reaching the page — but the stick's
+  last-known drag vector kept feeding `sample()` forever, so the ship kept
+  flying/drifting in a fixed direction with no way to correct course: the
+  reported "drag stopped but the ship didn't" / feels-like-Asteroids
+  symptom. Two-part fix, no dependency on which specific browser quirk
+  caused the loss:
+  1. `window.blur` and `document.visibilitychange` (hidden) now clear the
+     tracked touch/keys directly inside `Input`, independent of `main.ts`'s
+     separate pause-on-hide handler.
+  2. Self-healing reconciliation (`reconcileStick`): on every
+     touchstart/touchmove, check the browser's own live `e.touches` list —
+     if the touch we think is active isn't actually in it, release it
+     before processing the event. Closes the case where the browser keeps
+     talking to the page (so blur/visibility never fires) but has already
+     silently dropped the specific touch we were tracking, e.g. an OS
+     gesture stealing recognition without a formal cancel.
+  Regression test `scripts/test-touch-input.ts` (`npm run test:touch-input`)
+  drives `Input`'s touch state machine with synthetic events against a
+  minimal fake window/document/canvas (no real DOM needed) — verified it
+  fails with 6 assertions against the pre-fix code and passes clean after.
+  Covers: normal lift, `touchcancel`, silent loss + self-heal via a new
+  touch, `blur`, `visibilitychange`, and the inertia-mode variant
+  specifically (thrust/heading must zero too, not just direct-mode's
+  moveVector).
+- **Game-over rank slot simplified** (`src/ui.ts`, `src/main.ts`,
+  `src/style.css`). Root cause of "buggy": `World rank <b>#${r.worldRank}</b>`
+  had no null guard (unlike the country/daily ranks right next to it in the
+  same line), so a run with no rank yet (e.g. a 0-point death — `rankOf`
+  returns `null` when there's no best score to rank) rendered a literal
+  **"World rank #null"** on the results screen. Root cause of "too much
+  information": Daily Patrol rank + World rank + Country rank + a
+  "N points to pass X" sentence all crammed into one run-on line.
+  - Replaced with ONE primary rank (Daily Patrol on daily runs — the same
+    board TODAY'S BOARD shows — else World rank; country rides along as a
+    compact secondary tag only when present) plus a 2-row mini comparison
+    board reusing TODAY'S BOARD's exact row markup (`.board-row`, `.me`,
+    rank/flag/name/points columns, same CSS, no new classes needed beyond
+    a couple of spacing tweaks): the pilot you're chasing stacked directly
+    above your own highlighted row, so the gap reads as a fast visual
+    comparison instead of a parsed sentence.
+  - Also relabeled the score breakdown's "Kills"/"Survival" (point totals)
+    to "N pts from kills"/"N pts from survival" — they sat right next to
+    the stats grid's "Kills" (a *count*), same word meaning two different
+    things at a glance.
+  - The rank-derivation logic (which single rank to show, whether a
+    country rank exists, who's worth chasing) was pulled out of `main.ts`
+    into a pure, DOM-free `deriveGameOverRank()` in `ui.ts` specifically so
+    the bug above is unit-testable: `scripts/test-gameover-rank.ts`
+    (`npm run test:gameover-rank`) covers the null-rank case, single-vs-
+    stacked primary rank, country rank present/absent, wingmate-over-
+    stranger targeting, and no-target once already ahead (including an
+    exact-tie edge case).
+  - Scope note: dropped World rank from the line on daily runs (Daily
+    Patrol rank leads instead) to keep one primary number — a minor,
+    reversible information tradeoff in service of the explicit "minimal
+    fields" ask, not a bug.
+- **Crash-telemetry noise classified** (`src/crashFilter.ts`). The two
+  Aug 16 reports are both well-documented third-party/browser-injection
+  artifacts, not Orion bugs: exact `"Script error."` is the browser's
+  own redaction placeholder for an uncaught exception from a cross-origin
+  script without CORS headers (Orion's bundle is always same-origin, so a
+  genuine crash structurally can't surface this way — every crash vendor's
+  default ignore list carries this exact string); `window.__firefox__` is
+  a namespace Firefox's iOS browser/Focus injects into every page for its
+  reader-mode bridge (confirmed zero references to it anywhere in Orion's
+  source). `isThirdPartyCrashNoise()` is a narrow exact/substring
+  allowlist-of-noise (not a "no stack trace" or "looks vague" heuristic,
+  which would risk swallowing a genuine minified-build crash), wired into
+  `main.ts`'s existing `window.error`/`unhandledrejection` reporter before
+  it spends one of its capped report slots. Tests:
+  `scripts/test-crash-filter.ts` (`npm run test:crash-filter`) — both Aug 16
+  reports classified as noise, plus tripwires confirming real errors
+  (including ones that superficially resemble the noise patterns, e.g.
+  "my script error occurred") are never swallowed.
+- **Verification.** `npx tsc --noEmit` clean, `npm run build` clean,
+  `npx tsx scripts/sim-test.ts` — full pass (formations/powers/pickups/
+  mutator choreography/determinism, no regressions from the touch-input or
+  rank-slot changes), and all four new/updated test scripts pass
+  (`npm run test` runs nickname + touch-input + gameover-rank +
+  crash-filter together). Added `npm run sim-test` and `npm run test*`
+  script aliases to `package.json` (previously `npx tsx` direct-invoke
+  only) since this session leaned on them repeatedly.
+- **Follow-ups / open questions for Sam:**
+  1. Reconcile this branch with `sam/pilot-safety-and-highlights`
+     (`8f39f9b`) — both touch callsign moderation and the game-over
+     screen with different implementations; needs a product decision on
+     which ships (or how to combine), not an engineering guess.
+  2. If Lucas wants userId 54's *stored* callsign corrected (beyond the
+     automatic display masking already live), that's a manual, human-run
+     DB statement — no admin tool exists for it today.
+
 ## 2026-08-12: "no chill" densify merged + deployed, the creature days stop having a calm pocket to screenshot from (main, DEPLOYED)
 
 - **Shipped.** Lucas green-lit the pass ("push live"), so

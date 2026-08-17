@@ -1257,6 +1257,22 @@ button.link-btn:active {
   font-size: 13px;
 }
 
+.rank-summary {
+  margin-bottom: 8px;
+}
+
+.rank-gap {
+  margin-bottom: 6px;
+}
+
+/* game-over mini comparison board: same row markup as TODAY'S BOARD (rank/
+   flag/name/points, .me highlight) so the gap reads as a fast visual
+   comparison instead of a parsed sentence. Never scrolls — always 1-2 rows. */
+.result-board {
+  max-height: none;
+  overflow: visible;
+}
+
 /* game-over score breakdown: kills / survival / bonuses */
 .score-breakdown {
   color: #aa8844;

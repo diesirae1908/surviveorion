@@ -19,6 +19,7 @@ import {
   formatKeyList,
 } from "./save";
 import type { ShareOutcome } from "./share";
+import { isNicknameBlocked, pickRejectionMessage } from "./nickname";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -91,6 +92,64 @@ export interface GameOverStats {
   dailyMedal?: { tier: MedalTier | null; hint: string | null };
   /** This run used the ?mutator= preview override — not submitted anywhere. */
   preview?: boolean;
+}
+
+/**
+ * Data for the game-over rank slot (see setGameOverRank): one primary rank
+ * (Daily Patrol for daily runs, else World), an optional country rank, and
+ * the pilot directly ahead of you (wingmate preferred) for the mini
+ * comparison board. Ranks are nullable — a run can finish with no rank yet
+ * (e.g. a 0-point death has no best score on the board to rank).
+ */
+export interface GameOverRankResult {
+  primaryLabel: string;
+  primaryRank: number | null;
+  country: { code: string; rank: number } | null;
+  target: { callsign: string; score: number; isWingmate: boolean } | null;
+  me: { callsign: string; score: number; country: string };
+}
+
+/** Minimal slice of SubmitResult that the rank-slot decision needs (kept
+ *  local so this stays DOM-free and unit-testable without importing api.ts). */
+export interface GameOverRankInput {
+  best: number;
+  worldRank: number | null;
+  countryRank: number | null;
+  dailyRank?: number | null;
+  nextAbove?: { callsign: string; score: number } | null;
+  nextWingmate?: { callsign: string; score: number } | null;
+}
+
+/**
+ * Pure decision logic for the game-over rank slot: which single rank to
+ * lead with, whether a country rank exists, and who (if anyone) is worth
+ * chasing. No DOM — deliberately separated from setGameOverRank's rendering
+ * so this (the part that actually had the bugs: a literal "#null" when a
+ * 0-point run had no rank yet, and three ranks stacked at once) is
+ * unit-testable with plain objects (see scripts/test-gameover-rank.ts).
+ */
+export function deriveGameOverRank(
+  r: GameOverRankInput,
+  opts: { isDaily: boolean; callsign: string; country: string },
+): GameOverRankResult {
+  // Daily Patrol is the relevant board on a daily run (the same board
+  // TODAY'S BOARD shows) — World rank otherwise. One primary number, not
+  // both stacked, which was the "too much information" complaint.
+  const primaryLabel = opts.isDaily ? "Daily Patrol" : "World rank";
+  const primaryRank = opts.isDaily ? (r.dailyRank ?? null) : r.worldRank;
+  // gap-to-goal: the next pilot to hunt (a wingmate beats a stranger)
+  const nextUp = r.nextWingmate ?? r.nextAbove;
+  const target =
+    nextUp && nextUp.score > r.best
+      ? { callsign: nextUp.callsign, score: nextUp.score, isWingmate: !!r.nextWingmate }
+      : null;
+  return {
+    primaryLabel,
+    primaryRank,
+    country: opts.country && r.countryRank !== null ? { code: opts.country, rank: r.countryRank } : null,
+    target,
+    me: { callsign: opts.callsign, score: r.best, country: opts.country },
+  };
 }
 
 /** Everything the daily-only lobby needs to paint itself. */
@@ -1168,9 +1227,12 @@ export class Ui {
         this.el(
           "div",
           "score-breakdown",
-          `<span>Kills ${fmt(stats.scoreKills)}</span> · ` +
-            `<span>Survival ${fmt(stats.scoreSurvival)}</span>` +
-            (stats.scoreBonuses >= 1 ? ` · <span>Bonuses ${fmt(stats.scoreBonuses)}</span>` : ""),
+          // "pts from" disambiguates these point totals from the Kills
+          // *count* in the stats grid above — same word, different unit,
+          // read side by side as a bug before this label change
+          `<span>${fmt(stats.scoreKills)} pts from kills</span> · ` +
+            `<span>${fmt(stats.scoreSurvival)} pts from survival</span>` +
+            (stats.scoreBonuses >= 1 ? ` · <span>${fmt(stats.scoreBonuses)} pts bonus</span>` : ""),
         ),
       );
       // the daily site keeps the results screen lean — numbers only
@@ -1253,10 +1315,69 @@ export class Ui {
     this.root.appendChild(screen);
   }
 
-  /** Fill the game-over rank line once the score submission returns. */
-  setGameOverRank(html: string): void {
+  /**
+   * Fill the game-over rank slot once the score submission returns.
+   *
+   * Replaces the old single run-on sentence (Daily rank · World rank ·
+   * Country rank · "N points to pass X") with one compact primary-rank line
+   * plus a 2-row mini comparison board reusing the exact TODAY'S BOARD row
+   * markup (`.board-row`, `.me`, rank/flag/name/points columns): the pilot
+   * you're chasing stacked directly above your own highlighted row, so the
+   * gap reads as a fast visual comparison instead of a parsed sentence.
+   * `primaryRank`/`countryRank` are nullable because a rank only exists once
+   * a best score is on the board (e.g. a 0-point run has none yet) — fixes
+   * the previous version, which printed a literal "World rank #null".
+   */
+  setGameOverRank(data: GameOverRankResult): void {
     const line = document.getElementById("rank-line");
-    if (line) line.innerHTML = html;
+    if (!line) return;
+    line.innerHTML = "";
+
+    const summary: string[] = [];
+    if (data.primaryRank !== null) {
+      summary.push(`${data.primaryLabel} <b>#${data.primaryRank}</b>`);
+    }
+    if (data.country) {
+      summary.push(
+        `<span title="${countryName(data.country.code)}">${countryFlag(data.country.code)}</span> <b>#${data.country.rank}</b>`,
+      );
+    }
+    if (summary.length > 0) {
+      line.appendChild(this.el("div", "rank-summary", summary.join(" &nbsp;·&nbsp; ")));
+    }
+
+    if (data.target) {
+      const gap = Math.max(1, Math.floor(data.target.score - data.me.score + 1)).toLocaleString();
+      const who = data.target.isWingmate
+        ? `your wingmate <b>${escapeHtml(data.target.callsign)}</b>`
+        : `<b>${escapeHtml(data.target.callsign)}</b>`;
+      line.appendChild(this.el("div", "rank-gap dim", `${gap} points to pass ${who}`));
+    }
+
+    const board = this.el("div", "board result-board", "");
+    if (data.target) {
+      board.appendChild(
+        this.el(
+          "div",
+          "board-row",
+          `<span class="rank">–</span>` +
+            `<span class="flag">·</span>` +
+            `<span class="name">${escapeHtml(data.target.callsign)}</span>` +
+            `<span class="pts">${Math.floor(data.target.score).toLocaleString()}</span>`,
+        ),
+      );
+    }
+    board.appendChild(
+      this.el(
+        "div",
+        "board-row me",
+        `<span class="rank">${data.primaryRank !== null ? `#${data.primaryRank}` : "–"}</span>` +
+          `<span class="flag">${data.me.country ? countryFlag(data.me.country) : "·"}</span>` +
+          `<span class="name">${escapeHtml(data.me.callsign)}</span>` +
+          `<span class="pts">${Math.floor(data.me.score).toLocaleString()}</span>`,
+      ),
+    );
+    line.appendChild(board);
   }
 
   /** Small note under the rank line (e.g. "name already in use" heads-up). */
@@ -1312,6 +1433,12 @@ export class Ui {
       const value = name.value.trim();
       if (!/^[A-Za-z0-9_\- ]{3,20}$/.test(value)) {
         error.textContent = "3-20 characters: letters, digits, spaces, - or _";
+        return;
+      }
+      // Cosmetic pre-check only — the server re-checks authoritatively
+      // either way, so this just saves a round trip on the obvious cases.
+      if (isNicknameBlocked(value)) {
+        error.textContent = pickRejectionMessage();
         return;
       }
       error.textContent = "";
