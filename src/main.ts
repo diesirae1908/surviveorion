@@ -4,7 +4,8 @@ import { AudioSystem } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
 import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_HINTS, POWER_NAMES, TILT_MAX_DEG, type GameMode } from "./config";
-import { countryFlag, countryName, guessCountry } from "./countries";
+import { guessCountry } from "./countries";
+import { isThirdPartyCrashNoise } from "./crashFilter";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { Input, isTypingTarget } from "./input";
 import { clamp01, hashString, setRunSeed } from "./math";
@@ -55,7 +56,7 @@ import { buildShareText, dailyNumber, shareText } from "./share";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
-import { Ui } from "./ui";
+import { deriveGameOverRank, Ui } from "./ui";
 
 type AppState =
   | "gate" // tap-to-enter splash (unlocks audio for the intro)
@@ -214,6 +215,10 @@ const api = new Api();
 const reportedCrashes = new Set<string>();
 function reportCrash(kind: string, detail: unknown): void {
   const err = detail instanceof Error ? detail : new Error(String(detail));
+  // Drop known third-party/browser-injected noise before it spends a slot —
+  // see crashFilter.ts. Without this, two of these in a row could fill the
+  // cap and silently hide a genuine crash that lands right after them.
+  if (isThirdPartyCrashNoise(err.message)) return;
   const key = `${err.name}:${err.message}`;
   if (reportedCrashes.has(key) || reportedCrashes.size >= 2) return;
   reportedCrashes.add(key);
@@ -766,22 +771,13 @@ function renderRankResult(r: SubmitResult): void {
       rank: r.dailyRank,
     });
   }
-  const parts: string[] = [];
-  if (runIsDaily && r.dailyRank) parts.push(`Daily Patrol <b>#${r.dailyRank}</b>`);
-  parts.push(`World rank <b>#${r.worldRank}</b>`);
-  const country = api.user?.country;
-  if (country && r.countryRank) {
-    parts.push(`${countryFlag(country)} ${countryName(country)} <b>#${r.countryRank}</b>`);
-  }
-  // gap-to-goal: the next pilot to hunt (a wingmate beats a stranger)
-  const target = r.nextWingmate ?? r.nextAbove;
-  if (target && target.score > r.best) {
-    const gap = (target.score - r.best + 1).toLocaleString();
-    const who = target.callsign.replace(/[&<>]/g, "");
-    const label = r.nextWingmate ? `your wingmate <b>${who}</b>` : `<b>${who}</b>`;
-    parts.push(`<span class="dim">${gap} points to pass ${label}</span>`);
-  }
-  ui.setGameOverRank(parts.join(" &nbsp;·&nbsp; "));
+  ui.setGameOverRank(
+    deriveGameOverRank(r, {
+      isDaily: runIsDaily,
+      callsign: api.user?.callsign ?? "You",
+      country: api.user?.country ?? "",
+    }),
+  );
   const earned = (r.newBadges ?? [])
     .map((id) => badgeInfo(id))
     .filter((b): b is NonNullable<typeof b> => !!b);

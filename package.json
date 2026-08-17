@@ -8,7 +8,13 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "server": "node server/index.mjs",
-    "start": "ORION_SERVE_DIST=1 node server/index.mjs"
+    "start": "ORION_SERVE_DIST=1 node server/index.mjs",
+    "sim-test": "npx tsx scripts/sim-test.ts",
+    "test:nickname": "npx tsx scripts/test-nickname.ts",
+    "test:touch-input": "npx tsx scripts/test-touch-input.ts",
+    "test:gameover-rank": "npx tsx scripts/test-gameover-rank.ts",
+    "test:crash-filter": "npx tsx scripts/test-crash-filter.ts",
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

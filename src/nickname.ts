@@ -1,0 +1,106 @@
+// Client-side mirror of server/nickname.mjs. Cosmetic only: it exists so an
+// obviously-blocked callsign gets an instant in-page message instead of a
+// round trip; it is NOT the enforcement point. The server re-checks every
+// callsign on register/guest-signup/reclaim/profile-update regardless of
+// what this file says, so a hand-crafted request can't bypass the filter.
+//
+// Keep BLOCKED_TERMS / SAFE_EXCEPTIONS / LEET_MAP / the matching logic in
+// sync with server/nickname.mjs (same convention this repo already uses for
+// SCORING vs validate.mjs — the two runtimes can't share a module, Vite/TS
+// client vs zero-dependency Node ESM server, so this is a deliberate,
+// documented duplication rather than an oversight). See server/nickname.mjs
+// for the full rationale behind the term list and the matching approach.
+
+const BLOCKED_TERMS = [
+  "nigger", "nigga", "faggot", "fag", "chink", "spic", "kike", "tranny",
+  "retard", "retarded", "coon", "gook", "wetback", "beaner", "paki",
+  "fuck", "shit", "cunt", "dick", "pussy", "whore", "slut", "bastard",
+  "bitch", "asshole", "motherfucker", "dildo", "porn", "vagina", "blowjob",
+  "cumshot",
+  "pedo", "pedophile", "paedophile", "rapist", "rape", "raper", "molester",
+  "molests", "incest",
+  "nazi", "hitler", "isis", "terrorist", "kkk", "genocide",
+  "kys", "kill yourself", "suicide",
+];
+
+const SAFE_EXCEPTIONS: string[] = [
+  "Scunthorpe",
+  "Grape", "Grapes", "Grapefruit", "Grapevine",
+  "Drape", "Drapes", "Drapery",
+  "Therapist", "Therapists",
+  "Despicable", "Conspicuous",
+  "Retardant",
+];
+
+const LEET_MAP: Record<string, string> = {
+  "0": "o",
+  "1": "i",
+  "2": "z",
+  "3": "e",
+  "4": "a",
+  "5": "s",
+  "6": "g",
+  "7": "t",
+  "8": "b",
+  "9": "g",
+  "@": "a",
+  $: "s",
+  "+": "t",
+  "!": "i",
+  "|": "i",
+};
+
+/** See server/nickname.mjs normalizeForFilter for the full rationale. */
+export function normalizeForFilter(raw: string): string {
+  const stripped = raw
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  let out = "";
+  for (const ch of stripped) out += LEET_MAP[ch] ?? ch;
+  return out.replace(/[^a-z0-9]/g, "");
+}
+
+const REGEX_SPECIAL = /[.*+?^${}()|[\]\\]/;
+const escapeRegexChar = (ch: string): string => (REGEX_SPECIAL.test(ch) ? `\\${ch}` : ch);
+
+/** See server/nickname.mjs buildTermPattern for the full rationale. */
+function buildTermPattern(term: string): RegExp {
+  const normalized = normalizeForFilter(term);
+  const pattern = [...normalized].map((ch) => `${escapeRegexChar(ch)}+`).join("");
+  return new RegExp(pattern);
+}
+
+const BLOCKED_PATTERNS = BLOCKED_TERMS.map(buildTermPattern);
+const NORMALIZED_SAFE_EXCEPTIONS = new Set(SAFE_EXCEPTIONS.map(normalizeForFilter));
+
+export function isNicknameBlocked(raw: string): boolean {
+  if (typeof raw !== "string") return true;
+  const normalized = normalizeForFilter(raw);
+  if (!normalized) return false;
+  if (NORMALIZED_SAFE_EXCEPTIONS.has(normalized)) return false;
+  return BLOCKED_PATTERNS.some((re) => re.test(normalized));
+}
+
+const REJECTION_MESSAGES = [
+  "Command flagged that callsign. Try one that survives daylight.",
+  "HQ bounced that one. Something a squadron won't wince at, pilot.",
+  "Negative, pilot. That callsign won't clear flight review.",
+  "Even the drones have better manners. Pick a new callsign.",
+  "That callsign just got grounded before liftoff. Try another.",
+  "Flight review says no. Wear a callsign you'd want on the record.",
+];
+
+export function pickRejectionMessage(): string {
+  return REJECTION_MESSAGES[Math.floor(Math.random() * REJECTION_MESSAGES.length)]!;
+}
+
+// See server/nickname.mjs sanitizeCallsignForDisplay for the full rationale:
+// a display-time backstop for legacy rows, never applied to the account
+// owner's own callsign view.
+const REDACTED_CALLSIGN = "Callsign redacted";
+
+export function sanitizeCallsignForDisplay(raw: string): string {
+  if (typeof raw !== "string") return REDACTED_CALLSIGN;
+  return isNicknameBlocked(raw) ? REDACTED_CALLSIGN : raw;
+}

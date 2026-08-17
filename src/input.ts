@@ -95,12 +95,41 @@ export class Input {
       }
     });
     window.addEventListener("keyup", (e) => this.keys.delete(e.code));
-    window.addEventListener("blur", () => this.keys.clear());
+    // Backgrounding (app switch, incoming call, Control Center/notification
+    // swipe) drops the in-flight touch without ever delivering touchend or
+    // touchcancel to the page, so a stuck stick would otherwise keep feeding
+    // its last-known drag vector forever once the tab returns — the "drag
+    // stopped but the ship keeps flying" report. Clear held input on both
+    // signals since mobile Safari doesn't fire them consistently together.
+    window.addEventListener("blur", () => this.releaseInput());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this.releaseInput();
+    });
 
     canvas.addEventListener("touchstart", this.onTouchStart, { passive: false });
     canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });
     canvas.addEventListener("touchend", this.onTouchEnd, { passive: false });
     canvas.addEventListener("touchcancel", this.onTouchEnd, { passive: false });
+  }
+
+  private releaseInput(): void {
+    this.keys.clear();
+    this.stickTouchId = null;
+  }
+
+  /**
+   * Self-healing check against the browser's own live touch list. Some
+   * WebKit-based browsers (in-app/embedded Safari-compatible webviews
+   * included) can silently stop delivering events for a touch mid-drag
+   * without ever firing touchcancel — e.g. when a system/scroll gesture
+   * arbitration steals it. Any touchstart/touchmove is proof the browser is
+   * still talking to us, so use it to confirm the touch we think is active
+   * is still in `e.touches`; if not, release it before processing the event.
+   */
+  private reconcileStick(e: TouchEvent): void {
+    if (this.stickTouchId === null) return;
+    const stillDown = Array.from(e.touches).some((t) => t.identifier === this.stickTouchId);
+    if (!stillDown) this.stickTouchId = null;
   }
 
   setBindings(b: KeyBindings): void {
@@ -132,6 +161,7 @@ export class Input {
     e.preventDefault();
     this.touchUsed = true;
     if (this.tiltActive) return;
+    this.reconcileStick(e);
     // the stick spawns wherever the first finger lands — anywhere on screen
     for (const t of Array.from(e.changedTouches)) {
       if (this.stickTouchId === null) {
@@ -144,6 +174,7 @@ export class Input {
 
   private onTouchMove = (e: TouchEvent): void => {
     e.preventDefault();
+    this.reconcileStick(e);
     for (const t of Array.from(e.changedTouches)) {
       if (t.identifier === this.stickTouchId) {
         this.stickPos = { x: t.clientX, y: t.clientY };
