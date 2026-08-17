@@ -173,6 +173,72 @@ body {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
+/* game-over hero: the one number a player actually came here to see */
+.result-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.result-score {
+  font-size: clamp(40px, 11vw, 72px);
+  font-weight: bold;
+  line-height: 1;
+  background: linear-gradient(180deg, #ffee88 0%, #ffd700 45%, #cc8800 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.result-sub {
+  color: #ccaa66;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+
+/* game-over highlight: one memorable moment from the run */
+.result-highlight {
+  color: #ffee88;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  padding: 6px 16px;
+  border-radius: 2px;
+}
+
+/* game-over "today's best" + compact board slot */
+.gameover-today {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.today-board {
+  width: min(380px, 92vw);
+  max-height: none;
+  gap: 4px;
+}
+
+.today-board .board-row {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+/* game-over demoted details: everything secondary, one muted panel */
+.result-details {
+  color: #8a7a55;
+  font-size: 12px;
+  line-height: 1.7;
+  max-width: min(440px, 92vw);
+}
+
+.result-details b {
+  color: #ccaa66;
+}
+
 @keyframes pulse {
   0%,
   100% {

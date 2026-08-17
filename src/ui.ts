@@ -19,6 +19,8 @@ import {
   formatKeyList,
 } from "./save";
 import type { ShareOutcome } from "./share";
+import { isNicknameBlocked, pickRejectionMessage } from "./nickname";
+import { recordingSupported } from "./recorder";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -51,6 +53,8 @@ export interface UiCallbacks {
   onResetKeyBindings: () => KeyBindings;
   /** Submit player feedback (email optional); rejects with a message on failure. */
   onFeedback: (message: string, email: string) => Promise<void>;
+  /** Download the just-finished run's local recording. Returns false if none is available. */
+  onSaveClip: () => boolean;
 }
 
 export interface MenuCommunity {
@@ -91,6 +95,18 @@ export interface GameOverStats {
   dailyMedal?: { tier: MedalTier | null; hint: string | null };
   /** This run used the ?mutator= preview override — not submitted anywhere. */
   preview?: boolean;
+  /** "Razor-thin dodge at 1:24" — the run's single closest near-miss, if any. */
+  closestCallLabel?: string | null;
+  /** Opt-in local recording produced a clip for this run (see recorder.ts). */
+  clipReady?: boolean;
+}
+
+/** Compact "today's board" slot on the game-over screen (see setGameOverBoard). */
+export interface GameOverBoardData {
+  /** Today's leader across every device (drives the standout "Today's best" line). */
+  leader: { callsign: string; score: number } | null;
+  entries: DailyBoardRow[];
+  pinned: DailyBoardRow | null;
 }
 
 /** Everything the daily-only lobby needs to paint itself. */
@@ -759,6 +775,20 @@ export class Ui {
       ),
     );
 
+    // opt-in local recording: hidden entirely on browsers that can't do it
+    // (recordingSupported gates capture too — this just avoids a dead toggle)
+    if (recordingSupported()) {
+      screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Saves a local clip of each run for you to download. Stays on this device: " +
+            "nothing is uploaded, nothing is stored on our end.",
+        ),
+      );
+    }
+
     const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
     const manual = this.el("div", "manual", "");
     const paintManual = (): void => {
@@ -1115,6 +1145,13 @@ export class Ui {
     this.root.appendChild(screen);
   }
 
+  /**
+   * Redesigned for scan-ability (round 2026-08-16): one hero number, one
+   * highlight, one medal line, one compact board, one clear next action.
+   * Everything else (breakdown, PB deltas, refund note, all-time best) moves
+   * into a single muted "run details" panel below the fold instead of being
+   * scattered across five top-level rows.
+   */
   showGameOver(stats: GameOverStats): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -1132,24 +1169,27 @@ export class Ui {
     } else if (stats.gameMode === "ironrain") {
       screen.appendChild(this.el("div", "ironrain-tag", "IRON RAIN"));
     }
-    if (stats.isNewBest) {
-      screen.appendChild(this.el("div", "new-best", "New best score"));
-    }
     screen.appendChild(this.el("div", "divider", ""));
-    // survival time leads: it's the number players intuitively compare
+
+    // 1. HERO: the one number a player actually came here to see.
     screen.appendChild(
       this.el(
         "div",
-        "stats",
-        `<div><span class="label">Survived</span><span class="value">${fmtTime(stats.time)}</span></div>` +
-          `<div><span class="label">Score</span><span class="value">${Math.floor(stats.score).toLocaleString()}</span></div>` +
-          `<div><span class="label">Peak multiplier</span><span class="value">×${stats.maxMultiplier.toFixed(1)}</span></div>` +
-          `<div><span class="label">Kills</span><span class="value">${stats.kills}</span></div>` +
-          `<div><span class="label">Best</span><span class="value">${Math.floor(stats.best).toLocaleString()}</span></div>`,
+        "result-hero",
+        `<span class="result-score">${Math.floor(stats.score).toLocaleString()}</span>` +
+          `<span class="result-sub">pts &nbsp;·&nbsp; survived ${fmtTime(stats.time)}</span>`,
       ),
     );
+    if (stats.isNewBest) {
+      screen.appendChild(this.el("div", "new-best", "New best score"));
+    }
 
-    // best-of-day medal (score), or how close today's best is to the next tier
+    // 2. HIGHLIGHT: one memorable moment from the run, if it earned one.
+    if (stats.closestCallLabel) {
+      screen.appendChild(this.el("div", "result-highlight", `⚡ ${escapeHtml(stats.closestCallLabel)}`));
+    }
+
+    // 3. MEDAL: earned tier, or how close today's best is to the next one.
     if (stats.dailyMedal) {
       const { tier, hint } = stats.dailyMedal;
       screen.appendChild(
@@ -1161,70 +1201,24 @@ export class Ui {
       );
     }
 
-    // where the points came from — scoring is opaque without this
-    if (stats.score > 0) {
-      const fmt = (n: number): string => Math.floor(n).toLocaleString();
-      screen.appendChild(
-        this.el(
-          "div",
-          "score-breakdown",
-          `<span>Kills ${fmt(stats.scoreKills)}</span> · ` +
-            `<span>Survival ${fmt(stats.scoreSurvival)}</span>` +
-            (stats.scoreBonuses >= 1 ? ` · <span>Bonuses ${fmt(stats.scoreBonuses)}</span>` : ""),
-        ),
-      );
-      // the daily site keeps the results screen lean — numbers only
-      if (stats.attemptsLeft === undefined) {
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            "Everything you score is multiplied. Chain kills to keep the multiplier hot.",
-          ),
-        );
-      }
+    // 4. TODAY: standout "today's best" line + compact board, filled async
+    // once the leaderboard loads (see setGameOverBoard). Daily runs only.
+    if (stats.daily && !stats.refunded && !stats.preview) {
+      const today = this.el("div", "gameover-today", "");
+      today.id = "gameover-today";
+      screen.appendChild(today);
     }
 
-    // free death: the attempt went back to the budget — say so, or the
-    // attempt count on the retry button looks wrong
-    if (stats.refunded) {
-      screen.appendChild(
-        this.el(
-          "div",
-          "run-delta gold",
-          `Down inside ${DAILY_FREE_DEATH_SECONDS}s — that one's free, no attempt spent`,
-        ),
-      );
-    }
-
-    // near-miss framing: how this flight compares to the longest one
-    if (stats.isNewBestTime && stats.bestTime > 0) {
-      screen.appendChild(this.el("div", "run-delta gold", "Your longest flight yet"));
-    } else if (stats.bestTime > 0 && stats.bestTime - stats.time >= 1) {
-      const short = Math.ceil(stats.bestTime - stats.time);
-      screen.appendChild(
-        this.el(
-          "div",
-          "run-delta",
-          `${short}s short of your longest flight (${fmtTime(stats.bestTime)})`,
-        ),
-      );
-    }
-
+    // 5. RANK: this run's placement (daily/world/country) + gap-to-goal,
+    // filled async once the score submission returns (setGameOverRank).
     const rank = this.el("div", "rank-line", "");
     rank.id = "rank-line";
     screen.appendChild(rank);
 
-    if (stats.showShare) {
-      screen.appendChild(this.shareButton());
-    }
-
-    // daily-only site: retries draw from the daily attempt budget
+    // 6. NEXT ACTION: the one thing to do next, front and center.
     const capped = stats.attemptsLeft !== undefined;
     const canRetry = !capped || stats.attemptsLeft! > 0;
-
     if (canRetry) {
-      // retries keep the mode picked at launch, so say which run comes next
       const retryLabel = capped
         ? `Fly again (${stats.attemptsLeft} left)`
         : stats.daily
@@ -1244,6 +1238,17 @@ export class Ui {
     if (!stats.touchDevice && canRetry) {
       screen.appendChild(this.el("div", "field-hint center", "Space to fly again"));
     }
+    if (stats.showShare) {
+      screen.appendChild(this.shareButton());
+    }
+    if (stats.clipReady) {
+      screen.appendChild(this.saveClipButton());
+    }
+
+    // 7. DETAILS: everything else, demoted into one muted panel below the
+    // fold — breakdown, peak multiplier, kills, PB delta, refund note,
+    // all-time personal best. Informative, not the first thing you scan.
+    screen.appendChild(this.gameOverDetails(stats));
 
     // feedback CTA: post-run is when testers actually have something to say
     const feedback = this.el("button", "link-btn", "Found a bug? Send feedback");
@@ -1251,6 +1256,76 @@ export class Ui {
     screen.appendChild(feedback);
 
     this.root.appendChild(screen);
+  }
+
+  /** Demoted run details: everything that isn't the hero/highlight/medal/board. */
+  private gameOverDetails(stats: GameOverStats): HTMLElement {
+    const lines: string[] = [];
+    if (stats.score > 0) {
+      const fmt = (n: number): string => Math.floor(n).toLocaleString();
+      lines.push(
+        `Kills ${stats.kills} &nbsp;·&nbsp; Peak ×${stats.maxMultiplier.toFixed(1)} &nbsp;·&nbsp; ` +
+          `Breakdown: kills ${fmt(stats.scoreKills)}, survival ${fmt(stats.scoreSurvival)}` +
+          (stats.scoreBonuses >= 1 ? `, bonuses ${fmt(stats.scoreBonuses)}` : ""),
+      );
+    }
+    if (stats.best > 0) {
+      lines.push(`Personal best (all-time): ${Math.floor(stats.best).toLocaleString()}`);
+    }
+    if (stats.refunded) {
+      lines.push(`Down inside ${DAILY_FREE_DEATH_SECONDS}s: that one's free, no attempt spent`);
+    }
+    if (stats.isNewBestTime && stats.bestTime > 0) {
+      lines.push("Your longest flight yet");
+    } else if (stats.bestTime > 0 && stats.bestTime - stats.time >= 1) {
+      const short = Math.ceil(stats.bestTime - stats.time);
+      lines.push(`${short}s short of your longest flight (${fmtTime(stats.bestTime)})`);
+    }
+    if (stats.score > 0 && stats.attemptsLeft === undefined) {
+      lines.push("Everything you score is multiplied. Chain kills to keep the multiplier hot.");
+    }
+    return this.el("div", "result-details", lines.map((l) => `<div>${l}</div>`).join(""));
+  }
+
+  /** Compact top-3 (+ pinned "you") board for the game-over screen. `null` hides the slot. */
+  setGameOverBoard(data: GameOverBoardData | null): void {
+    const wrap = document.getElementById("gameover-today");
+    if (!wrap) return;
+    if (data === null || (data.entries.length === 0 && !data.leader)) {
+      wrap.style.display = "none";
+      return;
+    }
+    wrap.innerHTML = "";
+    if (data.leader) {
+      wrap.appendChild(
+        this.el(
+          "div",
+          "daily-best-line",
+          `Today's best: <b>${Math.floor(data.leader.score).toLocaleString()}</b> by ${escapeHtml(data.leader.callsign)}`,
+        ),
+      );
+    }
+    if (data.entries.length > 0) {
+      const board = this.el("div", "board today-board", "");
+      for (const row of data.entries.slice(0, 3)) board.appendChild(this.dailyBoardRow(row, false));
+      if (data.pinned) board.appendChild(this.dailyBoardRow(data.pinned, true));
+      wrap.appendChild(board);
+    }
+  }
+
+  /** Save-clip button for the opt-in local recording feature (see recorder.ts). */
+  private saveClipButton(): HTMLButtonElement {
+    const btn = this.button("Save clip", false, () => {
+      btn.disabled = true;
+      const outcome = this.cb.onSaveClip();
+      btn.textContent = outcome ? "Saved!" : "Couldn't save clip";
+      setTimeout(() => {
+        btn.textContent = "Save clip";
+        btn.disabled = false;
+      }, 1600);
+    });
+    btn.classList.add("share-btn");
+    return btn;
   }
 
   /** Fill the game-over rank line once the score submission returns. */
@@ -1312,6 +1387,11 @@ export class Ui {
       const value = name.value.trim();
       if (!/^[A-Za-z0-9_\- ]{3,20}$/.test(value)) {
         error.textContent = "3-20 characters: letters, digits, spaces, - or _";
+        return;
+      }
+      // cosmetic pre-check only, the server re-checks authoritatively either way
+      if (isNicknameBlocked(value)) {
+        error.textContent = pickRejectionMessage();
         return;
       }
       error.textContent = "";

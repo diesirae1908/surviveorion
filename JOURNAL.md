@@ -4,6 +4,124 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-16: callsign content filter, result-screen redesign, closest-call highlight, opt-in local recording (`sam/pilot-safety-and-highlights`, NOT merged/pushed)
+
+- **Trigger.** Lucas screenshotted a leaderboard entry with an offensive
+  callsign on the Daily Patrol lobby and asked for a cohesive UX pass: block
+  bad names authoritatively, redesign the game-over screen around the info
+  that actually matters, add a lightweight "best dodge" highlight, and add
+  opt-in local recording for his own social clips. Everything below is on a
+  feature branch, unmerged, unpushed, no DB migration, no production data
+  touched.
+- **Callsign content filter is server-authoritative, not just client
+  cosmetic.** New `server/nickname.mjs` exports `isNicknameBlocked(raw)`,
+  called from every route that writes a callsign: `POST /api/auth/register`,
+  `POST /api/auth/guest`, `PATCH /api/me`, and `uniqueCallsign` (the
+  Google/Clerk auto-name path, which now falls back to "Pilot" if the
+  provider-supplied name is blocked instead of writing it). `CALLSIGN_RE`
+  still only checks shape (length/charset); this checks content and can't be
+  bypassed by a hand-crafted request, since the client copy
+  (`src/nickname.ts`, same logic, mirrored on purpose like `SCORING`/
+  `validate.mjs`) is only there for instant feedback before the round trip.
+  Normalization (`normalizeForFilter`): lowercase, strip diacritics, map
+  common leetspeak (0→o, 1→i, 3→e, @→a, etc.), strip everything that isn't
+  a-z0-9 (kills spaces/punctuation evasion), collapse any run of a repeated
+  character to one (kills elongation evasion like "fuuuuck" or double-letter
+  tricks). The blocklist itself is normalized the same way at load time so
+  input and terms compare on equal footing. Scope is deliberately narrow: a
+  curated list of slurs, explicit profanity, and harassment/defamation-prone
+  terms (the "so-and-so is a pedo" leaderboard-screenshot kind of thing), not
+  a general-purpose swear filter, and it excludes short/ambiguous fragments
+  ("ass", "sex") that collide with real names (Cassidy, assassin, Sussex).
+  On rejection the server returns 400 with one of six short, randomized,
+  lightly-snarky in-world lines ("Command flagged that callsign. Try one
+  that survives daylight.", etc.) via `pickRejectionMessage()`; nothing is
+  silently renamed and no existing leaderboard rows were touched or backfilled
+  (out of scope, would need a product call on legitimate-name false positives
+  at scale, which is exactly the kind of decision this task's tripwires told
+  me to kick back rather than guess). Unit tests: `scripts/test-nickname.ts`
+  (`npm run test:nickname`), covers allowed/blocked/evasion cases and
+  client/server parity.
+- **Game-over screen reordered around player intent, not removed
+  wholesale.** New hierarchy top to bottom: hero score (`.result-hero`,
+  biggest element on the screen) → closest-call highlight if the run had one
+  → medal banner → today's leader + compact live-updating mini leaderboard
+  (`.gameover-today` / `.today-board`, daily runs only, filled async via
+  `fillGameOverBoard()` reusing the existing `dailyLeaderboardCombined` API
+  so it never blocks the initial paint) → primary actions (retry/menu/save
+  clip) → a collapsed "details" panel (`gameOverDetails()`) holding the stuff
+  that used to clutter the main view: kill count, peak multiplier, score
+  breakdown, PB deltas. Nothing lost, just demoted behind one tap. Same
+  Red Rising visual language throughout (existing color tokens/fonts), new
+  CSS added, none removed. Not yet checked live in a browser this session
+  (the local browser tool wasn't cooperating); `npm run build` is clean and
+  the layout was reviewed in code/CSS, but Lucas or the next session should
+  eyeball it on an actual run before calling this fully verified, especially
+  on mobile widths.
+- **"Closest call" is deterministic telemetry, not inferred skill.** Added
+  `src/highlights.ts`: `grazeClearance()` reuses the existing graze-band math
+  already computed for scoring (`gameState.ts` `handleGrazes`, `SCORING`)
+  to measure how much of the graze band was left open on each near-miss (0 =
+  touching, 1 = barely inside the band), `trackClosestCall()` keeps the
+  smallest-clearance one per run on `world.closestCall`, and
+  `closestCallLabel()` turns it into one line ("Razor-thin dodge at 1:24")
+  surfaced on the result screen. Pure functions, no RNG, no interaction with
+  the seeded Daily Patrol schedule streams, so this has zero effect on
+  determinism (confirmed via `sim-test.ts`, see below). No visual replay: a
+  real clip replay would need either recorded input replay or stored frame
+  buffers, meaningfully more risk/scope than this task's "simple and safe"
+  bar, so telemetry-only for now. Documented next step: if Lucas wants a
+  visual replay later, the local recording added below (opt-in canvas
+  capture) is the more direct path, i.e. clip the last N seconds around the
+  closest-call timestamp instead of building a separate replay system. Unit
+  tests: `scripts/test-highlights.ts` (`npm run test:highlights`).
+- **Opt-in local recording, canvas capture straight to a downloadable
+  file, nothing uploaded, nothing stored server-side.** New
+  `src/recorder.ts`: `canvas.captureStream(24fps)` + `MediaRecorder` (prefers
+  vp9, falls back to vp8/webm), chunked at 1s to bound memory, auto-finalizes
+  at `RECORDING_MAX_SECONDS` (360s) so a marathon run can't grow an unbounded
+  in-memory blob on a low-end phone (Daily Patrol/Classic runs are typically
+  1-3 minutes, well under the cap; only a true marathon run loses its tail,
+  documented as the accepted trade-off vs. a rolling-buffer rewrite).
+  `recordingSupported()` gates every call site and any runtime failure
+  (unsupported codec, mid-run exception) resolves to "no clip" rather than
+  throwing into the game loop, so unsupported browsers degrade cleanly.
+  New "Record runs" toggle in Settings (`src/save.ts` `recordRuns`, default
+  off, only shown if `recordingSupported()`), remembered like other
+  settings. Wired into the run lifecycle in `main.ts`: starts on `startRun()`
+  when the toggle is on, skipped entirely for Training Ground runs (no
+  game-over screen there, so no save button would ever see the clip, not
+  worth the CPU), discarded on quit-to-menu, finalized on game over and
+  offered as a "Save clip" button next to retry/menu that triggers a plain
+  browser download (`downloadClip`, object URL revoked after) - no network
+  call, no storage cost. Unit tests: `scripts/test-recorder.ts` (`npm run
+  test:recorder`), covers `clipExtension` and confirms `recordingSupported()`
+  correctly reports false in a non-browser (Node) context.
+- **Tests.** `npm run test` (nickname + highlights + recorder + sim) all
+  green on this branch. `sim-test.ts`'s "pending grab claims the next drop"
+  case is intermittently flaky on repeated runs on **both** this branch and
+  unmodified `main` (confirmed via several trials each) - a pre-existing
+  Math.random usage in that one test path not covered by the determinism
+  seed, unrelated to this change, not fixed here (out of scope, flagged for
+  whoever owns sim-test next). `npm run build` (`tsc --noEmit && vite build`)
+  is clean.
+- **Unplanned collision found mid-session.** `.worktrees/` inside this repo
+  currently holds two other in-flight branches from the same base commit as
+  this one: `sam/callsign-safety-and-fixes` (worktree
+  `callsign-safety-fixes`) and `sam/patrol-calendar-menu-back` (worktree
+  `patrol-calendar-menu-back`). The first name overlaps directly with this
+  task's callsign-filter scope. Neither worktree had any commits ahead of
+  the shared base at the time I checked, so nothing was lost or clobbered,
+  but it means at least one other agent was independently dispatched at the
+  same time to do overlapping work. Left both worktrees untouched. Flagged
+  to Sam/Lucas to reconcile (pick one, merge complementary pieces, or close
+  the duplicate) before any of these branches merge.
+- **Not done / explicitly deferred**: no medal threshold or `MUTATOR_POOL`
+  change (out of scope per the brief), no leaderboard backfill/rename of
+  existing rows (tripwire, kicked back rather than guessed), no visual
+  replay clip (see closest-call section above), no live browser playtest of
+  the redesigned result screen this session (tooling issue, see above).
+
 ## 2026-08-12: "no chill" densify merged + deployed, the creature days stop having a calm pocket to screenshot from (main, DEPLOYED)
 
 - **Shipped.** Lucas green-lit the pass ("push live"), so

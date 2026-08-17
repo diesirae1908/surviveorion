@@ -8,7 +8,12 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "server": "node server/index.mjs",
-    "start": "ORION_SERVE_DIST=1 node server/index.mjs"
+    "start": "ORION_SERVE_DIST=1 node server/index.mjs",
+    "test:sim": "npx tsx scripts/sim-test.ts",
+    "test:nickname": "npx tsx scripts/test-nickname.ts",
+    "test:highlights": "npx tsx scripts/test-highlights.ts",
+    "test:recorder": "npx tsx scripts/test-recorder.ts",
+    "test": "npm run test:nickname && npm run test:highlights && npm run test:recorder && npm run test:sim"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

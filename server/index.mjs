@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import "./env.mjs"; // loads server/.env before other modules read process.env
 import * as store from "./db.mjs";
 import { validateRun, MODES, GAME_MODES } from "./validate.mjs";
+import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname.mjs";
 import { qualifyingBadges } from "./badges.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 
@@ -172,9 +173,30 @@ function issueSession(userId) {
 
 const publicUser = (u) => ({ callsign: u.callsign, country: u.country });
 
+/**
+ * Public-facing display filter: applied at every response boundary that
+ * shows OTHER players' callsigns (leaderboards, profiles, friends,
+ * gap-to-goal). isNicknameBlocked already stops a new/renamed callsign from
+ * reaching the DB, but this catches legacy rows that predate the filter (or
+ * a future BLOCKED_TERMS addition) — no rename, no DB write, just a masked
+ * label for anyone other than the account owner. Deliberately NOT applied to
+ * publicUser(): the account owner needs to see their own real callsign.
+ */
+const sanitizeEntry = (e) => (e ? { ...e, callsign: sanitizeCallsignForDisplay(e.callsign) } : e);
+const sanitizeEntries = (list) => list.map(sanitizeEntry);
+
+/**
+ * Auto-naming for Google/Clerk signups: the display name comes from a
+ * third-party profile, not typed by hand, so there's no error slot to bounce
+ * it back to. A blocked name (their real profile name tripped the filter,
+ * rare, but a Google display name is fully player-controlled) just falls
+ * back to the generic "Pilot" base instead of landing on the boards as-is;
+ * the pilot can pick a real callsign afterward from their profile.
+ */
 function uniqueCallsign(base) {
   let name = base.replace(/[^A-Za-z0-9_\- ]/g, "").slice(0, 16).trim() || "Pilot";
   if (name.length < 3) name = `Pilot ${name}`.trim();
+  if (isNicknameBlocked(name)) name = "Pilot";
   if (!store.getUserByCallsign(name)) return name;
   for (let i = 2; i < 10_000; i++) {
     const candidate = `${name} ${i}`.slice(0, 20);
@@ -211,6 +233,7 @@ const routes = {
     const { callsign, password, country = "" } = await readBody(req);
     if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
       return json(res, 400, { error: "callsign must be 3-20 letters, digits, - or _" });
+    if (isNicknameBlocked(callsign.trim())) return json(res, 400, { error: pickRejectionMessage() });
     if (typeof password !== "string" || password.length < 6 || password.length > MAX_PASSWORD_LENGTH)
       return json(res, 400, { error: "password must be 6-200 characters" });
     if (typeof country !== "string" || !COUNTRY_RE.test(country))
@@ -243,6 +266,7 @@ const routes = {
     const { callsign, country = "", guestSecret } = await readBody(req);
     if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
       return json(res, 400, { error: "callsign must be 3-20 letters, digits, - or _" });
+    if (isNicknameBlocked(callsign.trim())) return json(res, 400, { error: pickRejectionMessage() });
     if (typeof country !== "string" || !COUNTRY_RE.test(country))
       return json(res, 400, { error: "invalid country" });
 
@@ -364,6 +388,7 @@ const routes = {
     if (callsign !== undefined) {
       if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
         return json(res, 400, { error: "invalid callsign" });
+      if (isNicknameBlocked(callsign.trim())) return json(res, 400, { error: pickRejectionMessage() });
       const existing = store.getUserByCallsign(callsign.trim());
       if (existing && existing.id !== user.id) return json(res, 409, { error: "callsign already taken" });
       patch.callsign = callsign.trim();
@@ -429,8 +454,8 @@ const routes = {
         : null,
       dailyRank: dailyDate ? store.rankOf(user.id, { mode: run.mode, dailyDate }) : null,
       // gap-to-goal targets for the game-over screen (same game mode's board)
-      nextAbove: store.nextAbove(user.id, run.mode, gameMode),
-      nextWingmate: store.nextWingmateAbove(user.id, run.mode, gameMode),
+      nextAbove: sanitizeEntry(store.nextAbove(user.id, run.mode, gameMode)),
+      nextWingmate: sanitizeEntry(store.nextWingmateAbove(user.id, run.mode, gameMode)),
       newBadges,
     });
   },
@@ -490,7 +515,7 @@ const routes = {
     const gameMode = queryGameMode(url);
     if (!gameMode) return json(res, 400, { error: "invalid game mode" });
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
-    const entries = store.leaderboard({ country, mode, gameMode, limit });
+    const entries = sanitizeEntries(store.leaderboard({ country, mode, gameMode, limit }));
     const me =
       user && store.getUserBest(user.id, mode, gameMode)
         ? {
@@ -511,12 +536,12 @@ const routes = {
     const dailyDate = utcDate();
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
     if (mode === "all") {
-      const entries = store.dailyLeaderboardCombined({ dailyDate, limit });
+      const entries = sanitizeEntries(store.dailyLeaderboardCombined({ dailyDate, limit }));
       const me = user ? store.dailyRankCombined(user.id, dailyDate) : null;
       return json(res, 200, { date: dailyDate, entries, me });
     }
     if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
-    const entries = store.leaderboard({ mode, dailyDate, limit });
+    const entries = sanitizeEntries(store.leaderboard({ mode, dailyDate, limit }));
     const myBest = user ? store.getUserDailyBest(user.id, mode, dailyDate) : 0;
     const me = myBest
       ? { rank: store.rankOf(user.id, { mode, dailyDate }), best: myBest }
@@ -556,7 +581,11 @@ const routes = {
   "GET /api/friends": (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
     const { incoming, outgoing } = store.friendRequests(user.id);
-    json(res, 200, { friends: store.friendsOf(user.id), incoming, outgoing });
+    json(res, 200, {
+      friends: sanitizeEntries(store.friendsOf(user.id)),
+      incoming: sanitizeEntries(incoming),
+      outgoing: sanitizeEntries(outgoing),
+    });
   },
 
   "POST /api/friends/request": async (req, res, user) => {
@@ -605,12 +634,12 @@ const routes = {
     if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
     const gameMode = queryGameMode(url);
     if (!gameMode) return json(res, 400, { error: "invalid game mode" });
-    json(res, 200, { entries: store.friendsLeaderboard(user.id, mode, gameMode), me: null });
+    json(res, 200, { entries: sanitizeEntries(store.friendsLeaderboard(user.id, mode, gameMode)), me: null });
   },
 
   "GET /api/friends/activity": (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
-    json(res, 200, { activity: store.friendActivity(user.id, 20) });
+    json(res, 200, { activity: sanitizeEntries(store.friendActivity(user.id, 20)) });
   },
 
   // Player feedback (works signed-in or anonymous; email is optional so we
@@ -702,7 +731,7 @@ function playerProfile(req, res, user, callsign) {
   const hasIronRain = ironBest.desktop > 0 || ironBest.touch > 0 || ironBest.tilt > 0;
 
   json(res, 200, {
-    callsign: target.callsign,
+    callsign: sanitizeCallsignForDisplay(target.callsign),
     country: target.country,
     joinedAt: target.created_at,
     best: {
@@ -749,7 +778,7 @@ function arenaLeaderboard(req, res, user, code, url) {
   if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
   const gameMode = queryGameMode(url);
   if (!gameMode) return json(res, 400, { error: "invalid game mode" });
-  const entries = store.leaderboard({ arenaId: arena.id, mode, gameMode, limit: 100 });
+  const entries = sanitizeEntries(store.leaderboard({ arenaId: arena.id, mode, gameMode, limit: 100 }));
   const me = store.getUserBest(user.id, mode, gameMode)
     ? {
         rank: store.rankOf(user.id, { arenaId: arena.id, mode, gameMode }),

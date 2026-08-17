@@ -21,6 +21,8 @@ import {
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
+import { closestCallLabel } from "./highlights";
+import { clipExtension, downloadClip, startRecording, type RecordingHandle } from "./recorder";
 import {
   loadBestScore,
   loadBestTime,
@@ -55,7 +57,7 @@ import { buildShareText, dailyNumber, shareText } from "./share";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
-import { Ui } from "./ui";
+import { Ui, type GameOverBoardData } from "./ui";
 
 type AppState =
   | "gate" // tap-to-enter splash (unlocks audio for the intro)
@@ -170,6 +172,10 @@ let pendingTraining = false;
 let runIsTraining = false;
 /** Daily death inside the free-death window: the attempt was returned. */
 let runRefunded = false;
+/** Opt-in local recording of the run in progress (see recorder.ts), if any. */
+let activeRecording: RecordingHandle | null = null;
+/** Finished clip for the run that just ended, ready to download from the result screen. */
+let lastClipBlob: Blob | null = null;
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -366,6 +372,12 @@ const ui = new Ui(settings, {
   },
   onFeedback: async (message, email) => {
     await api.sendFeedback(message, email);
+  },
+  onSaveClip: () => {
+    if (!lastClipBlob) return false;
+    const label = runIsDaily ? `daily-${dailyNumber()}` : runGameMode;
+    downloadClip(lastClipBlob, `orion-${label}-${Date.now()}.${clipExtension(lastClipBlob)}`);
+    return true;
   },
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
@@ -581,6 +593,12 @@ function startRun(): void {
   state = "playing";
   ui.hideAll();
   audio.playTrack("game");
+  // opt-in local recording (settings toggle + browser support gate both
+  // live in recorder.ts); starts fresh every run, previous clip discarded.
+  // Training Ground never reaches the game-over screen (no save-clip
+  // button to use it), so skip it there rather than burn CPU for nothing.
+  lastClipBlob = null;
+  activeRecording = settings.recordRuns && !runIsTraining ? startRecording(canvas) : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
 }
@@ -643,6 +661,13 @@ function quitToMenu(): void {
   tutorial = null;
   audio.setThrustLevel(0);
   audio.playTrack("menu");
+  // an unfinished run (quit mid-flight, no game-over screen) never offers a
+  // clip: stop and discard rather than leaving the recorder running
+  if (activeRecording) {
+    const rec = activeRecording;
+    activeRecording = null;
+    void rec.stop();
+  }
   clearActiveMutators();
   currentViewScale = 1;
   world = createWorld(renderer.viewW, renderer.viewH);
@@ -658,6 +683,16 @@ function onGameOver(): void {
   gameOverUiShown = false;
   audio.setThrustLevel(0);
   audio.playTrack("gameover");
+  // stop recording now, not when the game-over UI shows: finalizing the clip
+  // (MediaRecorder flush) overlaps the death cinematic instead of adding a
+  // delay before the result screen appears
+  if (activeRecording) {
+    const rec = activeRecording;
+    activeRecording = null;
+    void rec.stop().then((blob) => {
+      lastClipBlob = blob;
+    });
+  }
   // Training Ground runs are unscored: no PBs, no run count, no submission
   if (runIsTraining) return;
   // instant wipeouts are free: a daily death inside the grace window hands
@@ -750,8 +785,49 @@ function showGameOverUi(): void {
     mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
     dailyMedal,
     preview: cappedDaily && PREVIEW_ACTIVE,
+    closestCallLabel: closestCallLabel(world.closestCall),
+    clipReady: lastClipBlob !== null,
   });
+  if (cappedDaily && !runRefunded && !PREVIEW_ACTIVE) fillGameOverBoard();
   submitRun();
+}
+
+/**
+ * Compact "today's board" slot on the result screen: top 3 + the viewer's
+ * own row pinned if it falls outside that window. Same combined-board
+ * endpoint the daily lobby uses (fillDailyBoard), just a smaller window and
+ * a different render target (setGameOverBoard vs setDailyBoard).
+ */
+function fillGameOverBoard(): void {
+  if (!api.online) return ui.setGameOverBoard(null);
+  void api
+    .dailyLeaderboardCombined(3)
+    .then((d) => {
+      const myCallsign = api.user?.callsign;
+      const entries = d.entries.map((e, i) => ({
+        rank: i + 1,
+        callsign: e.callsign,
+        country: e.country,
+        score: e.best,
+        mode: e.mode,
+        isMe: !!myCallsign && myCallsign === e.callsign,
+      }));
+      const pinned =
+        d.me && d.me.rank > entries.length && myCallsign
+          ? {
+              rank: d.me.rank,
+              callsign: myCallsign,
+              country: api.user?.country ?? "",
+              score: d.me.best,
+              mode: d.me.mode,
+              isMe: true,
+            }
+          : null;
+      const leader = d.entries[0] ? { callsign: d.entries[0].callsign, score: d.entries[0].best } : null;
+      const board: GameOverBoardData = { leader, entries, pinned };
+      ui.setGameOverBoard(board);
+    })
+    .catch(() => ui.setGameOverBoard(null));
 }
 
 /** Paint the rank line + badge celebration from a score-submit response. */

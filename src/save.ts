@@ -3,7 +3,7 @@ import type { ControlMode } from "./input";
 
 export type { ControlMode, SenseLevel };
 
-export type BooleanSetting = "sound" | "music" | "screenShake" | "inertia";
+export type BooleanSetting = "sound" | "music" | "screenShake" | "inertia" | "recordRuns";
 
 export type KeyAction = "up" | "down" | "left" | "right" | "pause";
 
@@ -42,6 +42,13 @@ export interface Settings {
   tiltSensitivity: SenseLevel;
   /** Cruise speed in directional no-inertia mode. */
   directSpeed: SenseLevel;
+  /**
+   * Opt-in local recording (canvas captureStream + MediaRecorder): OFF by
+   * default. Remembered like every other setting; recorder.ts feature-detects
+   * browser support independently, so this can be ON on an unsupported
+   * browser with no effect (recordingSupported() gates the actual capture).
+   */
+  recordRuns: boolean;
 }
 
 /** Mobile control preference + tilt calibration (separate from the boolean toggles). */
@@ -228,6 +235,7 @@ export function loadSettings(): Settings {
     inertia: false, // direct control by default; inertia is the opt-in add-on
     tiltSensitivity: "med",
     directSpeed: "med",
+    recordRuns: false,
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
