@@ -21,6 +21,10 @@ const BLOCKED_TERMS = [
   "molests", "incest",
   "nazi", "hitler", "isis", "terrorist", "kkk", "genocide",
   "kys", "kill yourself", "suicide",
+  // 2026-08-18: scatological/sexual compounds + redaction-feature mockery
+  // (see server/nickname.mjs for the full rationale and the skipped-terms
+  // note: "butt"/"nuts"/"redact" deliberately stay off the list).
+  "buttsniff", "deeznuts", "deezenuts", "deeznutz", "deezenutz",
 ];
 
 const SAFE_EXCEPTIONS: string[] = [

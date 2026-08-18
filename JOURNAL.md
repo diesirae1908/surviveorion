@@ -4,6 +4,95 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-18: daily leaderboard combined-rank fix, buttsniff/deeznuts filter tightening (branch `sam/daily-rank-and-nickname-fix`, off main `d3d0114`, unmerged/unpushed)
+
+- **Trigger.** Lucas screenshotted the Daily lobby ~11:22 AM PT: TODAY'S
+  BOARD #1 was Lucaccino (phone, 1,014,630) but the "today's leader" hint
+  line above LAUNCH said "Butt sniffer, 627,124". Same class of mismatch
+  reported on the game-over screen. Dispatched by Sam with the root cause
+  already traced.
+- **Root cause.** Two call sites read the wrong board for a Daily Patrol
+  run: `fillDailyHint()` in `src/main.ts` called `api.dailyLeaderboard(mode)`
+  (the per-device board) while TODAY'S BOARD reads
+  `api.dailyLeaderboardCombined()` (every device merged). Separately,
+  `POST /api/scores`'s `dailyRank` used `store.rankOf(..., { mode, dailyDate
+  })` (per-device daily) and `nextAbove`/`nextWingmate` used the world
+  ALL-TIME board for the run's device, not today's combined daily board, so
+  `deriveGameOverRank` could show the wrong Daily Patrol rank and chase the
+  wrong name on the game-over screen.
+- **Fix.** `src/main.ts`'s `fillDailyHint()` now calls
+  `dailyLeaderboardCombined()`, same source as TODAY'S BOARD, same
+  server-side `sanitizeCallsignForDisplay` masking already applied there.
+  `server/db.mjs` gets `nextAboveCombinedDaily()` /
+  `nextWingmateAboveCombinedDaily()`, combined-board equivalents of the
+  existing `nextAbove()`/`nextWingmateAbove()`. `server/index.mjs`'s
+  `POST /api/scores` now branches on `dailyDate`: daily runs get
+  `dailyRankCombined()` for `dailyRank` and the new combined functions for
+  `nextAbove`/`nextWingmate`; Classic/Iron Rain (dailyDate is always null
+  for both) keep the untouched world all-time board, per-device, exactly as
+  before. Iron Rain specifically was never touched since Daily Patrol is
+  server-enforced Classic-only, so `dailyDate` never applies to an Iron Rain
+  run, no ambiguity to resolve there.
+- **Regression test**, `scripts/test-daily-combined-rank.mjs`
+  (`npm run test:daily-combined-rank`, added to `npm test`): reproduces
+  Lucas's exact screenshot shape with an in-memory DB (Lucaccino phone
+  1,014,630, Butt sniffer desktop 627,124, same UTC day) and confirms the
+  combined board's #1 is the phone score, `dailyRankCombined` places a third
+  lower desktop pilot at #3 (not the #2 a per-device rank would say),
+  `nextAboveCombinedDaily` finds the nearest target across every device (a
+  closer phone score the old per-device query could never see), the
+  wingmate variant follows the same scoping, and world all-time
+  `nextAbove`/Iron Rain semantics are provably untouched by fresh,
+  non-overlapping fixture users.
+- **Secondary: nickname filter tightening.** The live lobby also showed
+  "Butt sniffer" and "Redact deeze nuts", both evading the Aug 17 filter
+  (`88e7632`). Added narrow whole-COMPOUND terms to both
+  `server/nickname.mjs` and `src/nickname.ts`: `buttsniff`, `deeznuts`,
+  `deezenuts`, `deeznutz`, `deezenutz`. Deliberately did NOT add the short
+  components `butt` (collides with buttercup/buttons/butte/Abbott), `nuts`
+  (an ordinary word: peanuts/walnuts/doughnuts/nutshell), or `redact`
+  (Redactor is a real, legitimate word, the exact overreach this filter's
+  design exists to avoid). Added tripwire tests for all of those to
+  `scripts/test-nickname.ts` (now 90 names x 2 implementations, still all
+  green) plus the exact leaderboard strings and obfuscation variants as new
+  BLOCKED fixtures. No prod DB write: masking is
+  `sanitizeCallsignForDisplay`, already wired into every public read path,
+  so both existing rows mask immediately once this ships, same mechanism
+  the 2026-08-17 pass established.
+- **Verified.** `npm run build` clean, full `npm test` (10 suites, including
+  the two new/extended ones) green, `npx tsx scripts/sim-test.ts` all green
+  (untouched gameplay code). Manual end-to-end check: ran the real community
+  server against a throwaway temp SQLite DB (`ORION_DB=/tmp/orion-verify.db`,
+  deleted after), created three guest accounts via the real HTTP API,
+  renamed one directly in the DB to "Butt sniffer" (simulating the real
+  legacy row, since the filter now blocks it from ever being created),
+  submitted daily scores reproducing the exact screenshot numbers, and
+  confirmed live over HTTP: `GET /api/leaderboard/daily?mode=desktop` vs
+  `?mode=all` reproduced the bug pre-fix (different #1s), then post-fix both
+  endpoints mask "Butt sniffer" as "Callsign redacted" while the DB row
+  itself stayed byte-for-byte untouched, and `POST /api/scores` for the
+  lower-scoring desktop pilot returned `dailyRank: 3` and `nextAbove` naming
+  the correct nearer combined-board target with the masked callsign. No
+  production DB touched, no push, no merge.
+- **Isolated worktree**, `.worktrees/daily-rank-fix`, off `main` at `d3d0114`
+  (did not touch the pre-existing `mutator-hardening` /
+  `gameover-calendar-recording` / `callsign-safety-fixes` /
+  `patrol-calendar-menu-back` checkouts).
+- **Caveats / remaining work for Lucas or a follow-up pass:**
+  - Not merged or pushed, per the dispatch guardrails, this stays on the
+    branch until Lucas says go.
+  - The Aug 17 filter pass already noted pre-existing em dashes elsewhere in
+    player-facing strings (409 "taken" message, a `main.ts` welcome-back
+    line, the vortex power description); still unfixed, still out of scope
+    for this pass.
+  - Only the two evidenced taunts got new terms. Did not proactively guess
+    at other scatological/sexual compounds nobody has actually typed yet,
+    per the tripwire instruction to avoid guessing.
+  - The real production row (userId TBD on Render, not queried, no prod DB
+    access this pass) still needs Lucas's go-ahead to deploy before its
+    public display actually changes; this pass only proves the mechanism
+    works against a local reproduction.
+
 ## 2026-08-18: calendar + lean game-over + findable recording MERGED + DEPLOYED (main `3635a36`)
 
 - Lucas: "live". Merged `sam/gameover-calendar-recording` (`18cd3be`) into

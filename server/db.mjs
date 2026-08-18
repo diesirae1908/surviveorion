@@ -508,6 +508,66 @@ export function nextWingmateAbove(userId, mode = "desktop", gameMode = "classic"
   );
 }
 
+/**
+ * The pilot directly above a user on the COMBINED daily board (every device
+ * merged into one ranking for the UTC day), the gap-to-goal target for
+ * Daily Patrol score-submit responses. Fixes a 2026-08-18 bug: this used to
+ * reuse the world ALL-TIME `nextAbove` for the run's own device, which could
+ * (and did, per Lucas's screenshot) name a completely different pilot than
+ * the one actually leading TODAY'S BOARD / the combined daily hint. Classic
+ * and Iron Rain non-daily runs are untouched and keep calling `nextAbove`.
+ */
+export function nextAboveCombinedDaily(userId, dailyDate) {
+  const best =
+    db
+      .prepare(
+        `SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND daily_date = ? AND game_mode = 'classic'`,
+      )
+      .get(userId, dailyDate)?.best ?? 0;
+  if (!best) return null;
+  return (
+    db
+      .prepare(
+        `SELECT u.callsign, MAX(s.score) AS score
+         FROM users u JOIN scores s ON s.user_id = u.id AND s.daily_date = ? AND s.game_mode = 'classic'
+         WHERE u.id != ?
+         GROUP BY u.id
+         HAVING score > ?
+         ORDER BY score ASC
+         LIMIT 1`,
+      )
+      .get(dailyDate, userId, best) ?? null
+  );
+}
+
+/** Nearest wingmate above a user on the COMBINED daily board (same fix as
+ * nextAboveCombinedDaily, scoped to friends, see its doc comment). */
+export function nextWingmateAboveCombinedDaily(userId, dailyDate) {
+  const best =
+    db
+      .prepare(
+        `SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND daily_date = ? AND game_mode = 'classic'`,
+      )
+      .get(userId, dailyDate)?.best ?? 0;
+  if (!best) return null;
+  const ids = friendIdsOf(userId);
+  if (ids.length === 0) return null;
+  const marks = ids.map(() => "?").join(",");
+  return (
+    db
+      .prepare(
+        `SELECT u.callsign, MAX(s.score) AS score
+         FROM users u JOIN scores s ON s.user_id = u.id AND s.daily_date = ? AND s.game_mode = 'classic'
+         WHERE u.id IN (${marks})
+         GROUP BY u.id
+         HAVING score > ?
+         ORDER BY score ASC
+         LIMIT 1`,
+      )
+      .get(dailyDate, ...ids, best) ?? null
+  );
+}
+
 // --- arenas ---
 
 export function createArena(ownerId, name, code) {
