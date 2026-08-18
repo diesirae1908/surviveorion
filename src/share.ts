@@ -6,9 +6,14 @@ import { DAILY_MAX_ATTEMPTS } from "./save";
 
 /**
  * Day the daily site went live, that date is Daily/Patrol #1. Reused as the
- * Patrol # epoch too (same feature, same numbering, no separate epoch).
+ * Patrol # epoch too (same feature, same numbering, no separate epoch), and
+ * as the earliest date the patrol history calendar will ever show as a real
+ * (rather than "before launch") day.
  */
-const DAILY_EPOCH_UTC = Date.UTC(2026, 6, 14);
+export const DAILY_EPOCH_UTC = Date.UTC(2026, 6, 14);
+
+/** DAILY_EPOCH_UTC as a 'YYYY-MM-DD' string, for date-string comparisons. */
+export const DAILY_EPOCH_DATE = new Date(DAILY_EPOCH_UTC).toISOString().slice(0, 10);
 
 const MS_PER_DAY = 86_400_000;
 

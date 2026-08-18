@@ -1,6 +1,8 @@
 import type { BoardMode } from "./api";
 import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
+import type { DayInfo, DayStatus } from "./dailyHistory";
+import { isTypingTarget } from "./input";
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
 import type { Mutator } from "./mutators";
 import type {
@@ -20,7 +22,7 @@ import {
 } from "./save";
 import type { ShareOutcome } from "./share";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
-import { RECORDING_MAX_SECONDS, recordingSupported } from "./recorder";
+import { RECORDING_MAX_SECONDS, recordingSupported, recordingUnavailableReason } from "./recorder";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -42,6 +44,8 @@ export interface UiCallbacks {
   onArenas: () => void;
   onFriends: () => void;
   onProfile: () => void;
+  /** Daily lobby: open the patrol history calendar (see showPatrolCalendar). */
+  onPatrolCalendar: () => void;
   /** Switch control scheme; resolves with the mode actually in effect (tilt may be denied). */
   onControlModeChange: (mode: ControlMode) => Promise<ControlMode>;
   /** Re-capture the current phone attitude as tilt neutral. */
@@ -207,6 +211,26 @@ export interface DailyBoardData {
   pinned: DailyBoardRow | null;
 }
 
+/** A calendar cell, or null for a padding cell outside the visible month. */
+export type CalendarCell = (DayInfo & { dayOfMonth: number }) | null;
+
+/** Everything the patrol history calendar needs to paint one month. */
+export interface PatrolCalendarMonth {
+  label: string;
+  /** Sunday-start weeks; each always has exactly 7 cells. */
+  weeks: CalendarCell[][];
+  canGoPrev: boolean;
+  canGoNext: boolean;
+  signedIn: boolean;
+  /** True while the signed-in server fetch for this month is still in
+   * flight (the grid already shows local-only data underneath it). */
+  loading: boolean;
+  /** True when the server fetch failed (offline, etc.), same visual
+   * fallback as loading=false but says so instead of looking like a clean
+   * signed-in read. */
+  serverUnavailable: boolean;
+}
+
 const SENSE_LABEL: Record<SenseLevel, string> = {
   low: "LOW",
   med: "MED",
@@ -254,6 +278,20 @@ export class Ui {
   private root: HTMLElement;
   private pauseBtn: HTMLButtonElement;
 
+  /**
+   * Back action for whichever submenu screen is currently showing (Settings,
+   * Powers, Feedback, the patrol calendar); null on every top-level screen
+   * (Menu, Daily Lobby, Pause, Game Over) that has nothing to back out of.
+   * Feeds both the always-visible corner arrow and the Escape key. Cleared
+   * on every clear() so top-level screens never inherit a stale submenu's
+   * back action.
+   */
+  private submenuBack: (() => void) | null = null;
+  /** The screen element the current submenuBack belongs to, so a screen
+   * rendered by ANOTHER class sharing this same #ui root (CommunityUi) can't
+   * cause this Escape listener to fire a stale action on top of it. */
+  private submenuBackScreen: HTMLElement | null = null;
+
   constructor(
     private settings: Settings,
     private cb: UiCallbacks,
@@ -265,10 +303,47 @@ export class Ui {
     this.pauseBtn.style.display = "none";
     this.pauseBtn.addEventListener("click", () => this.cb.onPauseRequest());
     document.body.appendChild(this.pauseBtn);
+
+    // Escape backs out of a submenu, one level, same as tapping its corner
+    // arrow. Gated on isTypingTarget (a form field wants its own Escape,
+    // e.g. clearing itself) and on the submenu's screen still being the one
+    // actually on display (guards against staleness if another class wiped
+    // #ui in the meantime). Deliberately separate from gameplay pause: the
+    // "playing"/"paused" Escape handling lives in Input.onPause and never
+    // touches this, so a run's pause/resume is untouched either way.
+    window.addEventListener("keydown", (e) => {
+      if (e.code !== "Escape") return;
+      if (isTypingTarget(e.target)) return;
+      if (!this.submenuBack) return;
+      if (!this.submenuBackScreen || !this.root.contains(this.submenuBackScreen)) return;
+      e.preventDefault();
+      const back = this.submenuBack;
+      this.submenuBack = null;
+      this.submenuBackScreen = null;
+      back();
+    });
   }
 
   private clear(): void {
     this.root.innerHTML = "";
+    this.submenuBack = null;
+    this.submenuBackScreen = null;
+  }
+
+  /**
+   * Register `screen` as a submenu with a back action: wires the always-
+   * visible corner arrow (the bottom Back row most screens also have can
+   * scroll below the fold on phones) and arms the Escape listener above.
+   */
+  private makeSubmenu(screen: HTMLElement, onBack: () => void): void {
+    const corner = document.createElement("button");
+    corner.className = "corner-btn left";
+    corner.title = "Back";
+    corner.textContent = "←";
+    corner.addEventListener("click", onBack);
+    screen.appendChild(corner);
+    this.submenuBack = onBack;
+    this.submenuBackScreen = screen;
   }
 
   hideAll(): void {
@@ -590,6 +665,9 @@ export class Ui {
     screen.appendChild(this.el("div", "divider", ""));
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
+    const calendarLink = this.el("button", "link-btn calendar-link", "See previous patrols");
+    calendarLink.addEventListener("click", () => this.cb.onPatrolCalendar());
+    screen.appendChild(calendarLink);
     // pre-launch-gate days carry no mutators and no thresholds (see
     // mutators.ts MUTATORS_START_DATE): skip the card entirely so the lobby
     // looks exactly like it did before this feature shipped.
@@ -695,6 +773,191 @@ export class Ui {
     this.root.appendChild(screen);
   }
 
+  /** Short, glanceable label for a calendar day cell's status ring. */
+  private static readonly DAY_STATUS_LABEL: Record<DayStatus, string> = {
+    future: "",
+    "before-launch": "",
+    today: "TODAY",
+    completed: "FLOWN",
+    "completed-local-only": "FLOWN",
+    attempted: "STARTED",
+    missed: "MISSED",
+    untracked: "",
+  };
+
+  /** One calendar grid cell: day number, status ring, medal/mutator hints.
+   * Tapping fills `detail` with the full breakdown (mobile has no hover). */
+  private calendarDayCell(day: DayInfo & { dayOfMonth: number }, detail: HTMLElement): HTMLElement {
+    const cell = document.createElement("button");
+    cell.className = `calendar-day ${day.status}`;
+    cell.type = "button";
+    const statusLabel = Ui.DAY_STATUS_LABEL[day.status];
+    if (statusLabel) cell.title = statusLabel;
+
+    const num = this.el("span", "cal-daynum", String(day.dayOfMonth));
+    cell.appendChild(num);
+
+    if (day.status === "completed" || day.status === "completed-local-only") {
+      cell.appendChild(this.el("span", "cal-medal", day.medal ? MEDAL_EMOJI[day.medal] : "✓"));
+    } else if (day.status === "attempted") {
+      cell.appendChild(this.el("span", "cal-mark", "•"));
+    } else if (day.status === "missed") {
+      cell.appendChild(this.el("span", "cal-mark", "×"));
+    }
+    if (day.mutators.length > 0) {
+      const dots = this.el("span", "cal-mutator-dots", "");
+      for (let i = 0; i < day.mutators.length; i++) dots.appendChild(this.el("span", "cal-mutator-dot", ""));
+      cell.appendChild(dots);
+    }
+
+    const interactive = day.status !== "future";
+    if (interactive) {
+      cell.addEventListener("click", () => {
+        cell.parentElement
+          ?.querySelectorAll(".calendar-day.selected")
+          .forEach((el) => el.classList.remove("selected"));
+        cell.classList.add("selected");
+        detail.innerHTML = this.dayDetailHtml(day);
+      });
+    } else {
+      cell.disabled = true;
+    }
+    return cell;
+  }
+
+  /** Full breakdown for a tapped calendar day: mutator briefing (the FOMO
+   * payoff for a missed day) plus whatever result data is available. */
+  private dayDetailHtml(day: DayInfo & { dayOfMonth: number }): string {
+    const dateLabel = new Date(`${day.date}T00:00:00.000Z`).toLocaleDateString([], {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+    const parts: string[] = [`<div class="cal-detail-date">${dateLabel}</div>`];
+
+    for (const m of day.mutators) {
+      parts.push(
+        `<div class="cal-detail-mutator">` +
+          `<span class="mutator-name">${escapeHtml(m.name)}</span>` +
+          `<span class="mutator-subline">${escapeHtml(m.subline)}</span>` +
+          `</div>`,
+      );
+    }
+
+    switch (day.status) {
+      case "today":
+        parts.push(`<div class="field-hint center">Today's patrol, still flying.</div>`);
+        break;
+      case "before-launch":
+        parts.push(`<div class="field-hint center">Before Daily Patrol existed.</div>`);
+        break;
+      case "completed":
+      case "completed-local-only": {
+        const medalLine = day.medal
+          ? `${MEDAL_EMOJI[day.medal]} ${MEDAL_LABEL[day.medal]} MEDAL`
+          : "No medal that day";
+        parts.push(
+          `<div class="cal-detail-result">` +
+            `<span class="value">${Math.floor(day.score ?? 0).toLocaleString()}</span> pts` +
+            (day.time !== undefined ? ` &nbsp;·&nbsp; ${fmtTime(day.time)}` : "") +
+            (day.rank !== undefined && day.rank !== null ? ` &nbsp;·&nbsp; #${day.rank}` : "") +
+            `</div>`,
+          `<div class="cal-detail-medal">${medalLine}</div>`,
+        );
+        if (day.status === "completed-local-only") {
+          parts.push(
+            `<div class="field-hint center">` +
+              (day.sourceConflict
+                ? "Recorded on this device only, it never reached your account (flown before signing in, or a sync that failed)."
+                : "Recorded on this device only. Sign in to keep this on your account.") +
+              `</div>`,
+          );
+        }
+        break;
+      }
+      case "attempted":
+        parts.push(
+          `<div class="field-hint center">Started but never finished (this device only, no run submitted).</div>`,
+        );
+        break;
+      case "missed":
+        parts.push(`<div class="field-hint center">No patrol flown.</div>`);
+        break;
+      case "untracked":
+        parts.push(
+          `<div class="field-hint center">No record for this device, and you're not signed in to check your account.</div>`,
+        );
+        break;
+      case "future":
+        break;
+    }
+    return parts.join("");
+  }
+
+  /**
+   * Patrol history calendar: a month at a time, Sunday-start grid, tap a
+   * day for its mutator(s) and result. Reached from the daily lobby's
+   * discreet "See previous patrols" link.
+   */
+  showPatrolCalendar(
+    month: PatrolCalendarMonth,
+    handlers: { onBack: () => void; onPrevMonth: () => void; onNextMonth: () => void },
+  ): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen calendar-screen", "");
+    this.makeSubmenu(screen, handlers.onBack);
+    screen.appendChild(this.el("div", "heading gold small", "PATROL HISTORY"));
+    screen.appendChild(this.el("div", "divider", ""));
+
+    const nav = this.el("div", "calendar-nav", "");
+    const prev = this.button("‹", false, handlers.onPrevMonth);
+    prev.disabled = !month.canGoPrev;
+    prev.classList.add("calendar-nav-btn");
+    const next = this.button("›", false, handlers.onNextMonth);
+    next.disabled = !month.canGoNext;
+    next.classList.add("calendar-nav-btn");
+    nav.append(prev, this.el("span", "calendar-month-label", month.label), next);
+    screen.appendChild(nav);
+
+    const grid = this.el("div", "calendar-grid", "");
+    for (const wd of ["S", "M", "T", "W", "T", "F", "S"]) {
+      grid.appendChild(this.el("div", "calendar-weekday", wd));
+    }
+    const detail = this.el("div", "calendar-detail", "");
+    for (const week of month.weeks) {
+      for (const day of week) {
+        grid.appendChild(day ? this.calendarDayCell(day, detail) : this.el("div", "calendar-day empty", ""));
+      }
+    }
+    screen.appendChild(grid);
+
+    if (month.loading) {
+      screen.appendChild(this.el("div", "field-hint center", "Syncing your account's record…"));
+    } else if (month.serverUnavailable) {
+      screen.appendChild(
+        this.el("div", "field-hint center", "Couldn't reach the server, showing this device's local history."),
+      );
+    } else if (!month.signedIn) {
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Signed out: showing this device's local history only. Sign in to sync your full record.",
+        ),
+      );
+    }
+    screen.appendChild(detail);
+
+    const back = this.button("Back", false, handlers.onBack);
+    back.classList.add("small-btn");
+    screen.appendChild(back);
+
+    this.root.appendChild(screen);
+  }
+
   /**
    * Training Ground send-off (daily-only site): the run is unscored, so no
    * stats ceremony — just a nudge toward the real patrol.
@@ -731,6 +994,7 @@ export class Ui {
     this.pauseBtn.style.display = "none";
 
     const screen = this.el("div", "screen", "");
+    this.makeSubmenu(screen, onBack);
     screen.appendChild(this.el("div", "heading gold small", "POWERS"));
     screen.appendChild(this.el("div", "divider", ""));
     screen.appendChild(
@@ -820,6 +1084,7 @@ export class Ui {
     this.pauseBtn.style.display = "none";
 
     const screen = this.el("div", "screen", "");
+    this.makeSubmenu(screen, onBack);
     screen.appendChild(this.el("div", "heading gold small", "SETTINGS"));
     screen.appendChild(this.el("div", "divider", ""));
 
@@ -847,8 +1112,10 @@ export class Ui {
       ),
     );
 
-    // opt-in local recording: hidden entirely on browsers that can't do it
-    // (recordingSupported gates capture too, this just avoids a dead toggle)
+    // opt-in local recording. When it can't work here, show a disabled row
+    // that says why instead of a toggle that silently produces no clip, or
+    // silently vanishing (a dead control is worse than no control, but a
+    // hidden one still leaves a player wondering where it went).
     if (recordingSupported()) {
       screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
       screen.appendChild(
@@ -856,9 +1123,19 @@ export class Ui {
           "div",
           "field-hint center",
           "Saves a local clip of each run for you to download. Stays on this device: " +
-            "nothing is uploaded, nothing is stored on our end.",
+            "nothing is uploaded, nothing is stored on our end. A quick toggle also " +
+            "shows up on the game-over screen after a run.",
         ),
       );
+    } else {
+      const row = this.el("div", "toggles", "");
+      const dead = document.createElement("button");
+      dead.textContent = "Record runs: unavailable";
+      dead.disabled = true;
+      dead.classList.add("off");
+      row.appendChild(dead);
+      screen.appendChild(row);
+      screen.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
     }
 
     const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
@@ -981,13 +1258,26 @@ export class Ui {
    */
   private showFeedback(onBackOrNull: (() => void) | null): void {
     const overlay = onBackOrNull === null;
+    // An overlay sits on top of whatever submenu state was already active
+    // (currently only ever Game Over, which has none). Save it so closing
+    // the overlay restores it instead of leaving Escape pointed at a
+    // closure that already ran.
+    const prevBack = this.submenuBack;
+    const prevScreen = this.submenuBackScreen;
     if (!overlay) {
       this.clear();
       this.pauseBtn.style.display = "none";
     }
 
     const screen = this.el("div", "screen", "");
-    const onBack = onBackOrNull ?? ((): void => screen.remove());
+    const onBack =
+      onBackOrNull ??
+      ((): void => {
+        screen.remove();
+        this.submenuBack = prevBack;
+        this.submenuBackScreen = prevScreen;
+      });
+    this.makeSubmenu(screen, onBack);
     screen.appendChild(this.el("div", "heading gold small", "PILOT DEBRIEF"));
     screen.appendChild(this.el("div", "divider", ""));
     screen.appendChild(
@@ -1035,7 +1325,8 @@ export class Ui {
       this.cb
         .onFeedback(text, email.value.trim())
         .then(() => {
-          screen.innerHTML = "";
+          screen.innerHTML = ""; // wipes the corner arrow too, so re-arm it
+          this.makeSubmenu(screen, onBack);
           screen.appendChild(this.el("div", "heading gold small", "TRANSMISSION RECEIVED"));
           screen.appendChild(this.el("div", "divider", ""));
           screen.appendChild(
@@ -1217,6 +1508,23 @@ export class Ui {
     this.root.appendChild(screen);
   }
 
+  /**
+   * Game-over screen, redesigned around THIS RUN (2026-08-18: the shipped
+   * `88e7632` pass fixed World rank #null and added the mini board, but
+   * Lucas's original complaint — "buggy / too much info" — was still true:
+   * Survived + Score + Peak multiplier + Kills + Best (all-time) + a score
+   * breakdown sentence + a longest-flight delta + a rank summary + a
+   * country rank + a gap sentence + the mini board, all stacked with equal
+   * visual weight. Nothing competed with the score, because nothing was
+   * demoted. Now: one hero number, this run's highlight/medal, a compact
+   * comparison board, the actions a player actually came here for, and
+   * everything else (all-time best, peak multiplier, kill count, the score
+   * breakdown, the PB-time comparison) behind a single "Details" toggle —
+   * see gameOverDetailsToggle. Reference for the hierarchy:
+   * sam/pilot-safety-and-highlights (fa9d25e), NOT its callsign filter or
+   * moderation, which main already ships its own (different, deliberately
+   * kept) version of.
+   */
   showGameOver(stats: GameOverStats): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -1234,26 +1542,28 @@ export class Ui {
     } else if (stats.gameMode === "ironrain") {
       screen.appendChild(this.el("div", "ironrain-tag", "IRON RAIN"));
     }
+    screen.appendChild(this.el("div", "divider", ""));
+
+    // HERO: the one number a player actually came here for, this run's
+    // score, biggest thing on the screen, no all-time comparison attached.
+    // Survived time rides along as a subtitle since it's the other number
+    // players intuitively track turn to turn.
+    screen.appendChild(
+      this.el(
+        "div",
+        "result-hero",
+        `<span class="result-score">${Math.floor(stats.score).toLocaleString()}</span>` +
+          `<span class="result-sub">pts &nbsp;·&nbsp; survived ${fmtTime(stats.time)}</span>`,
+      ),
+    );
     if (stats.isNewBest) {
       screen.appendChild(this.el("div", "new-best", "New best score"));
     }
+
     // one memorable moment from the run, if it earned one (see highlights.ts)
     if (stats.closestCallLabel) {
       screen.appendChild(this.el("div", "result-highlight", `⚡ ${escapeHtml(stats.closestCallLabel)}`));
     }
-    screen.appendChild(this.el("div", "divider", ""));
-    // survival time leads: it's the number players intuitively compare
-    screen.appendChild(
-      this.el(
-        "div",
-        "stats",
-        `<div><span class="label">Survived</span><span class="value">${fmtTime(stats.time)}</span></div>` +
-          `<div><span class="label">Score</span><span class="value">${Math.floor(stats.score).toLocaleString()}</span></div>` +
-          `<div><span class="label">Peak multiplier</span><span class="value">×${stats.maxMultiplier.toFixed(1)}</span></div>` +
-          `<div><span class="label">Kills</span><span class="value">${stats.kills}</span></div>` +
-          `<div><span class="label">Best</span><span class="value">${Math.floor(stats.best).toLocaleString()}</span></div>`,
-      ),
-    );
 
     // best-of-day medal (score), or how close today's best is to the next tier
     if (stats.dailyMedal) {
@@ -1267,35 +1577,10 @@ export class Ui {
       );
     }
 
-    // where the points came from — scoring is opaque without this
-    if (stats.score > 0) {
-      const fmt = (n: number): string => Math.floor(n).toLocaleString();
-      screen.appendChild(
-        this.el(
-          "div",
-          "score-breakdown",
-          // "pts from" disambiguates these point totals from the Kills
-          // *count* in the stats grid above — same word, different unit,
-          // read side by side as a bug before this label change
-          `<span>${fmt(stats.scoreKills)} pts from kills</span> · ` +
-            `<span>${fmt(stats.scoreSurvival)} pts from survival</span>` +
-            (stats.scoreBonuses >= 1 ? ` · <span>${fmt(stats.scoreBonuses)} pts bonus</span>` : ""),
-        ),
-      );
-      // the daily site keeps the results screen lean — numbers only
-      if (stats.attemptsLeft === undefined) {
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            "Everything you score is multiplied. Chain kills to keep the multiplier hot.",
-          ),
-        );
-      }
-    }
-
     // free death: the attempt went back to the budget — say so, or the
-    // attempt count on the retry button looks wrong
+    // attempt count on the retry button looks wrong. Kept visible (not
+    // demoted): it directly explains this run's retry state, not an
+    // all-time comparison.
     if (stats.refunded) {
       screen.appendChild(
         this.el(
@@ -1306,41 +1591,18 @@ export class Ui {
       );
     }
 
-    // near-miss framing: how this flight compares to the longest one
-    if (stats.isNewBestTime && stats.bestTime > 0) {
-      screen.appendChild(this.el("div", "run-delta gold", "Your longest flight yet"));
-    } else if (stats.bestTime > 0 && stats.bestTime - stats.time >= 1) {
-      const short = Math.ceil(stats.bestTime - stats.time);
-      screen.appendChild(
-        this.el(
-          "div",
-          "run-delta",
-          `${short}s short of your longest flight (${fmtTime(stats.bestTime)})`,
-        ),
-      );
-    }
-
+    // COMPARISON: gap-to-goal sentence + the compact 2-row board (target
+    // above, this run pinned below), filled async once the score
+    // submission returns (setGameOverRank). No standalone "World rank #N /
+    // Country #N" text line above it any more — the board's own rank badge
+    // already shows the number, and the daily/Iron Rain tag above already
+    // says which board this run counts on, so a repeated label was pure
+    // redundancy on a screen that had too much text, not too little.
     const rank = this.el("div", "rank-line", "");
     rank.id = "rank-line";
     screen.appendChild(rank);
 
-    if (stats.showShare) {
-      screen.appendChild(this.shareButton());
-    }
-    if (stats.clipReady) {
-      screen.appendChild(this.saveClipButton());
-      if (stats.clipCapped) {
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
-          ),
-        );
-      }
-    }
-
-    // daily-only site: retries draw from the daily attempt budget
+    // NEXT ACTION: the one thing to do next, front and center.
     const capped = stats.attemptsLeft !== undefined;
     const canRetry = !capped || stats.attemptsLeft! > 0;
 
@@ -1366,6 +1628,33 @@ export class Ui {
       screen.appendChild(this.el("div", "field-hint center", "Space to fly again"));
     }
 
+    if (stats.showShare) {
+      screen.appendChild(this.shareButton());
+    }
+    if (stats.clipReady) {
+      screen.appendChild(this.saveClipButton());
+      if (stats.clipCapped) {
+        screen.appendChild(
+          this.el(
+            "div",
+            "field-hint center",
+            `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
+          ),
+        );
+      }
+    } else if (recordingSupported()) {
+      // no clip from THIS run (recording was off) — the fix for "recording
+      // is not findable" is putting the toggle right where a player is
+      // already looking after a run, not leaving it buried in Settings.
+      screen.appendChild(this.recordNextRunControl());
+    }
+
+    // DETAILS: everything that isn't the hero/highlight/medal/board —
+    // all-time best, peak multiplier, kills, the score breakdown, the
+    // PB-time comparison, country rank. Demoted behind one toggle so none
+    // of it competes with the score above; one tap gets it back.
+    screen.appendChild(this.gameOverDetailsToggle(stats));
+
     // feedback CTA: post-run is when testers actually have something to say
     const feedback = this.el("button", "link-btn", "Found a bug? Send feedback");
     feedback.addEventListener("click", () => this.showFeedback(null));
@@ -1375,35 +1664,112 @@ export class Ui {
   }
 
   /**
-   * Fill the game-over rank slot once the score submission returns.
-   *
-   * Replaces the old single run-on sentence (Daily rank · World rank ·
-   * Country rank · "N points to pass X") with one compact primary-rank line
-   * plus a 2-row mini comparison board reusing the exact TODAY'S BOARD row
-   * markup (`.board-row`, `.me`, rank/flag/name/points columns): the pilot
-   * you're chasing stacked directly above your own highlighted row, so the
-   * gap reads as a fast visual comparison instead of a parsed sentence.
-   * `primaryRank`/`countryRank` are nullable because a rank only exists once
-   * a best score is on the board (e.g. a 0-point run has none yet) — fixes
-   * the previous version, which printed a literal "World rank #null".
+   * Demoted run details behind a single collapsed-by-default toggle: kills,
+   * peak multiplier, the all-time personal best, the score breakdown
+   * sentence, and the longest-flight-vs-PB comparison — everything Lucas's
+   * "too much info" complaint was actually about. A `#result-details-country`
+   * slot is filled in later by setGameOverCountryRank once the score
+   * submission returns (country rank is exactly the kind of all-time,
+   * secondary number this toggle exists to hold).
+   */
+  private gameOverDetailsToggle(stats: GameOverStats): HTMLElement {
+    const wrap = this.el("div", "result-details-wrap", "");
+    const toggle = this.button("Details ▾", false, () => {
+      const open = panel.classList.toggle("open");
+      toggle.textContent = open ? "Details ▴" : "Details ▾";
+    });
+    toggle.classList.add("small-btn", "result-details-toggle");
+    wrap.appendChild(toggle);
+
+    const lines: string[] = [
+      `Kills <b>${stats.kills}</b> &nbsp;·&nbsp; Peak multiplier <b>×${stats.maxMultiplier.toFixed(1)}</b>`,
+    ];
+    if (stats.best > 0) {
+      lines.push(`Personal best (all-time): <b>${Math.floor(stats.best).toLocaleString()}</b>`);
+    }
+    if (stats.score > 0) {
+      const fmt = (n: number): string => Math.floor(n).toLocaleString();
+      lines.push(
+        `<span>${fmt(stats.scoreKills)} pts from kills</span> · ` +
+          `<span>${fmt(stats.scoreSurvival)} pts from survival</span>` +
+          (stats.scoreBonuses >= 1 ? ` · <span>${fmt(stats.scoreBonuses)} pts bonus</span>` : ""),
+      );
+      // the daily site keeps the results screen lean — numbers only
+      if (stats.attemptsLeft === undefined) {
+        lines.push("Everything you score is multiplied. Chain kills to keep the multiplier hot.");
+      }
+    }
+    // near-miss framing: how this flight compares to the longest one
+    if (stats.isNewBestTime && stats.bestTime > 0) {
+      lines.push("Your longest flight yet");
+    } else if (stats.bestTime > 0 && stats.bestTime - stats.time >= 1) {
+      const short = Math.ceil(stats.bestTime - stats.time);
+      lines.push(`${short}s short of your longest flight (${fmtTime(stats.bestTime)})`);
+    }
+
+    const panel = this.el(
+      "div",
+      "result-details",
+      lines.map((l) => `<div>${l}</div>`).join("") + `<div id="result-details-country"></div>`,
+    );
+    wrap.appendChild(panel);
+    return wrap;
+  }
+
+  /** Compact one-tap way to turn recording on for the NEXT run, shown on
+   * game over whenever this run had no clip but the browser can record
+   * (see recorder.ts). The Settings toggle still exists (see showSettings);
+   * this puts the same switch where a player is already looking right
+   * after a run, since "recording is not findable" was the exact
+   * complaint this fixes. Reads/writes the live settings object directly
+   * (same pattern as toggleRow), so flipping it here takes effect on the
+   * very next launch. */
+  private recordNextRunControl(): HTMLElement {
+    const row = this.el("div", "toggles record-next-run", "");
+    const btn = document.createElement("button");
+    const paint = (): void => {
+      btn.textContent = this.settings.recordRuns ? "Recording next run: ON" : "🎥 Record next run";
+      btn.classList.toggle("off", !this.settings.recordRuns);
+    };
+    paint();
+    btn.classList.add("small-btn");
+    btn.addEventListener("click", () => {
+      this.cb.onToggle("recordRuns");
+      paint();
+    });
+    row.appendChild(btn);
+    return row;
+  }
+
+  /** Fill the details panel's country-rank line once the score submission
+   * returns (see setGameOverRank). No-op if game over isn't the screen
+   * currently up, or there's no country rank to show. */
+  setGameOverCountryRank(country: { code: string; rank: number } | null): void {
+    const slot = document.getElementById("result-details-country");
+    if (!slot || !country) return;
+    slot.innerHTML =
+      `<div><span title="${countryName(country.code)}">${countryFlag(country.code)}</span> ` +
+      `${countryName(country.code)} rank <b>#${country.rank}</b></div>`;
+  }
+
+  /**
+   * Fill the game-over rank slot once the score submission returns: a
+   * gap-to-goal sentence plus a 2-row mini comparison board reusing the
+   * exact TODAY'S BOARD row markup (`.board-row`, `.me`, rank/flag/name/
+   * points columns) — the pilot you're chasing stacked directly above your
+   * own highlighted row, so the gap reads as a fast visual comparison
+   * instead of a parsed sentence. `primaryRank` is nullable because a rank
+   * only exists once a best score is on the board (e.g. a 0-point run has
+   * none yet) — the board shows "–" rather than a literal "#null" in that
+   * case. Country rank isn't rendered here any more (see
+   * setGameOverCountryRank): it's all-time, secondary chrome that belongs
+   * in the demoted details panel, not stacked on top of the score.
    */
   setGameOverRank(data: GameOverRankResult): void {
     const line = document.getElementById("rank-line");
     if (!line) return;
     line.innerHTML = "";
-
-    const summary: string[] = [];
-    if (data.primaryRank !== null) {
-      summary.push(`${data.primaryLabel} <b>#${data.primaryRank}</b>`);
-    }
-    if (data.country) {
-      summary.push(
-        `<span title="${countryName(data.country.code)}">${countryFlag(data.country.code)}</span> <b>#${data.country.rank}</b>`,
-      );
-    }
-    if (summary.length > 0) {
-      line.appendChild(this.el("div", "rank-summary", summary.join(" &nbsp;·&nbsp; ")));
-    }
+    this.setGameOverCountryRank(data.country);
 
     if (data.target) {
       const gap = Math.max(1, Math.floor(data.target.score - data.me.score + 1)).toLocaleString();

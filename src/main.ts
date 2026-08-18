@@ -1,11 +1,22 @@
 import "./style.css";
-import { Api, ApiError, type BoardMode, type SubmitResult } from "./api";
+import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type SubmitResult } from "./api";
 import { AudioSystem } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
 import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_HINTS, POWER_NAMES, TILT_MAX_DEG, type GameMode } from "./config";
 import { guessCountry } from "./countries";
 import { isThirdPartyCrashNoise } from "./crashFilter";
+import {
+  dayInfoFor,
+  daysInMonth,
+  leadingPadding,
+  maxDateStr,
+  monthLabel,
+  nextMonthOf,
+  prevMonthOf,
+  utcDateStr,
+  type MonthKey,
+} from "./dailyHistory";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { closestCallLabel } from "./highlights";
 import { Input, isTypingTarget } from "./input";
@@ -45,6 +56,7 @@ import {
   dailyAttemptsLeft,
   dailyBestScoreToday,
   loadDailyAttempts,
+  loadDailyHistory,
   recordDailyResult,
   refundDailyAttempt,
   useDailyAttempt,
@@ -53,13 +65,14 @@ import {
   DEFAULT_KEYBINDS,
   formatKeyCode,
   type BooleanSetting,
+  type DailyDayLog,
   type KeyBindings,
 } from "./save";
-import { buildShareText, dailyNumber, shareText } from "./share";
+import { buildShareText, dailyNumber, shareText, DAILY_EPOCH_DATE } from "./share";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
-import { deriveGameOverRank, Ui } from "./ui";
+import { deriveGameOverRank, Ui, type CalendarCell, type PatrolCalendarMonth } from "./ui";
 
 type AppState =
   | "gate" // tap-to-enter splash (unlocks audio for the intro)
@@ -362,6 +375,7 @@ const ui = new Ui(settings, {
   onArenas: () => community.showArenas(),
   onFriends: () => community.showFriends(),
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
+  onPatrolCalendar: () => openPatrolCalendar(),
   onControlModeChange: async (mode) => {
     if (mode === "tilt") {
       const r = await enableTilt();
@@ -507,6 +521,165 @@ function fillDailyBoard(): void {
       ui.setDailyBoard({ entries, pinned });
     })
     .catch(() => ui.setDailyBoard(null));
+}
+
+// --- Patrol history calendar ---
+//
+// One month of day statuses at a time (see dailyHistory.ts for what each
+// status means and why). Local history (save.ts) is always available
+// instantly; a signed-in pilot's server history (api.ts dailyHistory) is
+// fetched per month and layered on top, since it's the authoritative source
+// once it answers (dayInfoFor prefers `server` over `local` when signed in).
+
+/** Month currently shown, or null when the calendar isn't open. UTC
+ * calendar months, matching the daily rollover boundary everywhere else. */
+let calendarMonth: MonthKey | null = null;
+/** Server day entries fetched so far this session, keyed by date string.
+ * Never evicted (a session-lifetime cache of a few dozen small rows at
+ * most) so flipping back to an already-seen month is instant. */
+const calendarServerCache = new Map<string, DailyHistoryEntry>();
+/** "YYYY-MM" keys already fetched (or attempted), so re-opening a month
+ * doesn't refire the request — including a month with zero entries, which
+ * would otherwise look identical to "not fetched yet" and refetch forever. */
+const calendarFetchedMonths = new Set<string>();
+/** Bumped on every navigation; a fetch response for a month the player has
+ * since navigated away from is discarded instead of repainting a stale
+ * screen (see renderPatrolCalendar). */
+let calendarFetchToken = 0;
+
+function monthKeyStr({ year, month }: MonthKey): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
+}
+
+/** [earliest, latest] navigable months: never before the feature's epoch
+ * (or this pilot's join date, if later and signed in), never after today. */
+function patrolCalendarBounds(): { min: MonthKey; max: MonthKey } {
+  const todayD = new Date();
+  const epochDate =
+    api.signedIn && api.joinedAt
+      ? maxDateStr(DAILY_EPOCH_DATE, new Date(api.joinedAt).toISOString().slice(0, 10))
+      : DAILY_EPOCH_DATE;
+  const epochD = new Date(`${epochDate}T00:00:00.000Z`);
+  return {
+    min: { year: epochD.getUTCFullYear(), month: epochD.getUTCMonth() },
+    max: { year: todayD.getUTCFullYear(), month: todayD.getUTCMonth() },
+  };
+}
+
+/** This device's local history, as a date -> log map (dayInfoFor wants
+ * one entry at a time, loadDailyHistory returns the whole list). */
+function localDailyMap(): Map<string, DailyDayLog> {
+  const map = new Map<string, DailyDayLog>();
+  for (const day of loadDailyHistory()) map.set(day.date, day);
+  return map;
+}
+
+function openPatrolCalendar(): void {
+  const { max } = patrolCalendarBounds();
+  calendarMonth = calendarMonth ?? max;
+  renderPatrolCalendar();
+}
+
+function calendarHandlers(): { onBack: () => void; onPrevMonth: () => void; onNextMonth: () => void } {
+  return {
+    onBack: () => {
+      calendarMonth = null;
+      showMenu();
+    },
+    onPrevMonth: () => {
+      if (!calendarMonth) return;
+      calendarMonth = prevMonthOf(calendarMonth);
+      renderPatrolCalendar();
+    },
+    onNextMonth: () => {
+      if (!calendarMonth) return;
+      calendarMonth = nextMonthOf(calendarMonth);
+      renderPatrolCalendar();
+    },
+  };
+}
+
+/** Build one month's grid from whatever data is available right now (local
+ * history is synchronous; server rows already in calendarServerCache are
+ * layered in immediately, everything else fills in once the fetch below
+ * resolves). `loading` tells the UI a signed-in fetch for this exact month
+ * is still in flight, so it doesn't look like a clean "no server data". */
+function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: boolean): PatrolCalendarMonth {
+  const bounds = patrolCalendarBounds();
+  const today = utcDateStr(
+    new Date().getUTCFullYear(),
+    new Date().getUTCMonth(),
+    new Date().getUTCDate(),
+  );
+  const epochDate =
+    api.signedIn && api.joinedAt
+      ? maxDateStr(DAILY_EPOCH_DATE, new Date(api.joinedAt).toISOString().slice(0, 10))
+      : DAILY_EPOCH_DATE;
+  const local = localDailyMap();
+  const pad = leadingPadding(key.year, key.month);
+  const total = daysInMonth(key.year, key.month);
+
+  const cells: CalendarCell[] = [];
+  for (let i = 0; i < pad; i++) cells.push(null);
+  for (let d = 1; d <= total; d++) {
+    const dateStr = utcDateStr(key.year, key.month, d);
+    const info = dayInfoFor(dateStr, {
+      today,
+      epochDate,
+      signedIn: api.signedIn,
+      local: local.get(dateStr) ?? null,
+      server: calendarServerCache.get(dateStr) ?? null,
+    });
+    cells.push({ ...info, dayOfMonth: d });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const weeks: CalendarCell[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  const beforeMin = key.year < bounds.min.year || (key.year === bounds.min.year && key.month <= bounds.min.month);
+  const afterMax = key.year > bounds.max.year || (key.year === bounds.max.year && key.month >= bounds.max.month);
+
+  return {
+    label: monthLabel(key.year, key.month),
+    weeks,
+    canGoPrev: !beforeMin,
+    canGoNext: !afterMax,
+    signedIn: api.signedIn,
+    loading,
+    serverUnavailable,
+  };
+}
+
+/** Paint the calendar for calendarMonth, kicking off (or reusing) a
+ * signed-in server fetch for that month if it hasn't been fetched yet. */
+function renderPatrolCalendar(): void {
+  if (!calendarMonth) return;
+  const key = calendarMonth;
+  const mKey = monthKeyStr(key);
+  const alreadyFetched = calendarFetchedMonths.has(mKey);
+  const loading = api.signedIn && api.online && !alreadyFetched;
+
+  ui.showPatrolCalendar(buildCalendarMonth(key, loading, false), calendarHandlers());
+
+  if (!api.signedIn || !api.online || alreadyFetched) return;
+  const token = ++calendarFetchToken;
+  const from = utcDateStr(key.year, key.month, 1);
+  const to = utcDateStr(key.year, key.month, daysInMonth(key.year, key.month));
+  void api
+    .dailyHistory(from, to)
+    .then((r) => {
+      calendarFetchedMonths.add(mKey);
+      for (const entry of r.entries) calendarServerCache.set(entry.date, entry);
+      // a slower fetch for a month the player has since navigated away
+      // from would otherwise clobber whatever's on screen now
+      if (token !== calendarFetchToken || !calendarMonth || monthKeyStr(calendarMonth) !== mKey) return;
+      ui.showPatrolCalendar(buildCalendarMonth(key, false, false), calendarHandlers());
+    })
+    .catch(() => {
+      if (token !== calendarFetchToken || !calendarMonth || monthKeyStr(calendarMonth) !== mKey) return;
+      ui.showPatrolCalendar(buildCalendarMonth(key, false, true), calendarHandlers());
+    });
 }
 
 /**

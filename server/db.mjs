@@ -358,6 +358,50 @@ export function rankOf(userId, { country = null, arenaId = null, mode = "desktop
 }
 
 /**
+ * One user's per-UTC-day best score/time/rank across a date range (dailies
+ * are always Classic). A date missing from the result had no completed
+ * daily run that day from this account, full stop, there is no separate
+ * record here of a run being STARTED but not finished (see JOURNAL.md /
+ * src/dailyHistory.ts: that distinction only exists client-side, per
+ * device). rank is this pilot's rank among every account's best score that
+ * date, computed once with a window function rather than one query per day.
+ *
+ * best/bestTime come from ONE selected run, not independent MAX()es (a
+ * MAX(score) run and a MAX(time_survived) run for the same day can be two
+ * different runs, which would report a time that never happened alongside
+ * that score). Same selection as dailyLeaderboardCombined below: highest
+ * score, ties broken by earliest created_at.
+ */
+export function dailyHistoryForUser(userId, { from, to }) {
+  return db
+    .prepare(
+      `WITH best_runs AS (
+         SELECT user_id, daily_date, score AS best, time_survived AS bestTime,
+                ROW_NUMBER() OVER (
+                  PARTITION BY user_id, daily_date ORDER BY score DESC, created_at ASC
+                ) AS rn,
+                COUNT(*) OVER (PARTITION BY user_id, daily_date) AS runs
+         FROM scores
+         WHERE daily_date BETWEEN ? AND ? AND game_mode = 'classic'
+       ),
+       daily_best AS (
+         SELECT user_id, daily_date, best, bestTime, runs
+         FROM best_runs
+         WHERE rn = 1
+       ),
+       ranked AS (
+         SELECT *, RANK() OVER (PARTITION BY daily_date ORDER BY best DESC) AS rnk
+         FROM daily_best
+       )
+       SELECT daily_date AS date, best, bestTime, runs, rnk AS rank
+       FROM ranked
+       WHERE user_id = ?
+       ORDER BY daily_date ASC`,
+    )
+    .all(from, to, userId);
+}
+
+/**
  * Combined daily leaderboard: one row per pilot, best score across ALL
  * device modes for the UTC day merged into a single ranking (dailies are
  * always Classic). `mode` on each row is the device the pilot's best run
