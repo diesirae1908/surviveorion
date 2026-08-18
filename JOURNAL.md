@@ -102,6 +102,131 @@ why, commit hash, follow-ups), committed together with the work. See
     public display actually changes; this pass only proves the mechanism
     works against a local reproduction.
 
+## 2026-08-18: Daily Mutators hardened append-only, characterization lock added (branch `sam/mutator-hardening`, unmerged, not deployed)
+
+- **Trigger.** Dispatched by Sam to professionalize `src/mutators.ts` before
+  a future 23rd mutator ships: today `poolIndex` is
+  `hashString(key) % MUTATOR_POOL.length`, so appending a new entry would
+  reshuffle every past Daily Patrol day's pick. Worked in an isolated
+  worktree (`.worktrees/mutator-hardening`, branch `sam/mutator-hardening`,
+  off `main` at `3635a36`) since three other agents already had worktrees on
+  this repo. No merge, no push to `main`, no deploy.
+
+- **1. Characterization lock, written first, before touching selection
+  math.** New `scripts/test-mutators.ts` (wired into `npm test` as
+  `test:mutators`), 13 checks:
+  - A frozen snapshot (`scripts/mutator-snapshot.json`, generated once
+    straight off the unmodified `getMutatorsForDate`) of every UTC date
+    2026-08-10 through 2026-12-31: 144 dates, ids joined
+    (`blackout`, `blackout+the-pit` on Sundays, etc.). The selection rewrite
+    below must match this byte-for-byte; the test fails loudly with the
+    first 5 mismatches if it doesn't, and the instruction is to revert the
+    selection change, not "fix" the fixture.
+  - A Classic (non-daily) fingerprint: 3 seeded minutes, same recorder shape
+    as `sim-test.ts` section 7 (duplicated in miniature, not imported, to
+    avoid coupling the two suites over one small helper), hashed into a
+    single int. Proves a mutator-selection PR can't leak into the arcade
+    path (Classic never calls `setActiveMutators`, so this is a static
+    guard for future PRs more than a live risk today).
+  - Getter algebra: a real compatible Sunday pair (BLACKOUT + THE PIT,
+    tags verified disjoint first) for a sanity pass-through check, plus a
+    synthetic pair of test-only `Mutator` objects (never added to
+    `MUTATOR_POOL`) to prove multiplicative scales multiply (2 * 3 = 6),
+    additive knobs sum (1.5 + 2.5 = 4), `firstOf` replacements take the
+    first mutator's value, and `clearActiveMutators()` resets everything to
+    identity. No real pair in the live pool shares a combinable knob without
+    also sharing a tag (that's what tags are for), so a synthetic pair was
+    the only way to exercise genuine two-nonzero arithmetic.
+  - Sunday tags: every UTC Sunday in the snapshot range re-checked against
+    the real pool: no two same-day picks ever share a tag.
+  - Append-only proof: a fake 23rd mutator (`availableFrom: "2026-09-01"`),
+    injected only through a new `getMutatorsForDateFromPool(date, pool)`
+    export, never added to the live pool. Every date before 2026-09-01 still
+    matches the frozen snapshot exactly; the fake is confirmed reachable
+    within a 200-day window after (23 eligible entries means ~1/23 odds per
+    day-slot, so a short window can miss it by luck even when selection
+    works; 200 days makes a false negative astronomically unlikely, and
+    since the hash is a pure function of the date string this isn't a
+    flakiness source, it's deterministic pass/fail on this fixed input).
+  - Kind classification: every live pool id classified `override` (14) /
+    `creature` (5: MENAGERIE + the four forced-assembly days) /
+    `environmental` (3: STARFALL, SOLAR WIND, MAGNETIC FIELD, the latter two
+    picked over "override" because they're persistent ambient world forces
+    rather than spawn/formation/power retunes, documented in the test file
+    since the brief allowed either call). Test fails if a pool id is
+    unclassified or a classification is stale.
+  - No id-branch leak: greps every `src/**/*.ts` file except `mutators.ts`
+    for a live pool id as a quoted string literal. Clean today, zero leaks
+    found.
+
+- **2. Append-only selection.** Added `availableFrom: string` (UTC
+  `YYYY-MM-DD`) to the `Mutator` interface; all 22 live entries set it to
+  `MUTATORS_START_DATE` (moved that constant above `MUTATOR_POOL` so the
+  entries could reference it; nothing else about it changed). New
+  `eligiblePool(pool, dateStr)` filters by `availableFrom <= dateStr`,
+  preserving pool order; `pickFirst`/`pickSecond` now index into that
+  eligible subset with `% eligible.length`, never `% MUTATOR_POOL.length`.
+  `getMutatorsForDate` is now a thin wrapper over a new
+  `getMutatorsForDateFromPool(date, pool)`, which is what makes the
+  append-only test possible without exporting the live pool as mutable.
+  Yesterday's anti-repeat heuristic keeps its documented "cheap, can rarely
+  miss" character, just computed against yesterday's own eligible pool
+  (guarded against a zero-length yesterday pool with a `-1` sentinel index,
+  the one edge case: the very day the feature itself launched, since
+  yesterday was pre-launch. Verified by hand with the real hash that this
+  doesn't change 2026-08-10's actual pick, so the snapshot's launch day is
+  unaffected either way). No 23rd mutator added to the live pool; no
+  existing entry reordered, renamed, or retuned, confirmed by the diff being
+  additive-only plus the two selection functions.
+
+- **3. AGENTS.md.** Added "Adding a Daily Mutator": Tier A (override-only,
+  future `availableFrom`) vs Tier B (new runtime system, dedicated module,
+  seeded-draw discipline, kind classification), the frozen-history rules
+  (never reorder the pool, never edit a shipped `availableFrom`, never
+  `% MUTATOR_POOL.length` again), minimum tests, and the seeded-draw
+  tripwire.
+
+- **4. Did not touch.** `scripts/sim-test.ts` (left at 1907 lines, no split,
+  per the brief), `enemies.ts`/`render.ts`/`main.ts`/`ui.ts` (no split),
+  `SCORING`, `server/validate.mjs`. No 23rd mutator, no retuned mutator.
+
+- **Verification.** `npx tsc --noEmit` clean. `npm test` (10 suites
+  including the new `test:mutators`) all green. `npx tsx
+  scripts/sim-test.ts`: one pre-existing flake, "lances/wheels/bombs burst
+  back into drones", confirmed unrelated to this work (reproduced the same
+  intermittent pass/fail on unmodified `main` across 3 runs, ~1/3 fail
+  rate; almost certainly the documented `Math.random`-only crowd-trigger
+  path, not a regression here). Every other sim-test check passed on every
+  run, including all 22-pool-mutator boot/survive checks and every
+  determinism check.
+
+- **Snapshot confirmation.** All 144 dates 2026-08-10 through 2026-12-31
+  resolve identically before and after the selection rewrite (0 mismatches,
+  checked directly, not just via the test file).
+
+- **Doubts / flags for Sam.**
+  - The brief said "main is idle at `a39968a`"; by the time this worktree
+    was created, `main` had already advanced to `3635a36` (merge of the
+    gameover-calendar-recording branch) and further to `d3d0114`
+    (a journal-only commit), and local `main` reported "up to date with
+    origin/main", meaning that merge was already pushed and presumably
+    already auto-deployed by Render before this session started. Not
+    something this session did; flagging since it's a deviation from the
+    stated starting state and (if unintended) worth Sam confirming with
+    Lucas whether that deploy was expected.
+  - The "lances/wheels/bombs burst back into drones" sim-test flake
+    (~1/3 fail rate on both `main` and this branch) is pre-existing and out
+    of this PR's scope (no engine changes allowed), but worth a ticket: a
+    real Daily Patrol mutator day that happens to trigger lance/wheel/bomb
+    evolutions could theoretically hit the same nondeterminism, though
+    Daily Patrol's own determinism checks all passed clean.
+  - Follow-up not done here (out of scope per the brief): no 23rd mutator
+    was added. This PR only proves the mechanism works; an actual Tier
+    A/Tier B mutator still needs its own design pass.
+
+- **Commit.** `3e6c966` on `sam/mutator-hardening`, pushed to origin with
+  `-u`. Not merged into `main`.
+
 ## 2026-08-18: calendar + lean game-over + findable recording MERGED + DEPLOYED (main `3635a36`)
 
 - Lucas: "live". Merged `sam/gameover-calendar-recording` (`18cd3be`) into

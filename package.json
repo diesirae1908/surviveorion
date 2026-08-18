@@ -20,7 +20,8 @@
     "test:server-daily-history": "node scripts/test-server-daily-history.mjs",
     "test:daily-combined-rank": "node scripts/test-daily-combined-rank.mjs",
     "test:no-em-dash": "npx tsx scripts/test-no-em-dash.ts",
-    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:daily-combined-rank && npm run test:no-em-dash"
+    "test:mutators": "npx tsx scripts/test-mutators.ts",
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutators"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
