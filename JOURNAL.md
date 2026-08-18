@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-18: append-only Daily Mutators MERGED + DEPLOYED (main `2b8554e`)
+
+- Lucas: "ok all push live". Merged `sam/mutator-hardening` into `main` as
+  `--no-ff` `2b8554e` (rebased onto combined-rank main via merge `057fd73`).
+  Render deploy `dep-da2dpf49v7es73c5re3g` live. Bundle
+  `index-uHyZDvG3.js` -> `index-BJWU_z2Q.js`. Live JS contains
+  `availableFrom`. Player-facing days unchanged; mutator #23 can now ship
+  with a future `availableFrom` without reshuffling Aug 10, 2026 onward.
+- Verified locally after the main merge: `tsc --noEmit` clean, full
+  `npm test` (11 suites including `test:mutators`) all pass. Did not open
+  the live game in Cursor (audio blast earlier today).
+
 ## 2026-08-18: combined daily ranks MERGED + DEPLOYED (main `74a8d4b`)
 
 - Lucas: "push live". Merged `sam/daily-rank-and-nickname-fix` (`26cd52b`)
