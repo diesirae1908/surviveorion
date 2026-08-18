@@ -4,6 +4,150 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-18: patrol calendar finished, game-over redesigned around THIS RUN, recording made findable + Safari/iOS-capable (branch `sam/gameover-calendar-recording`, unmerged, not deployed)
+
+- **Trigger.** Lucas playtested surviveorion.com live (`08a1a72` / journal
+  `a39968a`) Aug 18 ~9:25 AM PT and reported three things: recording isn't
+  findable, the game-over screen is still overcrowded with all-time info
+  and not visual, and he's never seen the calendar. New branch off current
+  `main`, worked in an isolated worktree (`.worktrees/gameover-calendar-recording`)
+  since the primary checkout was busy. No push, no merge, no deploy, no
+  production DB writes.
+
+- **1. Patrol history calendar, finished.** `sam/patrol-calendar-menu-back`
+  (`529f229`) turned out to be based on `40080a9`, an ancestor from BEFORE
+  callsign safety, recording, and the highlights/em-dash sweep landed on
+  `main`: a wholesale merge would have clobbered all of that. Hand-ported
+  instead: `src/dailyHistory.ts` (day-status pure logic), `server/dateUtils.mjs`
+  (UTC date validation), and both test suites
+  (`scripts/test-daily-history.ts`, `scripts/test-server-daily-history.mjs`)
+  copied over unchanged, since they predate and don't touch anything that
+  moved. Wired fresh on top of current `main`: `server/db.mjs`
+  (`dailyHistoryForUser`, one query with a window function, not one query
+  per day), `server/index.mjs` (`GET /api/me/daily-history`, `joinedAt` on
+  `/api/me`), `src/api.ts` (`dailyHistory()`, `joinedAt`), `src/save.ts`
+  (`DailyDayLog`, `loadDailyHistory`, `archiveDailyDay` on UTC rollover),
+  `src/share.ts` (exported `DAILY_EPOCH_DATE`), and the calendar UI + all of
+  `main.ts`'s orchestration (`openPatrolCalendar`, month math, the
+  session-lifetime server-row cache, a fetch-token guard against a slow
+  month fetch clobbering a screen the player already navigated away from).
+  A "See previous patrols" link sits directly under the `PATROL #N` line in
+  the Daily Patrol lobby, above the mutator briefing card, so it's the
+  first thing under the headline, not a buried settings entry. FOMO rule
+  preserved: `dayInfoFor` refuses to hand back a future day's mutator at
+  the source, so no caller can leak it. Ported the source branch's
+  consistent Escape-key-backs-out-one-level pattern to every submenu
+  (Settings, Powers, Feedback, the new Calendar, and `CommunityUi`'s
+  screens) via a small `makeSubmenu` helper, since the calendar needed it
+  and the other submenus were inconsistent about it already.
+  **Caught in review, not by the ported code:** the calendar CSS classes
+  referenced by `ui.ts` (`.calendar-grid`, `.calendar-day`, etc.) didn't
+  actually exist anywhere in `style.css`. The grid rendered as a column of
+  full-width, 240px-min default `<button>`s (the base `button` rule's
+  `min-width: 240px` with nothing overriding it), which looked
+  coincidentally OK on a wide desktop viewport by luck of inline-block
+  wrapping, and badly broken at 375px (grid crushed into a ~200px column).
+  Wrote the missing CSS from scratch (7-column grid, explicit
+  `min-width: 0` override on the day buttons: this IS the "review-fix for
+  calendar-day button overflow" the brief asked to preserve, just written
+  fresh rather than ported, since there was nothing to port). Browser
+  verified, rendered at both desktop and 375px mobile width post-fix: full-
+  width 7-column grid, no overflow, day-detail panel fits, Escape and the
+  corner arrow both back out to the lobby, month nav correctly caps at the
+  current month and at the epoch/join-date floor.
+
+- **2. Game-over screen, redesigned around THIS RUN.** The shipped
+  `88e7632` pass only fixed World rank `#null` and added the mini board;
+  `showGameOver` still dumped Survived + Score + Peak multiplier + Kills +
+  Best (all-time) + a score-breakdown sentence + a longest-flight delta + a
+  rank summary + a country rank + a gap sentence + the mini board, all at
+  equal visual weight. Rewrote `showGameOver` + `setGameOverRank`: one hero
+  score (biggest element on the screen, gold gradient, `clamp(52px, 15vw,
+  88px)`), survived time riding along as a small subtitle, the closest-call
+  highlight and medal if earned, the gap-to-goal sentence + 2-row mini
+  board (unchanged, it already read as a fast visual comparison), the
+  primary actions (Fly again / Main menu / Save clip), then everything else
+  (all-time best, peak multiplier, kill count, the score breakdown, the
+  PB-time comparison, and, new, country rank) collapsed behind a single
+  "Details ▾" toggle, closed by default. Material product call made
+  without asking (per the brief's default): all-time Best stays, tucked
+  into Details, rather than being dropped outright. It's real information
+  a returning pilot might want, it just doesn't get to compete with the
+  score anymore. Looked at `sam/pilot-safety-and-highlights` (`fa9d25e`)
+  for the hero/collapsed-details hierarchy only; did not touch its
+  callsign filter or restore its moderation/masking/crash-filter, both of
+  which `main` already ships its own (different, deliberately kept)
+  versions of. Red Rising gold/red language kept throughout. No em dashes
+  added (`npm run test:no-em-dash` covers every string here).
+  Browser verified end to end at desktop and 375px mobile width by forcing
+  a real Daily Patrol run to game-over via the dev-only `window.__orion`
+  debug hook (`world.phase = 'dead'`, after confirming `state === "playing"`;
+  the ~2.1s launch-warp cinematic has to finish first, which tripped up two
+  earlier verification passes): hero score is the dominant element at both
+  widths, Details is collapsed by default and expands to kills/multiplier/
+  personal best/breakdown/flight-comparison, nothing overflows at 375px.
+
+- **3. Recording: findable, and MP4-capable for Safari/iOS.**
+  `PREFERRED_MIME_TYPES` was WebM-only (vp9/vp8/webm); Safari (14.5+, most
+  iPhones) has MediaRecorder + `canvas.captureStream()` but has never
+  supported WebM, so `pickMimeType()` returned `undefined` there and
+  `MediaRecorder` started with no explicit codec, at the mercy of that
+  browser's undocumented default. Added `video/mp4;codecs=avc1` and plain
+  `video/mp4` as fallback candidates (WebM still tried first everywhere it
+  works), and made `recordingSupported()` actually check codec support
+  (`pickMimeType() !== undefined`) instead of just API presence, so a
+  browser with the APIs but zero usable codecs no longer shows a toggle
+  that would silently produce no clip. Added `recordingUnavailableReason()`
+  (one plain sentence, names Safari/iPhone since that's the common real
+  case) and wired it into Settings as a disabled "Record runs: unavailable"
+  row instead of hiding the control outright: a player who goes looking
+  and finds nothing can't tell a missing feature from a bug. Added a
+  constructor retry (bitrate hint dropped) for MediaRecorder implementations
+  that reject a codec+bitrate combination outright. Findability fix: a
+  "🎥 Record next run" one-tap control now shows on the game-over screen
+  itself (inside the new layout, where `Save clip` would otherwise sit)
+  whenever this run had no clip but the browser can record. That's the
+  actual "not findable" fix, since it puts the switch where a player is
+  already looking right after a run instead of only in Settings. Recording
+  stays local-only, opt-in (`recordRuns` still defaults `false`), no
+  uploads, 360s / ~36MB worst-case cap unchanged. New tests in
+  `scripts/test-recorder.ts`: mocked `MediaRecorder.isTypeSupported` to
+  verify the WebM-before-MP4 preference order and each fallback rung
+  (desktop-like, Safari-like, generic-mp4-only, nothing-supported), plus a
+  check that `recordingUnavailableReason()` is a short, em-dash-free,
+  Safari-mentioning sentence. iOS Safari's real MediaRecorder behavior
+  could not be verified live in this session (no physical device / real
+  Safari available); the MP4 fallback is exercised only by the mocked unit
+  tests above, not a live Safari run. Flagging per the brief's tripwire:
+  this is the one slice that's unverified beyond code + mocked tests.
+
+- **Tests.** All ported/new suites wired into `npm test`:
+  `test:daily-history`, `test:server-daily-history` added alongside the
+  existing seven. Full run (`npm run build`, `npm test`, `npx tsx
+  scripts/sim-test.ts`) passes clean: `tsc --noEmit`, Vite production
+  build, all 9 test suites, and the full sim-test playtest suite
+  (formations, mutators, evolutions, tutorial, evasive-bot fairness,
+  determinism checks).
+
+- **Caveats.**
+  - iOS Safari MP4 recording is unit-tested (mocked codec support) but not
+    live-device-verified, see above.
+  - The patrol calendar's server-backed history was only exercised against
+    a local dev SQLite DB with no real historical daily runs in it, so the
+    signed-in "completed" / "completed-local-only" / conflict states were
+    verified by `test-daily-history.ts` and `test-server-daily-history.mjs`
+    (both synthetic), not by browsing an account with real multi-week
+    history.
+  - Game-over browser verification used the dev-only `window.__orion` debug
+    hook to force death rather than an actual drone collision; the DOM
+    didn't repaint until the tab received an interaction after `state`
+    flipped to `"gameover"` mid-session (likely a rAF-throttling artifact
+    of driving state via a raw console eval outside user interaction, not
+    a real gameplay issue: a real death always happens while the player
+    is actively engaged with the page).
+  - All-time Best was tucked into Details rather than dropped, per the
+    brief's stated default; flagging in case Lucas wants it gone entirely.
+
 ## 2026-08-17: reconciled pilot extras MERGED + DEPLOYED (main `08a1a72`)
 
 - Lucas approved the production deploy. Merged

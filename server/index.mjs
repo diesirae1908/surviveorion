@@ -19,6 +19,7 @@ import * as store from "./db.mjs";
 import { validateRun, MODES, GAME_MODES } from "./validate.mjs";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname.mjs";
 import { qualifyingBadges } from "./badges.mjs";
+import { isValidUtcDateStr } from "./dateUtils.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -385,6 +386,9 @@ const routes = {
       pendingFriends: store.pendingFriendCount(user.id),
       // guest accounts have no password yet — the profile screen offers to set one
       hasPassword: !!user.pass_hash,
+      // patrol history calendar: bounds how far back "missed" can honestly
+      // apply for this account (see src/dailyHistory.ts).
+      joinedAt: user.created_at,
     });
   },
 
@@ -554,6 +558,27 @@ const routes = {
       ? { rank: store.rankOf(user.id, { mode, dailyDate }), best: myBest }
       : null;
     json(res, 200, { date: dailyDate, entries, me });
+  },
+
+  // Patrol history calendar: one pilot's own completed-run record over a
+  // bounded date range (a month at a time from the client). Signed-in only,
+  // since a signed-out pilot's history lives entirely on their device (see
+  // src/dailyHistory.ts for why the server can't help there anyway).
+  "GET /api/me/daily-history": (req, res, user, url) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const from = url.searchParams.get("from") ?? "";
+    const to = url.searchParams.get("to") ?? "";
+    if (!isValidUtcDateStr(from) || !isValidUtcDateStr(to) || from > to)
+      return json(res, 400, { error: "invalid date range" });
+    // cap the span so a forged query can't force a full-table scan. Both
+    // strings are already confirmed valid calendar dates above, so
+    // Date.parse() here can't return NaN.
+    const spanDays = (Date.parse(to) - Date.parse(from)) / 86_400_000;
+    if (spanDays > 62) return json(res, 400, { error: "range too wide (max 62 days)" });
+    // the client can't know the future, so clamp instead of rejecting it:
+    // the current month's range naturally runs past today
+    const clampedTo = to > utcDate() ? utcDate() : to;
+    json(res, 200, { entries: store.dailyHistoryForUser(user.id, { from, to: clampedTo }) });
   },
 
   "POST /api/arenas": async (req, res, user) => {

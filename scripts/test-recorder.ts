@@ -8,7 +8,15 @@
 //
 //   npx tsx scripts/test-recorder.ts
 
-import { clipExtension, recordingSupported, RECORDING_MAX_SECONDS, BITRATE_BPS } from "../src/recorder";
+import {
+  clipExtension,
+  pickMimeType,
+  recordingSupported,
+  recordingUnavailableReason,
+  PREFERRED_MIME_TYPES,
+  RECORDING_MAX_SECONDS,
+  BITRATE_BPS,
+} from "../src/recorder";
 
 let failures = 0;
 
@@ -35,6 +43,64 @@ try {
 }
 check("recordingSupported does not throw without a DOM", threw, false);
 check("recordingSupported reports false without a DOM", supported, false);
+
+// recordingUnavailableReason: always a non-empty, player-readable sentence
+// when recording isn't offered (true in this Node environment, no DOM at
+// all). Covers the "unsupported-browser copy path" — the message a player
+// actually sees instead of a silently missing control (2026-08-18: iOS
+// Safari findable-recording fix, see recorder.ts module comment).
+const reason = recordingUnavailableReason();
+check("recordingUnavailableReason mentions Safari (the common real case)", /safari/i.test(reason), true);
+check("recordingUnavailableReason has no em dash", /\u2014|\s-\s/.test(reason), false);
+if (reason.length === 0 || reason.length > 200) {
+  failures++;
+  console.error(`FAIL recordingUnavailableReason length out of a sane range: ${reason.length}`);
+}
+
+// pickMimeType: mocks MediaRecorder.isTypeSupported (no real browser
+// needed) to verify the preference order — WebM first where a browser
+// supports it, MP4 as the fallback that makes iOS Safari (no WebM, ever)
+// actually produce a clip instead of silently getting an untyped
+// MediaRecorder and hoping for the best (2026-08-18 fix, see the
+// PREFERRED_MIME_TYPES comment in recorder.ts).
+function withMockMediaRecorder(supported: string[], run: () => void): void {
+  const prev = (globalThis as { MediaRecorder?: unknown }).MediaRecorder;
+  (globalThis as { MediaRecorder?: unknown }).MediaRecorder = {
+    isTypeSupported: (t: string) => supported.includes(t),
+  };
+  try {
+    run();
+  } finally {
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = prev;
+  }
+}
+
+withMockMediaRecorder(["video/webm;codecs=vp9", "video/mp4"], () => {
+  check("prefers WebM vp9 when both WebM and MP4 are supported (desktop Chrome-like)", pickMimeType(), "video/webm;codecs=vp9");
+});
+
+withMockMediaRecorder(["video/mp4;codecs=avc1", "video/mp4"], () => {
+  check(
+    "falls back to MP4 avc1 when no WebM candidate is supported (Safari 14.5-18.3-like)",
+    pickMimeType(),
+    "video/mp4;codecs=avc1",
+  );
+});
+
+withMockMediaRecorder(["video/mp4"], () => {
+  check("falls back to bare video/mp4 when only the generic type is supported", pickMimeType(), "video/mp4");
+});
+
+withMockMediaRecorder([], () => {
+  check("returns undefined when nothing in the list is supported", pickMimeType(), undefined);
+});
+
+check(
+  "PREFERRED_MIME_TYPES lists every WebM candidate before every MP4 candidate",
+  PREFERRED_MIME_TYPES.findIndex((t) => t.includes("mp4")) >
+    PREFERRED_MIME_TYPES.map((t) => t.includes("webm")).lastIndexOf(true),
+  true,
+);
 
 // Sanity on the duration cap: a round, known value (not accidentally
 // changed to something huge or zero). 360s (6:00) is a deliberate choice

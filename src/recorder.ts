@@ -55,31 +55,73 @@ const CAPTURE_FPS = 24;
  */
 export const BITRATE_BPS = 800_000;
 
-const PREFERRED_MIME_TYPES = [
+// WebM first where it works (desktop Chrome/Firefox, Android Chrome, Safari
+// 18.4+): smaller files at the same visual quality for a flat-shaded 2D
+// canvas. The video/mp4 entries are the fallback that actually matters for
+// iOS: Safari 14.5-18.3 (the vast majority of iPhones as of this writing)
+// implements MediaRecorder + canvas.captureStream() correctly but has NEVER
+// supported WebM, so isTypeSupported() rejects every webm candidate above
+// and, without an mp4 candidate in this list, pickMimeType() used to return
+// undefined there — not "recording is unsupported" (recordingSupported()
+// only checked API existence, not codec support), but a silent "the toggle
+// is on, MediaRecorder starts with no explicit codec, and whether a usable
+// clip comes out depends on that browser's undocumented default". Two mp4
+// candidates, most-specific first, since Safari's isTypeSupported is
+// stricter about the parameterized string than the bare mime type on some
+// versions.
+export const PREFERRED_MIME_TYPES = [
   "video/webm;codecs=vp9",
   "video/webm;codecs=vp8",
   "video/webm",
+  "video/mp4;codecs=avc1",
+  "video/mp4",
 ];
 
 interface CaptureCanvas extends HTMLCanvasElement {
   captureStream(frameRate?: number): MediaStream;
 }
 
+/** First mime type this MediaRecorder implementation can actually produce,
+ * or undefined if none of PREFERRED_MIME_TYPES are supported. Exported for
+ * scripts/test-recorder.ts, which mocks MediaRecorder.isTypeSupported to
+ * verify the WebM-before-MP4 preference order without a real browser. */
+export function pickMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return undefined;
+  }
+  return PREFERRED_MIME_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+}
+
+/**
+ * True only when this browser can both capture the canvas AND actually
+ * encode at least one of PREFERRED_MIME_TYPES — API existence alone isn't
+ * enough (see the module comment above): a browser with the APIs but zero
+ * usable codecs would otherwise show a toggle that silently produces no
+ * clip, which is worse than not showing it (see recordingUnavailableReason
+ * for what to show instead).
+ */
 export function recordingSupported(): boolean {
   return (
     typeof document !== "undefined" &&
     typeof HTMLCanvasElement !== "undefined" &&
     typeof (HTMLCanvasElement.prototype as Partial<CaptureCanvas>).captureStream === "function" &&
     typeof window !== "undefined" &&
-    typeof window.MediaRecorder === "function"
+    typeof window.MediaRecorder === "function" &&
+    pickMimeType() !== undefined
   );
 }
 
-function pickMimeType(): string | undefined {
-  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
-    return undefined;
-  }
-  return PREFERRED_MIME_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+/**
+ * One plain sentence for why recording isn't offered here, or null when it
+ * is. Shown as a disabled Settings row instead of just hiding the control
+ * (see ui.ts showSettings): a player who goes looking for "record my run"
+ * and finds nothing at all can't tell a missing feature from a bug, and
+ * Safari/iPhone (no WebM, and on older versions no MediaRecorder at all)
+ * is common enough in Orion's install base to name explicitly rather than
+ * a generic "not supported".
+ */
+export function recordingUnavailableReason(): string {
+  return "Clip recording isn't available in this browser. Common on Safari and older phones, works on most desktop and Android browsers.";
 }
 
 export interface RecordingHandle {
@@ -106,10 +148,15 @@ export function startRecording(canvas: HTMLCanvasElement): RecordingHandle | nul
   try {
     const stream = (canvas as CaptureCanvas).captureStream(CAPTURE_FPS);
     const mimeType = pickMimeType();
-    const recorder = new MediaRecorder(
-      stream,
-      mimeType ? { mimeType, videoBitsPerSecond: BITRATE_BPS } : { videoBitsPerSecond: BITRATE_BPS },
-    );
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: BITRATE_BPS });
+    } catch {
+      // some MediaRecorder implementations (older Safari point releases)
+      // reject a bitrate hint paired with certain codecs; retry with just
+      // the mime type before giving up on this run entirely
+      recorder = new MediaRecorder(stream, { mimeType });
+    }
     const chunks: BlobPart[] = [];
     let stopped = false;
     let hitCap = false;

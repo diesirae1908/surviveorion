@@ -13,6 +13,7 @@ import {
 import { BADGES, TIER_LABEL, type BadgeProgressStats } from "./badges";
 import { GAME_MODES, GAME_MODE_LABEL, type GameMode } from "./config";
 import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
+import { isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
 import { dailyResetLabel } from "./ui";
 
@@ -87,6 +88,17 @@ export class CommunityUi {
       // the player may have left for the menu or a run since we pushed —
       // only navigate if our screen is still the one on display
       if (act && this.currentScreen && this.root.contains(this.currentScreen)) act();
+    });
+
+    // Escape backs out one level, same as tapping the corner arrow. Gated
+    // the same way popstate is above (still-on-display check) plus a typing
+    // guard so it doesn't fight a focused form field.
+    window.addEventListener("keydown", (e) => {
+      if (e.code !== "Escape") return;
+      if (isTypingTarget(e.target)) return;
+      if (!this.backAction || !this.currentScreen || !this.root.contains(this.currentScreen)) return;
+      e.preventDefault();
+      this.goBack();
     });
   }
 

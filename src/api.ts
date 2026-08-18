@@ -120,6 +120,15 @@ export interface FriendActivityEntry {
   createdAt: number;
 }
 
+/** One UTC day's confirmed result from GET /api/me/daily-history. */
+export interface DailyHistoryEntry {
+  date: string;
+  best: number;
+  bestTime: number;
+  runs: number;
+  rank: number | null;
+}
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -140,6 +149,10 @@ export class Api {
   googleClientId = "";
   /** Incoming friend requests awaiting an answer (menu badge). */
   pendingFriends = 0;
+  /** Account creation time (ms), null until a signed-in /api/me resolves.
+   * Bounds how far back the patrol history calendar can honestly say
+   * "missed" for this pilot (see src/dailyHistory.ts). */
+  joinedAt: number | null = null;
   /** False for guest accounts until they set one from the profile screen. */
   hasPassword = true;
   /** false once a request fails to reach the server at all. */
@@ -192,10 +205,12 @@ export class Api {
           user: UserInfo;
           pendingFriends?: number;
           hasPassword?: boolean;
+          joinedAt?: number;
         }>("GET", "/api/me");
         this.user = me.user;
         this.pendingFriends = me.pendingFriends ?? 0;
         this.hasPassword = me.hasPassword ?? true;
+        this.joinedAt = me.joinedAt ?? null;
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;
@@ -322,6 +337,12 @@ export class Api {
     const q = new URLSearchParams({ mode, gameMode });
     if (country) q.set("country", country);
     return this.request<LeaderboardResponse>("GET", `/api/leaderboard/world?${q}`);
+  }
+
+  /** One pilot's own completed-run record for a bounded date range (the
+   * patrol history calendar, a month at a time). Signed-in only. */
+  dailyHistory(from: string, to: string): Promise<{ entries: DailyHistoryEntry[] }> {
+    return this.request("GET", `/api/me/daily-history?from=${from}&to=${to}`);
   }
 
   /** Today's Daily Patrol board (shared-seed runs, resets at UTC midnight). */

@@ -67,6 +67,7 @@ const CONTROLS_KEY = "orion.controls";
 const KEYBINDS_KEY = "orion.keybinds";
 const GAME_MODE_KEY = "orion.gameMode";
 const DAILY_ATTEMPTS_KEY = "orion.dailyAttempts";
+const DAILY_HISTORY_KEY = "orion.dailyHistory";
 
 const SENSE_LEVELS: SenseLevel[] = ["low", "med", "high"];
 
@@ -155,14 +156,81 @@ export function utcDateString(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Today's attempt state; a stale date resets the budget. */
+// --- Local per-device history (patrol calendar) ---
+//
+// The attempt budget above is deliberately throwaway (a stale date just
+// resets it). The calendar needs to remember what actually happened on
+// past days, so every time a day rolls over we archive its final state
+// here before resetting. This is the ONLY place this device can tell
+// "started a patrol but never finished it" (the tab closed, a crash) from
+// "never opened the app that day": a signed-in player's completed runs are
+// also visible to the server (see the daily-history API), but attempt
+// starts never are. Local-only, same caveats as the attempt budget itself
+// (incognito/clearing storage loses it), and rolling so it can't grow
+// forever on a device played every day for years.
+
+const DAILY_HISTORY_MAX_DAYS = 120;
+
+/** One UTC day's local Daily Patrol record, archived once that day is over. */
+export interface DailyDayLog {
+  date: string;
+  /** Attempts spent that day, whether or not any of them finished. */
+  attemptsUsed: number;
+  /** Best completed result that day, if any run actually finished. */
+  best: DailyBestResult | null;
+}
+
+function isDailyDayLog(v: unknown): v is DailyDayLog {
+  if (!v || typeof v !== "object") return false;
+  const d = v as Partial<DailyDayLog>;
+  return typeof d.date === "string" && typeof d.attemptsUsed === "number";
+}
+
+function loadDailyHistoryRaw(): DailyDayLog[] {
+  try {
+    const raw = localStorage.getItem(DAILY_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isDailyDayLog) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Local Daily Patrol history for this device, newest first. Gaps in the
+ * dates mean the app wasn't open that day, not that the day was missed. */
+export function loadDailyHistory(): DailyDayLog[] {
+  return loadDailyHistoryRaw().sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+/** Archive a day's final attempt state (called when loadDailyAttempts()
+ * below detects the UTC day has rolled over). Upserts by date and keeps
+ * the log capped to the most recent DAILY_HISTORY_MAX_DAYS entries. */
+function archiveDailyDay(entry: { date: string; used: number; best: DailyBestResult | null }): void {
+  const list = loadDailyHistoryRaw().filter((d) => d.date !== entry.date);
+  list.push({ date: entry.date, attemptsUsed: entry.used, best: entry.best });
+  list.sort((a, b) => (a.date < b.date ? 1 : -1));
+  localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(list.slice(0, DAILY_HISTORY_MAX_DAYS)));
+}
+
+/** Today's attempt state; a stale date resets the budget (and archives the
+ * day that just ended into the local history, see above). */
 export function loadDailyAttempts(): DailyAttempts {
   const fresh: DailyAttempts = { date: utcDateString(), used: 0, best: null };
   try {
     const raw = localStorage.getItem(DAILY_ATTEMPTS_KEY);
     if (!raw) return fresh;
     const parsed = JSON.parse(raw) as Partial<DailyAttempts>;
-    if (parsed.date !== fresh.date || typeof parsed.used !== "number") return fresh;
+    if (parsed.date !== fresh.date || typeof parsed.used !== "number") {
+      if (typeof parsed.date === "string" && typeof parsed.used === "number") {
+        archiveDailyDay({
+          date: parsed.date,
+          used: Math.max(0, Math.floor(parsed.used)),
+          best: parsed.best ?? null,
+        });
+      }
+      return fresh;
+    }
     return {
       date: fresh.date,
       used: Math.max(0, Math.floor(parsed.used)),
