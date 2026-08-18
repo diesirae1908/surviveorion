@@ -131,6 +131,17 @@ export interface Mutator {
   difficultyFactor: number;
   /** Exclusion tags: two mutators sharing a tag can never fly the same Sunday. */
   tags: string[];
+  /**
+   * UTC `YYYY-MM-DD`: the first day this entry can be selected. Every one of
+   * the 22 entries below is pinned to `MUTATORS_START_DATE` so they behave
+   * exactly as before this field existed. This is what makes appending a
+   * 23rd entry safe later: selection indexes into the pool of entries
+   * eligible for the requested date (see `eligiblePool` below), never the
+   * live pool as a whole, so a mutator that isn't eligible yet can't shift
+   * any past day's pick. Set on the day a new mutator ships; never edited
+   * afterward (see AGENTS.md "Adding a Daily Mutator").
+   */
+  availableFrom: string;
   overrides: MutatorOverrides;
 }
 
@@ -186,7 +197,32 @@ const NO_WALL: Record<FormationKind, number> = {
   megawall: 0,
 };
 
-/** The full mutator pool. Order is stable (selection indexes into this). */
+/**
+ * Launch gate (UTC date string, obvious place to find/change it). Any UTC
+ * date strictly before this one resolves to no mutators at all (see the
+ * early return in `getMutatorsForDateFromPool` below): vanilla daily, no
+ * briefing card, no medal thresholds/UI/share lines (main.ts/ui.ts key all
+ * of that off an empty mutator list). From this date onward, selection
+ * below runs as normal. Also doubles as the shared `availableFrom` for
+ * every entry below: all 22 went live on day one, so they're all eligible
+ * from the same date the gate opens (see `Mutator.availableFrom`).
+ *
+ * Live from 2026-08-10 (Lucas's call): a handful of pilots flew that UTC
+ * day's vanilla daily before the feature shipped, so today's board mixes
+ * vanilla and mutator flights. Accepted tradeoff, not a bug.
+ *
+ * The ?mutator= preview override (main.ts) bypasses this gate on purpose
+ * where it's still reachable (see PREVIEW_MUTATORS there: dev-only since
+ * the same change that moved this date up).
+ *
+ * This only suppresses; it never shifts. `pickFirst`/`pickSecond` below are
+ * unconditional functions of the date string, so which mutator lands on
+ * which future date is unaffected by this gate.
+ */
+export const MUTATORS_START_DATE = "2026-08-10";
+
+/** The full mutator pool. Order is stable (selection indexes into the
+ * subset of this pool eligible for a given date, see `eligiblePool`). */
 export const MUTATOR_POOL: Mutator[] = [
   {
     id: "blackout",
@@ -195,6 +231,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "On-screen spawn warnings are much shorter (0.5s instead of 1.4s). Everything else is normal.",
     difficultyFactor: 1.1,
     tags: ["visibility"],
+    availableFrom: MUTATORS_START_DATE,
     // v2 (round 2): pure ratio=0 ("everything sneaks, no warning at all")
     // tested too lethal for a dodge-only game: the evasive-bot harness in
     // sim-test showed a real survival hit vs baseline. Keeping telegraphs on
@@ -209,6 +246,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Spawn rate, formation frequency, and pickup drops all sped up. Drone speed is unchanged.",
     difficultyFactor: 1.05,
     tags: ["tempo"],
+    availableFrom: MUTATORS_START_DATE,
     // v2 (round 2, was OVERDRIVE): tempo, not twitch. droneSpeedScale is
     // deliberately absent so drones keep their normal zombie-shamble speed;
     // the pressure is more threats arriving faster, not faster threats.
@@ -226,6 +264,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Formations almost never happen. Ambient density is up, but arrives in clearer packs with lanes between them.",
     difficultyFactor: 0.95,
     tags: ["density"],
+    availableFrom: MUTATORS_START_DATE,
     // v2 (round 2): Lucas's playability concern was legitimate. Toned the
     // raw ambient rate down from 1.6 to 1.3, added a lower soft cap on loose
     // drones (real lanes instead of the default 130-drone ceiling) and bigger
@@ -261,6 +300,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // and "formation-kind" with YEAR OF THE SERPENT (only one forced-diet
     // formation day per Sunday).
     tags: ["formation-kind", "density"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       ambientRateScale: 0,
       formationIntervalScale: 0.5,
@@ -296,6 +336,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // simultaneous kill cluster than a wall spanning the whole screen edge.
     difficultyFactor: 0.8,
     tags: ["formation-kind", "density"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       ambientRateScale: 0,
       formationIntervalScale: 0.45,
@@ -335,6 +376,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // factor follows: 1.1 -> 0.95.
     difficultyFactor: 0.95,
     tags: ["assembly-kind"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       menagerieChoreography: true,
       ambientRateScale: 0.3, // density pass (2026-08-10): raised from 0.15, the thinner trickle still read dead between creatures
@@ -353,6 +395,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // baseline for the volley rhythm; see JOURNAL.md for all four numbers.
     difficultyFactor: 0.95,
     tags: ["assembly-kind"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       forceAssemblyKind: "lance",
       ambientRateScale: 0,
@@ -370,6 +413,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // room to graze safely while still crossing danger).
     difficultyFactor: 1.0,
     tags: ["assembly-kind"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       forceAssemblyKind: "wheel",
       ambientRateScale: 0,
@@ -387,6 +431,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // die one at a time rather than sweeping through in a batch).
     difficultyFactor: 0.75,
     tags: ["assembly-kind"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       forceAssemblyKind: "hunter",
       ambientRateScale: 0,
@@ -404,6 +449,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // shrapnel burst offers the most simultaneous graze surface).
     difficultyFactor: 0.9,
     tags: ["assembly-kind"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       forceAssemblyKind: "bomb",
       ambientRateScale: 0,
@@ -421,6 +467,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // of round 5's MENAGERIE rebuild): this is a conscription frequency AND
     // scale change, so it can't stack sensibly with any direct-spawn day.
     tags: ["assembly-kind"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { assemblyIntervalScale: 2.4, assemblyCountScale: 1.8, assemblyMaxConcurrent: 1 },
   },
   {
@@ -430,6 +477,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Pickup drops roughly twice as often, ambient density up slightly.",
     difficultyFactor: 0.85,
     tags: ["pickup-rate"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { pickupIntervalScale: 0.5, ambientRateScale: 1.1 },
   },
   {
@@ -439,6 +487,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Drop rate is normal, but every power's blast radius, count, or duration is amplified.",
     difficultyFactor: 0.8,
     tags: ["power-amp"],
+    availableFrom: MUTATORS_START_DATE,
     // Drop RATE is deliberately untouched (per Sam's ask); only magnitude.
     // See powers.ts for exactly which dimension gets amplified per power;
     // checked against server/validate.mjs's MAX_KILLS_PER_SEC (raised 12 to 20
@@ -453,6 +502,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Every pickup is a Cryo Field.",
     difficultyFactor: 0.9,
     tags: ["monopower"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { powerWeights: monoPowerWeights("freeze") },
   },
   {
@@ -462,6 +512,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Every pickup is a Missile Swarm.",
     difficultyFactor: 0.95,
     tags: ["monopower"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { powerWeights: monoPowerWeights("missiles") },
   },
   {
@@ -471,6 +522,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Vortex (normally benched) drops often today.",
     difficultyFactor: 0.85,
     tags: ["monopower"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { extraPowerIds: ["vortex"], powerWeights: { vortex: 6 } },
   },
   {
@@ -485,6 +537,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // handleShipBlastCollisions), so it keeps the "monopower" exclusion
     // (can't stack with CRYO WINTER/IRON BARRAGE/SINGULARITY on a Sunday).
     tags: ["monopower"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: {
       powerWeights: monoPowerWeights("shield"),
       pickupIntervalScale: 0.8,
@@ -498,6 +551,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "The arena is about 30% smaller in both dimensions.",
     difficultyFactor: 1.2,
     tags: ["arena-size"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { viewScale: 0.72 },
   },
   {
@@ -507,6 +561,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Every drone is bigger and a bit slower. Fewer of them spawn.",
     difficultyFactor: 1.0,
     tags: ["drone-size"],
+    availableFrom: MUTATORS_START_DATE,
     // A zero-width clamp pins every drone (ambient AND formation members) to
     // one bigger size, same trick SPAWNER.scaleClamp already uses to pin the
     // default 0.9. It neutralizes the size-speed lerp (see droneSizeSpeedFactor
@@ -522,6 +577,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Mines appear roughly three times as often.",
     difficultyFactor: 1.1,
     tags: ["mines"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { mineIntervalScale: 0.35 },
   },
   {
@@ -533,6 +589,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // Also excluded from THE PIT: a shrunk arena plus a constant crosswind
     // pinning you against the (now closer) walls tested as too much at once.
     tags: ["physics", "arena-size"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { windStrength: 2.2 },
   },
   {
@@ -542,6 +599,7 @@ export const MUTATOR_POOL: Mutator[] = [
     subline: "Pickups slowly drift toward your ship all day, on top of their normal wander.",
     difficultyFactor: 0.85,
     tags: ["pickup-behavior"],
+    availableFrom: MUTATORS_START_DATE,
     overrides: { pickupMagnetStrength: 1.4 },
   },
 ];
@@ -567,8 +625,19 @@ function shareTag(a: Mutator, b: Mutator): boolean {
   return a.tags.some((t) => b.tags.includes(t));
 }
 
-function poolIndex(seedKey: string): number {
-  return hashString(seedKey) % MUTATOR_POOL.length;
+function poolIndex(seedKey: string, length: number): number {
+  return hashString(seedKey) % length;
+}
+
+/**
+ * Entries eligible on a given UTC date, preserving pool order. Selection
+ * below indexes into this, never the raw MUTATOR_POOL.length, so appending a
+ * 23rd entry (future availableFrom) can never change what any past date
+ * resolves to: past dates see the exact same eligible list, same length,
+ * same order, as before the append (see JOURNAL.md "append-only selection").
+ */
+function eligiblePool(pool: Mutator[], dateStr: string): Mutator[] {
+  return pool.filter((m) => m.availableFrom <= dateStr);
 }
 
 /**
@@ -577,59 +646,74 @@ function poolIndex(seedKey: string): number {
  * mutator" (it compares against yesterday's raw hash index, not its fully
  * resolved pick, so it can rarely miss a repeat after yesterday's own step;
  * acceptable for a hobby daily feature, and documented here on purpose).
+ *
+ * Indexes into today's eligible pool with modulus eligible.length, never
+ * MUTATOR_POOL.length. On the day a new mutator is introduced, today's and
+ * yesterday's eligible pools can have different lengths (yesterday's raw
+ * index is meaningless against a differently-sized pool, but comparing
+ * indices from two different-length pools was already the documented
+ * "can rarely miss a repeat" tradeoff above, just with one more way to miss;
+ * not worth getting clever over for a hobby daily). If nothing was eligible
+ * yesterday at all (only possible the day the feature itself launches, since
+ * every live entry is pinned to the same availableFrom), there is nothing to
+ * avoid repeating, so the step is skipped outright.
  */
-function pickFirst(dateStr: string): Mutator {
-  const idx = poolIndex(`orion-mutator-${dateStr}-1`);
-  const yesterdayIdx = poolIndex(`orion-mutator-${addUtcDays(dateStr, -1)}-1`);
-  const finalIdx = idx === yesterdayIdx ? (idx + 1) % MUTATOR_POOL.length : idx;
-  return MUTATOR_POOL[finalIdx];
+function pickFirst(dateStr: string, pool: Mutator[]): Mutator {
+  const eligible = eligiblePool(pool, dateStr);
+  const idx = poolIndex(`orion-mutator-${dateStr}-1`, eligible.length);
+  const yesterdayStr = addUtcDays(dateStr, -1);
+  const yesterdayEligible = eligiblePool(pool, yesterdayStr);
+  const yesterdayIdx =
+    yesterdayEligible.length > 0 ? poolIndex(`orion-mutator-${yesterdayStr}-1`, yesterdayEligible.length) : -1;
+  const finalIdx = idx === yesterdayIdx ? (idx + 1) % eligible.length : idx;
+  return eligible[finalIdx];
 }
 
-/** Second Sunday slot: compatible with the first pick, distinct from it. */
-function pickSecond(dateStr: string, first: Mutator): Mutator {
-  const start = poolIndex(`orion-mutator-${dateStr}-2`);
-  const yesterdayIdx = poolIndex(`orion-mutator-${addUtcDays(dateStr, -1)}-2`);
-  for (let step = 0; step < MUTATOR_POOL.length; step++) {
-    const idx = (start + step) % MUTATOR_POOL.length;
-    const candidate = MUTATOR_POOL[idx];
+/** Second Sunday slot: compatible with the first pick, distinct from it.
+ * See pickFirst's comment for the eligible-pool / introduction-day notes,
+ * which apply here identically. */
+function pickSecond(dateStr: string, first: Mutator, pool: Mutator[]): Mutator {
+  const eligible = eligiblePool(pool, dateStr);
+  const start = poolIndex(`orion-mutator-${dateStr}-2`, eligible.length);
+  const yesterdayStr = addUtcDays(dateStr, -1);
+  const yesterdayEligible = eligiblePool(pool, yesterdayStr);
+  const yesterdayIdx =
+    yesterdayEligible.length > 0 ? poolIndex(`orion-mutator-${yesterdayStr}-2`, yesterdayEligible.length) : -1;
+  for (let step = 0; step < eligible.length; step++) {
+    const idx = (start + step) % eligible.length;
+    const candidate = eligible[idx];
     if (candidate.id === first.id || shareTag(candidate, first)) continue;
     if (idx === yesterdayIdx && step === 0) continue; // try the next slot first
     return candidate;
   }
   // unreachable with the current pool (always >=2 mutually-compatible
   // entries), but keep a safe, always-compatible fallback just in case.
-  const fallback = MUTATOR_POOL.find((m) => m.id !== first.id && !shareTag(m, first));
+  const fallback = eligible.find((m) => m.id !== first.id && !shareTag(m, first));
   return fallback ?? first;
 }
 
-/**
- * Launch gate (UTC date string, obvious place to find/change it). Any UTC
- * date strictly before this one resolves to no mutators at all (see the
- * early return below): vanilla daily, no briefing card, no medal
- * thresholds/UI/share lines (main.ts/ui.ts key all of that off an empty
- * mutator list). From this date onward, selection below runs as normal.
- *
- * Live from 2026-08-10 (Lucas's call): a handful of pilots flew that UTC
- * day's vanilla daily before the feature shipped, so today's board mixes
- * vanilla and mutator flights. Accepted tradeoff, not a bug.
- *
- * The ?mutator= preview override (main.ts) bypasses this gate on purpose
- * where it's still reachable (see PREVIEW_MUTATORS there: dev-only since
- * the same change that moved this date up).
- *
- * This only suppresses; it never shifts. pickFirst/pickSecond below are
- * unconditional functions of the date string, so which mutator lands on
- * which future date is unaffected by this gate.
- */
-export const MUTATORS_START_DATE = "2026-08-10";
-
-/** Today's (or any date's) mutator(s): 1 normally, 2 on UTC Sundays. */
+/** Today's (or any date's) mutator(s) from the live pool: 1 normally, 2 on
+ * UTC Sundays. Thin wrapper so production always reads MUTATOR_POOL; the
+ * pool parameter exists for test injection (see getMutatorsForDateFromPool). */
 export function getMutatorsForDate(date: Date): Mutator[] {
+  return getMutatorsForDateFromPool(date, MUTATOR_POOL);
+}
+
+/**
+ * Same selection as `getMutatorsForDate`, but against an arbitrary pool
+ * instead of the live `MUTATOR_POOL`. Exists so tests can prove append-only
+ * behavior (inject a pool with an extra future-dated entry and confirm every
+ * past day's pick is untouched) without exporting the live pool as mutable
+ * or duplicating the selection logic. Production always calls this with
+ * `MUTATOR_POOL` via `getMutatorsForDate`; nothing else should call this
+ * directly outside tests.
+ */
+export function getMutatorsForDateFromPool(date: Date, pool: Mutator[]): Mutator[] {
   const dateStr = utcDateStr(date);
   if (dateStr < MUTATORS_START_DATE) return [];
-  const first = pickFirst(dateStr);
+  const first = pickFirst(dateStr, pool);
   if (!isUtcSunday(date)) return [first];
-  return [first, pickSecond(dateStr, first)];
+  return [first, pickSecond(dateStr, first, pool)];
 }
 
 export function getMutatorById(id: string): Mutator | undefined {

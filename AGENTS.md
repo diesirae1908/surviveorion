@@ -77,6 +77,43 @@ Lucas's decisions) and dispatches work here.
 - **If working directly** (not dispatched), record doubts in `JOURNAL.md` and
   surface them to Lucas rather than silently deciding.
 
+## Adding a Daily Mutator
+
+`src/mutators.ts` is append-only by design (see `scripts/test-mutators.ts` and
+JOURNAL.md, mutator-hardening pass): appending a 23rd entry must never
+reshuffle any past Daily Patrol day. Read `mutators.ts`'s header comment
+first, then:
+
+- **Tier A, override-only.** A new `MUTATOR_POOL` entry that reuses existing
+  override knobs (rate/scale/weight/interval multipliers, `firstOf`
+  replacements). Set `availableFrom` to a **future** UTC date, never in the
+  past, never "today" if pilots could already have scores on that UTC day.
+  Pick tags honestly (see "Sunday tags" below) and a `difficultyFactor` for
+  the medal thresholds.
+- **Tier B, new runtime system.** Needs a new override flag on
+  `MutatorOverrides` plus a getter (follow the pattern of `meteorRainActive`
+  / `mutatorMeteorRainActive`), and a dedicated module (copy `starfall.ts` for
+  an environmental effect, or `creatures.ts` for a direct-spawn choreography
+  day). Gate the new behavior on the flag/getter, never on `if (id ===
+  "your-id")` anywhere outside `mutators.ts` (`test:mutators` greps for this).
+  Double-check the seeded-draw discipline in the header comment: no extra or
+  missing `rand()`/`scheduleRand()` draws versus an ordinary day, or Daily
+  Patrol desyncs across play styles. Add it to the kind classification map in
+  `scripts/test-mutators.ts` (`override` / `creature` / `environmental`).
+- **Frozen history, never do these:** reorder `MUTATOR_POOL`, change
+  `availableFrom` on a shipped mutator, or make selection use
+  `% MUTATOR_POOL.length` again (it must always be `% eligible.length`, see
+  `eligiblePool` in `mutators.ts`).
+- **Minimum tests before shipping:** `npm run test:mutators` still green
+  (snapshot untouched for every existing date), the new id is classified,
+  and `npx tsx scripts/sim-test.ts` still passes (section "all N pool
+  mutators boot + survive 60s" already loops the whole pool, no per-mutator
+  test needed unless it's Tier B, which wants its own determinism check like
+  STARFALL's or MENAGERIE's).
+- **Tripwire:** if the mutator needs a new seeded `rand()`/`scheduleRand()`
+  draw that ordinary days don't make, stop and ask (see PM model above):
+  that is exactly the class of change that can desync Daily Patrol.
+
 ## Gameplay tuning facts
 
 - Two game modes (`GameMode` in config.ts, `gameMode` on `World`): **Classic**
