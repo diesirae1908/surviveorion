@@ -126,7 +126,7 @@ why, commit hash, follow-ups), committed together with the work. See
     was added. This PR only proves the mechanism works; an actual Tier
     A/Tier B mutator still needs its own design pass.
 
-- **Commit.** `5b117a1` on `sam/mutator-hardening`, pushed to origin with
+- **Commit.** `3e6c966` on `sam/mutator-hardening`, pushed to origin with
   `-u`. Not merged into `main`.
 
 ## 2026-08-18: patrol calendar finished, game-over redesigned around THIS RUN, recording made findable + Safari/iOS-capable (branch `sam/gameover-calendar-recording`, unmerged, not deployed)
