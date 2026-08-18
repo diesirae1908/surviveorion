@@ -35,7 +35,26 @@ const BLOCKED_TERMS = [
   "nazi", "hitler", "isis", "terrorist", "kkk", "genocide",
   // self-harm / harassment incitement
   "kys", "kill yourself", "suicide",
+  // 2026-08-18: scatological/sexual compounds and redaction-feature
+  // mockery that evaded the filter above (Lucas's screenshot: "Butt
+  // sniffer" and "Redact deeze nuts" both live on the leaderboard). These
+  // are deliberately whole COMPOUNDS, not their common short components
+  // ("butt", "nuts", "redact" all stay OFF the list: see the skipped-terms
+  // note below), so the collision surface with ordinary words/names is
+  // effectively zero.
+  "buttsniff", "deeznuts", "deezenuts", "deeznutz", "deezenutz",
 ];
+
+// Deliberately NOT added, even though they're part of the taunts above:
+//  - "butt": collides with extremely common words (button, buttercup,
+//    butte, Abbott...). Only the specific compound ("buttsniff") is
+//    blocked.
+//  - "nuts": an ordinary word on its own (peanuts, walnuts, doughnuts,
+//    nutshell...), not inherently offensive.
+//  - "redact": the taunt mocks the redaction FEATURE, but the word itself
+//    is completely legitimate (Redactor is a real word/agent-noun), the
+//    exact kind of guessy overreach this filter's design avoids. Only the
+//    "deez nuts" mockery half of that callsign is blocked.
 
 // Legitimate words/names that would otherwise collide with a BLOCKED_TERMS
 // substring, checked (as a whole-string match) before the block list so they

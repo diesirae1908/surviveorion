@@ -461,12 +461,21 @@ function showMenu(): void {
   fillDailyHint();
 }
 
-/** Fill the Daily Patrol hint with today's leader once the board loads. */
+/**
+ * Fill the Daily Patrol hint with today's leader once the board loads.
+ * MUST read the same combined (all-devices) ranking as TODAY'S BOARD below
+ * it: this used to call the per-device daily board, so the hint could name
+ * a different pilot (and a different, lower score) than TODAY'S BOARD #1
+ * (2026-08-18 fix, Lucas's screenshot: desktop hint said 627k while the
+ * combined board's #1 was a 1.01M phone score). The server already runs
+ * every entry through sanitizeCallsignForDisplay before it reaches this
+ * response; the `[&<>]` strip below is only HTML-escaping for the innerHTML
+ * render, not content moderation.
+ */
 function fillDailyHint(): void {
   if (!api.online) return;
-  const mode: BoardMode = isTouchDevice() ? "touch" : "desktop";
   void api
-    .dailyLeaderboard(mode)
+    .dailyLeaderboardCombined()
     .then((d) => {
       const top = d.entries[0];
       ui.setMenuDailyHint(

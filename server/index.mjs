@@ -457,16 +457,31 @@ const routes = {
       store.awardBadge(user.id, id),
     );
 
+    // Daily Patrol's rank and gap-to-goal target are the COMBINED daily
+    // board (every device merged, same ranking TODAY'S BOARD and the lobby
+    // hint use), not the per-device daily rank, and not the world all-time
+    // board. Fixes a 2026-08-18 bug where a desktop pilot's game-over screen
+    // chased their own device's daily-leader/world-leader, a different (and
+    // lower) score than the actual combined-board leader. Classic and Iron
+    // Rain (dailyDate is null for both) are untouched: they keep the world
+    // all-time board below, per-device as before.
     json(res, 200, {
       best: store.getUserBest(user.id, run.mode, gameMode),
       worldRank,
       countryRank: user.country
         ? store.rankOf(user.id, { country: user.country, mode: run.mode, gameMode })
         : null,
-      dailyRank: dailyDate ? store.rankOf(user.id, { mode: run.mode, dailyDate }) : null,
-      // gap-to-goal targets for the game-over screen (same game mode's board)
-      nextAbove: sanitizeEntry(store.nextAbove(user.id, run.mode, gameMode)),
-      nextWingmate: sanitizeEntry(store.nextWingmateAbove(user.id, run.mode, gameMode)),
+      dailyRank: dailyDate ? (store.dailyRankCombined(user.id, dailyDate)?.rank ?? null) : null,
+      nextAbove: sanitizeEntry(
+        dailyDate
+          ? store.nextAboveCombinedDaily(user.id, dailyDate)
+          : store.nextAbove(user.id, run.mode, gameMode),
+      ),
+      nextWingmate: sanitizeEntry(
+        dailyDate
+          ? store.nextWingmateAboveCombinedDaily(user.id, dailyDate)
+          : store.nextWingmateAbove(user.id, run.mode, gameMode),
+      ),
       newBadges,
     });
   },

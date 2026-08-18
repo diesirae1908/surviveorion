@@ -76,6 +76,20 @@ const ALLOWED = [
   "Retardant",
   "scunthorpe", // case-insensitive match against the exception list
   "GRAPE",
+  // 2026-08-18 tripwires: the SHORT COMPONENTS of the new taunt compounds
+  // must stay allowed, only the specific compound is blocked, not the
+  // common word it's built from (see server/nickname.mjs's skipped-terms
+  // note for why "butt"/"nuts"/"redact" are deliberately not on the list).
+  "Buttercup",
+  "Buttons",
+  "Butte",
+  "Abbott",
+  "Peanuts",
+  "Walnuts",
+  "Doughnuts",
+  "Nutshell",
+  "Redactor",
+  "Redacted",
 ];
 
 // Names that must be blocked, including the exact leaderboard examples that
@@ -113,6 +127,17 @@ const BLOCKED = [
   // spacing/punctuation evasion of a multi-word phrase
   "kill.yourself",
   "k i l l y o u r s e l f",
+  // 2026-08-18: the exact leaderboard names from Lucas's screenshot that
+  // evaded the 2026-08-17 filter, plus obfuscation variants.
+  "Butt sniffer",
+  "buttsniffer",
+  "Butt Sniff",
+  "BUTT SNIFFER",
+  "b.u.t.t s.n.i.f.f.e.r",
+  "Redact deeze nuts",
+  "redactdeeznuts",
+  "deez nuts",
+  "Deez Nutz",
 ];
 
 for (const name of ALLOWED) {
