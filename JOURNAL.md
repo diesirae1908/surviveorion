@@ -4,7 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-18: daily leaderboard combined-rank fix, buttsniff/deeznuts filter tightening (branch `sam/daily-rank-and-nickname-fix`, off main `d3d0114`, unmerged/unpushed)
+## 2026-08-18: combined daily ranks MERGED + DEPLOYED (main `74a8d4b`)
+
+- Lucas: "push live". Merged `sam/daily-rank-and-nickname-fix` (`26cd52b`)
+  into `main` as `--no-ff` `74a8d4b`. Render verified: bundle
+  `index-DetuWskv.js` -> `index-uHyZDvG3.js` (matches worktree prod hash).
+- Live combined board #1 is Lucaccino (touch, 1,014,630). Old desktop-only
+  #1 (627,124) and the "deeze nuts" row now display as Callsign redacted.
+  Live JS serves `/api/leaderboard/daily?mode=all` for the merged board.
+
+## 2026-08-18: daily leaderboard combined-rank fix, buttsniff/deeznuts filter tightening (branch `sam/daily-rank-and-nickname-fix`, merged 2026-08-18 as `74a8d4b`)
 
 - **Trigger.** Lucas screenshotted the Daily lobby ~11:22 AM PT: TODAY'S
   BOARD #1 was Lucaccino (phone, 1,014,630) but the "today's leader" hint
