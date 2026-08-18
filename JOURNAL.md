@@ -4,7 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-18: patrol calendar finished, game-over redesigned around THIS RUN, recording made findable + Safari/iOS-capable (branch `sam/gameover-calendar-recording`, unmerged, not deployed)
+## 2026-08-18: calendar + lean game-over + findable recording MERGED + DEPLOYED (main `3635a36`)
+
+- Lucas: "live". Merged `sam/gameover-calendar-recording` (`18cd3be`) into
+  `main` as `--no-ff` `3635a36` and pushed. Render auto-deploy verified:
+  bundle `index-jHlTHP4B.js` -> `index-DetuWskv.js` (matches the worktree
+  production build). Live JS contains "See previous patrols", "Record next
+  run", `result-hero`, Details, and `video/mp4`.
+- Remaining caveat: iOS Safari recording is codec-tested, not
+  physical-device-tested.
+
+## 2026-08-18: patrol calendar finished, game-over redesigned around THIS RUN, recording made findable + Safari/iOS-capable (branch `sam/gameover-calendar-recording`, merged 2026-08-18 as `3635a36`)
 
 - **Trigger.** Lucas playtested surviveorion.com live (`08a1a72` / journal
   `a39968a`) Aug 18 ~9:25 AM PT and reported three things: recording isn't
