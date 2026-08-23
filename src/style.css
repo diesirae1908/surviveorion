@@ -549,6 +549,13 @@ button.launch {
   color: #ffd700;
 }
 
+.daily-locked-sub {
+  color: #8a7a55;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  margin-top: -4px;
+}
+
 .daily-best-line {
   color: #ffee88;
   font-size: 14px;
@@ -1206,6 +1213,11 @@ textarea.field {
   line-height: 1.5;
 }
 
+.last-attempt-hint {
+  color: #ccaa66;
+  letter-spacing: 0.04em;
+}
+
 .form-error {
   color: #ff4455;
   font-size: 13px;
@@ -1762,6 +1774,15 @@ button.link-btn:active {
   margin-right: -0.5em;
   text-transform: uppercase;
   animation: enterPulse 1.6s ease-in-out infinite;
+}
+
+.gate-tagline {
+  color: #8a7a55;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-align: center;
+  max-width: 260px;
+  line-height: 1.7;
 }
 
 @keyframes enterPulse {

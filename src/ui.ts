@@ -706,9 +706,17 @@ export class Ui {
       const launch = this.button("Launch", true, () => this.cb.onDaily());
       launch.classList.add("launch");
       screen.appendChild(launch);
+      if (!info.preview && info.attemptsLeft === 1) {
+        screen.appendChild(
+          this.el("div", "field-hint center last-attempt-hint", "Last patrol today — make it count."),
+        );
+      }
     } else {
       screen.appendChild(
-        this.el("div", "daily-locked", `Next patrol at <b>${dailyResetLabel()}</b>`),
+        this.el("div", "daily-locked", `Patrol <b>#${info.dayNumber}</b> complete.`),
+      );
+      screen.appendChild(
+        this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`),
       );
       if (info.best) {
         screen.appendChild(
@@ -722,6 +730,20 @@ export class Ui {
         );
         screen.appendChild(this.shareButton());
       }
+    }
+
+    // Inline leaderboard: one merged ranking (all devices) for today's
+    // Daily Patrol, scrollable, filled in async via setDailyBoard once it
+    // loads. Placed before utility buttons so it's reachable without deep
+    // scrolling on mobile.
+    if (info.online) {
+      const boardWrap = this.el("div", "daily-board-wrap", "");
+      boardWrap.id = "daily-lobby-board-wrap";
+      boardWrap.appendChild(this.el("div", "manual-title", "TODAY'S BOARD"));
+      const list = this.el("div", "board", `<div class="field-hint center">Loading…</div>`);
+      list.id = "daily-lobby-board";
+      boardWrap.appendChild(list);
+      screen.appendChild(boardWrap);
     }
 
     const training = this.el("button", "menu-mode-btn training", "");
@@ -739,19 +761,6 @@ export class Ui {
     powers.classList.add("small-btn");
     learnRow.appendChild(powers);
     screen.appendChild(learnRow);
-
-    // Inline leaderboard: one merged ranking (all devices) for today's
-    // Daily Patrol, scrollable, filled in async via setDailyBoard once it
-    // loads (mirrors the today's-leader hint's fetch-after-render pattern).
-    if (info.online) {
-      const boardWrap = this.el("div", "daily-board-wrap", "");
-      boardWrap.id = "daily-lobby-board-wrap";
-      boardWrap.appendChild(this.el("div", "manual-title", "TODAY'S BOARD"));
-      const list = this.el("div", "board", `<div class="field-hint center">Loading…</div>`);
-      list.id = "daily-lobby-board";
-      boardWrap.appendChild(list);
-      screen.appendChild(boardWrap);
-    }
 
     // footer: the feedback channel. (The /fullgame door still exists by URL,
     // but is unlisted while the daily is the public face.)
@@ -923,7 +932,7 @@ export class Ui {
     screen.appendChild(nav);
 
     const grid = this.el("div", "calendar-grid", "");
-    for (const wd of ["S", "M", "T", "W", "T", "F", "S"]) {
+    for (const wd of ["Su", "M", "T", "W", "Th", "F", "Sa"]) {
       grid.appendChild(this.el("div", "calendar-weekday", wd));
     }
     const detail = this.el("div", "calendar-detail", "");
@@ -1400,6 +1409,9 @@ export class Ui {
     const gate = this.el("div", "intro-gate", "");
     gate.appendChild(this.el("div", "title", "ORION"));
     gate.appendChild(this.el("div", "enter", "Tap to enter"));
+    gate.appendChild(
+      this.el("div", "gate-tagline", "Dodge the swarm · 3 attempts daily · same run for every pilot"),
+    );
     gate.addEventListener("pointerdown", () => {
       this.clear();
       onEnter();
@@ -1598,7 +1610,7 @@ export class Ui {
     // already shows the number, and the daily/Iron Rain tag above already
     // says which board this run counts on, so a repeated label was pure
     // redundancy on a screen that had too much text, not too little.
-    const rank = this.el("div", "rank-line", "");
+    const rank = this.el("div", "rank-line", `<div class="field-hint center dim">Scoring…</div>`);
     rank.id = "rank-line";
     screen.appendChild(rank);
 
@@ -1618,7 +1630,10 @@ export class Ui {
       screen.appendChild(this.button(retryLabel, true, () => this.cb.onRestart()));
     } else {
       screen.appendChild(
-        this.el("div", "daily-locked", `Next patrol at <b>${dailyResetLabel()}</b>`),
+        this.el("div", "daily-locked", "All patrols complete."),
+      );
+      screen.appendChild(
+        this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`),
       );
     }
     screen.appendChild(
