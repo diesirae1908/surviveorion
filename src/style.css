@@ -21,7 +21,7 @@ body {
   inset: 0;
   width: 100%;
   background: #0a0a12;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: 'Rajdhani', system-ui, sans-serif;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -105,8 +105,8 @@ body {
 
 .title {
   font-size: clamp(56px, 14vw, 110px);
-  letter-spacing: 0.28em;
-  margin-right: -0.28em;
+  letter-spacing: 0.1em;
+  margin-right: -0.1em;
   font-weight: bold;
   background: linear-gradient(180deg, #ffee88 0%, #ffd700 45%, #cc8800 100%);
   -webkit-background-clip: text;
@@ -117,8 +117,8 @@ body {
 
 .subtitle {
   color: #aa8844;
-  letter-spacing: 0.5em;
-  margin-right: -0.5em;
+  letter-spacing: 0.22em;
+  margin-right: -0.22em;
   font-size: clamp(11px, 2.5vw, 15px);
   text-transform: uppercase;
 }
@@ -132,8 +132,8 @@ body {
 
 .heading {
   font-size: clamp(40px, 9vw, 68px);
-  letter-spacing: 0.18em;
-  margin-right: -0.18em;
+  letter-spacing: 0.06em;
+  margin-right: -0.06em;
   font-weight: bold;
   color: #c41e3a;
   text-shadow: 0 0 40px rgba(196, 30, 58, 0.5);
@@ -171,8 +171,8 @@ body {
 
 .new-best {
   color: #ffd700;
-  letter-spacing: 0.3em;
-  margin-right: -0.3em;
+  letter-spacing: 0.14em;
+  margin-right: -0.14em;
   font-size: 14px;
   text-transform: uppercase;
   animation: pulse 1.2s ease-in-out infinite;
@@ -228,13 +228,14 @@ body {
 
 button {
   font-family: inherit;
+  font-weight: 600;
   cursor: pointer;
   border: 1px solid #aa8844;
   background: linear-gradient(135deg, #2a2a3a 0%, #1a1a2a 100%);
   color: #ffee88;
   font-size: 17px;
-  letter-spacing: 0.22em;
-  text-indent: 0.22em;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
   padding: 14px 46px;
   min-width: 240px;
   text-transform: uppercase;
@@ -263,7 +264,7 @@ button.primary:active {
 button.launch {
   font-size: 22px;
   padding: 20px 80px;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.16em;
   animation: launchGlow 2.4s ease-in-out infinite;
 }
 
@@ -392,17 +393,17 @@ button.launch {
   gap: 8px;
   color: #5a4828;
   font-size: 10px;
-  letter-spacing: 0.3em;
-  margin-right: -0.3em;
+  letter-spacing: 0.2em;
+  margin-right: -0.2em;
   text-transform: uppercase;
   margin-top: -2px;
 }
 
 .daily-day b {
   color: #ffd700;
-  font-size: 34px;
-  letter-spacing: 0.06em;
-  margin-right: -0.06em;
+  font-size: 36px;
+  letter-spacing: 0;
+  margin-right: 0;
   font-weight: bold;
   line-height: 1;
   text-shadow: 0 0 32px rgba(255, 215, 0, 0.35);
@@ -445,7 +446,7 @@ button.launch {
   color: #ffd700;
   font-size: 16px;
   font-weight: bold;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
 }
@@ -537,9 +538,9 @@ button.launch {
 }
 
 .attempt-pips .pip.spent {
-  color: #2a2236;
+  color: #5a1822;
   font-size: 26px;
-  text-shadow: none;
+  text-shadow: 0 0 8px rgba(196, 30, 58, 0.3);
 }
 
 .attempt-pips .pips-label {
@@ -898,16 +899,16 @@ button.launch {
 /* game-over: Iron Rain tag (steel counterpart of the daily tag) */
 .ironrain-tag {
   color: #aecbee;
-  letter-spacing: 0.35em;
-  margin-right: -0.35em;
+  letter-spacing: 0.16em;
+  margin-right: -0.16em;
   font-size: 12px;
 }
 
 /* game-over: Daily Patrol tag + best-run comparison line */
 .daily-tag {
   color: #ffd700;
-  letter-spacing: 0.35em;
-  margin-right: -0.35em;
+  letter-spacing: 0.16em;
+  margin-right: -0.16em;
   font-size: 12px;
   text-transform: uppercase;
 }
@@ -1025,8 +1026,8 @@ button.launch {
 .manual-title {
   color: #aa8844;
   font-size: 11px;
-  letter-spacing: 0.35em;
-  margin-right: -0.35em;
+  letter-spacing: 0.18em;
+  margin-right: -0.18em;
 }
 
 .manual {
@@ -1251,9 +1252,10 @@ textarea.field {
 }
 
 .last-attempt-hint {
-  color: #ccaa66;
+  color: #cc4455;
   font-size: 13px;
   letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgba(204, 68, 85, 0.4);
 }
 
 .form-error {
@@ -1529,8 +1531,8 @@ button.link-btn:active {
 .badge-earned-title {
   color: #ffd700;
   font-size: 11px;
-  letter-spacing: 0.4em;
-  margin-right: -0.4em;
+  letter-spacing: 0.2em;
+  margin-right: -0.2em;
   animation: enterPulse 1.6s ease-in-out infinite;
 }
 
@@ -1816,8 +1818,8 @@ button.link-btn:active {
 .intro-gate .enter {
   color: #ffd700;
   font-size: 15px;
-  letter-spacing: 0.5em;
-  margin-right: -0.5em;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
   text-transform: uppercase;
   animation: enterPulse 1.6s ease-in-out infinite;
 }
