@@ -98,6 +98,11 @@ body {
   animation: fadeIn 1.6s ease-out;
 }
 
+/* daily lobby: tighter base gap — zone breathing is handled per-element */
+.screen.menu {
+  gap: 12px;
+}
+
 .title {
   font-size: clamp(56px, 14vw, 110px);
   letter-spacing: 0.28em;
@@ -256,8 +261,9 @@ button.primary:active {
 }
 
 button.launch {
-  font-size: 20px;
-  padding: 17px 64px;
+  font-size: 22px;
+  padding: 20px 80px;
+  letter-spacing: 0.3em;
   animation: launchGlow 2.4s ease-in-out infinite;
 }
 
@@ -395,9 +401,9 @@ button.launch {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   width: min(380px, 92vw);
-  padding: 10px 18px 12px;
+  padding: 8px 14px 10px;
   border: 1px solid rgba(255, 215, 0, 0.35);
   background: rgba(42, 34, 16, 0.4);
 }
@@ -440,7 +446,7 @@ button.launch {
 
 .mutator-subline {
   color: #8a9aa8;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.01em;
   line-height: 1.35;
 }
@@ -497,35 +503,37 @@ button.launch {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-/* attempt pips: one diamond per daily try, spent ones dimmed */
+/* attempt pips: one diamond per daily try — hero element, not a footnote */
 .attempt-pips {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
+  margin: 4px 0 6px;
 }
 
 .attempt-pips .pip {
   color: #ffd700;
-  font-size: 15px;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  font-size: 26px;
+  text-shadow: 0 0 18px rgba(255, 215, 0, 0.75);
 }
 
 .attempt-pips .pip.spent {
-  color: #3a3448;
+  color: #2a2236;
+  font-size: 26px;
   text-shadow: none;
 }
 
 .attempt-pips .pips-label {
-  margin-left: 6px;
-  color: #8a7a55;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  margin-left: 4px;
+  color: #ccaa66;
+  font-size: 13px;
+  letter-spacing: 0.1em;
 }
 
 /* today's-leader line on the lobby (same id as the menu daily hint) */
 .daily-hint.lobby-hint {
   color: #ffee88;
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 0.06em;
 }
 
@@ -566,12 +574,15 @@ button.launch {
   color: #ffd700;
 }
 
-/* inline daily-lobby leaderboard: one merged ranking below the menu buttons */
+/* inline daily-lobby leaderboard: zone separator + community board */
 .daily-board-wrap {
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: min(420px, 92vw);
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(170, 136, 68, 0.2);
 }
 
 .board-row .device {
@@ -827,29 +838,35 @@ button.launch {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 10px 26px;
-  font-size: 14px;
+  gap: 2px;
+  padding: 7px 22px;
+  font-size: 12px;
   letter-spacing: 0.14em;
-  border: 1px solid rgba(170, 136, 68, 0.55);
-  background: rgba(30, 26, 20, 0.6);
-  color: #ccaa66;
+  border: 1px solid rgba(170, 136, 68, 0.3);
+  background: transparent;
+  color: #aa8844;
 }
 
 .menu-mode-btn.training .daily-name {
-  color: #ffee88;
+  color: #aa8844;
+  font-size: 11px;
 }
 
 .menu-mode-btn.training .daily-sub {
-  color: #8a7a55;
-  font-size: 11px;
+  color: #6a6048;
+  font-size: 10px;
   text-transform: none;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
 .menu-mode-btn.training:hover {
-  box-shadow: 0 0 24px rgba(255, 215, 0, 0.18);
-  border-color: rgba(255, 215, 0, 0.6);
+  box-shadow: none;
+  border-color: rgba(170, 136, 68, 0.55);
+  color: #ccaa66;
+}
+
+.menu-mode-btn.training:hover .daily-name {
+  color: #ccaa66;
 }
 
 .share-btn {
@@ -1105,8 +1122,9 @@ button.launch {
 
 .menu-row button {
   min-width: 0;
-  padding: 11px 24px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 12px;
+  letter-spacing: 0.16em;
 }
 
 .profile-chip {
@@ -1215,6 +1233,7 @@ textarea.field {
 
 .last-attempt-hint {
   color: #ccaa66;
+  font-size: 13px;
   letter-spacing: 0.04em;
 }
 
