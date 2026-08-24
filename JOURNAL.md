@@ -4,6 +4,20 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: brand conformance Phase 0 — CSS token layer (branch `sam/brand-conformance`)
+
+- **Phase 0 only** per `brand/CONFORMANCE.md`: extended `:root` in `src/style.css` with
+  colour, type and motion tokens from `brand/tokens/orion.tokens.css` (kept the four
+  `--safe-*` insets). Added `--orion-brass: #ccaa66` in `:root` because the mapping table
+  references it but the tokens file on this branch had not caught up yet.
+- Replaced **132** hex literals outside `:root` with `var(--orion-*)` where the value
+  exactly matched the 16-token palette mapping (13 distinct palette values present in the
+  file). Left **4** near-duplicate hex values untouched for Phase 2: `#ff4444`, `#cc4455`,
+  `#e6e6e6`, `#666`. Did not touch `rgba()` calls or any `.ts` files.
+- Verified: `npx tsc --noEmit` clean, `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED.
+  Zero gameplay/determinism impact (CSS-only).
+- Commit: `a20cec2`. Follow-ups: Phases 1–5 in `brand/CONFORMANCE.md`.
+
 ## 2026-08-24: brand conformance audit + implementation spec (branch `sam/brand-kit`)
 
 - Added `brand/CONFORMANCE.md`: the spec for bringing this codebase in line with

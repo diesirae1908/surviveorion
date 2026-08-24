@@ -10,6 +10,72 @@
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+  /* ---- Core ---------------------------------------------------------- */
+  --orion-void: #0a0a12;         /* page background, PWA theme-color */
+  --orion-deep-space: #12121e;   /* raised surfaces, top of the arena gradient */
+  --orion-hull-line: #2a2a3a;    /* dividers, card borders */
+
+  --orion-gold: #ffd700;         /* the brand. Ship hull, sight ring, primary action */
+  --orion-flare: #ffee88;        /* gold highlight, top of every gold gradient */
+  --orion-ingot: #cc8800;        /* gold shadow, bottom of every gold gradient */
+  --orion-brass: #ccaa66;        /* secondary text on dark (8.93:1 on Void) */
+  --orion-bronze: #aa8844;       /* secondary text on dark, taglines, straplines */
+  --orion-dust: #8a7a55;         /* muted labels, metadata */
+
+  --orion-red: #c41e3a;          /* Rising Red. The core, the swarm, danger */
+  --orion-alarm: #ff4455;        /* bright danger. Red TEXT uses this, never --orion-red */
+  --orion-ash: #7a1020;          /* red shadow */
+
+  --orion-starlight: #fff7e0;    /* primary text. Warm white, never pure #ffffff */
+
+  /* ---- Gradients ------------------------------------------------------ */
+  --orion-gradient-gold: linear-gradient(180deg, #ffee88 0%, #ffd700 55%, #cc8800 100%);
+  --orion-gradient-hull: linear-gradient(90deg, #cc8800 0%, #ffd700 60%, #ffee88 100%);
+  --orion-gradient-space: radial-gradient(ellipse at center, #12121e 0%, #0a0a12 100%);
+
+  /* ---- Power signals (functional colour, never decoration) ------------ */
+  --orion-power-shield: #66ccff;      /* Aegis Shield */
+  --orion-power-shockwave: #ffd700;   /* Shockwave */
+  --orion-power-pulse: #ffaa33;       /* Pulse Shot */
+  --orion-power-magnet: #cc66ff;      /* Magnet */
+  --orion-power-afterburner: #ff6633; /* Afterburner */
+  --orion-power-freeze: #9fe8ff;      /* Cryo Field */
+  --orion-power-missiles: #a8ff9e;    /* Missile Swarm */
+  --orion-power-starshell: #ffd24d;   /* Starshell */
+  --orion-power-arc: #88eeff;         /* Arc Lightning */
+  --orion-power-autocannon: #e8e8f8;  /* Autocannon */
+  --orion-power-meteors: #ffce55;     /* Meteors */
+  --orion-power-vortex: #8877ff;      /* Vortex */
+
+  /* ---- Mode identity (each game mode owns one colour) ------------------ */
+  --orion-mode-daily: #ffd700;      /* Daily Patrol: the main event, so it gets the brand gold */
+  --orion-mode-ironrain: #aecbee;   /* Iron Rain: cold blue, the only non-gold mode */
+  --orion-mode-training: #aa8844;   /* Training Ground: bronze, deliberately quieter */
+
+  /* ---- Medal metals --------------------------------------------------- */
+  --orion-medal-gold: #ffd700;
+  --orion-medal-silver: #d7d7d7;
+  --orion-medal-copper: #cd7f32;
+
+  /* ---- Type ----------------------------------------------------------- */
+  --orion-font: 'Rajdhani', 'Titillium Web', 'Segoe UI', system-ui, sans-serif;
+  --orion-font-mono: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, monospace;
+
+  --orion-weight-body: 500;
+  --orion-weight-label: 600;
+  --orion-weight-display: 700;
+
+  --orion-tracking-display: 0.06em;  /* ORION, screen titles */
+  --orion-tracking-label: 0.14em;    /* PILOT, SCORE, all-caps HUD labels */
+  --orion-tracking-body: 0;
+
+  /* ---- Motion (matches the game's easing) ----------------------------- */
+  --orion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --orion-dur-instant: 120ms;
+  --orion-dur-screen: 350ms;   /* .screen fadeIn */
+  --orion-dur-fadeout: 700ms;  /* .screen.fade-out */
+  --orion-dur-gameover: 1600ms;/* game over rising out of the death veil */
+
 }
 
 html,
@@ -20,7 +86,7 @@ body {
   position: fixed;
   inset: 0;
   width: 100%;
-  background: #0a0a12;
+  background: var(--orion-void);
   font-family: 'Rajdhani', system-ui, sans-serif;
   -webkit-user-select: none;
   user-select: none;
@@ -108,7 +174,7 @@ body {
   letter-spacing: 0.1em;
   margin-right: -0.1em;
   font-weight: bold;
-  background: linear-gradient(180deg, #ffee88 0%, #ffd700 45%, #cc8800 100%);
+  background: linear-gradient(180deg, var(--orion-flare) 0%, var(--orion-gold) 45%, var(--orion-ingot) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -116,7 +182,7 @@ body {
 }
 
 .subtitle {
-  color: #aa8844;
+  color: var(--orion-bronze);
   letter-spacing: 0.22em;
   margin-right: -0.22em;
   font-size: clamp(11px, 2.5vw, 15px);
@@ -126,7 +192,7 @@ body {
 .divider {
   width: min(340px, 70vw);
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, #ffd700 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, var(--orion-gold) 50%, transparent 100%);
   margin: 6px 0;
 }
 
@@ -135,12 +201,12 @@ body {
   letter-spacing: 0.06em;
   margin-right: -0.06em;
   font-weight: bold;
-  color: #c41e3a;
+  color: var(--orion-red);
   text-shadow: 0 0 40px rgba(196, 30, 58, 0.5);
 }
 
 .heading.gold {
-  color: #ffd700;
+  color: var(--orion-gold);
   text-shadow: 0 0 40px rgba(255, 215, 0, 0.35);
 }
 
@@ -151,13 +217,13 @@ body {
   gap: 14px 36px;
   max-width: 92vw;
   text-align: center;
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 17px;
 }
 
 .stats .label {
   display: block;
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-size: 11px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
@@ -170,7 +236,7 @@ body {
 }
 
 .new-best {
-  color: #ffd700;
+  color: var(--orion-gold);
   letter-spacing: 0.14em;
   margin-right: -0.14em;
   font-size: 14px;
@@ -180,7 +246,7 @@ body {
 
 /* game-over highlight: one memorable moment from the run (see highlights.ts) */
 .result-highlight {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 14px;
   letter-spacing: 0.04em;
   background: rgba(255, 215, 0, 0.08);
@@ -212,7 +278,7 @@ body {
   font-size: clamp(52px, 15vw, 88px);
   font-weight: bold;
   line-height: 1;
-  background: linear-gradient(180deg, #ffee88 0%, #ffd700 45%, #cc8800 100%);
+  background: linear-gradient(180deg, var(--orion-flare) 0%, var(--orion-gold) 45%, var(--orion-ingot) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -220,7 +286,7 @@ body {
 }
 
 .result-sub {
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -230,9 +296,9 @@ button {
   font-family: inherit;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid #aa8844;
-  background: linear-gradient(135deg, #2a2a3a 0%, #1a1a2a 100%);
-  color: #ffee88;
+  border: 1px solid var(--orion-bronze);
+  background: linear-gradient(135deg, var(--orion-hull-line) 0%, #1a1a2a 100%);
+  color: var(--orion-flare);
   font-size: 17px;
   letter-spacing: 0.14em;
   text-indent: 0.14em;
@@ -244,16 +310,16 @@ button {
 
 button:hover,
 button:active {
-  border-color: #ffd700;
-  color: #ffd700;
+  border-color: var(--orion-gold);
+  color: var(--orion-gold);
   box-shadow: 0 0 24px rgba(255, 215, 0, 0.25);
 }
 
 button.primary {
-  background: linear-gradient(180deg, #ffd700 0%, #ffaa00 50%, #cc8800 100%);
+  background: linear-gradient(180deg, var(--orion-gold) 0%, #ffaa00 50%, var(--orion-ingot) 100%);
   color: #1a1208;
   font-weight: bold;
-  border-color: #ffd700;
+  border-color: var(--orion-gold);
 }
 
 button.primary:hover,
@@ -288,28 +354,28 @@ button.launch {
   letter-spacing: 0.14em;
   border: 1px solid rgba(170, 136, 68, 0.55);
   background: rgba(26, 26, 42, 0.6);
-  color: #ccaa66;
+  color: var(--orion-brass);
 }
 
 .pilot-badge b {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-weight: bold;
 }
 
 .pilot-badge .wing {
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 15px;
 }
 
 .pilot-badge .sub {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 11px;
   text-transform: none;
   letter-spacing: 0.08em;
 }
 
 .pilot-badge:hover .sub {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 /* Iron Rain menu button: the hard-mode card, steel instead of gold */
@@ -324,7 +390,7 @@ button.launch {
   letter-spacing: 0.14em;
   border: 1px solid rgba(170, 190, 220, 0.45);
   background: rgba(22, 28, 40, 0.6);
-  color: #aecbee;
+  color: var(--orion-mode-ironrain);
 }
 
 .menu-mode-btn.ironrain .daily-name {
@@ -355,18 +421,18 @@ button.launch {
   letter-spacing: 0.14em;
   border: 1px solid rgba(255, 215, 0, 0.45);
   background: rgba(42, 34, 16, 0.55);
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 .daily-btn .daily-sub {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 11px;
   text-transform: none;
   letter-spacing: 0.08em;
 }
 
 .daily-btn .daily-hint {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 11px;
   text-transform: none;
   letter-spacing: 0.08em;
@@ -377,11 +443,11 @@ button.launch {
 }
 
 .daily-btn:hover .daily-hint {
-  color: #ffee88;
+  color: var(--orion-flare);
 }
 
 .daily-btn .daily-hint b {
-  color: #ffee88;
+  color: var(--orion-flare);
 }
 
 /* --- daily-only site lobby --- */
@@ -400,7 +466,7 @@ button.launch {
 }
 
 .daily-day b {
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 36px;
   letter-spacing: 0;
   margin-right: 0;
@@ -443,7 +509,7 @@ button.launch {
 }
 
 .mutator-name {
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 16px;
   font-weight: bold;
   letter-spacing: 0.08em;
@@ -452,7 +518,7 @@ button.launch {
 }
 
 .mutator-briefing {
-  color: #ccaa66;
+  color: var(--orion-brass);
   font-size: 12px;
   letter-spacing: 0.02em;
   line-height: 1.4;
@@ -483,27 +549,27 @@ button.launch {
 }
 
 .medal-pip.copper {
-  color: #cd7f32;
+  color: var(--orion-medal-copper);
 }
 
 .medal-pip.silver {
-  color: #d7d7d7;
+  color: var(--orion-medal-silver);
 }
 
 .medal-pip.gold {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 /* game-over medal callout: earned tier, or a hint toward the next one */
 .medal-earned {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 13px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .medal-earned.copper {
-  color: #cd7f32;
+  color: var(--orion-medal-copper);
   text-shadow: 0 0 16px rgba(205, 127, 50, 0.4);
 }
 
@@ -513,7 +579,7 @@ button.launch {
 }
 
 .medal-earned.gold {
-  color: #ffd700;
+  color: var(--orion-gold);
   text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
   animation: pulse 1.2s ease-in-out infinite;
 }
@@ -532,7 +598,7 @@ button.launch {
 }
 
 .attempt-pips .pip {
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 26px;
   text-shadow: 0 0 18px rgba(255, 215, 0, 0.75);
 }
@@ -545,14 +611,14 @@ button.launch {
 
 .attempt-pips .pips-label {
   margin-left: 4px;
-  color: #ccaa66;
+  color: var(--orion-brass);
   font-size: 13px;
   letter-spacing: 0.1em;
 }
 
 /* today's-leader line on the lobby (same id as the menu daily hint) */
 .daily-hint.lobby-hint {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 14px;
   letter-spacing: 0.06em;
 }
@@ -562,36 +628,36 @@ button.launch {
 }
 
 .daily-hint.lobby-hint b {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 /* out-of-attempts message (lobby + game over) */
 .daily-locked {
-  color: #ccaa66;
+  color: var(--orion-brass);
   font-size: 14px;
   line-height: 1.7;
   letter-spacing: 0.06em;
 }
 
 .daily-locked b {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 .daily-locked-sub {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 12px;
   letter-spacing: 0.06em;
   margin-top: -4px;
 }
 
 .daily-best-line {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 14px;
   letter-spacing: 0.06em;
 }
 
 .daily-best-line b {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 /* inline daily-lobby leaderboard: zone separator + community board */
@@ -607,7 +673,7 @@ button.launch {
 
 .board-row .device {
   flex-shrink: 0;
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -630,7 +696,7 @@ button.launch {
 .full-game-link {
   background: none;
   border: none;
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-family: inherit;
   font-size: 12px;
   letter-spacing: 0.14em;
@@ -641,7 +707,7 @@ button.launch {
 }
 
 .full-game-link:hover {
-  color: #ffd700;
+  color: var(--orion-gold);
   text-decoration: underline;
 }
 
@@ -677,7 +743,7 @@ button.launch {
 .calendar-month-label {
   flex: 1;
   min-width: 0;
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 13px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -691,7 +757,7 @@ button.launch {
 }
 
 .calendar-weekday {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -720,7 +786,7 @@ button.launch {
   text-transform: none;
   border: 1px solid rgba(170, 136, 68, 0.3);
   background: rgba(26, 26, 42, 0.6);
-  color: #ccaa66;
+  color: var(--orion-brass);
   transition: border-color 0.15s ease;
 }
 
@@ -749,7 +815,7 @@ button.launch {
 .cal-mark {
   font-size: 11px;
   line-height: 1;
-  color: #8a7a55;
+  color: var(--orion-dust);
 }
 
 .calendar-day.future {
@@ -758,14 +824,14 @@ button.launch {
 }
 
 .calendar-day.today {
-  border-color: #ffd700;
-  color: #ffee88;
+  border-color: var(--orion-gold);
+  color: var(--orion-flare);
 }
 
 .calendar-day.completed,
 .calendar-day.completed-local-only {
   border-color: rgba(255, 215, 0, 0.55);
-  color: #ffee88;
+  color: var(--orion-flare);
 }
 
 .calendar-day.attempted {
@@ -777,7 +843,7 @@ button.launch {
 }
 
 .calendar-day.selected {
-  border-color: #ffd700;
+  border-color: var(--orion-gold);
   box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
 }
 
@@ -792,7 +858,7 @@ button.launch {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #ffd700;
+  background: var(--orion-gold);
 }
 
 .calendar-detail {
@@ -811,7 +877,7 @@ button.launch {
 }
 
 .cal-detail-date {
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -824,17 +890,17 @@ button.launch {
 }
 
 .cal-detail-result {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 15px;
 }
 
 .cal-detail-result .value {
   font-weight: bold;
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 .cal-detail-medal {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -864,11 +930,11 @@ button.launch {
   letter-spacing: 0.14em;
   border: 1px solid rgba(170, 136, 68, 0.3);
   background: transparent;
-  color: #aa8844;
+  color: var(--orion-bronze);
 }
 
 .menu-mode-btn.training .daily-name {
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-size: 11px;
 }
 
@@ -882,11 +948,11 @@ button.launch {
 .menu-mode-btn.training:hover {
   box-shadow: none;
   border-color: rgba(170, 136, 68, 0.55);
-  color: #ccaa66;
+  color: var(--orion-brass);
 }
 
 .menu-mode-btn.training:hover .daily-name {
-  color: #ccaa66;
+  color: var(--orion-brass);
 }
 
 .share-btn {
@@ -898,7 +964,7 @@ button.launch {
 
 /* game-over: Iron Rain tag (steel counterpart of the daily tag) */
 .ironrain-tag {
-  color: #aecbee;
+  color: var(--orion-mode-ironrain);
   letter-spacing: 0.16em;
   margin-right: -0.16em;
   font-size: 12px;
@@ -906,7 +972,7 @@ button.launch {
 
 /* game-over: Daily Patrol tag + best-run comparison line */
 .daily-tag {
-  color: #ffd700;
+  color: var(--orion-gold);
   letter-spacing: 0.16em;
   margin-right: -0.16em;
   font-size: 12px;
@@ -914,18 +980,18 @@ button.launch {
 }
 
 .run-delta {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 13px;
   letter-spacing: 0.08em;
 }
 
 .run-delta.gold {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 /* locked-badge progress (profile grid) */
 .badge .badge-progress {
-  color: #ccaa66;
+  color: var(--orion-brass);
   font-size: 9px;
   letter-spacing: 0.06em;
 }
@@ -940,13 +1006,13 @@ button.launch {
   line-height: 1;
   border-color: rgba(170, 136, 68, 0.5);
   background: rgba(26, 26, 42, 0.5);
-  color: #aa8844;
+  color: var(--orion-bronze);
   text-indent: 0;
   letter-spacing: 0;
 }
 
 .corner-btn:hover {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 /* back arrow variant: top-left, mirroring the settings gear. Fixed, not
@@ -987,7 +1053,7 @@ button.launch {
 }
 
 .power-name {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 14px;
   font-weight: bold;
   width: 108px;
@@ -995,7 +1061,7 @@ button.launch {
 }
 
 .power-desc {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 12.5px;
   line-height: 1.35;
 }
@@ -1024,7 +1090,7 @@ button.launch {
 }
 
 .manual-title {
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-size: 11px;
   letter-spacing: 0.18em;
   margin-right: -0.18em;
@@ -1046,12 +1112,12 @@ button.launch {
 }
 
 .manual .k {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 14px;
 }
 
 .manual .v {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 14px;
 }
 
@@ -1074,20 +1140,20 @@ button.launch {
 }
 
 .keybind-row .k {
-  color: #ffee88;
+  color: var(--orion-flare);
 }
 
 .keybind-row .v {
-  color: #8a7a55;
+  color: var(--orion-dust);
 }
 
 .keybind-row.listening {
-  border-color: #ffd700;
-  color: #ffd700;
+  border-color: var(--orion-gold);
+  color: var(--orion-gold);
 }
 
 .keybind-row.listening .v {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 .toggles {
@@ -1115,7 +1181,7 @@ button.launch {
 }
 
 .hint b {
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-weight: normal;
 }
 
@@ -1148,7 +1214,7 @@ button.launch {
 }
 
 .profile-chip {
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-size: 13px;
   cursor: pointer;
   pointer-events: auto;
@@ -1157,11 +1223,11 @@ button.launch {
 }
 
 .profile-chip:hover {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 .profile-chip b {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-weight: normal;
 }
 
@@ -1181,8 +1247,8 @@ button.launch {
 
 .tabs button.active {
   opacity: 1;
-  border-color: #ffd700;
-  color: #ffd700;
+  border-color: var(--orion-gold);
+  color: var(--orion-gold);
 }
 
 /* leaderboard filter dropdowns (game mode + platform) side by side */
@@ -1221,8 +1287,8 @@ button.launch {
 .field {
   font-family: inherit;
   background: rgba(26, 26, 42, 0.85);
-  border: 1px solid #aa8844;
-  color: #ffee88;
+  border: 1px solid var(--orion-bronze);
+  color: var(--orion-flare);
   font-size: 15px;
   padding: 12px 14px;
   outline: none;
@@ -1230,7 +1296,7 @@ button.launch {
 }
 
 .field:focus {
-  border-color: #ffd700;
+  border-color: var(--orion-gold);
   box-shadow: 0 0 16px rgba(255, 215, 0, 0.15);
 }
 
@@ -1246,7 +1312,7 @@ textarea.field {
 }
 
 .field-hint {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -1259,7 +1325,7 @@ textarea.field {
 }
 
 .form-error {
-  color: #ff4455;
+  color: var(--orion-alarm);
   font-size: 13px;
   min-height: 18px;
 }
@@ -1291,7 +1357,7 @@ button.link-btn {
   background: none;
   min-width: 0;
   padding: 4px;
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 12px;
   letter-spacing: 0.05em;
   text-indent: 0;
@@ -1312,7 +1378,7 @@ button.legacy-auth-link:hover,
 button.legacy-auth-link:active,
 button.link-btn:hover,
 button.link-btn:active {
-  color: #ffd700;
+  color: var(--orion-gold);
   box-shadow: none;
 }
 
@@ -1332,13 +1398,13 @@ button.link-btn:active {
   padding: 9px 12px;
   background: rgba(26, 26, 42, 0.7);
   border: 1px solid rgba(170, 136, 68, 0.25);
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 14px;
   text-align: left;
 }
 
 .board-row.me {
-  border-color: #ffd700;
+  border-color: var(--orion-gold);
   background: rgba(60, 48, 12, 0.7);
 }
 
@@ -1348,18 +1414,18 @@ button.link-btn:active {
 }
 
 .board-row.link:hover {
-  border-color: #ffd700;
+  border-color: var(--orion-gold);
 }
 
 .board-row .rank {
-  color: #aa8844;
+  color: var(--orion-bronze);
   width: 34px;
   flex-shrink: 0;
 }
 
 .board-row .flag {
   flex-shrink: 0;
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 13px;
 }
 
@@ -1372,7 +1438,7 @@ button.link-btn:active {
 
 .board-row .pts {
   font-weight: bold;
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 .mono {
@@ -1383,7 +1449,7 @@ button.link-btn:active {
 /* --- friends --- */
 
 .board-row .pts.dim {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-weight: normal;
   font-size: 12px;
 }
@@ -1423,7 +1489,7 @@ button.link-btn:active {
   height: 8px;
   margin-left: 8px;
   border-radius: 50%;
-  background: #ffd700;
+  background: var(--orion-gold);
   box-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
   vertical-align: middle;
   animation: pulse 2s ease-in-out infinite;
@@ -1452,7 +1518,7 @@ button.link-btn:active {
 
 .pilot-title {
   text-align: center;
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 19px;
   letter-spacing: 0.15em;
 }
@@ -1496,13 +1562,13 @@ button.link-btn:active {
 }
 
 .badge .badge-name {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 10px;
   letter-spacing: 0.06em;
 }
 
 .badge .badge-tier {
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-size: 8px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
@@ -1529,7 +1595,7 @@ button.link-btn:active {
 }
 
 .badge-earned-title {
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 11px;
   letter-spacing: 0.2em;
   margin-right: -0.2em;
@@ -1537,7 +1603,7 @@ button.link-btn:active {
 }
 
 .badge-earned-row {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 15px;
   letter-spacing: 0.1em;
 }
@@ -1547,18 +1613,18 @@ button.link-btn:active {
 }
 
 .rank-line {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 15px;
   min-height: 20px;
 }
 
 .rank-line b {
-  color: #ffd700;
+  color: var(--orion-gold);
 }
 
 .rank-line .dim,
 .dim {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 13px;
 }
 
@@ -1580,7 +1646,7 @@ button.link-btn:active {
 
 /* game-over score breakdown: kills / survival / bonuses */
 .score-breakdown {
-  color: #aa8844;
+  color: var(--orion-bronze);
   font-size: 13px;
   letter-spacing: 0.04em;
 }
@@ -1612,7 +1678,7 @@ button.link-btn:active {
   padding: 12px 18px;
   border: 1px solid rgba(170, 136, 68, 0.3);
   background: rgba(26, 26, 42, 0.5);
-  color: #ccaa66;
+  color: var(--orion-brass);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1623,12 +1689,12 @@ button.link-btn:active {
 }
 
 .result-details b {
-  color: #ffee88;
+  color: var(--orion-flare);
 }
 
 /* game-over guest save: name field + save button in the rank-line slot */
 .guest-save-title {
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 14px;
   margin-bottom: 10px;
 }
@@ -1644,7 +1710,7 @@ button.link-btn:active {
 
 /* heads-up under the rank line (shared guest name notice) */
 .rank-note {
-  color: #ccaa66;
+  color: var(--orion-brass);
   font-size: 12px;
   line-height: 1.5;
   max-width: 380px;
@@ -1679,7 +1745,7 @@ button.link-btn:active {
   max-width: min(560px, 88vw);
   padding: 14px 22px;
   text-align: center;
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 15px;
   line-height: 1.55;
   letter-spacing: 0.06em;
@@ -1690,7 +1756,7 @@ button.link-btn:active {
 }
 
 .tutorial-hint b {
-  color: #ffd700;
+  color: var(--orion-gold);
   letter-spacing: 0.2em;
 }
 
@@ -1738,7 +1804,7 @@ button.link-btn:active {
   max-width: min(560px, 88vw);
   padding: 22px 28px;
   text-align: center;
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 16px;
   line-height: 1.6;
   letter-spacing: 0.06em;
@@ -1760,7 +1826,7 @@ button.link-btn:active {
 }
 
 .tutorial-modal b {
-  color: #ffd700;
+  color: var(--orion-gold);
   letter-spacing: 0.2em;
 }
 
@@ -1774,7 +1840,7 @@ button.link-btn:active {
   max-width: min(520px, 90vw);
   padding: 12px 18px;
   text-align: center;
-  color: #ffee88;
+  color: var(--orion-flare);
   font-size: 13px;
   line-height: 1.55;
   letter-spacing: 0.04em;
@@ -1792,7 +1858,7 @@ button.link-btn:active {
 
 .tutorial-modal .tap-continue {
   margin-top: 16px;
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 12px;
   letter-spacing: 0.4em;
   margin-right: -0.4em;
@@ -1821,7 +1887,7 @@ button.link-btn:active {
 }
 
 .intro-gate .enter {
-  color: #ffd700;
+  color: var(--orion-gold);
   font-size: 15px;
   letter-spacing: 0.24em;
   margin-right: -0.24em;
@@ -1830,7 +1896,7 @@ button.link-btn:active {
 }
 
 .gate-tagline {
-  color: #8a7a55;
+  color: var(--orion-dust);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-align: center;
