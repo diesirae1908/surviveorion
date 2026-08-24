@@ -291,10 +291,11 @@ Nothing from the original §11 audit remains open on this branch.
 1. **`public/manifest.webmanifest` name** now `"ORION: Survive the Swarm"` (colon, no em dash).
 2. **`public/og.png`** replaced with `brand/assets/social/png/orion-og-1200x630.png`.
 3. **Inline favicon in `index.html`** matches kit (`r=37`, `stroke-width=11`).
-4. Three WCAG contrast failures in `style.css` (`.daily-day`, `.calendar-day.missed`,
-   training `.daily-sub`).
-5. Four near-duplicate UI colours collapsed to palette tokens; em dash in `ui.ts:711` fixed;
-   tutorial spin exclamation deduped; letter-spacing collapsed to tracking tokens.
+4. WCAG contrast failures in `style.css` (`.daily-day`, `.calendar-day.missed`,
+   `.calendar-nav-btn:disabled`, training `.daily-sub`).
+5. Near-duplicate UI colours collapsed to palette tokens, including arena gradient top
+   (`render.ts:127` → `PALETTE.bgTop`); em dash in `ui.ts:711` fixed; tutorial spin
+   exclamation deduped; letter-spacing collapsed to tracking tokens.
 
 ### Fixed on the branch that added this kit (`sam/brand-kit`, not yet on `main`)
 

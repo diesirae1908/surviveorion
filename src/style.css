@@ -739,7 +739,7 @@ button.launch {
   cursor: default;
   box-shadow: none;
   border-color: rgba(170, 136, 68, 0.25);
-  color: #6a5a45;
+  color: var(--orion-dust);
 }
 
 .calendar-month-label {

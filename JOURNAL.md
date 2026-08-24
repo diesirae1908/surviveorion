@@ -4,20 +4,28 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: brand conformance PM review follow-up (branch `sam/brand-conformance`)
+
+- Applied two items previously escalated as skipped: `render.ts:127` arena gradient top now
+  `PALETTE.bgTop` (`#12121e`, deliberate Phase 2 drift collapse); `.calendar-nav-btn:disabled`
+  `#6a5a45` → `var(--orion-dust)` (Phase 3.2 second occurrence). Visual/CSS only.
+- Commit: `48b7bfb`.
+
 ## 2026-08-24: brand conformance Phases 2–5 (branch `sam/brand-conformance`)
 
 - **Kit fix:** added `--orion-brass: #ccaa66` to `brand/tokens/orion.tokens.css` (JSON already
   had it). `PALETTE` has no brass field; all shared values agree. Commit `3874392`.
 - **Phase 2:** collapsed four near-duplicate UI hex literals to palette tokens (alarm,
-  medal-silver, dust). **Skipped** `render.ts:127`: `#141426` ≠ `PALETTE.bgTop` (`#12121e`).
-  Commit `75de44a`.
-- **Phase 3:** fixed three WCAG AA failures (`.daily-day` → bronze, `.calendar-day.missed` →
-  dust, training `.daily-sub` → `--orion-mode-training`). Commit `861f930`.
+  medal-silver, dust). Commit `75de44a`. Arena gradient top (`render.ts:127`) applied in PM
+  follow-up commit.
+- **Phase 3:** fixed WCAG AA failures: `.daily-day` → bronze, `.calendar-day.missed` and
+  `.calendar-nav-btn:disabled` → dust, training `.daily-sub` → `--orion-mode-training`.
+  Commit `861f930` (+ PM follow-up for disabled nav btn).
 - **Phase 4:** em dash in `ui.ts:711`, manifest colon, kit OG swap, favicon r=37/stroke=11,
   tutorial spin deduped to one exclamation (touch keeps it). Commit `b10753f`.
 - **Phase 5:** collapsed 12 letter-spacing literals to three roles + two strapline tokens
   (`0.25em` intro-gate enter, `0.4em` tutorial tap-continue); `.mono` uses
-  `var(--orion-font-mono)`. Commit `90aa33d`.
+  `var(--orion-font-mono)`. Commit `8b14406`.
 - Phase 1 (`rgba()` → `color-mix`) skipped by decision. Verified: tsc, sim-test, npm test,
   contrast audit, em-dash grep clean.
 
