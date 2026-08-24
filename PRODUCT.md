@@ -12,11 +12,11 @@ Casual-to-competitive arcade players looking for a quick daily skill challenge �
 
 ## Product Purpose
 
-ORION is a daily survival arcade game: pilot your ship through a bounded arena while escalating drone swarms close in. No gun — survival is pure piloting skill and defensive power pickups. The daily patrol gives everyone the same seed, the same mutators, the same conditions; your rank is earned, not bought. A paid tier unlocks unlimited daily attempts and all mutators, removing the caps that throttle free players.
+ORION is a daily dodging game: pilot your ship through a bounded arena while escalating drone swarms close in. No gun, so staying alive is movement plus defensive power pickups. The daily patrol gives everyone the same seed, the same mutators, the same conditions; your rank is earned, not bought. A paid tier unlocks unlimited daily attempts and all mutators, removing the caps that throttle free players.
 
 ## Positioning
 
-The only mobile-first inertia arcade with a shared daily seed and a competitive leaderboard — Wordle's social hook applied to skill-based arcade survival. A neighbor could build a survival arcade; none can truthfully claim the daily-pilot social loop ORION has shipped.
+The daily dodging game. Plenty of games make you dodge; none of them give every player the same run on the same day and put the results on one board. Wordle's social hook, applied to dodging. (Updated 2026-08-24, Lucas: the previous "mobile-first inertia arcade" line described the older game. The ship still has inertia and it is what gives the movement its feel, but it is close to a hidden feature and is not the pitch.)
 
 ## Operating Context
 
@@ -43,9 +43,10 @@ The only mobile-first inertia arcade with a shared daily seed and a competitive 
 
 - **Name**: ORION / Orion Daily / "Survive the Swarm"
 - **URL**: surviveorion.com
-- **Current palette** (named "Gold / Red Rising" in code): deep space near-black `#0a0a12`, gold accent `#ffd700`, danger red `#c41e3a`/`#ff4455`, warm white `#fff7e0`. Recorded as evidence, not locked — the brand is early and open to harmonization.
-- **Font in use**: Georgia serif (base UI). Not locked.
-- No external brand guide, Figma file, press kit, or social presence established yet.
+- **Palette**: LOCKED as of 2026-08-24. Source of truth is `brand/tokens/orion.tokens.css`, which mirrors `src/config.ts` `PALETTE`. Core: Void `#0a0a12`, Hull Gold `#ffd700`, Rising Red `#c41e3a`, Alarm `#ff4455`, Starlight `#fff7e0`. Change one, change both.
+- **Font**: Rajdhani (Google Fonts, 400 to 700). `index.html` loads it and `src/style.css` sets it on `body`. The older "Georgia serif" note here was wrong.
+- **Brand guide**: `brand/` in this repo. `brand/BRAND.md` is the book, `brand/VOICE.md` the three voices, `brand/assets/` the logo, icon, social and share-card artwork.
+- No Figma file, press kit, or social presence established yet.
 
 ## Evidence on Hand
 

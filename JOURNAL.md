@@ -4,6 +4,50 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: brand kit added + product docs repositioned (branch `sam/brand-kit`)
+
+- Added `brand/`, the ORION brand kit v1.0. Derived from this repo, not
+  invented beside it: colour from `src/config.ts` `PALETTE`, type from the
+  shipped `src/style.css`, voice from player-facing strings already live.
+  Contents: `BRAND.md` (the book), `VOICE.md` (three named voices),
+  `COPY-BANK.md`, `tokens/` (CSS + JSON), `assets/` (logo lockups, app icons,
+  OG, social header, 1080 share-card template, medals, palette sheet, SVG and
+  PNG), `brand-book.html`, and `scripts/` (the generators).
+- New drawn work: the wordmark is now vector outlines (chamfered letterforms,
+  no font dependency) and the mark is "the Patrol Sight", the shipped
+  ring-and-dot favicon evolved with diagonal cuts on the four axes.
+- **Positioning corrected, Lucas 2026-08-24: Orion is a daily dodging game.**
+  The "mobile-first inertia arcade" framing describes the previous game.
+  Inertia is close to a hidden feature now, and is not the pitch. Rewritten in
+  `PRODUCT.md` (Positioning, Product Purpose) and at the top of `AGENTS.md`.
+- `AGENTS.md` also now states plainly that this repo is the ONLY live Orion.
+  The Unity build at `~/Documents/personal/_archive/unity/Orion/` is an
+  archive, not a sibling version, and nothing outside this repo is a source of
+  truth about how the game works. Its old `../design/`, `../_archive/` sibling
+  paths predated the 2026-08-23 move to `~/Documents/games/orion-web` and were
+  wrong; removed.
+- `PRODUCT.md` Brand Commitments fixed: font is Rajdhani (it said Georgia; the
+  shipped `style.css` has always set Rajdhani), and the palette is now LOCKED
+  and points at `brand/tokens/orion.tokens.css`.
+- Measured, not asserted: `brand/scripts/contrast-audit.cjs` runs the WCAG
+  numbers behind `BRAND.md`. Two results that constrain code: **Rising Red
+  `#c41e3a` is 3.37:1 on Void and fails AA for body text**, so red text must
+  use Alarm `#ff4455` (5.83:1); and **Dust `#8a7a55` clears AA on Void (4.69)
+  but fails on Deep Space (4.42)**, so muted text on raised surfaces uses
+  Bronze `#aa8844`.
+- Generators are `.cjs` on purpose: this repo is `"type": "module"`, which
+  would otherwise make Node read them as ES modules and fail. They resolve
+  `../assets` relative to themselves. Verified by re-running all three from
+  the new location and diffing: every asset reproduced byte-identically.
+- Docs-and-assets only. No `src/`, `server/`, `public/` or build change, so no
+  type-check or sim-test was warranted and nothing here can affect gameplay.
+  Not pushed to `main`: `main` auto-deploys to production.
+- **Still open**, listed in `brand/BRAND.md` §11: the em dash in
+  `public/manifest.webmanifest`'s name field and in the live `public/og.png`
+  (both player-facing; the replacement OG is drawn at
+  `brand/assets/social/png/orion-og-1200x630.png`), and the inline data-URI
+  favicon in `index.html` using a different ring weight than the kit favicon.
+
 ## 2026-08-18: append-only Daily Mutators MERGED + DEPLOYED (main `2b8554e`)
 
 - Lucas: "ok all push live". Merged `sam/mutator-hardening` into `main` as

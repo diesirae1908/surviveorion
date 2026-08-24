@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="ORION Gold medal">
+  <title>ORION Gold medal</title>
+  <defs>
+    <linearGradient id="m" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient>
+  </defs>
+  <polygon points="179.7,146.0 100.0,192.0 20.3,146.0 20.3,54.0 100.0,8.0 179.7,54.0" fill="url(#m)"/>
+  <polygon points="164.1,137.0 100.0,174.0 35.9,137.0 35.9,63.0 100.0,26.0 164.1,63.0" fill="#1a1208"/>
+  <g fill="none" stroke="url(#m)" stroke-width="9">
+    <path d="M76.6 74.4 A29.6 29.6 0 0 1 123.4 74.4"/>
+    <path d="M129 79 A29.6 29.6 0 0 1 129 121"/>
+    <path d="M123.4 125.6 A29.6 29.6 0 0 1 76.6 125.6"/>
+    <path d="M71 121 A29.6 29.6 0 0 1 71 79"/>
+  </g>
+  <circle cx="100" cy="100" r="12" fill="#c41e3a"/>
+</svg>

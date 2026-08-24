@@ -1,0 +1,1169 @@
+<title>ORION Brand Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0a12; --deep:#12121e; --line:#2a2a3a; --line-soft:#1c1c2a;
+  --gold:#ffd700; --flare:#ffee88; --ingot:#cc8800; --bronze:#aa8844; --dust:#8a7a55;
+  --red:#c41e3a; --alarm:#ff4455; --ash:#7a1020; --star:#fff7e0;
+  --display:'Rajdhani','Titillium Web','Segoe UI',system-ui,sans-serif;
+  --body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --measure:68ch; --rail:214px;
+  --s1:6px; --s2:12px; --s3:18px; --s4:28px; --s5:44px; --s6:72px; --s7:112px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--void); color:var(--star);
+  font-family:var(--body); font-size:17px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto} *{animation-duration:.01ms !important; transition-duration:.01ms !important}}
+a{color:var(--gold); text-decoration-color:rgba(255,215,0,.35); text-underline-offset:3px}
+a:hover{text-decoration-color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold); outline-offset:3px; border-radius:2px}
+
+/* ---------- typography roles ---------- */
+.eyebrow{
+  font-family:var(--display); font-weight:600; font-size:.8rem;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--dust); margin:0;
+}
+.h-display{
+  font-family:var(--display); font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; line-height:1.05; margin:0; text-wrap:balance;
+}
+h2.h-display{font-size:clamp(1.9rem,4.4vw,2.9rem); color:var(--star)}
+h3.h-display{font-size:1.22rem; color:var(--gold); letter-spacing:.1em}
+h4.h-display{font-size:.95rem; color:var(--bronze); letter-spacing:.12em}
+p{margin:0 0 1.05em; max-width:var(--measure)}
+p:last-child{margin-bottom:0}
+.lede{font-size:1.16rem; line-height:1.6; color:#d9cfae}
+.small{font-size:.9rem; color:var(--dust); line-height:1.6}
+code,.mono{font-family:var(--mono); font-size:.86em}
+code{color:var(--flare); background:rgba(255,215,0,.07); padding:.1em .38em; border-radius:3px}
+strong{color:var(--star); font-weight:600}
+
+/* ---------- shell ---------- */
+.shell{display:grid; grid-template-columns:var(--rail) minmax(0,1fr); gap:0; max-width:1320px; margin:0 auto}
+.rail{position:sticky; top:0; align-self:start; height:100vh; padding:var(--s6) var(--s4) var(--s5) var(--s5);
+  display:flex; flex-direction:column; gap:var(--s4); border-right:1px solid var(--line-soft)}
+.rail-mark{width:34px; height:34px; opacity:.9}
+.rail nav{display:flex; flex-direction:column; gap:2px}
+.rail a{
+  display:flex; gap:10px; align-items:baseline; text-decoration:none; padding:5px 0;
+  font-family:var(--display); font-weight:600; font-size:.82rem; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--dust); transition:color .18s var(--ease);
+}
+.rail a:hover,.rail a.on{color:var(--gold)}
+.rail a b{font-family:var(--mono); font-weight:500; font-size:.72rem; color:var(--line); letter-spacing:0}
+.rail a:hover b,.rail a.on b{color:var(--ingot)}
+.rail-foot{margin-top:auto; font-family:var(--mono); font-size:.68rem; color:var(--line); line-height:1.7}
+.main{min-width:0; padding:0 var(--s5) var(--s7)}
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .rail{display:none}
+  .main{padding:0 var(--s4) var(--s6)}
+}
+
+/* ---------- hero ---------- */
+.hero{position:relative; min-height:min(88vh,760px); display:grid; place-items:center;
+  padding:var(--s7) var(--s4); overflow:hidden; border-bottom:1px solid var(--line-soft)}
+#sky{position:absolute; inset:0; width:100%; height:100%; display:block}
+.hero-in{position:relative; display:flex; flex-direction:column; align-items:center; gap:var(--s4); text-align:center}
+.hero-sight{width:clamp(84px,11vw,124px); filter:drop-shadow(0 0 26px rgba(255,215,0,.42))}
+.hero-wm{width:min(66vw,470px)}
+.hero-tag{font-family:var(--display); font-weight:600; font-size:clamp(.86rem,2.1vw,1.05rem);
+  letter-spacing:.42em; text-indent:.42em; text-transform:uppercase; color:var(--bronze); margin:0}
+.hero-meta{font-family:var(--mono); font-size:.74rem; color:var(--dust); letter-spacing:.06em; margin:0}
+.hero-rule{width:56px; height:1px; background:var(--line); border:0; margin:0}
+
+/* ---------- sections ---------- */
+.sec{padding:var(--s7) 0 0; scroll-margin-top:24px}
+.sec-head{display:flex; align-items:baseline; gap:var(--s3); border-bottom:1px solid var(--line);
+  padding-bottom:var(--s3); margin-bottom:var(--s5)}
+.sec-num{font-family:var(--mono); font-size:.78rem; color:var(--ingot); letter-spacing:.06em; flex:none}
+.sec-note{margin-left:auto; font-family:var(--display); font-weight:600; font-size:.76rem;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--dust); flex:none}
+@media (max-width:620px){.sec-note{display:none}}
+.stack{display:flex; flex-direction:column; gap:var(--s5)}
+.stack-tight{display:flex; flex-direction:column; gap:var(--s3)}
+
+/* ---------- panels ---------- */
+.panel{background:var(--deep); border:1px solid var(--line); border-radius:2px; padding:var(--s5)}
+.panel--flush{padding:0; overflow:hidden}
+.panel--flush svg,.panel--flush img{display:block; width:100%; height:auto}
+.grid{display:grid; gap:var(--s3)}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(238px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(168px,1fr))}
+
+/* ---------- spec table ---------- */
+.spec{width:100%; border-collapse:collapse; font-size:.94rem}
+.spec th,.spec td{text-align:left; padding:13px 16px 13px 0; border-bottom:1px solid var(--line-soft); vertical-align:top}
+.spec th{font-family:var(--display); font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+  font-size:.76rem; color:var(--dust); white-space:nowrap}
+.spec td:first-child{font-family:var(--display); font-weight:600; letter-spacing:.05em; color:var(--gold); white-space:nowrap}
+.spec tr:last-child td{border-bottom:0}
+.scroller{overflow-x:auto}
+
+/* ---------- pull quote ---------- */
+.pull{border-left:2px solid var(--gold); padding:2px 0 2px var(--s4); margin:0}
+.pull p{font-family:var(--display); font-weight:600; font-size:clamp(1.3rem,3.2vw,1.85rem);
+  letter-spacing:.04em; line-height:1.25; color:var(--flare); text-transform:uppercase; margin:0; max-width:22ch}
+.pull cite{display:block; margin-top:var(--s2); font-style:normal; font-family:var(--mono);
+  font-size:.72rem; color:var(--dust); letter-spacing:.05em}
+
+/* ---------- lockup viewer ---------- */
+.viewer{border:1px solid var(--line); border-radius:2px; overflow:hidden}
+.viewer-stage{display:grid; place-items:center; padding:var(--s6) var(--s4); transition:background .3s var(--ease)}
+.viewer-stage svg{width:min(74%,430px); height:auto; display:block}
+.viewer-bar{display:flex; flex-wrap:wrap; gap:1px; background:var(--line); border-top:1px solid var(--line)}
+.chip{
+  flex:1 1 auto; border:0; background:var(--deep); color:var(--dust); cursor:pointer;
+  font-family:var(--display); font-weight:600; font-size:.74rem; letter-spacing:.12em;
+  text-transform:uppercase; padding:11px 14px; transition:color .18s var(--ease), background .18s var(--ease);
+}
+.chip:hover{color:var(--star)}
+.chip[aria-pressed="true"]{background:var(--gold); color:var(--void)}
+
+/* ---------- swatches ---------- */
+.sw{border:1px solid var(--line); border-radius:2px; overflow:hidden; text-align:left;
+  background:var(--deep); cursor:pointer; padding:0; font:inherit; color:inherit; display:block; width:100%;
+  transition:border-color .18s var(--ease), transform .18s var(--ease)}
+.sw:hover{border-color:var(--bronze); transform:translateY(-2px)}
+.sw-chip{height:82px; border-bottom:1px solid var(--line)}
+.sw-body{padding:11px 13px 13px; display:flex; flex-direction:column; gap:3px}
+.sw-name{font-family:var(--display); font-weight:600; font-size:.94rem; letter-spacing:.05em; color:var(--star)}
+.sw-hex{font-family:var(--mono); font-size:.76rem; color:var(--dust)}
+.sw-ratio{font-family:var(--mono); font-size:.7rem; letter-spacing:.03em; margin-top:2px}
+.pass-aaa{color:#a8ff9e} .pass-aa{color:var(--flare)} .pass-lg{color:var(--alarm)}
+.sw-role{font-size:.8rem; color:var(--dust); line-height:1.45; margin-top:2px}
+
+/* ---------- callouts ---------- */
+.rule-card{border:1px solid var(--ash); background:rgba(196,30,58,.09); border-radius:2px; padding:var(--s4)}
+.rule-card .eyebrow{color:var(--alarm)}
+.rule-card p{font-size:.95rem; margin-bottom:0; color:#e8d9c4}
+.ok-card{border:1px solid #2c4a2a; background:rgba(168,255,158,.05); border-radius:2px; padding:var(--s4)}
+.ok-card .eyebrow{color:#a8ff9e}
+
+/* ---------- voice cards ---------- */
+.voice{background:var(--deep); border:1px solid var(--line); border-top:2px solid var(--gold);
+  border-radius:2px; padding:var(--s5); display:flex; flex-direction:column; gap:var(--s3)}
+.voice--log{border-top-color:var(--bronze)}
+.voice--wing{border-top-color:var(--alarm)}
+.voice-name{font-family:var(--display); font-weight:700; font-size:1.5rem; letter-spacing:.11em;
+  text-transform:uppercase; margin:0; color:var(--star)}
+.voice dl{display:grid; grid-template-columns:auto 1fr; gap:5px var(--s3); margin:0; font-size:.9rem}
+.voice dt{font-family:var(--display); font-weight:600; font-size:.72rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--dust); padding-top:4px}
+.voice dd{margin:0; color:#cfc3a4}
+.lines{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.lines li{font-family:var(--display); font-weight:500; font-size:1.02rem; line-height:1.4;
+  padding-left:var(--s3); border-left:1px solid var(--line); color:var(--star)}
+.lines--no li{color:var(--dust); text-decoration:line-through; text-decoration-color:var(--ash);
+  text-decoration-thickness:1px; border-left-color:var(--ash)}
+.tag-live{font-family:var(--mono); font-size:.62rem; color:var(--ingot); letter-spacing:.08em;
+  vertical-align:.15em; margin-left:6px; text-decoration:none; display:inline-block}
+.rules{margin:0; padding-left:1.15em; font-size:.92rem; color:#cfc3a4; line-height:1.6}
+.rules li{margin-bottom:6px}
+.rules li::marker{color:var(--ingot)}
+
+/* ---------- misuse ---------- */
+.dont{border:1px solid var(--line); border-radius:2px; overflow:hidden; background:var(--deep)}
+.dont-stage{position:relative; display:grid; place-items:center; padding:var(--s4); min-height:104px; background:var(--void)}
+.dont-stage svg{width:82%; height:auto; display:block}
+.dont-stage::after{content:""; position:absolute; inset:0;
+  background:linear-gradient(to top left,transparent calc(50% - .8px),var(--alarm) calc(50% - .8px),var(--alarm) calc(50% + .8px),transparent calc(50% + .8px)),
+             linear-gradient(to top right,transparent calc(50% - .8px),var(--alarm) calc(50% - .8px),var(--alarm) calc(50% + .8px),transparent calc(50% + .8px));
+  opacity:.55}
+.dont p{font-size:.86rem; color:var(--dust); margin:0; padding:11px 14px; border-top:1px solid var(--line); line-height:1.45}
+.sq{transform:scaleX(.62)}
+.rot{transform:rotate(-9deg)}
+.stage-light{background:var(--star)}
+.stage-busy{background:
+  repeating-linear-gradient(46deg,#3a2a1a 0 9px,#1d1a2c 9px 18px)}
+
+/* ---------- clearspace ---------- */
+.cs{position:relative; padding:var(--s6); background:var(--void); border:1px solid var(--line); border-radius:2px}
+.cs-box{position:relative; outline:1px dashed var(--alarm); outline-offset:clamp(14px,4.2vw,34px); max-width:430px; margin:0 auto}
+.cs-box svg{display:block; width:100%; height:auto}
+.cs-x{position:absolute; font-family:var(--display); font-weight:700; font-size:.82rem; color:var(--alarm)}
+.cs-x--l{left:calc(-1 * clamp(14px,4.2vw,34px)/2 - 4px); top:50%; transform:translateY(-50%)}
+.cs-x--t{top:calc(-1 * clamp(14px,4.2vw,34px)/2 - 10px); left:50%; transform:translateX(-50%)}
+
+/* ---------- type specimen ---------- */
+.spec-row{display:grid; grid-template-columns:150px 1fr; gap:var(--s4); align-items:baseline;
+  padding:var(--s3) 0; border-bottom:1px solid var(--line-soft)}
+.spec-row:last-child{border-bottom:0}
+.spec-key{font-family:var(--mono); font-size:.72rem; color:var(--dust); line-height:1.7}
+.sp-display{font-family:var(--display); font-weight:700; font-size:2.1rem; letter-spacing:.06em; text-transform:uppercase; color:var(--star)}
+.sp-label{font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:.14em; text-transform:uppercase; color:var(--bronze)}
+.sp-body{font-family:var(--display); font-weight:500; font-size:1.06rem; color:#cfc3a4}
+.sp-data{font-family:var(--display); font-weight:700; font-size:2.5rem; color:var(--gold); font-variant-numeric:tabular-nums; letter-spacing:.02em}
+@media (max-width:620px){.spec-row{grid-template-columns:1fr; gap:var(--s1)}}
+
+/* ---------- drift checklist ---------- */
+.drift{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px; background:var(--line)}
+.drift li{background:var(--deep); padding:var(--s4); display:grid; grid-template-columns:auto 1fr auto; gap:var(--s3); align-items:start}
+.drift-n{font-family:var(--mono); font-size:.74rem; color:var(--ingot); padding-top:3px}
+.drift p{margin:0; font-size:.93rem; max-width:none}
+.drift p+p{margin-top:5px; color:var(--dust); font-size:.86rem}
+.pill{font-family:var(--display); font-weight:600; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
+  padding:4px 9px; border-radius:2px; white-space:nowrap; align-self:start}
+.pill--player{background:rgba(255,68,85,.14); color:var(--alarm); border:1px solid var(--ash)}
+.pill--house{background:rgba(255,215,0,.09); color:var(--bronze); border:1px solid #4a3c1c}
+.pill--fixed{background:rgba(168,255,158,.09); color:#a8ff9e; border:1px solid #2c4a2a}
+@media (max-width:620px){.drift li{grid-template-columns:auto 1fr}.pill{grid-column:2}}
+
+/* ---------- files ---------- */
+.tree{font-family:var(--mono); font-size:.82rem; line-height:1.85; color:var(--dust);
+  margin:0; white-space:pre; overflow-x:auto}
+.tree b{color:var(--flare); font-weight:500}
+
+/* ---------- toast ---------- */
+#toast{position:fixed; left:50%; bottom:26px; transform:translate(-50%,14px); opacity:0; pointer-events:none;
+  background:var(--gold); color:var(--void); font-family:var(--display); font-weight:600;
+  letter-spacing:.1em; text-transform:uppercase; font-size:.78rem; padding:9px 18px; border-radius:2px;
+  transition:opacity .22s var(--ease), transform .22s var(--ease); z-index:20}
+#toast.on{opacity:1; transform:translate(-50%,0)}
+
+footer{border-top:1px solid var(--line); margin-top:var(--s7); padding-top:var(--s5);
+  font-family:var(--mono); font-size:.76rem; color:var(--dust); line-height:1.9}
+</style>
+<style>
+/* Practise what the book preaches: Dust (#8a7a55) clears AA on Void at 4.69 but drops to
+   4.42 on Deep Space, which fails. Anything sitting on a raised surface uses Bronze (5.58). */
+.panel .small, .panel .eyebrow, .panel .tree,
+.voice .small, .voice dt,
+.dont p, .drift p + p,
+.spec th, .spec-key,
+.sw-hex, .sw-role,
+.lines--no li,
+.rail-foot, .rail a b { color: var(--bronze); }
+.tree b { color: var(--flare); }
+.rail a b { color: var(--dust); }
+.rail a:hover b, .rail a.on b { color: var(--ingot); }
+</style>
+
+<!-- shared symbol library: every lockup on this page is the real asset, drawn once -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="oGold" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient>
+    <linearGradient id="oGoldV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient>
+    <radialGradient id="oCore" cx="0.38" cy="0.34" r="0.8">
+      <stop offset="0" stop-color="#ff4455"/><stop offset="1" stop-color="#c41e3a"/>
+    </radialGradient>
+  </defs>
+  <symbol id="markG" viewBox="0 0 100 100">
+    <g fill="none" stroke="url(#oGold)" stroke-width="10">
+      <path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/><path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>
+      <path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/><path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>
+    </g><circle cx="50" cy="50" r="15" fill="url(#oCore)"/>
+  </symbol>
+  <symbol id="markM" viewBox="0 0 100 100">
+    <g fill="none" stroke="currentColor" stroke-width="10">
+      <path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/><path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>
+      <path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/><path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>
+    </g><circle cx="50" cy="50" r="15" fill="currentColor"/>
+  </symbol>
+  <symbol id="wmG" viewBox="0 0 431 100">
+    <g fill="url(#oGoldV)" fill-rule="evenodd">
+      <path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>
+      <path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/>
+      <path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/>
+      <path transform="translate(249,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>
+      <path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/>
+    </g>
+  </symbol>
+  <symbol id="wmM" viewBox="0 0 431 100">
+    <g fill="currentColor" fill-rule="evenodd">
+      <path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>
+      <path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/>
+      <path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/>
+      <path transform="translate(249,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>
+      <path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/>
+    </g>
+  </symbol>
+  <symbol id="lockG" viewBox="0 0 603 128">
+    <use href="#markG" x="0" y="0" width="128" height="128"/>
+    <use href="#wmG" x="172" y="14" width="431" height="100"/>
+  </symbol>
+  <symbol id="lockM" viewBox="0 0 603 128">
+    <use href="#markM" x="0" y="0" width="128" height="128"/>
+    <use href="#wmM" x="172" y="14" width="431" height="100"/>
+  </symbol>
+</svg>
+
+<header class="hero">
+  <canvas id="sky" aria-hidden="true"></canvas>
+  <div class="hero-in">
+    <svg class="hero-sight" viewBox="0 0 100 100" aria-hidden="true"><use href="#markG" width="100" height="100"/></svg>
+    <svg class="hero-wm" viewBox="0 0 431 100" role="img" aria-label="ORION"><use href="#wmG" width="431" height="100"/></svg>
+    <p class="hero-tag">Survive the swarm</p>
+    <hr class="hero-rule">
+    <p class="hero-meta">BRAND BOOK &nbsp;v1.0&nbsp; &middot; &nbsp;24 AUG 2026&nbsp; &middot; &nbsp;SURVIVEORION.COM</p>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail">
+    <svg class="rail-mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#markG" width="100" height="100"/></svg>
+    <nav id="rail-nav" aria-label="Sections">
+      <a href="#brief"><b>00</b>What ORION is</a>
+      <a href="#pillars"><b>01</b>Three pillars</a>
+      <a href="#naming"><b>02</b>Naming</a>
+      <a href="#identity"><b>03</b>Identity</a>
+      <a href="#colour"><b>04</b>Colour</a>
+      <a href="#type"><b>05</b>Type</a>
+      <a href="#voice"><b>06</b>Voice</a>
+      <a href="#wild"><b>07</b>Applied</a>
+      <a href="#drift"><b>08</b>What to fix</a>
+      <a href="#files"><b>09</b>Files</a>
+    </nav>
+    <p class="rail-foot">Derived from the<br>shipped game, not<br>invented beside it.</p>
+  </aside>
+
+  <main class="main">
+
+  <!-- 00 ---------------------------------------------------------------- -->
+  <section class="sec" id="brief">
+    <div class="sec-head"><span class="sec-num">00</span><h2 class="h-display">What ORION is</h2><span class="sec-note">The product, in short</span></div>
+    <div class="stack">
+      <div>
+        <p class="lede">A daily dodging game. Drone swarms close in, you have no gun, and the only thing
+        that keeps you alive is moving well. Everyone gets the same run on the same day: same seed, same
+        mutator, same conditions, three attempts per UTC day.</p>
+        <p>The ship has inertia, and that is what gives the movement its feel, but it is not the pitch.
+        Nobody arrives for a physics model. They arrive to dodge, and they come back because today's run
+        is the same one everybody else is failing at.</p>
+        <p>Before this document ORION had a look but not a brand. The colours lived in <code>src/config.ts</code>,
+        the wordmark existed only inside a PNG, and nothing said which of the twelve golds was <em>the</em> gold.
+        Everything here is derived from the shipped game, so adopting it changes almost nothing on screen and
+        settles every open question about what to do next.</p>
+      </div>
+      <div class="pull">
+        <p>Skill is the only cheat code.</p>
+        <cite>Product principle 1, and the whole brand in five words</cite>
+      </div>
+      <div class="grid g2">
+        <div class="panel">
+          <h3 class="h-display">The positioning claim</h3>
+          <p class="small" style="margin-top:12px">The daily dodging game. Plenty of games make you dodge.
+          None of them give every player the same run on the same day and put the results on one board.</p>
+        </div>
+        <div class="panel">
+          <h3 class="h-display">The one-line version</h3>
+          <p class="small" style="margin-top:12px">Wordle's daily ritual, applied to dodging. Use this when
+          you have one sentence. Use the positioning claim when you have a paragraph.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 01 ---------------------------------------------------------------- -->
+  <section class="sec" id="pillars">
+    <div class="sec-head"><span class="sec-num">01</span><h2 class="h-display">The three pillars</h2><span class="sec-note">How to decide anything</span></div>
+    <p class="lede" style="margin-bottom:var(--s5)">Three things. If a design or a line of copy does not sit
+    inside one of them, it does not ship.</p>
+    <div class="grid g3">
+      <div class="panel">
+        <p class="eyebrow">Pillar one</p>
+        <h3 class="h-display" style="margin:8px 0 14px;font-size:1.45rem">No gun. You dodge.</h3>
+        <p class="small">Survival is movement, not firepower. Powers are defensive.</p>
+        <p class="small" style="margin-top:12px"><strong>So:</strong> show near-misses, not massacres. Never
+        power-fantasy imagery or "unleash your power" language. The hero screenshot is a ship threading a gap,
+        not a screen full of explosions.</p>
+      </div>
+      <div class="panel">
+        <p class="eyebrow">Pillar two</p>
+        <h3 class="h-display" style="margin:8px 0 14px;font-size:1.45rem">Everyone gets the same day.</h3>
+        <p class="small">One seed, one mutator, three attempts, worldwide. That is the whole social hook.</p>
+        <p class="small" style="margin-top:12px"><strong>So:</strong> the brand is communal, not solitary.
+        Copy says <em>every pilot</em>, <em>today's patrol</em>, <em>the board</em>. Mutators get names, not
+        difficulty numbers, because everyone is talking about the same one today.</p>
+      </div>
+      <div class="panel">
+        <p class="eyebrow">Pillar three</p>
+        <h3 class="h-display" style="margin:8px 0 14px;font-size:1.45rem">Say less, and say it warm.</h3>
+        <p class="small">Short lines, present tense, no hype. But warm on purpose.</p>
+        <p class="small" style="margin-top:12px"><strong>So:</strong> warm whites, lit golds, a dark that is
+        deep blue rather than black. A cockpit at night, not a hospital corridor. Terse is not the same as cold.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 ---------------------------------------------------------------- -->
+  <section class="sec" id="naming">
+    <div class="sec-head"><span class="sec-num">02</span><h2 class="h-display">Naming</h2><span class="sec-note">How things get named</span></div>
+    <div class="stack">
+      <div class="grid g2">
+        <div class="panel">
+          <h3 class="h-display">Mutators</h3>
+          <p class="small" style="margin:12px 0 0">All-caps codename plus a plain-language subline. The codename
+          carries the identity, the subline says exactly what changes. Never explain the joke in the codename.
+          Mutator names are never funny.</p>
+          <ul class="lines" style="margin-top:18px">
+            <li>CRYO WINTER<br><span class="small">Every pickup is a Cryo Field.</span></li>
+            <li>THE PIT<br><span class="small">The arena is about 30% smaller in both dimensions.</span></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3 class="h-display">Badges</h3>
+          <p class="small" style="margin:12px 0 0">Short human phrases, often wry, describing a real feat.
+          Badge names <em>may</em> be funny, and the funniest one in the game is for dying in ten seconds.</p>
+          <ul class="lines" style="margin-top:18px">
+            <li>Space Dust<br><span class="small">Perish within 10 seconds. It happens to the best of us.</span></li>
+            <li>Galaxy's Finest<br><span class="small">Hold the #1 spot on the leaderboard.</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="panel scroller">
+        <table class="spec">
+          <tbody>
+            <tr><td>ORION</td><td>Caps in the wordmark and in product UI. "Orion" is fine in running prose, "ORION" is preferred in headlines.</td></tr>
+            <tr><td>Daily Patrol</td><td>The name of the primary mode. Never "daily challenge".</td></tr>
+            <tr><td>Powers</td><td>Two-word Title Case: one noun of function, one noun of thing. <em>Aegis Shield, Missile Swarm, Arc Lightning, Cryo Field.</em></td></tr>
+            <tr><td>Pilot</td><td>What players are called. Never users, never gamers.</td></tr>
+            <tr><td>Callsign</td><td>What their name is called. Never nickname, never username.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="grid g3">
+        <div class="panel"><p class="eyebrow">Primary tagline</p><p style="font-family:var(--display);font-size:1.4rem;font-weight:600;letter-spacing:.05em;margin:10px 0 0;color:var(--flare)">Survive the swarm.</p></div>
+        <div class="panel"><p class="eyebrow">Descriptor</p><p style="font-family:var(--display);font-size:1.4rem;font-weight:600;letter-spacing:.05em;margin:10px 0 0;color:var(--star)">A daily survival patrol.</p></div>
+        <div class="panel"><p class="eyebrow">Social bio</p><p style="font-family:var(--display);font-size:1.15rem;font-weight:500;margin:10px 0 0;color:var(--star)">Three attempts a day. Same run for every pilot.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 ---------------------------------------------------------------- -->
+  <section class="sec" id="identity">
+    <div class="sec-head"><span class="sec-num">03</span><h2 class="h-display">Identity</h2><span class="sec-note">Mark, wordmark, lockups</span></div>
+    <div class="stack">
+
+      <div class="grid g2" style="align-items:center">
+        <div class="panel" style="display:grid;place-items:center;padding:var(--s6)">
+          <svg viewBox="0 0 100 100" style="width:min(52%,190px);height:auto;filter:drop-shadow(0 0 22px rgba(255,215,0,.3))" role="img" aria-label="The Patrol Sight">
+            <use href="#markG" width="100" height="100"/>
+          </svg>
+        </div>
+        <div>
+          <p class="eyebrow">The mark</p>
+          <h3 class="h-display" style="margin:8px 0 14px;font-size:1.7rem">The Patrol Sight</h3>
+          <p>A gold ring cut on the four diagonals, red core dead centre. It reads three ways at once, which is
+          why it works: a targeting reticle, an eclipse, and the top-down silhouette of a ship inside its arena.</p>
+          <p>It evolves the favicon already shipped (a plain gold ring and a red dot) rather than replacing it,
+          so nothing currently live looks wrong beside it. The diagonal cuts are the same 45-degree corner cut
+          used in the wordmark. That cut is the brand's one repeating geometric idea: <strong>the chamfer</strong>.
+          Use it on cards, buttons, medals and crops. Never a rounded pill.</p>
+        </div>
+      </div>
+
+      <div>
+        <p class="eyebrow">The wordmark</p>
+        <h3 class="h-display" style="margin:8px 0 14px;font-size:1.7rem">It is outlines, not a font</h3>
+        <p style="margin-bottom:22px">Five chamfered geometric letterforms on a 100-unit cap height, 22-unit stems,
+        22-unit corner cuts. It ships as vector outlines, so it carries no font dependency at all.
+        Do not re-set it in Rajdhani or anything else.</p>
+        <div class="panel" style="display:grid;place-items:center;padding:var(--s6) var(--s5)">
+          <svg viewBox="0 0 431 100" style="width:100%;height:auto" role="img" aria-label="ORION wordmark"><use href="#wmG" width="431" height="100"/></svg>
+        </div>
+      </div>
+
+      <div>
+        <p class="eyebrow">Lockups and finishes</p>
+        <h3 class="h-display" style="margin:8px 0 14px;font-size:1.7rem">Which finish on which background</h3>
+        <p style="margin-bottom:22px">Horizontal by default. Gradient on dark, <code>-mono-black</code> on light,
+        <code>-mono-white</code> on photography or anything busy. Switch the ground below and the lockup follows
+        its own rule.</p>
+        <div class="viewer">
+          <div class="viewer-stage" id="stage" style="background:#0a0a12">
+            <svg viewBox="0 0 603 128" id="stage-lock" role="img" aria-label="ORION horizontal lockup"><use href="#lockG" width="603" height="128"/></svg>
+          </div>
+          <div class="viewer-bar" role="group" aria-label="Background">
+            <button class="chip" type="button" data-bg="#0a0a12" data-fin="grad" aria-pressed="true">Void</button>
+            <button class="chip" type="button" data-bg="#12121e" data-fin="grad" aria-pressed="false">Deep Space</button>
+            <button class="chip" type="button" data-bg="#fff7e0" data-fin="black" aria-pressed="false">Starlight</button>
+            <button class="chip" type="button" data-bg="busy" data-fin="white" aria-pressed="false">Busy / photo</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="eyebrow">Clearspace and minimum size</p>
+        <h3 class="h-display" style="margin:8px 0 14px;font-size:1.7rem">How much space to leave around it</h3>
+        <p style="margin-bottom:22px"><strong>X is the diameter of the red core.</strong> Keep X clear on all four
+        sides of every lockup. Nothing enters that box, including background artwork with detail in it.</p>
+        <div class="cs">
+          <div class="cs-box">
+            <svg viewBox="0 0 603 128" aria-hidden="true"><use href="#lockG" width="603" height="128"/></svg>
+            <span class="cs-x cs-x--l">X</span><span class="cs-x cs-x--t">X</span>
+          </div>
+        </div>
+        <div class="grid g2" style="margin-top:var(--s3)">
+          <div class="panel" style="display:flex;gap:var(--s3);align-items:center">
+            <svg viewBox="0 0 603 128" style="width:120px;height:auto;flex:none" aria-hidden="true"><use href="#lockG" width="603" height="128"/></svg>
+            <p class="small" style="margin:0">Horizontal lockup: minimum <strong>120 px</strong> wide, or 30 mm in print. Shown at size.</p>
+          </div>
+          <div class="panel" style="display:flex;gap:var(--s3);align-items:center">
+            <svg viewBox="0 0 100 100" style="width:24px;height:auto;flex:none" aria-hidden="true"><use href="#markG" width="100" height="100"/></svg>
+            <p class="small" style="margin:0">Mark: minimum <strong>24 px</strong>. Shown at size. Below this the diagonal cuts close up, so switch to the solid-ring favicon.</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="eyebrow">Misuse</p>
+        <h3 class="h-display" style="margin:8px 0 22px;font-size:1.7rem">What not to do</h3>
+        <div class="grid g3">
+          <div class="dont"><div class="dont-stage"><svg viewBox="0 0 603 128" style="color:#66ccff" aria-hidden="true"><use href="#lockM" width="603" height="128"/></svg></div><p>Do not recolour outside the four supplied finishes.</p></div>
+          <div class="dont"><div class="dont-stage"><svg class="sq" viewBox="0 0 603 128" aria-hidden="true"><use href="#lockG" width="603" height="128"/></svg></div><p>Do not stretch or condense either element.</p></div>
+          <div class="dont"><div class="dont-stage"><svg class="rot" viewBox="0 0 603 128" aria-hidden="true"><use href="#lockG" width="603" height="128"/></svg></div><p>Do not rotate the wordmark.</p></div>
+          <div class="dont"><div class="dont-stage"><svg viewBox="0 0 603 128" style="filter:drop-shadow(0 0 12px #ff4455) drop-shadow(0 4px 0 #7a1020)" aria-hidden="true"><use href="#lockG" width="603" height="128"/></svg></div><p>No shadows, bevels or glow beyond the single gold bloom on the icon art.</p></div>
+          <div class="dont"><div class="dont-stage stage-light"><svg viewBox="0 0 603 128" aria-hidden="true"><use href="#lockG" width="603" height="128"/></svg></div><p>Do not put the gradient lockup on light. <code>-mono-black</code> exists for that.</p></div>
+          <div class="dont"><div class="dont-stage"><span style="font-family:var(--body);font-weight:600;font-size:2rem;letter-spacing:.1em;color:var(--gold)">ORION</span></div><p>Do not rebuild the wordmark in a font. It is outlines for a reason.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 ---------------------------------------------------------------- -->
+  <section class="sec" id="colour">
+    <div class="sec-head"><span class="sec-num">04</span><h2 class="h-display">Colour</h2><span class="sec-note">Click any swatch to copy</span></div>
+    <div class="stack">
+      <p class="lede">Gold is the protagonist, red is the antagonist, and the split is roughly 70 / 25 / 5 gold to
+      red to everything else. Red should feel like it is arriving from off-frame. In every layout here it enters
+      from the right, because that is the direction the swarm comes from in the boot cinematic.</p>
+
+      <div>
+        <h3 class="h-display" style="margin-bottom:6px">Core</h3>
+        <p class="small" style="margin-bottom:20px">Ratios are measured against Void <span class="mono">#0a0a12</span>, WCAG 2.1.</p>
+        <div class="grid g4" id="core-sw"></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="rule-card">
+          <p class="eyebrow">Hard rule</p>
+          <p style="margin-top:10px"><strong>Never set body copy in Rising Red on Void.</strong> At 3.37:1 it fails
+          AA for anything below large text. It is the colour of the core and the swarm, not of sentences. Red text
+          uses Alarm <span class="mono">#ff4455</span> at 5.83:1, which is why live mutator names on the share card
+          are Alarm.</p>
+        </div>
+        <div class="rule-card">
+          <p class="eyebrow">Watch this one</p>
+          <p style="margin-top:10px"><strong>Dust clears AA on Void by 0.19.</strong> On Deep Space it drops to 4.42
+          and fails. Keep Dust on Void only; on raised surfaces use Bronze. Everything on this page follows that,
+          which is why panel captions are Bronze and page captions are Dust.</p>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="h-display" style="margin-bottom:6px">Power signals</h3>
+        <p class="small" style="margin-bottom:20px">Functional, never decorative. A colour means a power. Using
+        Magnet purple as a background accent teaches pilots the wrong thing.</p>
+        <div class="grid g4" id="power-sw"></div>
+      </div>
+
+      <div>
+        <h3 class="h-display" style="margin-bottom:6px">Medal metals</h3>
+        <p class="small" style="margin-bottom:20px">Awarded on score, per mutator factor. The plate is a hexagon
+        because the drones are hexagons: you are wearing what you survived.</p>
+        <div class="grid g3" id="medals"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 ---------------------------------------------------------------- -->
+  <section class="sec" id="type">
+    <div class="sec-head"><span class="sec-num">05</span><h2 class="h-display">Type</h2><span class="sec-note">Rajdhani, already shipped</span></div>
+    <div class="stack">
+      <p class="lede">Rajdhani, weights 400 to 700. The game already loads it, so this is codification and not a
+      migration. Semi-condensed and squarish: technical without being a sci-fi novelty face, and narrow enough
+      that long HUD labels fit across a phone in landscape.</p>
+      <div class="panel">
+        <div class="spec-row"><div class="spec-key">DISPLAY<br>700 / +0.06em<br>caps</div><div class="sp-display">Survive the swarm</div></div>
+        <div class="spec-row"><div class="spec-key">LABEL<br>600 / +0.14em<br>caps</div><div class="sp-label">Today's mutator</div></div>
+        <div class="spec-row"><div class="spec-key">BODY<br>500 / +0<br>sentence case</div><div class="sp-body">Pickups fire the instant you grab them, no button. Every power can appear from minute zero.</div></div>
+        <div class="spec-row"><div class="spec-key">DATA<br>700 / tabular<br>gold</div><div class="sp-data">1,284,300</div></div>
+      </div>
+      <div class="grid g2">
+        <div class="panel">
+          <h4 class="h-display">Fallback stack</h4>
+          <p class="small mono" style="margin-top:10px">'Rajdhani', 'Titillium Web', 'Segoe UI', system-ui, sans-serif</p>
+        </div>
+        <div class="panel">
+          <h4 class="h-display">How to size numbers</h4>
+          <p class="small" style="margin-top:10px">Set scores large, in gold, and let everything around them be
+          Dust. The share card is the reference layout for this.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 ---------------------------------------------------------------- -->
+  <section class="sec" id="voice">
+    <div class="sec-head"><span class="sec-num">06</span><h2 class="h-display">Voice</h2><span class="sec-note">Three of them</span></div>
+    <div class="stack">
+      <p class="lede">ORION speaks in three voices. They share a spine and differ in warmth. Every line ORION ships
+      is in one of them. If you cannot tell which one you are writing in, you are writing in none of them.</p>
+
+      <div class="panel">
+        <h3 class="h-display">Rules for all three voices</h3>
+        <ol class="rules" style="margin-top:16px">
+          <li><strong>The player is a pilot.</strong> Never a user, a player, or a gamer. Their name is a callsign.</li>
+          <li><strong>Short lines.</strong> If a sentence needs a comma to survive, try two sentences first.</li>
+          <li><strong>Present tense, active voice.</strong> "Three attempts a day", not "You will be given three attempts per day."</li>
+          <li><strong>Specific over superlative.</strong> "Destroy 1,000 drones in a single run" beats "an epic challenge". Numbers are more exciting than adjectives.</li>
+          <li><strong>No em dashes, ever.</strong> Use a comma, a colon, parentheses, a middle dot, or a full stop. Hard rule, already swept out of the game once on Aug 17, 2026.</li>
+          <li><strong>One exclamation mark per surface, maximum.</strong> Usually zero.</li>
+          <li><strong>Never fake scale.</strong> No testimonials, no press quotes, no player counts unless real and current. ORION is small and honest about it.</li>
+          <li><strong>Absolute dates with a timezone.</strong> "Aug 18, 3:44 PM PT", never "yesterday". Daily Patrol rolls at 00:00 UTC, which is 5 PM PT.</li>
+        </ol>
+      </div>
+
+      <div class="grid g3">
+        <article class="voice">
+          <div><p class="eyebrow">Voice 01</p><h3 class="voice-name">Mission Control</h3></div>
+          <dl>
+            <dt>Where</dt><dd>In-game UI, HUD, prompts, errors, briefings, push.</dd>
+            <dt>Who</dt><dd>The ground station. It has your telemetry on a screen. Calm, busy, on your side, not going to make a fuss.</dd>
+            <dt>Register</dt><dd>Flight comms. Terse, second person, present tense, world already in motion.</dd>
+          </dl>
+          <div>
+            <h4 class="h-display">Rules</h4>
+            <ul class="rules" style="margin-top:10px">
+              <li>Fact first, consequence second.</li>
+              <li>Contractions preferred.</li>
+              <li>All-caps for labels only, never a sentence.</li>
+              <li>Failure states name the cause, then the fallback. Never blame the pilot for an infrastructure problem.</li>
+              <li>Never explain a mechanic the pilot can feel.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="h-display">Sounds like</h4>
+            <ul class="lines" style="margin-top:10px">
+              <li>Today's patrol, still flying.<span class="tag-live">LIVE</span></li>
+              <li>Score not saved. Couldn't reach the leaderboard.<span class="tag-live">LIVE</span></li>
+              <li>Sandboxed: no daily attempt spent, no score submitted, no medal recorded.<span class="tag-live">LIVE</span></li>
+              <li>No motion data from this device. Flying with the touch stick.<span class="tag-live">LIVE</span></li>
+              <li>Out of attempts. Next patrol at 00:00 UTC.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="h-display">Never</h4>
+            <ul class="lines lines--no" style="margin-top:10px">
+              <li>Uh oh! Something went wrong. Please try again later.</li>
+              <li>Get ready for the ULTIMATE arcade challenge!</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="voice voice--log">
+          <div><p class="eyebrow">Voice 02</p><h3 class="voice-name">The Log</h3></div>
+          <dl>
+            <dt>Where</dt><dd>The site, store listings, link previews, patch notes, Reddit posts, ads, the README.</dd>
+            <dt>Who</dt><dd>The person who built it, writing down what happened.</dd>
+            <dt>Register</dt><dd>A builder's changelog that happens to be readable. It reports, it does not pitch.</dd>
+          </dl>
+          <div>
+            <h4 class="h-display">Rules</h4>
+            <ul class="rules" style="margin-top:10px">
+              <li>Open with the concrete thing, not the promise.</li>
+              <li>Credit influences openly. The tilt controls already say "a tribute to Tilt to Live". Keep that.</li>
+              <li>Never claim a feature that is not live.</li>
+              <li>A launch post says what it is, what is different, what it costs, where to play. Four things, in that order.</li>
+              <li>Never "we're thrilled", "we're excited to announce".</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="h-display">Sounds like</h4>
+            <ul class="lines" style="margin-top:10px">
+              <li>ORION is live at surviveorion.com. It is a daily survival arcade: one shared seed a day, three attempts, no gun. You dodge.</li>
+              <li>22 named mutators, one per day, two on Sundays. Sidegrades, not difficulty sliders.</li>
+              <li>Tilt steering: lean the phone to fly. A tribute to Tilt to Live.<span class="tag-live">LIVE</span></li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="h-display">Never</h4>
+            <ul class="lines lines--no" style="margin-top:10px">
+              <li>ORION redefines the arcade genre for a new generation.</li>
+              <li>Experience heart-pounding action like never before.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="voice voice--wing">
+          <div><p class="eyebrow">Voice 03</p><h3 class="voice-name">Wingmate</h3></div>
+          <dl>
+            <dt>Where</dt><dd>Feedback replies, support email, Reddit comments, Discord, anything answering a human.</dd>
+            <dt>Who</dt><dd>The pilot in the next seat. Treats the person as a competent adult who found something real.</dd>
+            <dt>Register</dt><dd>Mission Control with the shoulders down. It can be funny.</dd>
+          </dl>
+          <div>
+            <h4 class="h-display">Rules</h4>
+            <ul class="rules" style="margin-top:10px">
+              <li>Thank them for the specific thing, not for "reaching out".</li>
+              <li>Say what you will do, or say you will not and why. Never "we'll look into it".</li>
+              <li>Never apologise twice for the same thing.</li>
+              <li>Match their register. A one-line gripe gets a one-line answer.</li>
+              <li>Never argue with a bad review in public.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="h-display">Sounds like</h4>
+            <ul class="lines" style="margin-top:10px">
+              <li>Received, pilot. Best ideas make it into the arena.<span class="tag-live">LIVE</span></li>
+              <li>Thank you, pilot. Your report is in the log.<span class="tag-live">LIVE</span></li>
+              <li>Good catch. The touch-drag lockup is real, it is fixed on the branch, it goes live this week.</li>
+              <li>Not planned right now, and I would rather say so than leave it on a roadmap forever.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="h-display">Never</h4>
+            <ul class="lines lines--no" style="margin-top:10px">
+              <li>Thank you for reaching out! We appreciate your feedback and will pass it along to our team.</li>
+              <li>We're sorry for any inconvenience this may have caused.</li>
+            </ul>
+          </div>
+        </article>
+      </div>
+
+      <div class="grid g2">
+        <div class="panel scroller">
+          <h3 class="h-display" style="margin-bottom:14px">Which voice</h3>
+          <table class="spec">
+            <tbody>
+              <tr><td>Mission Control</td><td>A button, a toast, a HUD label, an error, a mutator briefing, a badge description.</td></tr>
+              <tr><td>The Log</td><td>The site, an ad, a store page, a link preview, a patch note, a Reddit post you wrote.</td></tr>
+              <tr><td>Wingmate</td><td>Any reply to a pilot, anywhere. Including a Reddit comment on your own post.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stack-tight">
+          <div class="ok-card">
+            <p class="eyebrow">Use</p>
+            <p class="small" style="margin-top:8px;color:#cfc3a4">pilot &middot; callsign &middot; patrol &middot; run &middot; attempt &middot; the swarm &middot; the board &middot; the arena &middot; mutator &middot; power &middot; medal &middot; drone &middot; seed &middot; graze &middot; multiplier</p>
+          </div>
+          <div class="rule-card">
+            <p class="eyebrow">Never ships</p>
+            <p class="small" style="margin-top:8px;color:#cfc3a4">user &middot; gamer &middot; level &middot; enemy &middot; epic &middot; insane &middot; game-changing &middot; content &middot; experience &middot; journey &middot; "we're thrilled" &middot; "please try again later" &middot; any em dash</p>
+          </div>
+          <div class="panel">
+            <p class="eyebrow">French</p>
+            <p class="small" style="margin-top:8px">Same voice, same brevity, same ban. <em>pilote</em>, <em>indicatif</em>,
+            <em>la patrouille du jour</em>. Never translate a mutator codename: they are proper nouns, the same way
+            STARFALL stays STARFALL on the board everyone shares.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 ---------------------------------------------------------------- -->
+  <section class="sec" id="wild">
+    <div class="sec-head"><span class="sec-num">07</span><h2 class="h-display">Applied</h2><span class="sec-note">The surfaces, made</span></div>
+    <div class="stack">
+      <div>
+        <p class="eyebrow">Link preview &middot; 1200 &times; 630</p>
+        <h3 class="h-display" style="margin:8px 0 18px;font-size:1.5rem">Link preview</h3>
+        <div class="panel panel--flush"><svg style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="ORION link preview">
+  <title>ORION link preview (1200x630)</title>
+  <defs><radialGradient id="og-sp" cx="0.5" cy="0.5" r="0.78">
+      <stop offset="0" stop-color="#12121e"/><stop offset="1" stop-color="#0a0a12"/>
+    </radialGradient><linearGradient id="og-g" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient><linearGradient id="og-gv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient><radialGradient id="og-c" cx="0.38" cy="0.34" r="0.8">
+      <stop offset="0" stop-color="#ff4455"/><stop offset="1" stop-color="#c41e3a"/>
+    </radialGradient><filter id="og-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter></defs>
+  <rect width="1200" height="630" fill="url(#og-sp)"/>
+  <g><circle cx="297.7" cy="56.9" r="0.59" fill="#fff7e0" opacity="0.59"/><circle cx="53.4" cy="504.5" r="1.84" fill="#fff7e0" opacity="0.2"/><circle cx="333.5" cy="228.5" r="2.14" fill="#fff7e0" opacity="0.66"/><circle cx="1075.8" cy="246.6" r="0.66" fill="#fff7e0" opacity="0.66"/><circle cx="546.6" cy="493.2" r="1.72" fill="#fff7e0" opacity="0.25"/><circle cx="1138.3" cy="623.3" r="0.84" fill="#fff7e0" opacity="0.42"/><circle cx="782.1" cy="605.8" r="1.57" fill="#fff7e0" opacity="0.38"/><circle cx="670.2" cy="170.3" r="1.56" fill="#fff7e0" opacity="0.6"/><circle cx="280.2" cy="110.3" r="1.09" fill="#fff7e0" opacity="0.3"/><circle cx="196" cy="412.3" r="2.07" fill="#fff7e0" opacity="0.23"/><circle cx="1119.3" cy="418.2" r="2.29" fill="#fff7e0" opacity="0.21"/><circle cx="965" cy="86.2" r="1.26" fill="#fff7e0" opacity="0.4"/><circle cx="633.7" cy="311.5" r="0.69" fill="#fff7e0" opacity="0.59"/><circle cx="557.1" cy="428.4" r="1.67" fill="#fff7e0" opacity="0.36"/><circle cx="406.8" cy="619.2" r="1.47" fill="#fff7e0" opacity="0.42"/><circle cx="263.6" cy="106.3" r="0.75" fill="#fff7e0" opacity="0.32"/><circle cx="638.8" cy="428.9" r="2.04" fill="#fff7e0" opacity="0.64"/><circle cx="242.2" cy="584.5" r="1.82" fill="#fff7e0" opacity="0.6"/><circle cx="290" cy="582.7" r="1.81" fill="#fff7e0" opacity="0.42"/><circle cx="447.6" cy="505.5" r="0.77" fill="#fff7e0" opacity="0.47"/><circle cx="598.6" cy="597.2" r="1.1" fill="#fff7e0" opacity="0.64"/><circle cx="137.1" cy="503.9" r="1.95" fill="#fff7e0" opacity="0.4"/><circle cx="1173.6" cy="348.1" r="0.72" fill="#fff7e0" opacity="0.31"/><circle cx="751" cy="186.2" r="2.36" fill="#fff7e0" opacity="0.39"/><circle cx="662.9" cy="218.7" r="2.12" fill="#fff7e0" opacity="0.52"/><circle cx="168.1" cy="504.1" r="1.11" fill="#fff7e0" opacity="0.35"/><circle cx="796" cy="343.7" r="2.36" fill="#fff7e0" opacity="0.46"/><circle cx="1135.8" cy="182.4" r="1.84" fill="#fff7e0" opacity="0.51"/><circle cx="602.6" cy="206.8" r="1.2" fill="#fff7e0" opacity="0.45"/><circle cx="276.3" cy="61.8" r="0.59" fill="#fff7e0" opacity="0.27"/><circle cx="4.8" cy="482.2" r="1.07" fill="#fff7e0" opacity="0.49"/><circle cx="866.5" cy="234.6" r="0.82" fill="#fff7e0" opacity="0.24"/><circle cx="785.5" cy="191.4" r="2.03" fill="#fff7e0" opacity="0.38"/><circle cx="193.5" cy="57" r="0.59" fill="#fff7e0" opacity="0.67"/><circle cx="131.4" cy="514" r="1.03" fill="#fff7e0" opacity="0.32"/><circle cx="685.4" cy="403.6" r="1.14" fill="#fff7e0" opacity="0.49"/><circle cx="750.7" cy="132.6" r="1.32" fill="#fff7e0" opacity="0.57"/><circle cx="416.5" cy="607.6" r="0.92" fill="#fff7e0" opacity="0.35"/><circle cx="366.3" cy="382.5" r="1.57" fill="#fff7e0" opacity="0.68"/><circle cx="187.7" cy="165.1" r="1.64" fill="#fff7e0" opacity="0.19"/><circle cx="183.7" cy="45.2" r="0.75" fill="#fff7e0" opacity="0.64"/><circle cx="782.2" cy="163.4" r="1.53" fill="#fff7e0" opacity="0.37"/><circle cx="1134" cy="577.5" r="1.67" fill="#fff7e0" opacity="0.19"/><circle cx="1196" cy="24.1" r="0.67" fill="#fff7e0" opacity="0.31"/><circle cx="1091.7" cy="353.3" r="1.92" fill="#fff7e0" opacity="0.56"/><circle cx="243" cy="270.6" r="1.21" fill="#fff7e0" opacity="0.64"/><circle cx="267.9" cy="600.8" r="2.37" fill="#fff7e0" opacity="0.34"/><circle cx="336" cy="609.4" r="2.39" fill="#fff7e0" opacity="0.42"/><circle cx="378.1" cy="354.2" r="1.19" fill="#fff7e0" opacity="0.24"/><circle cx="241.5" cy="256.4" r="2.01" fill="#fff7e0" opacity="0.4"/><circle cx="1185.4" cy="579.2" r="1.67" fill="#fff7e0" opacity="0.55"/><circle cx="810.8" cy="507.6" r="2.14" fill="#fff7e0" opacity="0.22"/><circle cx="418" cy="463.3" r="1.71" fill="#fff7e0" opacity="0.49"/><circle cx="885.3" cy="103.4" r="2.22" fill="#fff7e0" opacity="0.28"/><circle cx="662.9" cy="360.2" r="0.9" fill="#fff7e0" opacity="0.19"/><circle cx="176.6" cy="398" r="2.24" fill="#fff7e0" opacity="0.53"/><circle cx="433" cy="48.4" r="0.7" fill="#fff7e0" opacity="0.62"/><circle cx="722.4" cy="173.4" r="0.77" fill="#fff7e0" opacity="0.33"/><circle cx="610.9" cy="495.2" r="1.4" fill="#fff7e0" opacity="0.63"/><circle cx="917" cy="256.5" r="1.21" fill="#fff7e0" opacity="0.37"/><circle cx="1066.1" cy="303.6" r="1.46" fill="#fff7e0" opacity="0.43"/><circle cx="116.2" cy="302.4" r="1.58" fill="#fff7e0" opacity="0.54"/><circle cx="648.7" cy="74.8" r="1.41" fill="#fff7e0" opacity="0.23"/><circle cx="618.5" cy="340.2" r="1.92" fill="#fff7e0" opacity="0.46"/><circle cx="556.7" cy="194.2" r="0.61" fill="#fff7e0" opacity="0.25"/><circle cx="1020" cy="154.7" r="0.93" fill="#fff7e0" opacity="0.39"/><circle cx="279.6" cy="232.6" r="2.31" fill="#fff7e0" opacity="0.41"/><circle cx="145.3" cy="281.7" r="0.82" fill="#fff7e0" opacity="0.28"/><circle cx="515.9" cy="590.9" r="2.07" fill="#fff7e0" opacity="0.47"/><circle cx="752.5" cy="207.5" r="1.3" fill="#fff7e0" opacity="0.33"/><circle cx="1066.1" cy="89.8" r="1.64" fill="#fff7e0" opacity="0.18"/><circle cx="1014.3" cy="73.5" r="1.82" fill="#fff7e0" opacity="0.56"/><circle cx="901" cy="214" r="2.38" fill="#fff7e0" opacity="0.57"/><circle cx="172.7" cy="214.8" r="0.57" fill="#fff7e0" opacity="0.41"/><circle cx="404.4" cy="259.7" r="1.27" fill="#fff7e0" opacity="0.65"/><circle cx="370.2" cy="422.6" r="1.68" fill="#fff7e0" opacity="0.37"/><circle cx="991.2" cy="398" r="0.81" fill="#fff7e0" opacity="0.19"/><circle cx="1054.8" cy="192.2" r="2.13" fill="#fff7e0" opacity="0.19"/><circle cx="900" cy="51.6" r="2.33" fill="#fff7e0" opacity="0.56"/><circle cx="360.5" cy="584.4" r="2.01" fill="#fff7e0" opacity="0.57"/><circle cx="361.6" cy="406.1" r="1.9" fill="#fff7e0" opacity="0.57"/><circle cx="1063.1" cy="141.3" r="2.16" fill="#fff7e0" opacity="0.37"/><circle cx="541.9" cy="345.9" r="1.96" fill="#fff7e0" opacity="0.34"/><circle cx="710.2" cy="607.4" r="2.28" fill="#fff7e0" opacity="0.42"/><circle cx="1059.5" cy="304.2" r="0.78" fill="#fff7e0" opacity="0.19"/><circle cx="727.2" cy="403.7" r="1.64" fill="#fff7e0" opacity="0.28"/><circle cx="878.7" cy="167.6" r="1.52" fill="#fff7e0" opacity="0.62"/><circle cx="897.3" cy="427.6" r="2.26" fill="#fff7e0" opacity="0.58"/><circle cx="178" cy="55.3" r="0.93" fill="#fff7e0" opacity="0.22"/><circle cx="817.1" cy="125.8" r="1.23" fill="#fff7e0" opacity="0.39"/><circle cx="792.4" cy="191.6" r="1.52" fill="#fff7e0" opacity="0.25"/><circle cx="1127.3" cy="222.7" r="0.78" fill="#fff7e0" opacity="0.62"/><circle cx="432.1" cy="504.3" r="1.44" fill="#fff7e0" opacity="0.59"/><circle cx="917.8" cy="132.7" r="1.85" fill="#fff7e0" opacity="0.4"/><circle cx="1074.5" cy="576.3" r="2.15" fill="#fff7e0" opacity="0.36"/><circle cx="908.5" cy="136.7" r="1.98" fill="#fff7e0" opacity="0.59"/><circle cx="333.1" cy="582" r="1.39" fill="#fff7e0" opacity="0.5"/><circle cx="404.7" cy="133.1" r="1.5" fill="#fff7e0" opacity="0.22"/><circle cx="600" cy="58.4" r="2.02" fill="#fff7e0" opacity="0.39"/><circle cx="27.2" cy="3.9" r="0.72" fill="#fff7e0" opacity="0.52"/><circle cx="1164" cy="179.7" r="2.39" fill="#fff7e0" opacity="0.49"/><circle cx="618.3" cy="333.4" r="1.56" fill="#fff7e0" opacity="0.5"/><circle cx="903.3" cy="87.2" r="0.65" fill="#fff7e0" opacity="0.58"/><circle cx="722" cy="333.7" r="2.17" fill="#fff7e0" opacity="0.48"/><circle cx="754" cy="503.2" r="1.53" fill="#fff7e0" opacity="0.42"/><circle cx="1039.5" cy="532" r="1.64" fill="#fff7e0" opacity="0.22"/><circle cx="1152.6" cy="138.9" r="0.93" fill="#fff7e0" opacity="0.54"/><circle cx="259.6" cy="144.7" r="1.5" fill="#fff7e0" opacity="0.57"/><circle cx="454.1" cy="17.6" r="1.49" fill="#fff7e0" opacity="0.52"/><circle cx="264.2" cy="473.9" r="2.12" fill="#fff7e0" opacity="0.64"/></g>
+  <g><polygon points="1029.6,380.1 1023.4,385.2 1015.9,382.5 1014.5,374.6 1020.6,369.4 1028.2,372.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.52"/><circle cx="1022.0" cy="377.3" r="2.2" fill="#c41e3a" opacity="0.52"/><polygon points="1134.5,32.8 1127.5,38.6 1119.1,35.4 1117.6,26.5 1124.5,20.8 1133.0,23.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.71"/><circle cx="1126.0" cy="29.7" r="2.5" fill="#c41e3a" opacity="0.71"/><polygon points="1038.0,449.9 1025.1,456.7 1012.7,449.0 1013.3,434.4 1026.2,427.6 1038.5,435.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.52"/><circle cx="1025.6" cy="442.2" r="4.1" fill="#c41e3a" opacity="0.52"/><polygon points="974.0,386.0 966.0,389.0 959.4,383.5 960.8,375.1 968.9,372.1 975.5,377.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.41"/><circle cx="967.4" cy="380.5" r="2.4" fill="#c41e3a" opacity="0.41"/><polygon points="1176.4,583.3 1164.3,591.4 1151.2,585.0 1150.3,570.4 1162.4,562.3 1175.5,568.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.78"/><circle cx="1163.4" cy="576.9" r="4.1" fill="#c41e3a" opacity="0.78"/><polygon points="1037.5,469.9 1025.6,479.6 1011.3,474.2 1008.8,459.0 1020.7,449.3 1035.1,454.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.52"/><circle cx="1023.2" cy="464.5" r="4.3" fill="#c41e3a" opacity="0.52"/><polygon points="902.9,213.6 892.2,219.0 882.2,212.4 882.9,200.4 893.6,195.0 903.6,201.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.27"/><circle cx="892.9" cy="207.0" r="3.4" fill="#c41e3a" opacity="0.27"/><polygon points="1029.4,329.0 1019.9,336.2 1009.0,331.6 1007.5,319.7 1017.0,312.5 1027.9,317.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.51"/><circle cx="1018.5" cy="324.4" r="3.3" fill="#c41e3a" opacity="0.51"/><polygon points="1074.1,226.7 1061.0,226.9 1054.2,215.7 1060.5,204.2 1073.7,203.9 1080.5,215.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.6"/><circle cx="1067.3" cy="215.4" r="3.7" fill="#c41e3a" opacity="0.6"/><polygon points="1113.2,565.2 1107.8,573.0 1098.3,572.3 1094.2,563.8 1099.5,555.9 1109.0,556.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.67"/><circle cx="1103.7" cy="564.5" r="2.7" fill="#c41e3a" opacity="0.67"/><polygon points="993.5,617.4 980.4,618.5 972.9,607.7 978.5,595.8 991.6,594.7 999.1,605.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.45"/><circle cx="986.0" cy="606.6" r="3.7" fill="#c41e3a" opacity="0.45"/><polygon points="957.0,266.0 942.5,267.7 933.8,256.0 939.5,242.6 954.0,240.9 962.8,252.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.38"/><circle cx="948.3" cy="254.3" r="4.1" fill="#c41e3a" opacity="0.38"/><polygon points="1122.0,129.0 1112.0,138.3 1099.0,134.3 1095.9,121.1 1105.9,111.8 1118.9,115.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.68"/><circle cx="1109.0" cy="125.0" r="3.8" fill="#c41e3a" opacity="0.68"/><polygon points="1180.4,331.8 1169.2,341.5 1155.2,336.7 1152.4,322.1 1163.6,312.4 1177.6,317.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.79"/><circle cx="1166.4" cy="327.0" r="4.2" fill="#c41e3a" opacity="0.79"/><polygon points="1071.2,194.0 1058.9,203.8 1044.3,198.0 1042.0,182.5 1054.2,172.8 1068.8,178.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.58"/><circle cx="1056.6" cy="188.3" r="4.4" fill="#c41e3a" opacity="0.58"/><polygon points="991.2,87.3 984.0,88.5 979.3,82.9 981.8,75.9 989.1,74.7 993.8,80.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.45"/><circle cx="986.5" cy="81.6" r="2.1" fill="#c41e3a" opacity="0.45"/><polygon points="1086.0,160.1 1075.9,165.9 1065.8,160.0 1065.9,148.3 1076.0,142.5 1086.1,148.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.62"/><circle cx="1076.0" cy="154.2" r="3.3" fill="#c41e3a" opacity="0.62"/><polygon points="1110.1,371.5 1096.5,373.3 1088.0,362.4 1093.2,349.7 1106.9,347.8 1115.3,358.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.67"/><circle cx="1101.7" cy="360.6" r="3.9" fill="#c41e3a" opacity="0.67"/><polygon points="993.2,449.0 986.0,449.2 982.1,443.1 985.5,436.7 992.7,436.5 996.5,442.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.46"/><circle cx="989.3" cy="442.8" r="2.0" fill="#c41e3a" opacity="0.46"/><polygon points="1194.6,425.0 1189.6,425.5 1186.5,421.4 1188.6,416.8 1193.6,416.2 1196.7,420.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.83"/><circle cx="1191.6" cy="420.9" r="1.4" fill="#c41e3a" opacity="0.83"/><polygon points="1047.8,537.9 1039.7,540.7 1033.3,535.0 1035.0,526.6 1043.1,523.9 1049.5,529.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.55"/><circle cx="1041.4" cy="532.3" r="2.4" fill="#c41e3a" opacity="0.55"/><polygon points="1170.4,305.9 1160.0,311.4 1150.0,305.2 1150.4,293.4 1160.8,287.9 1170.8,294.1" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.78"/><circle cx="1160.4" cy="299.7" r="3.3" fill="#c41e3a" opacity="0.78"/><polygon points="1102.6,91.3 1097.2,96.6 1089.9,94.6 1088.0,87.3 1093.4,81.9 1100.7,84.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.65"/><circle cx="1095.3" cy="89.3" r="2.1" fill="#c41e3a" opacity="0.65"/><polygon points="1068.9,423.1 1057.7,425.8 1049.7,417.4 1053.0,406.3 1064.3,403.6 1072.2,412.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.59"/><circle cx="1061.0" cy="414.7" r="3.2" fill="#c41e3a" opacity="0.59"/><polygon points="1020.4,290.9 1011.4,292.4 1005.6,285.4 1008.8,276.9 1017.8,275.4 1023.5,282.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.5"/><circle cx="1014.6" cy="283.9" r="2.5" fill="#c41e3a" opacity="0.5"/><polygon points="1207.8,171.4 1198.9,181.2 1185.9,178.3 1181.9,165.7 1190.9,155.9 1203.8,158.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.84"/><circle cx="1194.9" cy="168.6" r="3.7" fill="#c41e3a" opacity="0.84"/><polygon points="1075.7,571.7 1067.6,580.1 1056.3,577.2 1053.1,566.1 1061.2,557.7 1072.5,560.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.6"/><circle cx="1064.4" cy="568.9" r="3.3" fill="#c41e3a" opacity="0.6"/><polygon points="1069.2,280.1 1064.2,284.2 1058.1,282.0 1057.0,275.6 1062.0,271.4 1068.1,273.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.59"/><circle cx="1063.1" cy="277.8" r="1.8" fill="#c41e3a" opacity="0.59"/><polygon points="1098.3,370.5 1089.7,370.8 1085.2,363.5 1089.3,355.9 1097.9,355.6 1102.4,362.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.65"/><circle cx="1093.8" cy="363.2" r="2.4" fill="#c41e3a" opacity="0.65"/><polygon points="1014.6,573.3 1006.1,573.6 1001.6,566.4 1005.6,558.9 1014.1,558.6 1018.5,565.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.49"/><circle cx="1010.1" cy="566.1" r="2.4" fill="#c41e3a" opacity="0.49"/><polygon points="1063.2,334.0 1055.4,339.0 1047.2,334.9 1046.7,325.7 1054.4,320.6 1062.6,324.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.58"/><circle cx="1054.9" cy="329.8" r="2.6" fill="#c41e3a" opacity="0.58"/><polygon points="1101.4,307.5 1092.7,311.2 1085.2,305.4 1086.4,296.1 1095.1,292.4 1102.6,298.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.65"/><circle cx="1093.9" cy="301.8" r="2.6" fill="#c41e3a" opacity="0.65"/><polygon points="1053.0,300.7 1044.5,310.6 1031.7,308.3 1027.3,296.0 1035.8,286.1 1048.6,288.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.55"/><circle cx="1040.2" cy="298.4" r="3.7" fill="#c41e3a" opacity="0.55"/><polygon points="969.4,491.3 960.5,504.0 945.1,502.7 938.6,488.7 947.4,476.0 962.8,477.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.39"/><circle cx="954.0" cy="490.0" r="4.3" fill="#c41e3a" opacity="0.39"/><polygon points="965.5,321.6 962.8,325.9 957.7,325.7 955.3,321.1 958.1,316.8 963.2,317.1" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.4"/><circle cx="960.4" cy="321.4" r="1.4" fill="#c41e3a" opacity="0.4"/><polygon points="1076.2,458.6 1064.6,459.6 1057.9,450.0 1062.8,439.4 1074.5,438.4 1081.2,448.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.61"/><circle cx="1069.5" cy="449.0" r="3.3" fill="#c41e3a" opacity="0.61"/><polygon points="1026.1,155.5 1012.4,160.1 1001.5,150.5 1004.5,136.3 1018.2,131.7 1029.0,141.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.5"/><circle cx="1015.3" cy="145.9" r="4.1" fill="#c41e3a" opacity="0.5"/><polygon points="932.4,472.5 925.1,482.1 913.2,480.6 908.5,469.5 915.8,459.9 927.7,461.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.33"/><circle cx="920.5" cy="471.0" r="3.4" fill="#c41e3a" opacity="0.33"/><polygon points="1200.5,53.1 1194.6,53.9 1191.0,49.2 1193.2,43.7 1199.1,42.9 1202.7,47.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.84"/><circle cx="1196.9" cy="48.4" r="1.7" fill="#c41e3a" opacity="0.84"/><polygon points="1097.6,542.8 1090.5,544.2 1085.7,538.7 1088.1,531.8 1095.2,530.4 1100.0,535.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.65"/><circle cx="1092.9" cy="537.3" r="2.0" fill="#c41e3a" opacity="0.65"/><polygon points="1175.0,94.8 1163.5,95.2 1157.4,85.4 1162.8,75.2 1174.3,74.8 1180.4,84.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.79"/><circle cx="1168.9" cy="85.0" r="3.2" fill="#c41e3a" opacity="0.79"/><polygon points="913.3,406.9 902.6,407.0 897.1,397.7 902.4,388.4 913.2,388.3 918.6,397.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.3"/><circle cx="907.9" cy="397.6" r="3.0" fill="#c41e3a" opacity="0.3"/><polygon points="1134.6,119.0 1128.5,122.6 1122.4,119.2 1122.3,112.1 1128.4,108.4 1134.5,111.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.72"/><circle cx="1128.5" cy="115.5" r="2.0" fill="#c41e3a" opacity="0.72"/><polygon points="1089.4,428.5 1079.6,437.0 1067.3,432.9 1064.7,420.1 1074.5,411.5 1086.8,415.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.62"/><circle cx="1077.0" cy="424.3" r="3.6" fill="#c41e3a" opacity="0.62"/><polygon points="1019.6,606.7 1013.0,608.8 1007.9,604.2 1009.4,597.5 1015.9,595.3 1021.0,599.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.5"/><circle cx="1014.5" cy="602.1" r="1.9" fill="#c41e3a" opacity="0.5"/><polygon points="950.7,290.3 944.2,301.2 931.6,301.1 925.3,290.1 931.8,279.2 944.4,279.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.36"/><circle cx="938.0" cy="290.2" r="3.5" fill="#c41e3a" opacity="0.36"/></g>
+  <g transform="translate(78,250) scale(1.3)" filter="url(#og-glow)"><g fill="none" stroke="url(#og-g)" stroke-width="10">
+      <path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/>
+      <path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>
+      <path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/>
+      <path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>
+    </g>
+    <circle cx="50" cy="50" r="15" fill="url(#og-c)"/></g>
+  <g transform="translate(258,258) scale(0.86)"><g fill="url(#og-gv)" fill-rule="evenodd"><path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/><path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/><path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/><path transform="translate(249,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/><path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/></g></g>
+  <text x="258" y="410" fill="#aa8844" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="31" font-weight="600"
+    textLength="486" lengthAdjust="spacing">DAILY PATROL · SURVIVE THE SWARM</text>
+  <text x="258" y="466" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="500">Three attempts a day. Same run for every pilot.</text>
+  <text x="258" y="506" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="500">surviveorion.com</text>
+</svg></div>
+      </div>
+      <div>
+        <p class="eyebrow">Social header &middot; 1500 &times; 500</p>
+        <h3 class="h-display" style="margin:8px 0 18px;font-size:1.5rem">Social header</h3>
+        <div class="panel panel--flush"><svg style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500" role="img" aria-label="ORION social header">
+  <title>ORION social header (1500x500)</title>
+  <defs><radialGradient id="hdr-sp" cx="0.5" cy="0.5" r="0.78">
+      <stop offset="0" stop-color="#12121e"/><stop offset="1" stop-color="#0a0a12"/>
+    </radialGradient><linearGradient id="hdr-g" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient><linearGradient id="hdr-gv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient><radialGradient id="hdr-c" cx="0.38" cy="0.34" r="0.8">
+      <stop offset="0" stop-color="#ff4455"/><stop offset="1" stop-color="#c41e3a"/>
+    </radialGradient><filter id="hdr-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter></defs>
+  <rect width="1500" height="500" fill="url(#hdr-sp)"/>
+  <g><circle cx="384.9" cy="42.9" r="0.71" fill="#fff7e0" opacity="0.49"/><circle cx="1060.2" cy="125.2" r="0.86" fill="#fff7e0" opacity="0.28"/><circle cx="704.5" cy="313.3" r="2.1" fill="#fff7e0" opacity="0.2"/><circle cx="581.2" cy="165.7" r="0.71" fill="#fff7e0" opacity="0.29"/><circle cx="1237.4" cy="58.6" r="0.9" fill="#fff7e0" opacity="0.5"/><circle cx="228.7" cy="185.8" r="2.25" fill="#fff7e0" opacity="0.2"/><circle cx="351.7" cy="340.7" r="1.92" fill="#fff7e0" opacity="0.31"/><circle cx="563" cy="425.6" r="1.42" fill="#fff7e0" opacity="0.3"/><circle cx="639.6" cy="257.8" r="0.6" fill="#fff7e0" opacity="0.45"/><circle cx="12" cy="369.2" r="1.63" fill="#fff7e0" opacity="0.35"/><circle cx="71.7" cy="117.8" r="0.98" fill="#fff7e0" opacity="0.34"/><circle cx="135.9" cy="58.6" r="0.76" fill="#fff7e0" opacity="0.56"/><circle cx="121.8" cy="142.2" r="1.13" fill="#fff7e0" opacity="0.55"/><circle cx="860.9" cy="438" r="0.6" fill="#fff7e0" opacity="0.38"/><circle cx="859.1" cy="201.3" r="0.94" fill="#fff7e0" opacity="0.52"/><circle cx="680.5" cy="230" r="0.74" fill="#fff7e0" opacity="0.52"/><circle cx="1010.4" cy="81.1" r="2.02" fill="#fff7e0" opacity="0.66"/><circle cx="327.5" cy="342.7" r="1.53" fill="#fff7e0" opacity="0.27"/><circle cx="1489.6" cy="281" r="1.49" fill="#fff7e0" opacity="0.64"/><circle cx="912.6" cy="308.5" r="1.1" fill="#fff7e0" opacity="0.58"/><circle cx="397.2" cy="343" r="0.65" fill="#fff7e0" opacity="0.56"/><circle cx="1033.5" cy="253.3" r="1.43" fill="#fff7e0" opacity="0.5"/><circle cx="488" cy="211.6" r="1.9" fill="#fff7e0" opacity="0.3"/><circle cx="352" cy="397.8" r="0.83" fill="#fff7e0" opacity="0.3"/><circle cx="607.6" cy="126.2" r="1.42" fill="#fff7e0" opacity="0.22"/><circle cx="639.4" cy="89.8" r="1.18" fill="#fff7e0" opacity="0.42"/><circle cx="1097.7" cy="43.2" r="0.65" fill="#fff7e0" opacity="0.66"/><circle cx="1291.8" cy="367.6" r="1.62" fill="#fff7e0" opacity="0.22"/><circle cx="669.9" cy="90.7" r="2.06" fill="#fff7e0" opacity="0.61"/><circle cx="1313" cy="54.5" r="1.29" fill="#fff7e0" opacity="0.47"/><circle cx="1248.9" cy="53.3" r="0.82" fill="#fff7e0" opacity="0.29"/><circle cx="266.7" cy="385.1" r="1.79" fill="#fff7e0" opacity="0.64"/><circle cx="1283.7" cy="389.1" r="0.88" fill="#fff7e0" opacity="0.43"/><circle cx="1197.9" cy="162.4" r="1.61" fill="#fff7e0" opacity="0.5"/><circle cx="27.8" cy="277.5" r="2.06" fill="#fff7e0" opacity="0.38"/><circle cx="521.8" cy="446" r="1.66" fill="#fff7e0" opacity="0.41"/><circle cx="788.6" cy="198" r="2.13" fill="#fff7e0" opacity="0.45"/><circle cx="882.7" cy="272.5" r="0.92" fill="#fff7e0" opacity="0.52"/><circle cx="1144.9" cy="40.9" r="2.21" fill="#fff7e0" opacity="0.59"/><circle cx="481.3" cy="405.9" r="1.25" fill="#fff7e0" opacity="0.66"/><circle cx="133.4" cy="248.9" r="2.36" fill="#fff7e0" opacity="0.26"/><circle cx="869.8" cy="119.9" r="2.31" fill="#fff7e0" opacity="0.51"/><circle cx="1404" cy="489.7" r="0.67" fill="#fff7e0" opacity="0.25"/><circle cx="217.5" cy="11.5" r="1.88" fill="#fff7e0" opacity="0.64"/><circle cx="344.1" cy="360.2" r="1.39" fill="#fff7e0" opacity="0.55"/><circle cx="543.6" cy="345.8" r="1.43" fill="#fff7e0" opacity="0.2"/><circle cx="170.9" cy="121.8" r="1.91" fill="#fff7e0" opacity="0.22"/><circle cx="419.4" cy="431.9" r="1.96" fill="#fff7e0" opacity="0.49"/><circle cx="1493.4" cy="467.4" r="2.05" fill="#fff7e0" opacity="0.4"/><circle cx="139.6" cy="29.9" r="1.28" fill="#fff7e0" opacity="0.31"/><circle cx="1342.3" cy="318.7" r="1.77" fill="#fff7e0" opacity="0.64"/><circle cx="1361.4" cy="289.7" r="2.38" fill="#fff7e0" opacity="0.5"/><circle cx="169.2" cy="155.4" r="2.15" fill="#fff7e0" opacity="0.55"/><circle cx="1213.4" cy="220.7" r="0.53" fill="#fff7e0" opacity="0.38"/><circle cx="314.2" cy="376.1" r="2.34" fill="#fff7e0" opacity="0.19"/><circle cx="372.2" cy="192.6" r="2.32" fill="#fff7e0" opacity="0.38"/><circle cx="442.9" cy="189.1" r="1.76" fill="#fff7e0" opacity="0.21"/><circle cx="1108.8" cy="467.6" r="0.69" fill="#fff7e0" opacity="0.53"/><circle cx="951.1" cy="35.9" r="2.05" fill="#fff7e0" opacity="0.39"/><circle cx="1303.1" cy="264.1" r="0.81" fill="#fff7e0" opacity="0.61"/><circle cx="839" cy="44.8" r="0.95" fill="#fff7e0" opacity="0.3"/><circle cx="927.2" cy="351.4" r="2" fill="#fff7e0" opacity="0.25"/><circle cx="1054.3" cy="16.7" r="1.08" fill="#fff7e0" opacity="0.4"/><circle cx="1497.6" cy="175.4" r="2.06" fill="#fff7e0" opacity="0.64"/><circle cx="803.1" cy="441.5" r="1.3" fill="#fff7e0" opacity="0.27"/><circle cx="1496" cy="16.1" r="1.19" fill="#fff7e0" opacity="0.66"/><circle cx="330.9" cy="45.7" r="0.94" fill="#fff7e0" opacity="0.26"/><circle cx="1259.3" cy="176" r="1.83" fill="#fff7e0" opacity="0.21"/><circle cx="1171" cy="372.1" r="1.81" fill="#fff7e0" opacity="0.34"/><circle cx="837.4" cy="199.9" r="0.54" fill="#fff7e0" opacity="0.32"/><circle cx="862.6" cy="389.5" r="2.26" fill="#fff7e0" opacity="0.23"/><circle cx="1321.1" cy="125.5" r="2.25" fill="#fff7e0" opacity="0.62"/><circle cx="137.4" cy="134.7" r="2.28" fill="#fff7e0" opacity="0.34"/><circle cx="637.2" cy="266.3" r="1.93" fill="#fff7e0" opacity="0.49"/><circle cx="74.4" cy="385.4" r="0.62" fill="#fff7e0" opacity="0.49"/><circle cx="313.8" cy="24.5" r="1.97" fill="#fff7e0" opacity="0.56"/><circle cx="1224.6" cy="363.9" r="1.1" fill="#fff7e0" opacity="0.41"/><circle cx="713.4" cy="235.9" r="0.7" fill="#fff7e0" opacity="0.43"/><circle cx="203.1" cy="472.9" r="1.39" fill="#fff7e0" opacity="0.5"/><circle cx="1235.1" cy="45.9" r="1.5" fill="#fff7e0" opacity="0.29"/><circle cx="251.3" cy="61.8" r="0.54" fill="#fff7e0" opacity="0.37"/><circle cx="985.4" cy="316.9" r="0.55" fill="#fff7e0" opacity="0.65"/><circle cx="1266.6" cy="224.8" r="2.26" fill="#fff7e0" opacity="0.23"/><circle cx="1417.9" cy="66.4" r="0.96" fill="#fff7e0" opacity="0.52"/><circle cx="801.5" cy="129.7" r="0.77" fill="#fff7e0" opacity="0.44"/><circle cx="441.9" cy="437" r="1.74" fill="#fff7e0" opacity="0.23"/><circle cx="31.8" cy="378.4" r="0.51" fill="#fff7e0" opacity="0.47"/><circle cx="499.4" cy="197.4" r="1.64" fill="#fff7e0" opacity="0.64"/><circle cx="1192.8" cy="398.7" r="1.32" fill="#fff7e0" opacity="0.53"/><circle cx="610.7" cy="274.3" r="0.76" fill="#fff7e0" opacity="0.56"/><circle cx="984.4" cy="366.8" r="2.16" fill="#fff7e0" opacity="0.59"/><circle cx="889.7" cy="316.4" r="1.79" fill="#fff7e0" opacity="0.51"/><circle cx="945.6" cy="161.7" r="0.79" fill="#fff7e0" opacity="0.55"/><circle cx="26.7" cy="288.7" r="1.38" fill="#fff7e0" opacity="0.68"/><circle cx="296.8" cy="350.2" r="0.66" fill="#fff7e0" opacity="0.34"/><circle cx="740.8" cy="98.5" r="2.05" fill="#fff7e0" opacity="0.26"/><circle cx="1251.7" cy="204" r="2.17" fill="#fff7e0" opacity="0.67"/><circle cx="700.8" cy="253" r="0.97" fill="#fff7e0" opacity="0.49"/><circle cx="1297.3" cy="247" r="1.3" fill="#fff7e0" opacity="0.63"/><circle cx="414.9" cy="47.2" r="1.19" fill="#fff7e0" opacity="0.53"/><circle cx="943" cy="334.9" r="1.07" fill="#fff7e0" opacity="0.58"/><circle cx="1088.9" cy="284.2" r="1.55" fill="#fff7e0" opacity="0.59"/><circle cx="1438.5" cy="265.3" r="1.81" fill="#fff7e0" opacity="0.28"/><circle cx="1453.5" cy="25.8" r="1.54" fill="#fff7e0" opacity="0.31"/><circle cx="1460.2" cy="419.1" r="0.56" fill="#fff7e0" opacity="0.32"/><circle cx="1060.2" cy="374.9" r="1.86" fill="#fff7e0" opacity="0.51"/><circle cx="266.5" cy="433.8" r="1.52" fill="#fff7e0" opacity="0.34"/><circle cx="1046" cy="288.9" r="0.99" fill="#fff7e0" opacity="0.65"/><circle cx="1321.9" cy="407.3" r="1.38" fill="#fff7e0" opacity="0.53"/><circle cx="866.6" cy="424.5" r="0.76" fill="#fff7e0" opacity="0.56"/><circle cx="1389.4" cy="133.4" r="1" fill="#fff7e0" opacity="0.37"/><circle cx="1498.6" cy="13.4" r="2.16" fill="#fff7e0" opacity="0.51"/><circle cx="1092.7" cy="368.3" r="1.47" fill="#fff7e0" opacity="0.23"/><circle cx="110.7" cy="270.1" r="0.71" fill="#fff7e0" opacity="0.52"/><circle cx="945.9" cy="128.4" r="1.71" fill="#fff7e0" opacity="0.19"/><circle cx="202.9" cy="329.8" r="0.6" fill="#fff7e0" opacity="0.49"/><circle cx="852.8" cy="19.6" r="1.43" fill="#fff7e0" opacity="0.62"/><circle cx="1215.3" cy="218.4" r="1.7" fill="#fff7e0" opacity="0.52"/><circle cx="74.4" cy="97.4" r="1.84" fill="#fff7e0" opacity="0.67"/><circle cx="604.7" cy="353.5" r="1.59" fill="#fff7e0" opacity="0.65"/></g>
+  <g><polygon points="1471.5,232.9 1465.8,238.1 1458.5,235.7 1456.9,228.2 1462.6,223.1 1469.9,225.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.78"/><circle cx="1464.2" cy="230.6" r="2.1" fill="#c41e3a" opacity="0.78"/><polygon points="1357.9,335.1 1349.2,344.5 1336.6,341.7 1332.9,329.4 1341.6,320.0 1354.2,322.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.56"/><circle cx="1345.4" cy="332.3" r="3.6" fill="#c41e3a" opacity="0.56"/><polygon points="1411.8,257.4 1406.4,261.5 1400.2,258.9 1399.4,252.2 1404.8,248.2 1410.9,250.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.67"/><circle cx="1405.6" cy="254.8" r="1.9" fill="#c41e3a" opacity="0.67"/><polygon points="1249.3,439.7 1243.1,443.8 1236.5,440.5 1236.0,433.1 1242.2,429.0 1248.8,432.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.37"/><circle cx="1242.7" cy="436.4" r="2.1" fill="#c41e3a" opacity="0.37"/><polygon points="1414.5,236.6 1406.5,239.0 1400.3,233.2 1402.3,225.0 1410.3,222.6 1416.5,228.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.68"/><circle cx="1408.4" cy="230.8" r="2.4" fill="#c41e3a" opacity="0.68"/><polygon points="1272.1,395.0 1265.3,399.3 1258.2,395.5 1257.9,387.5 1264.7,383.2 1271.8,387.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.41"/><circle cx="1265.0" cy="391.2" r="2.2" fill="#c41e3a" opacity="0.41"/><polygon points="1458.8,95.8 1454.1,97.6 1450.1,94.4 1450.9,89.4 1455.7,87.6 1459.6,90.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.77"/><circle cx="1454.9" cy="92.6" r="1.4" fill="#c41e3a" opacity="0.77"/><polygon points="1427.8,174.3 1420.8,176.9 1415.1,172.1 1416.3,164.8 1423.3,162.2 1429.0,167.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.7"/><circle cx="1422.0" cy="169.5" r="2.1" fill="#c41e3a" opacity="0.7"/><polygon points="1447.6,372.6 1437.7,381.3 1425.2,377.1 1422.6,364.1 1432.6,355.4 1445.1,359.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.73"/><circle cx="1435.1" cy="368.4" r="3.7" fill="#c41e3a" opacity="0.73"/><polygon points="1287.9,130.5 1284.1,136.2 1277.2,135.8 1274.1,129.7 1277.9,123.9 1284.8,124.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.44"/><circle cx="1281.0" cy="130.1" r="1.9" fill="#c41e3a" opacity="0.44"/><polygon points="1317.0,65.6 1308.0,74.1 1296.0,70.5 1293.2,58.4 1302.2,49.9 1314.2,53.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.48"/><circle cx="1305.1" cy="62.0" r="3.5" fill="#c41e3a" opacity="0.48"/><polygon points="1291.1,415.6 1286.3,423.0 1277.4,422.6 1273.4,414.7 1278.2,407.3 1287.0,407.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.44"/><circle cx="1282.2" cy="415.1" r="2.5" fill="#c41e3a" opacity="0.44"/><polygon points="1406.5,212.2 1397.8,214.3 1391.7,207.8 1394.3,199.2 1403.0,197.2 1409.1,203.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.66"/><circle cx="1400.4" cy="205.7" r="2.5" fill="#c41e3a" opacity="0.66"/><polygon points="1457.2,265.3 1445.0,270.7 1434.2,262.7 1435.7,249.5 1447.9,244.1 1458.7,252.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.75"/><circle cx="1446.5" cy="257.4" r="3.7" fill="#c41e3a" opacity="0.75"/><polygon points="1262.5,128.6 1250.6,136.2 1238.1,129.8 1237.4,115.7 1249.3,108.1 1261.8,114.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.38"/><circle cx="1249.9" cy="122.1" r="3.9" fill="#c41e3a" opacity="0.38"/><polygon points="1356.3,78.0 1352.3,83.5 1345.6,82.8 1342.8,76.7 1346.8,71.2 1353.5,71.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.57"/><circle cx="1349.6" cy="77.3" r="1.9" fill="#c41e3a" opacity="0.57"/><polygon points="1394.0,327.0 1378.9,331.9 1367.1,321.3 1370.4,305.8 1385.5,300.9 1397.3,311.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.63"/><circle cx="1382.2" cy="316.4" r="4.4" fill="#c41e3a" opacity="0.63"/><polygon points="1407.4,136.0 1399.0,139.4 1391.8,133.8 1393.1,124.8 1401.5,121.3 1408.7,127.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.66"/><circle cx="1400.3" cy="130.4" r="2.5" fill="#c41e3a" opacity="0.66"/><polygon points="1425.0,482.9 1417.6,486.8 1410.5,482.2 1410.9,473.8 1418.4,470.0 1425.4,474.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.7"/><circle cx="1418.0" cy="478.4" r="2.4" fill="#c41e3a" opacity="0.7"/><polygon points="1473.3,36.4 1458.8,36.5 1451.6,24.0 1458.8,11.4 1473.2,11.4 1480.5,23.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.79"/><circle cx="1466.0" cy="23.9" r="4.0" fill="#c41e3a" opacity="0.79"/><polygon points="1482.7,276.6 1474.2,287.9 1460.2,286.2 1454.6,273.2 1463.1,261.9 1477.1,263.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.79"/><circle cx="1468.6" cy="274.9" r="4.0" fill="#c41e3a" opacity="0.79"/><polygon points="1433.0,66.4 1425.6,76.1 1413.4,74.5 1408.7,63.2 1416.2,53.5 1428.3,55.1" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.7"/><circle cx="1420.9" cy="64.8" r="3.4" fill="#c41e3a" opacity="0.7"/><polygon points="1263.1,58.5 1253.5,62.3 1245.5,55.8 1247.1,45.6 1256.7,41.8 1264.7,48.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.39"/><circle cx="1255.1" cy="52.1" r="2.9" fill="#c41e3a" opacity="0.39"/><polygon points="1297.6,118.2 1290.2,127.1 1278.7,125.1 1274.7,114.2 1282.2,105.3 1293.6,107.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.45"/><circle cx="1286.2" cy="116.2" r="3.3" fill="#c41e3a" opacity="0.45"/><polygon points="1289.2,487.9 1281.8,498.8 1268.8,497.9 1263.0,486.1 1270.3,475.3 1283.4,476.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.43"/><circle cx="1276.1" cy="487.0" r="3.7" fill="#c41e3a" opacity="0.43"/><polygon points="1420.1,286.3 1411.8,298.2 1397.3,297.0 1391.1,283.8 1399.5,271.9 1413.9,273.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.67"/><circle cx="1405.6" cy="285.1" r="4.1" fill="#c41e3a" opacity="0.67"/><polygon points="1496.8,232.2 1490.1,240.7 1479.4,239.2 1475.4,229.1 1482.1,220.6 1492.8,222.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.82"/><circle cx="1486.1" cy="230.7" r="3.0" fill="#c41e3a" opacity="0.82"/><polygon points="1492.4,89.9 1478.6,92.3 1469.6,81.5 1474.5,68.4 1488.3,66.0 1497.2,76.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.82"/><circle cx="1483.4" cy="79.1" r="3.9" fill="#c41e3a" opacity="0.82"/><polygon points="1504.4,181.3 1497.4,189.7 1486.7,187.9 1482.9,177.6 1489.9,169.2 1500.6,171.1" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.84"/><circle cx="1493.7" cy="179.5" r="3.1" fill="#c41e3a" opacity="0.84"/><polygon points="1386.4,355.0 1382.2,360.6 1375.3,359.8 1372.4,353.4 1376.6,347.8 1383.6,348.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.62"/><circle cx="1379.4" cy="354.2" r="2.0" fill="#c41e3a" opacity="0.62"/><polygon points="1457.7,461.3 1448.3,470.6 1435.6,467.1 1432.2,454.3 1441.6,445.0 1454.3,448.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.75"/><circle cx="1445.0" cy="457.8" r="3.7" fill="#c41e3a" opacity="0.75"/><polygon points="1459.1,377.6 1449.3,381.9 1440.6,375.5 1441.8,364.9 1451.7,360.6 1460.3,366.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.76"/><circle cx="1450.5" cy="371.2" r="3.0" fill="#c41e3a" opacity="0.76"/><polygon points="1304.5,191.5 1298.9,198.3 1290.3,196.9 1287.1,188.7 1292.7,181.9 1301.4,183.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.47"/><circle cx="1295.8" cy="190.1" r="2.5" fill="#c41e3a" opacity="0.47"/><polygon points="1223.8,48.1 1218.5,48.5 1215.6,44.1 1217.9,39.3 1223.2,39.0 1226.2,43.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.33"/><circle cx="1220.9" cy="43.7" r="1.5" fill="#c41e3a" opacity="0.33"/></g>
+  <g transform="translate(523,196) scale(1.08)" filter="url(#hdr-glow)"><g fill="none" stroke="url(#hdr-g)" stroke-width="10">
+      <path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/>
+      <path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>
+      <path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/>
+      <path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>
+    </g>
+    <circle cx="50" cy="50" r="15" fill="url(#hdr-c)"/></g>
+  <g transform="translate(667,208) scale(0.72)"><g fill="url(#hdr-gv)" fill-rule="evenodd"><path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/><path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/><path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/><path transform="translate(249,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/><path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/></g></g>
+  <text x="667" y="330" fill="#aa8844" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="23" font-weight="600"
+    textLength="430" lengthAdjust="spacing">SURVIVE THE SWARM · surviveorion.com</text>
+</svg></div>
+      </div>
+      <div>
+        <p class="eyebrow">Daily result card &middot; 1080 &times; 1080</p>
+        <h3 class="h-display" style="margin:8px 0 18px;font-size:1.5rem">Daily result card</h3>
+        <p style="margin-bottom:18px">Six placeholders, all plain string replaces:
+        <code>{{DAY}}</code> <code>{{CALLSIGN}}</code> <code>{{SCORE}}</code> <code>{{TIME}}</code>
+        <code>{{MUTATOR}}</code> <code>{{MEDAL}}</code>. Filled in below with a real-looking run so the
+        proportions read.</p>
+        <div class="panel panel--flush" style="max-width:620px"><svg style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="ORION daily result card template">
+  <title>ORION daily result card template (1080x1080)</title>
+  <defs><radialGradient id="card-sp" cx="0.5" cy="0.5" r="0.78">
+      <stop offset="0" stop-color="#12121e"/><stop offset="1" stop-color="#0a0a12"/>
+    </radialGradient><linearGradient id="card-g" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient><linearGradient id="card-gv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>
+    </linearGradient><radialGradient id="card-c" cx="0.38" cy="0.34" r="0.8">
+      <stop offset="0" stop-color="#ff4455"/><stop offset="1" stop-color="#c41e3a"/>
+    </radialGradient><filter id="card-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter></defs>
+  <rect width="1080" height="1080" fill="url(#card-sp)"/>
+  <g><circle cx="287.2" cy="283.8" r="1.53" fill="#fff7e0" opacity="0.44"/><circle cx="758.1" cy="211.2" r="1.51" fill="#fff7e0" opacity="0.27"/><circle cx="733.2" cy="5.8" r="1.89" fill="#fff7e0" opacity="0.41"/><circle cx="898.7" cy="189.1" r="1.62" fill="#fff7e0" opacity="0.38"/><circle cx="540.7" cy="520.7" r="1.21" fill="#fff7e0" opacity="0.64"/><circle cx="797.6" cy="949.9" r="0.52" fill="#fff7e0" opacity="0.56"/><circle cx="56.2" cy="307.7" r="0.75" fill="#fff7e0" opacity="0.52"/><circle cx="876.7" cy="720" r="1.62" fill="#fff7e0" opacity="0.66"/><circle cx="589.6" cy="74.6" r="1.62" fill="#fff7e0" opacity="0.52"/><circle cx="611" cy="503.8" r="0.8" fill="#fff7e0" opacity="0.6"/><circle cx="678.1" cy="633.7" r="1.8" fill="#fff7e0" opacity="0.52"/><circle cx="631.8" cy="103.5" r="1.76" fill="#fff7e0" opacity="0.46"/><circle cx="248.4" cy="845.1" r="2.3" fill="#fff7e0" opacity="0.36"/><circle cx="847.2" cy="686.1" r="0.65" fill="#fff7e0" opacity="0.32"/><circle cx="795.8" cy="1027.6" r="1.57" fill="#fff7e0" opacity="0.26"/><circle cx="1060.3" cy="938.1" r="0.72" fill="#fff7e0" opacity="0.39"/><circle cx="501.2" cy="1037" r="0.96" fill="#fff7e0" opacity="0.41"/><circle cx="844.3" cy="847.5" r="1.89" fill="#fff7e0" opacity="0.45"/><circle cx="485" cy="572.3" r="2.18" fill="#fff7e0" opacity="0.44"/><circle cx="836.2" cy="153.4" r="1.46" fill="#fff7e0" opacity="0.52"/><circle cx="599.2" cy="628.3" r="0.69" fill="#fff7e0" opacity="0.61"/><circle cx="46.7" cy="103.3" r="1.91" fill="#fff7e0" opacity="0.34"/><circle cx="956.9" cy="697.4" r="1.45" fill="#fff7e0" opacity="0.32"/><circle cx="1068.9" cy="957.5" r="1.4" fill="#fff7e0" opacity="0.66"/><circle cx="558.5" cy="357.3" r="2.05" fill="#fff7e0" opacity="0.4"/><circle cx="503.1" cy="641.3" r="0.91" fill="#fff7e0" opacity="0.22"/><circle cx="576.4" cy="926.9" r="2.07" fill="#fff7e0" opacity="0.6"/><circle cx="240.5" cy="1024.6" r="1.55" fill="#fff7e0" opacity="0.64"/><circle cx="416.9" cy="710.1" r="0.75" fill="#fff7e0" opacity="0.51"/><circle cx="723.5" cy="229" r="1.55" fill="#fff7e0" opacity="0.46"/><circle cx="599.1" cy="26.2" r="1.75" fill="#fff7e0" opacity="0.61"/><circle cx="1023.5" cy="122.4" r="2.34" fill="#fff7e0" opacity="0.59"/><circle cx="572.2" cy="908.5" r="0.65" fill="#fff7e0" opacity="0.22"/><circle cx="336.9" cy="921.1" r="0.99" fill="#fff7e0" opacity="0.4"/><circle cx="109.2" cy="390" r="2.33" fill="#fff7e0" opacity="0.64"/><circle cx="898" cy="179.6" r="1.36" fill="#fff7e0" opacity="0.22"/><circle cx="1039.3" cy="57" r="1.99" fill="#fff7e0" opacity="0.64"/><circle cx="429.1" cy="487.3" r="1.95" fill="#fff7e0" opacity="0.57"/><circle cx="676.7" cy="549.6" r="1.86" fill="#fff7e0" opacity="0.21"/><circle cx="49.4" cy="1033.6" r="0.65" fill="#fff7e0" opacity="0.62"/><circle cx="707.7" cy="450.6" r="1" fill="#fff7e0" opacity="0.54"/><circle cx="639.7" cy="39.6" r="0.93" fill="#fff7e0" opacity="0.53"/><circle cx="214.8" cy="640.7" r="1.81" fill="#fff7e0" opacity="0.36"/><circle cx="625.9" cy="497.8" r="0.6" fill="#fff7e0" opacity="0.5"/><circle cx="918.9" cy="82.3" r="1" fill="#fff7e0" opacity="0.54"/><circle cx="579.7" cy="859.5" r="1.15" fill="#fff7e0" opacity="0.63"/><circle cx="878" cy="310.3" r="1.06" fill="#fff7e0" opacity="0.42"/><circle cx="596.1" cy="909.1" r="1.49" fill="#fff7e0" opacity="0.52"/><circle cx="404.3" cy="270.5" r="0.58" fill="#fff7e0" opacity="0.49"/><circle cx="169.5" cy="146.3" r="0.83" fill="#fff7e0" opacity="0.25"/><circle cx="758.8" cy="945" r="1.19" fill="#fff7e0" opacity="0.29"/><circle cx="566.3" cy="555.5" r="1.26" fill="#fff7e0" opacity="0.53"/><circle cx="1022.4" cy="326.4" r="0.91" fill="#fff7e0" opacity="0.67"/><circle cx="1055.7" cy="803.6" r="2.3" fill="#fff7e0" opacity="0.66"/><circle cx="705.8" cy="337.8" r="2.36" fill="#fff7e0" opacity="0.23"/><circle cx="877.8" cy="223.6" r="0.85" fill="#fff7e0" opacity="0.37"/><circle cx="536.2" cy="861.8" r="1.54" fill="#fff7e0" opacity="0.63"/><circle cx="469" cy="707.7" r="2.15" fill="#fff7e0" opacity="0.25"/><circle cx="341.1" cy="316" r="1.04" fill="#fff7e0" opacity="0.63"/><circle cx="865.1" cy="26" r="1.92" fill="#fff7e0" opacity="0.66"/><circle cx="510.9" cy="616.4" r="1.94" fill="#fff7e0" opacity="0.44"/><circle cx="201.8" cy="334.4" r="2.3" fill="#fff7e0" opacity="0.29"/><circle cx="557.5" cy="328.5" r="1.07" fill="#fff7e0" opacity="0.31"/><circle cx="272.8" cy="548.8" r="0.84" fill="#fff7e0" opacity="0.56"/><circle cx="171.5" cy="845.3" r="1.19" fill="#fff7e0" opacity="0.47"/><circle cx="465.3" cy="667.1" r="1.99" fill="#fff7e0" opacity="0.28"/><circle cx="616.3" cy="753.4" r="1.86" fill="#fff7e0" opacity="0.29"/><circle cx="673.2" cy="759.2" r="1.56" fill="#fff7e0" opacity="0.58"/><circle cx="1060" cy="1066.4" r="1.35" fill="#fff7e0" opacity="0.21"/><circle cx="227.3" cy="23.8" r="1.28" fill="#fff7e0" opacity="0.67"/><circle cx="644.6" cy="805.6" r="1.91" fill="#fff7e0" opacity="0.55"/><circle cx="403.9" cy="233" r="2.04" fill="#fff7e0" opacity="0.33"/><circle cx="893.1" cy="208.3" r="1.49" fill="#fff7e0" opacity="0.48"/><circle cx="789.7" cy="604.8" r="0.66" fill="#fff7e0" opacity="0.18"/><circle cx="893.1" cy="764" r="2.16" fill="#fff7e0" opacity="0.36"/><circle cx="305.3" cy="302.1" r="1.42" fill="#fff7e0" opacity="0.31"/><circle cx="379.5" cy="997.3" r="1.06" fill="#fff7e0" opacity="0.29"/><circle cx="725.7" cy="1000.3" r="0.71" fill="#fff7e0" opacity="0.56"/><circle cx="993.1" cy="959.2" r="1.91" fill="#fff7e0" opacity="0.52"/><circle cx="818.2" cy="881.7" r="1.62" fill="#fff7e0" opacity="0.21"/><circle cx="317.8" cy="305.2" r="1.48" fill="#fff7e0" opacity="0.56"/><circle cx="537.8" cy="577.8" r="1.73" fill="#fff7e0" opacity="0.36"/><circle cx="294.6" cy="761.2" r="2.24" fill="#fff7e0" opacity="0.65"/><circle cx="160.9" cy="538.4" r="1.25" fill="#fff7e0" opacity="0.66"/><circle cx="853.7" cy="16.8" r="1.96" fill="#fff7e0" opacity="0.43"/><circle cx="834.9" cy="629.5" r="1.49" fill="#fff7e0" opacity="0.26"/><circle cx="363.4" cy="806.4" r="1.83" fill="#fff7e0" opacity="0.48"/><circle cx="67.2" cy="877.2" r="0.95" fill="#fff7e0" opacity="0.56"/><circle cx="737.3" cy="617.3" r="1.05" fill="#fff7e0" opacity="0.55"/><circle cx="509.9" cy="120.1" r="0.6" fill="#fff7e0" opacity="0.29"/><circle cx="998.5" cy="905.6" r="2.34" fill="#fff7e0" opacity="0.64"/><circle cx="723.6" cy="129" r="1.17" fill="#fff7e0" opacity="0.3"/><circle cx="901.2" cy="179.7" r="1.99" fill="#fff7e0" opacity="0.33"/><circle cx="317.3" cy="73.9" r="2.08" fill="#fff7e0" opacity="0.66"/><circle cx="570.1" cy="111.1" r="2.32" fill="#fff7e0" opacity="0.41"/><circle cx="26.9" cy="778.5" r="1.77" fill="#fff7e0" opacity="0.58"/><circle cx="477.3" cy="912.6" r="0.95" fill="#fff7e0" opacity="0.25"/><circle cx="1050.5" cy="402.5" r="1.59" fill="#fff7e0" opacity="0.52"/><circle cx="676.5" cy="24.5" r="0.68" fill="#fff7e0" opacity="0.52"/><circle cx="401.5" cy="991.3" r="1.69" fill="#fff7e0" opacity="0.68"/></g>
+  <g><polygon points="1087.1,1032.1 1082.0,1037.9 1074.4,1036.4 1071.9,1029.1 1077.0,1023.2 1084.6,1024.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.85"/><circle cx="1079.5" cy="1030.6" r="2.2" fill="#c41e3a" opacity="0.85"/><polygon points="920.9,630.2 912.4,639.7 899.8,637.0 895.9,624.8 904.5,615.3 917.0,618.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.53"/><circle cx="908.4" cy="627.5" r="3.6" fill="#c41e3a" opacity="0.53"/><polygon points="1073.7,810.6 1064.8,812.3 1058.9,805.5 1061.9,797.0 1070.7,795.2 1076.6,802.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.83"/><circle cx="1067.8" cy="803.8" r="2.5" fill="#c41e3a" opacity="0.83"/><polygon points="1072.1,796.9 1060.7,801.6 1050.9,794.0 1052.6,781.8 1063.9,777.1 1073.7,784.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.82"/><circle cx="1062.3" cy="789.3" r="3.4" fill="#c41e3a" opacity="0.82"/><polygon points="1083.2,908.0 1075.2,921.7 1059.4,921.7 1051.5,907.9 1059.4,894.2 1075.3,894.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.83"/><circle cx="1067.3" cy="907.9" r="4.4" fill="#c41e3a" opacity="0.83"/><polygon points="1013.8,1027.6 1004.3,1038.4 990.1,1035.6 985.5,1021.9 995.0,1011.0 1009.2,1013.9" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.7"/><circle cx="999.7" cy="1024.7" r="4.0" fill="#c41e3a" opacity="0.7"/><polygon points="953.0,876.7 945.2,888.4 931.2,887.5 924.9,874.8 932.8,863.1 946.8,864.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.59"/><circle cx="939.0" cy="875.7" r="3.9" fill="#c41e3a" opacity="0.59"/><polygon points="967.7,824.8 957.9,832.2 946.7,827.4 945.2,815.3 954.9,807.9 966.2,812.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.62"/><circle cx="956.4" cy="820.0" r="3.4" fill="#c41e3a" opacity="0.62"/><polygon points="908.4,757.2 896.2,765.0 883.3,758.2 882.7,743.7 894.9,735.9 907.8,742.6" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.5"/><circle cx="895.6" cy="750.4" r="4.1" fill="#c41e3a" opacity="0.5"/><polygon points="1066.0,1001.3 1054.2,1006.9 1043.5,999.6 1044.5,986.6 1056.2,981.0 1067.0,988.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.8"/><circle cx="1055.2" cy="993.9" r="3.6" fill="#c41e3a" opacity="0.8"/><polygon points="992.2,872.5 984.9,875.4 978.7,870.5 979.8,862.8 987.1,859.9 993.3,864.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.67"/><circle cx="986.0" cy="867.6" r="2.2" fill="#c41e3a" opacity="0.67"/><polygon points="862.1,802.2 848.0,804.3 839.1,793.2 844.2,779.9 858.3,777.7 867.3,788.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.42"/><circle cx="853.2" cy="791.0" r="4.0" fill="#c41e3a" opacity="0.42"/><polygon points="812.7,635.2 804.0,641.3 794.4,636.9 793.5,626.4 802.1,620.3 811.7,624.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.33"/><circle cx="803.1" cy="630.8" r="3.0" fill="#c41e3a" opacity="0.33"/><polygon points="984.0,876.4 970.6,884.6 956.9,877.2 956.4,861.5 969.7,853.3 983.5,860.8" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.64"/><circle cx="970.2" cy="869.0" r="4.4" fill="#c41e3a" opacity="0.64"/><polygon points="1010.9,893.5 995.0,894.5 986.2,881.3 993.3,867.0 1009.2,866.0 1018.0,879.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.7"/><circle cx="1002.1" cy="880.3" r="4.5" fill="#c41e3a" opacity="0.7"/><polygon points="1038.6,689.3 1026.3,691.6 1018.1,682.0 1022.3,670.1 1034.7,667.9 1042.9,677.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.76"/><circle cx="1030.5" cy="679.7" r="3.5" fill="#c41e3a" opacity="0.76"/><polygon points="916.9,659.2 907.8,669.3 894.6,666.4 890.4,653.5 899.5,643.4 912.8,646.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.52"/><circle cx="903.7" cy="656.4" r="3.8" fill="#c41e3a" opacity="0.52"/><polygon points="1011.6,837.4 996.3,837.5 988.6,824.2 996.2,811.0 1011.5,810.9 1019.2,824.1" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.71"/><circle cx="1003.9" cy="824.2" r="4.3" fill="#c41e3a" opacity="0.71"/><polygon points="1003.6,777.8 995.4,788.4 982.1,786.5 977.1,774.1 985.3,763.5 998.6,765.3" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.68"/><circle cx="990.4" cy="775.9" r="3.8" fill="#c41e3a" opacity="0.68"/><polygon points="935.0,725.1 929.8,725.8 926.5,721.6 928.5,716.7 933.7,716.0 937.0,720.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.57"/><circle cx="931.7" cy="720.9" r="1.5" fill="#c41e3a" opacity="0.57"/><polygon points="1032.8,884.2 1028.6,888.9 1022.4,887.5 1020.5,881.4 1024.8,876.8 1030.9,878.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.75"/><circle cx="1026.7" cy="882.8" r="1.8" fill="#c41e3a" opacity="0.75"/><polygon points="889.6,792.1 884.5,793.1 881.1,789.3 882.7,784.4 887.8,783.4 891.2,787.2" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.49"/><circle cx="886.1" cy="788.3" r="1.4" fill="#c41e3a" opacity="0.49"/><polygon points="923.1,1015.8 917.9,1017.5 913.8,1013.8 915.0,1008.4 920.2,1006.7 924.3,1010.4" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.55"/><circle cx="919.1" cy="1012.1" r="1.5" fill="#c41e3a" opacity="0.55"/><polygon points="904.7,867.7 895.8,868.8 890.5,861.7 893.9,853.5 902.8,852.4 908.2,859.5" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.51"/><circle cx="899.3" cy="860.6" r="2.5" fill="#c41e3a" opacity="0.51"/><polygon points="899.6,774.0 887.8,782.2 874.8,776.2 873.6,761.9 885.3,753.7 898.3,759.7" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.49"/><circle cx="886.6" cy="768.0" r="4.0" fill="#c41e3a" opacity="0.49"/><polygon points="1086.0,827.7 1071.9,832.6 1060.6,822.8 1063.4,808.1 1077.6,803.2 1088.9,813.0" fill="none" stroke="#ff4455" stroke-width="2.2" opacity="0.84"/><circle cx="1074.7" cy="817.9" r="4.2" fill="#c41e3a" opacity="0.84"/></g>
+  <rect x="56" y="56" width="968" height="968" rx="28" fill="none" stroke="#2a2a3a" stroke-width="3"/>
+  <g transform="translate(112,120) scale(0.9)" filter="url(#card-glow)"><g fill="none" stroke="url(#card-g)" stroke-width="10">
+      <path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/>
+      <path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>
+      <path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/>
+      <path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>
+    </g>
+    <circle cx="50" cy="50" r="15" fill="url(#card-c)"/></g>
+  <g transform="translate(226,132) scale(0.36)"><g fill="url(#card-gv)" fill-rule="evenodd"><path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/><path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/><path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/><path transform="translate(249,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/><path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/></g></g>
+  <text x="226" y="212" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="600" letter-spacing="4">DAILY PATROL No. <tspan fill="#aa8844">47</tspan></text>
+
+  <text x="112" y="330" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="6">PILOT</text>
+  <text x="112" y="392" fill="#fff7e0" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="56" font-weight="700">VULPES</text>
+
+  <text x="112" y="500" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="6">SCORE</text>
+  <text x="112" y="616" fill="url(#card-gv)" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="132" font-weight="700">1,284,300</text>
+
+  <text x="112" y="712" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="6">SURVIVED</text>
+  <text x="112" y="774" fill="#fff7e0" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="52" font-weight="600">6:12</text>
+
+  <text x="112" y="872" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="6">TODAY'S MUTATOR</text>
+  <text x="112" y="932" fill="#ff4455" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="2">STARFALL</text>
+
+  <g transform="translate(800,258)">
+    <polygon points="179.1,144.0 96.0,192.0 12.9,144.0 12.9,48.0 96.0,0.0 179.1,48.0" fill="none" stroke="#ffd700" stroke-width="7"/>
+    <polygon points="160.1,133.0 96.0,170.0 31.9,133.0 31.9,59.0 96.0,22.0 160.1,59.0" fill="#1a1208"/>
+    <text x="96" y="86" text-anchor="middle" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="24" font-weight="600" letter-spacing="3">MEDAL</text>
+    <text x="96" y="140" text-anchor="middle" fill="url(#card-gv)" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="38" font-weight="700">GOLD</text>
+  </g>
+  <text x="968" y="966" text-anchor="end" fill="#8a7a55" font-family="Rajdhani, 'Titillium Web', 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="3">surviveorion.com</text>
+</svg></div>
+      </div>
+      <div>
+        <p class="eyebrow">App icon &middot; PWA and stores</p>
+        <h3 class="h-display" style="margin:8px 0 18px;font-size:1.5rem">App icons</h3>
+        <div class="grid g3" id="icons"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 ---------------------------------------------------------------- -->
+  <section class="sec" id="drift">
+    <div class="sec-head"><span class="sec-num">08</span><h2 class="h-display">What to fix in the game</h2><span class="sec-note">Found while deriving this</span></div>
+    <p class="lede" style="margin-bottom:var(--s5)">Seven things in the game repo disagreed with this kit.
+    Four are already fixed on the branch that added the kit to the repo. Three are still open, and the first
+    two of those are the ones players see.</p>
+
+    <h3 class="h-display" style="margin-bottom:18px">Still open</h3>
+    <ol class="drift" style="margin-bottom:var(--s5)">
+      <li><span class="drift-n">01</span><div><p><code>public/manifest.webmanifest</code> still contains an em dash in its name field.</p><p>Should read <code>ORION: Survive the Swarm</code>. The Aug 17, 2026 copy sweep caught the game strings but not the manifest.</p></div><span class="pill pill--player">Player-facing</span></li>
+      <li><span class="drift-n">02</span><div><p>The live <code>public/og.png</code> carries the same em dash.</p><p>The replacement is already drawn: <code>assets/social/png/orion-og-1200x630.png</code>.</p></div><span class="pill pill--player">Player-facing</span></li>
+      <li><span class="drift-n">03</span><div><p>The inline data-URI favicon in <code>index.html</code> uses <code>r=40 stroke-width=8</code>.</p><p>The kit favicon uses <code>r=37 stroke-width=11</code>. Swap it so the ring weight matches everywhere.</p></div><span class="pill pill--house">Housekeeping</span></li>
+    </ol>
+
+    <h3 class="h-display" style="margin-bottom:6px">Fixed on <code style="font-size:.8em">sam/brand-kit</code></h3>
+    <p class="small" style="margin-bottom:18px;color:var(--dust)">The branch that put this kit in the game repo. Not on <code>main</code> yet, because pushing <code>main</code> deploys to production.</p>
+    <ol class="drift">
+      <li><span class="drift-n">04</span><div><p><code>PRODUCT.md</code> pitched "the only mobile-first inertia arcade".</p><p>Rewritten to the daily-dodging positioning, with a note recording that it was Lucas's call on Aug 24, 2026.</p></div><span class="pill pill--fixed">Fixed</span></li>
+      <li><span class="drift-n">05</span><div><p><code>PRODUCT.md</code> recorded the UI font as Georgia.</p><p>The shipped <code>style.css</code> sets Rajdhani. Corrected.</p></div><span class="pill pill--fixed">Fixed</span></li>
+      <li><span class="drift-n">06</span><div><p><code>PRODUCT.md</code> called the palette "recorded as evidence, not locked".</p><p>It is locked now, and points at <code>brand/tokens/</code>.</p></div><span class="pill pill--fixed">Fixed</span></li>
+      <li><span class="drift-n">07</span><div><p><code>AGENTS.md</code> opened on the same stale positioning, and its sibling-folder paths predated the Aug 23, 2026 move.</p><p>Rewritten. It now says plainly that this repo is the only live Orion and the Unity build is an archive, not a sibling version.</p></div><span class="pill pill--fixed">Fixed</span></li>
+    </ol>
+  </section>
+
+  <!-- 09 ---------------------------------------------------------------- -->
+  <section class="sec" id="files">
+    <div class="sec-head"><span class="sec-num">09</span><h2 class="h-display">Files</h2><span class="sec-note">surviveorion / brand</span></div>
+    <div class="grid g2">
+      <div class="panel">
+        <p class="tree"><b>BRAND.md</b>       the full book, this page in prose
+<b>VOICE.md</b>       three voices, rules, examples
+<b>COPY-BANK.md</b>   paste-ready approved lines
+<b>tokens/</b>
+  orion.tokens.css
+  orion.tokens.json
+<b>scripts/</b>      generators + contrast audit</p>
+      </div>
+      <div class="panel">
+        <p class="tree"><b>assets/logo/</b>    mark, wordmark, 3 lockups
+                x4 finishes, + png
+<b>assets/icon/</b>    app icon, maskable,
+                favicon, + png
+<b>assets/social/</b>  og, header, share card
+                template, + png
+<b>assets/badges/</b>  gold, silver, copper
+<b>assets/palette/</b> full swatch sheet</p>
+      </div>
+    </div>
+    <p class="small" style="margin-top:var(--s4)">The kit lives in two places on purpose. The copy in the
+    game repo (<span class="mono">surviveorion/brand/</span>) is the one to edit: it sits with the product, and
+    it is what an agent working in the game will find. The copy in Sam's repo
+    (<span class="mono">sam/brand/orion/</span>) is the PM record. If they ever disagree, the game repo wins.</p>
+    <footer>
+      ORION Brand Book v1.0 &nbsp;&middot;&nbsp; built 24 Aug 2026 &nbsp;&middot;&nbsp; derived from diesirae1908/surviveorion<br>
+      If a colour changes, change it in <span class="mono">tokens/orion.tokens.css</span> and in <span class="mono">src/config.ts</span> PALETTE. They are meant to agree.
+    </footer>
+  </section>
+
+  </main>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- hero: starfield with the swarm crowding in from the right ---- */
+  var cv = document.getElementById('sky');
+  if (cv && cv.getContext) {
+    var ctx = cv.getContext('2d'), stars = [], drones = [], W = 0, H = 0, dpr = Math.min(devicePixelRatio || 1, 2);
+    function seed() {
+      W = cv.clientWidth; H = cv.clientHeight;
+      cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      stars = []; drones = [];
+      for (var i = 0; i < 150; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: 0.4 + Math.random() * 1.5, a: 0.15 + Math.random() * 0.5, p: Math.random() * 6.283 });
+      var n = W < 700 ? 12 : 24;
+      for (var j = 0; j < n; j++) drones.push({ x: W * (0.58 + Math.random() * 0.62), y: Math.random() * H, r: 4 + Math.random() * 11, s: 0.05 + Math.random() * 0.14, sp: Math.random() * 6.283, sv: (Math.random() - 0.5) * 0.01 });
+    }
+    function hexPath(x, y, r, rot) {
+      ctx.beginPath();
+      for (var k = 0; k < 6; k++) {
+        var a = Math.PI / 3 * k + rot;
+        var px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+        if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    }
+    function frame(t) {
+      ctx.clearRect(0, 0, W, H);
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i];
+        var a = reduce ? s.a : s.a * (0.72 + 0.28 * Math.sin(t / 1400 + s.p));
+        ctx.globalAlpha = a; ctx.fillStyle = '#fff7e0';
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill();
+      }
+      for (var j = 0; j < drones.length; j++) {
+        var d = drones[j];
+        if (!reduce) { d.x -= d.s; d.sp += d.sv; if (d.x < W * 0.5) { d.x = W * 1.12; d.y = Math.random() * H; } }
+        var edge = Math.max(0, Math.min(1, (d.x - W * 0.5) / (W * 0.5)));
+        ctx.globalAlpha = 0.14 + edge * 0.5;
+        ctx.strokeStyle = '#ff4455'; ctx.lineWidth = 1.4;
+        hexPath(d.x, d.y, d.r, d.sp); ctx.stroke();
+        ctx.fillStyle = '#c41e3a';
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.28, 0, 6.283); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (!reduce) raf = requestAnimationFrame(frame);
+    }
+    var raf;
+    seed(); frame(0);
+    var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { cancelAnimationFrame(raf); seed(); frame(0); }, 180); });
+  }
+
+  /* ---------- colour ------------------------------------------------------- */
+  function lin(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  function lum(h) { var n = parseInt(h.slice(1), 16); return 0.2126 * lin(n >> 16 & 255) + 0.7152 * lin(n >> 8 & 255) + 0.0722 * lin(n & 255); }
+  function ratio(a, b) { var x = lum(a), y = lum(b), hi = Math.max(x, y), lo = Math.min(x, y); return (hi + 0.05) / (lo + 0.05); }
+  var VOID = '#0a0a12';
+
+  var CORE = [
+    ['Void', '#0a0a12', 'Background. PWA theme-color.', 'ground'],
+    ['Deep Space', '#12121e', 'Raised surfaces, top of the arena gradient.', 'surface'],
+    ['Hull Line', '#2a2a3a', 'Dividers, card borders.', 'surface'],
+    ['Hull Gold', '#ffd700', 'The brand. Hull, sight ring, primary action.'],
+    ['Flare', '#ffee88', 'Top of every gold gradient. Highlights.'],
+    ['Ingot', '#cc8800', 'Bottom of every gold gradient. Shadow side.'],
+    ['Bronze', '#aa8844', 'Secondary text on dark, taglines.'],
+    ['Dust', '#8a7a55', 'Muted labels, metadata. Void only.'],
+    ['Rising Red', '#c41e3a', 'The core, the swarm, danger. Not text.'],
+    ['Alarm', '#ff4455', 'Bright danger. Red text uses this.'],
+    ['Ash Red', '#7a1020', 'Red shadow.', 'surface'],
+    ['Starlight', '#fff7e0', 'Primary text. Warm white, never #ffffff.']
+  ];
+  var POWER = [
+    ['Aegis Shield', '#66ccff'], ['Shockwave', '#ffd700'], ['Pulse Shot', '#ffaa33'], ['Magnet', '#cc66ff'],
+    ['Afterburner', '#ff6633'], ['Cryo Field', '#9fe8ff'], ['Missile Swarm', '#a8ff9e'], ['Starshell', '#ffd24d'],
+    ['Arc Lightning', '#88eeff'], ['Autocannon', '#e8e8f8'], ['Meteors', '#ffce55'], ['Vortex', '#8877ff']
+  ];
+
+  function verdict(r) {
+    if (r >= 7) return ['AAA', 'pass-aaa'];
+    if (r >= 4.5) return ['AA', 'pass-aa'];
+    if (r >= 3) return ['AA large only', 'pass-lg'];
+    return ['fails AA', 'pass-lg'];
+  }
+  function swatch(name, hexv, role, kind) {
+    var b = document.createElement('button');
+    b.className = 'sw'; b.type = 'button';
+    b.setAttribute('aria-label', 'Copy ' + name + ' ' + hexv);
+    var r = ratio(hexv, VOID), v = verdict(r);
+    var ratioLine;
+    if (kind === 'ground') ratioLine = '<span class="sw-ratio" style="color:var(--bronze)">the ground</span>';
+    else if (kind === 'surface') ratioLine = '<span class="sw-ratio" style="color:var(--dust)">surface, not text</span>';
+    else ratioLine = '<span class="sw-ratio ' + v[1] + '">' + r.toFixed(2) + ':1 &nbsp;' + v[0] + '</span>';
+    b.innerHTML = '<span class="sw-chip" style="background:' + hexv + '"></span>' +
+      '<span class="sw-body"><span class="sw-name">' + name + '</span>' +
+      '<span class="sw-hex">' + hexv + '</span>' + ratioLine +
+      (role ? '<span class="sw-role">' + role + '</span>' : '') + '</span>';
+    b.addEventListener('click', function () { copy(hexv); });
+    return b;
+  }
+  var coreEl = document.getElementById('core-sw');
+  CORE.forEach(function (c) { coreEl.appendChild(swatch(c[0], c[1], c[2], c[3])); });
+  var powEl = document.getElementById('power-sw');
+  POWER.forEach(function (c) { powEl.appendChild(swatch(c[0], c[1], '', '')); });
+
+  /* ---------- medals ------------------------------------------------------- */
+  var METALS = [
+    ['Gold', '#ffee88', '#ffd700', '#cc8800', '#1a1208', 'Score at or above 300k, times the mutator factor.'],
+    ['Silver', '#f2f2f6', '#d7d7d7', '#8a9aa8', '#151520', 'Score at or above 130k, times the mutator factor.'],
+    ['Copper', '#e0a878', '#cd7f32', '#8a5a24', '#1a1006', 'Score at or above 60k, times the mutator factor.']
+  ];
+  function hexPts(cx, cy, r) {
+    var p = [];
+    for (var i = 0; i < 6; i++) { var a = Math.PI / 3 * i + Math.PI / 6; p.push((cx + Math.cos(a) * r).toFixed(1) + ',' + (cy + Math.sin(a) * r).toFixed(1)); }
+    return p.join(' ');
+  }
+  var medEl = document.getElementById('medals');
+  METALS.forEach(function (m, i) {
+    var d = document.createElement('div');
+    d.className = 'panel';
+    d.style.cssText = 'display:flex;gap:18px;align-items:center';
+    d.innerHTML =
+      '<svg viewBox="0 0 200 200" style="width:78px;height:auto;flex:none" role="img" aria-label="' + m[0] + ' medal">' +
+      '<defs><linearGradient id="med' + i + '" x1="0" y1="0" x2="0.4" y2="1">' +
+      '<stop offset="0" stop-color="' + m[1] + '"/><stop offset="0.55" stop-color="' + m[2] + '"/><stop offset="1" stop-color="' + m[3] + '"/>' +
+      '</linearGradient></defs>' +
+      '<polygon points="' + hexPts(100, 100, 92) + '" fill="url(#med' + i + ')"/>' +
+      '<polygon points="' + hexPts(100, 100, 74) + '" fill="' + m[4] + '"/>' +
+      '<g fill="none" stroke="url(#med' + i + ')" stroke-width="9">' +
+      '<path d="M76.6 74.4 A29.6 29.6 0 0 1 123.4 74.4"/><path d="M129 79 A29.6 29.6 0 0 1 129 121"/>' +
+      '<path d="M123.4 125.6 A29.6 29.6 0 0 1 76.6 125.6"/><path d="M71 121 A29.6 29.6 0 0 1 71 79"/></g>' +
+      '<circle cx="100" cy="100" r="12" fill="#c41e3a"/></svg>' +
+      '<div><h4 class="h-display" style="color:' + m[2] + '">' + m[0] + '</h4>' +
+      '<p class="small" style="margin:6px 0 0">' + m[5] + '</p></div>';
+    medEl.appendChild(d);
+  });
+
+  /* ---------- app icons ---------------------------------------------------- */
+  var icons = [
+    ['Full bleed', 'The default. Stores, PWA, anywhere the frame is yours.', 0.72, false],
+    ['Maskable', 'Mark inside the 80% safe circle so Android crops cannot clip it.', 0.5, true],
+    ['Favicon', 'Solid ring, no diagonal cuts. They close up below 32 px.', 0, false]
+  ];
+  var icEl = document.getElementById('icons');
+  icons.forEach(function (ic, i) {
+    var d = document.createElement('div');
+    d.className = 'panel';
+    d.style.cssText = 'padding:0;overflow:hidden';
+    var art;
+    if (i === 2) {
+      art = '<svg viewBox="0 0 100 100" style="width:100%;height:auto;display:block">' +
+        '<rect width="100" height="100" fill="#0a0a12"/>' +
+        '<circle cx="50" cy="50" r="31" fill="none" stroke="#ffd700" stroke-width="9"/>' +
+        '<circle cx="50" cy="50" r="12.5" fill="#c41e3a"/></svg>';
+    } else {
+      var scale = ic[2], off = (1 - scale) / 2 * 100;
+      art = '<svg viewBox="0 0 100 100" style="width:100%;height:auto;display:block">' +
+        '<rect width="100" height="100" fill="#0e0e18"/>' +
+        (ic[3] ? '<circle cx="50" cy="50" r="40" fill="none" stroke="#2a2a3a" stroke-width="0.6" stroke-dasharray="2 2"/>' : '') +
+        '<g transform="translate(' + off + ',' + off + ') scale(' + scale + ')" style="filter:drop-shadow(0 0 5px rgba(255,215,0,.45))">' +
+        '<use href="#markG" width="100" height="100"/></g></svg>';
+    }
+    d.innerHTML = art + '<div style="padding:14px 16px 16px;border-top:1px solid var(--line)">' +
+      '<h4 class="h-display">' + ic[0] + '</h4><p class="small" style="margin:6px 0 0">' + ic[1] + '</p></div>';
+    icEl.appendChild(d);
+  });
+
+  /* ---------- lockup viewer ------------------------------------------------ */
+  var stage = document.getElementById('stage'), lock = document.getElementById('stage-lock');
+  var busy = 'repeating-linear-gradient(46deg,#3a2a1a 0 14px,#1d1a2c 14px 28px)';
+  Array.prototype.forEach.call(document.querySelectorAll('.viewer-bar .chip'), function (btn) {
+    btn.addEventListener('click', function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.viewer-bar .chip'), function (o) { o.setAttribute('aria-pressed', 'false'); });
+      btn.setAttribute('aria-pressed', 'true');
+      var bg = btn.dataset.bg, fin = btn.dataset.fin;
+      stage.style.background = bg === 'busy' ? busy : bg;
+      if (fin === 'grad') { lock.innerHTML = '<use href="#lockG" width="603" height="128"/>'; lock.style.color = ''; }
+      else { lock.innerHTML = '<use href="#lockM" width="603" height="128"/>'; lock.style.color = fin === 'black' ? '#0a0a12' : '#fff7e0'; }
+    });
+  });
+
+  /* ---------- copy + toast ------------------------------------------------- */
+  var toast = document.getElementById('toast'), tt;
+  function say(msg) {
+    toast.textContent = msg; toast.classList.add('on');
+    clearTimeout(tt); tt = setTimeout(function () { toast.classList.remove('on'); }, 1500);
+  }
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { say('Copied ' + text); }, function () { say(text); });
+    } else { say(text); }
+  }
+
+  /* ---------- rail scrollspy ---------------------------------------------- */
+  var links = Array.prototype.slice.call(document.querySelectorAll('#rail-nav a'));
+  var secs = links.map(function (a) { return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  if ('IntersectionObserver' in window && secs.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id); });
+      });
+    }, { rootMargin: '-15% 0px -70% 0px' });
+    secs.forEach(function (s) { io.observe(s); });
+  }
+})();
+</script>
+

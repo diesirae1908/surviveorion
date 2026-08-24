@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 274" role="img" aria-label="ORION logo, stacked lockup">
+  <title>ORION logo, stacked lockup</title>
+  
+  <g transform="translate(115,0) scale(1.5)"><g fill="none" stroke="#fff7e0" stroke-width="10">
+    <path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/>
+    <path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>
+    <path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/>
+    <path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>
+  </g>
+  <circle cx="50" cy="50" r="15" fill="#fff7e0"/></g>
+  <g transform="translate(0,186) scale(0.8817)"><g fill="#fff7e0" fill-rule="evenodd">
+    <path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>
+    <path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/>
+    <path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/>
+    <path transform="translate(249,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>
+    <path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/>
+  </g></g>
+</svg>

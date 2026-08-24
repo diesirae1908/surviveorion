@@ -1,13 +1,22 @@
 # Orion — agent instructions
 
-Orion is an inertia-based survival arcade game (no guns — dodge drone swarms
-with piloting skill and defensive power pickups), live at **surviveorion.com**.
+Orion is a daily dodging game: drone swarms close in, you have no gun, and the
+only thing that keeps you alive is moving well. Live at **surviveorion.com**.
+(The ship has inertia and that is what gives the movement its feel, but it is
+not the pitch. Lucas's call, 2026-08-24: the old "inertia arcade" framing is
+the previous game.)
 
-This repo (`orion-web`, GitHub `diesirae1908/surviveorion`) is the whole game:
-TypeScript + Canvas + Vite client, zero-dependency Node community server
-(leaderboards, accounts, arenas — SQLite via `node:sqlite`, Node 22.5+), PWA.
-Design material and the archived Unity prototype live in the parent folder
-(`../design/`, `../_archive/`), outside this git repo.
+**This repo is the game.** `orion-web` (GitHub `diesirae1908/surviveorion`),
+local path `~/Documents/games/orion-web` since the 2026-08-23 move. It is the
+only live Orion: TypeScript + Canvas + Vite client, zero-dependency Node
+community server (leaderboards, accounts, arenas; SQLite via `node:sqlite`,
+Node 22.5+), PWA.
+
+Every other thing called Orion is a dead prototype, not a sibling version. The
+Unity prototype sits at `~/Documents/personal/_archive/unity/Orion/` and is
+archived: read it for history, never for current behaviour, and never port from
+it without saying so. Do not treat anything outside this repo as a source of
+truth about how the game works.
 
 ## Deploying — read before you push
 
@@ -35,6 +44,36 @@ npx tsx scripts/sim-test.ts   # headless playtest: runs the real game loop,
   the local dev database.
 - Type-check (`npx tsc --noEmit` or `npm run build`) and run the sim-test
   before pushing gameplay changes.
+
+## Brand
+
+`brand/` is the ORION brand kit (v1.0, 2026-08-24). It is the source of truth
+for the logo, colour, type and voice, and it was derived from this repo rather
+than invented beside it.
+
+- `brand/BRAND.md`: the book. Positioning, the three pillars, naming, logo
+  rules, colour with measured WCAG ratios, type, layout, motion.
+- `brand/VOICE.md`: three named voices (Mission Control for in-game strings,
+  The Log for the site and patch notes, Wingmate for replies to pilots).
+- `brand/COPY-BANK.md`: approved lines, ready to paste.
+- `brand/tokens/`: `orion.tokens.css` and `.json`.
+- `brand/assets/`: logo lockups, app icons, OG image, social header, share
+  card template, medals, palette sheet, SVG and PNG.
+- `brand/brand-book.html`: all of the above as one page.
+- `brand/scripts/`: the generators. Run them from `brand/`; they are `.cjs`
+  because this repo is `"type": "module"`.
+
+Two rules that bite in code:
+
+1. **Rising Red `#c41e3a` fails WCAG AA for body text on Void** (3.37:1). Red
+   *text* uses Alarm `#ff4455` (5.83:1). Rising Red is for the core and the
+   swarm.
+2. **Dust `#8a7a55` clears AA on Void (4.69) but fails on Deep Space (4.42).**
+   On raised surfaces use Bronze `#aa8844`.
+
+If you change a colour in `src/config.ts` `PALETTE`, change it in
+`brand/tokens/orion.tokens.css` too. They are meant to agree.
+`brand/BRAND.md` §11 lists what in this repo still disagrees with the kit.
 
 ## Recording your work
 
