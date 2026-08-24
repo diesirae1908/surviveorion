@@ -708,7 +708,7 @@ export class Ui {
       screen.appendChild(launch);
       if (!info.preview && info.attemptsLeft === 1) {
         screen.appendChild(
-          this.el("div", "field-hint center last-attempt-hint", "Last patrol today — make it count."),
+          this.el("div", "field-hint center last-attempt-hint", "Last patrol today. Make it count."),
         );
       }
     } else {
