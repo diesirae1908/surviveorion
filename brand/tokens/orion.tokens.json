@@ -12,6 +12,7 @@
       "gold": "#ffd700",
       "flare": "#ffee88",
       "ingot": "#cc8800",
+      "brass": "#ccaa66",
       "bronze": "#aa8844",
       "dust": "#8a7a55",
       "red": "#c41e3a",
@@ -32,6 +33,11 @@
       "autocannon": "#e8e8f8",
       "meteors": "#ffce55",
       "vortex": "#8877ff"
+    },
+    "mode": {
+      "daily": "#ffd700",
+      "ironrain": "#aecbee",
+      "training": "#aa8844"
     },
     "medal": {
       "gold": "#ffd700",
@@ -93,6 +99,7 @@
     "gold": 14.06,
     "flare": 16.75,
     "ingot": 6.66,
+    "brass": 8.93,
     "bronze": 5.93,
     "dust": 4.69,
     "red": 3.37,

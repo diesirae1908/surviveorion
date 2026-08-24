@@ -16,6 +16,7 @@ Keep them in sync; if they ever disagree, the game repo wins.
 | **[BRAND.md](BRAND.md)** | The brand book. Positioning, pillars, naming, logo rules, colour with measured contrast, type, layout, motion. |
 | **[VOICE.md](VOICE.md)** | Three named voices (Mission Control, The Log, Wingmate), when to use each, with shipped examples and anti-examples. |
 | **[COPY-BANK.md](COPY-BANK.md)** | Paste-ready lines: taglines, store copy, social, in-game strings, support replies. |
+| **[CONFORMANCE.md](CONFORMANCE.md)** | The implementation spec: what in the live code disagrees with this kit, file and line, in phases. Written to be handed to Cursor. |
 | **[tokens/](tokens/)** | `orion.tokens.css` and `orion.tokens.json`. Source of truth for colour, type, radius, motion. |
 
 ## Assets

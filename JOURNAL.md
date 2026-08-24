@@ -4,6 +4,39 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: brand conformance audit + implementation spec (branch `sam/brand-kit`)
+
+- Added `brand/CONFORMANCE.md`: the spec for bringing this codebase in line with
+  the brand kit. Every finding was grepped and verified here, with file and line
+  numbers, ordered into phases with acceptance checks. Written to be handed
+  straight to Cursor.
+- **The headline finding: there is no colour token layer.** `:root` in
+  `src/style.css` holds four safe-area insets and nothing else, while the file
+  carries 148 hex literals (28 distinct) and 77 `rgba()` calls, 46 of which are
+  gold or bronze at some alpha. That is Phase 0 of the spec.
+- **Three confirmed WCAG AA failures on live text**, each read in full rule
+  context, none of them an opacity artefact: `.daily-day` `#5a4828` at 2.25:1
+  (`style.css:390`), `.calendar-day.missed` `#6a5a45` at 2.97:1 (`:674` and
+  `:776`), `.menu-mode-btn.training .daily-sub` `#6a6048` at 3.17:1 on 10px
+  text (`:876`).
+- **New player-facing em dash found**: `src/ui.ts:711` "Last patrol today — make
+  it count." The 2026-08-17 sweep missed it. Adds to the known manifest one.
+- **Two findings went the other way: the code was right and the kit was wrong.**
+  Both are now in the kit rather than being "fixed" out of the code.
+  - `#ccaa66` is used 10 times as secondary text and measures 8.93:1, better
+    than Bronze at 5.93:1. Added to the palette as **Brass**.
+  - `.menu-mode-btn` already runs a mode-identity colour system: Daily gold,
+    Iron Rain `#aecbee`, Training bronze. Documented as **Mode identity**, three
+    modes and three colours.
+- Explicitly ruled compliant, so nobody churns them later: the two `#ffffff` in
+  `render.ts` (`:1724`, `:1792`) are the hot core of a flash, not UI; and
+  `.heading` `color: #c41e3a` (`style.css:138`) is 40px+ bold, where Rising Red's
+  3.37:1 passes AA for large text. Roughly 40 further off-palette values in
+  `render.ts` / `main.ts` / `mines.ts` are VFX gradient stops and are out of
+  scope by design.
+- Nothing in `src/`, `server/` or `public/` changed in this commit. The spec is
+  the deliverable; the work it describes is not done.
+
 ## 2026-08-24: brand kit added + product docs repositioned (branch `sam/brand-kit`)
 
 - Added `brand/`, the ORION brand kit v1.0. Derived from this repo, not

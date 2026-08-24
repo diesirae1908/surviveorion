@@ -145,7 +145,8 @@ Full swatch sheet: `assets/palette/orion-palette.svg`. Machine-readable:
 | **Hull Gold** | `#ffd700` | The brand. Ship hull, sight ring, primary action. |
 | Flare | `#ffee88` | Top of every gold gradient. Highlights. |
 | Ingot | `#cc8800` | Bottom of every gold gradient. Shadow side. |
-| Bronze | `#aa8844` | Secondary text on dark, taglines. |
+| Brass | `#ccaa66` | Secondary text that has to stay easy to read. Briefings, sublines, meta. |
+| Bronze | `#aa8844` | Secondary text on dark, taglines, quieter than Brass. |
 | Dust | `#8a7a55` | Muted labels, metadata. |
 | **Rising Red** | `#c41e3a` | The core, the swarm, danger. |
 | Alarm | `#ff4455` | Bright danger. Red *text* uses this. |
@@ -166,6 +167,7 @@ Against Void `#0a0a12`, WCAG 2.1 ratios:
 | Starlight `#fff7e0` | 18.43 | AAA |
 | Flare `#ffee88` | 16.75 | AAA |
 | Hull Gold `#ffd700` | 14.06 | AAA |
+| Brass `#ccaa66` | 8.93 | AAA |
 | Ingot `#cc8800` | 6.66 | AA |
 | Bronze `#aa8844` | 5.93 | AA |
 | Alarm `#ff4455` | 5.83 | AA |
@@ -181,6 +183,20 @@ Two rules fall out of that table:
 
 On light backgrounds, gold fails badly (`#ffd700` on `#fff7e0` is 1.31). ORION is a dark
 brand. If a surface must be light, the logo goes `-mono-black` and the type goes Void.
+
+### Mode identity
+
+Each game mode owns one colour, a system already shipped in `src/style.css` and worth keeping.
+Daily Patrol is the main event and gets the brand gold; Iron Rain is the only non-gold mode;
+Training is deliberately quieter.
+
+| Mode | Colour | |
+|---|---|---|
+| Daily Patrol | Hull Gold | `#ffd700` |
+| Iron Rain | Iron Blue | `#aecbee` |
+| Training Ground | Bronze | `#aa8844` |
+
+Do not introduce a fourth mode colour without retiring one. Three is the system.
 
 ### Power signals
 
@@ -258,7 +274,13 @@ renderer is a straight string replace.
 
 ## 11. What to fix in the game
 
-Found while deriving this kit.
+Found while deriving this kit. The full implementation spec, with every finding located to a
+file and line and ordered into phases, is in [CONFORMANCE.md](CONFORMANCE.md). This section is
+the summary.
+
+Two palette entries in §6, **Brass `#ccaa66`** and the **mode identity** trio, came out of that
+audit rather than the original derivation: the code was already using them consistently and the
+kit had not recorded them. The code was right; the kit was under-specified.
 
 ### Still open
 

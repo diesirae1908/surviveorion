@@ -49,21 +49,38 @@ write('logo/orion-clearspace.svg', `<svg xmlns="http://www.w3.org/2000/svg" view
 
 console.log('palette/');
 // ---- palette swatch sheet ------------------------------------------------
-const CORE_C = [['Void','#0a0a12'],['Deep Space','#12121e'],['Hull Line','#2a2a3a'],['Hull Gold','#ffd700'],['Flare','#ffee88'],['Ingot','#cc8800'],['Bronze','#aa8844'],['Dust','#8a7a55'],['Rising Red','#c41e3a'],['Alarm','#ff4455'],['Ash Red','#7a1020'],['Starlight','#fff7e0']];
+const CORE_C = [['Void','#0a0a12'],['Deep Space','#12121e'],['Hull Line','#2a2a3a'],['Hull Gold','#ffd700'],['Flare','#ffee88'],['Ingot','#cc8800'],['Brass','#ccaa66'],['Bronze','#aa8844'],['Dust','#8a7a55'],['Rising Red','#c41e3a'],['Alarm','#ff4455'],['Ash Red','#7a1020'],['Starlight','#fff7e0']];
 const SIGNAL = [['Aegis Shield','#66ccff'],['Pulse Shot','#ffaa33'],['Magnet','#cc66ff'],['Afterburner','#ff6633'],['Cryo Field','#9fe8ff'],['Missile Swarm','#a8ff9e'],['Starshell','#ffd24d'],['Arc Lightning','#88eeff'],['Autocannon','#e8e8f8'],['Meteors','#ffce55'],['Vortex','#8877ff'],['Shockwave','#ffd700']];
 const METAL = [['Gold','#ffd700'],['Silver','#d7d7d7'],['Copper','#cd7f32']];
-const row = (items, y, cols = 6, w = 186, h = 116, gap = 14) => items.map((it, i) => {
-  const [n, hexv] = it, cx = 60 + (i % cols) * (w + gap), cy = y + Math.floor(i / cols) * (h + 58);
-  return `<g><rect x="${cx}" y="${cy}" width="${w}" height="${h}" rx="8" fill="${hexv}" stroke="#2a2a3a" stroke-width="1.5"/>
-    <text x="${cx}" y="${cy + h + 26}" fill="#fff7e0" font-family="${FONT}" font-size="21" font-weight="600">${n}</text>
-    <text x="${cx}" y="${cy + h + 48}" fill="#8a7a55" font-family="${FONT}" font-size="19" font-weight="500">${hexv}</text></g>`;
+const MODE = [['Daily Patrol','#ffd700'],['Iron Rain','#aecbee'],['Training','#aa8844']];
+const COLS = 6, SW_W = 186, SW_H = 116, GAP = 14, ROW_H = SW_H + 58, SEC_GAP = 40;
+const row = (items, y) => items.map((it, i) => {
+  const [n, hexv] = it, cx = 60 + (i % COLS) * (SW_W + GAP), cy = y + Math.floor(i / COLS) * ROW_H;
+  return `<g><rect x="${cx}" y="${cy}" width="${SW_W}" height="${SW_H}" rx="8" fill="${hexv}" stroke="#2a2a3a" stroke-width="1.5"/>
+    <text x="${cx}" y="${cy + SW_H + 26}" fill="#fff7e0" font-family="${FONT}" font-size="21" font-weight="600">${n}</text>
+    <text x="${cx}" y="${cy + SW_H + 48}" fill="#8a7a55" font-family="${FONT}" font-size="19" font-weight="500">${hexv}</text></g>`;
 }).join('');
 const head = (t, y) => `<text x="60" y="${y}" fill="#aa8844" font-family="${FONT}" font-size="24" font-weight="700" letter-spacing="5">${t}</text>`;
-write('palette/orion-palette.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 1130" role="img" aria-label="ORION colour palette">
+
+/** Stack sections top to bottom so adding a swatch can never collide with the next heading. */
+function sheet(sections, startY) {
+  let y = startY, out = '';
+  for (const [title, items] of sections) {
+    out += head(title, y) + row(items, y + 24);
+    y += 24 + Math.ceil(items.length / COLS) * ROW_H + SEC_GAP;
+  }
+  return { body: out, height: y + 20 };
+}
+const SHEET = sheet([
+  ['CORE', CORE_C],
+  ['POWER SIGNALS  (functional, never decorative)', SIGNAL],
+  ['MODE IDENTITY  (three modes, three colours, no more)', MODE],
+  ['MEDAL METALS', METAL],
+], 140);
+
+write('palette/orion-palette.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 ${SHEET.height}" role="img" aria-label="ORION colour palette">
   <title>ORION colour palette</title>
-  <rect width="1300" height="1130" fill="#0a0a12"/>
+  <rect width="1300" height="${SHEET.height}" fill="#0a0a12"/>
   <text x="60" y="76" fill="#ffd700" font-family="${FONT}" font-size="40" font-weight="700" letter-spacing="6">ORION PALETTE</text>
-  ${head('CORE', 140)}${row(CORE_C, 164)}
-  ${head('POWER SIGNALS  (functional, never decorative)', 540)}${row(SIGNAL, 564)}
-  ${head('MEDAL METALS', 940)}${row(METAL, 964)}
+  ${SHEET.body}
 </svg>`);

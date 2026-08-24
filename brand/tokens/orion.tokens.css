@@ -41,6 +41,11 @@
   --orion-power-meteors: #ffce55;     /* Meteors */
   --orion-power-vortex: #8877ff;      /* Vortex */
 
+  /* ---- Mode identity (each game mode owns one colour) ------------------ */
+  --orion-mode-daily: #ffd700;      /* Daily Patrol: the main event, so it gets the brand gold */
+  --orion-mode-ironrain: #aecbee;   /* Iron Rain: cold blue, the only non-gold mode */
+  --orion-mode-training: #aa8844;   /* Training Ground: bronze, deliberately quieter */
+
   /* ---- Medal metals --------------------------------------------------- */
   --orion-medal-gold: #ffd700;
   --orion-medal-silver: #d7d7d7;

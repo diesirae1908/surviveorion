@@ -134,7 +134,7 @@ strong{color:var(--star); font-weight:600}
   background:var(--deep); cursor:pointer; padding:0; font:inherit; color:inherit; display:block; width:100%;
   transition:border-color .18s var(--ease), transform .18s var(--ease)}
 .sw:hover{border-color:var(--bronze); transform:translateY(-2px)}
-.sw-chip{height:82px; border-bottom:1px solid var(--line)}
+.sw-chip{display:block; height:82px; border-bottom:1px solid var(--line)}
 .sw-body{padding:11px 13px 13px; display:flex; flex-direction:column; gap:3px}
 .sw-name{font-family:var(--display); font-weight:600; font-size:.94rem; letter-spacing:.05em; color:var(--star)}
 .sw-hex{font-family:var(--mono); font-size:.76rem; color:var(--dust)}
@@ -569,6 +569,14 @@ footer{border-top:1px solid var(--line); margin-top:var(--s7); padding-top:var(-
         <p class="small" style="margin-bottom:20px">Functional, never decorative. A colour means a power. Using
         Magnet purple as a background accent teaches pilots the wrong thing.</p>
         <div class="grid g4" id="power-sw"></div>
+      </div>
+
+      <div>
+        <h3 class="h-display" style="margin-bottom:6px">Mode identity</h3>
+        <p class="small" style="margin-bottom:20px">Each game mode owns one colour, a system already
+        shipped in <code>src/style.css</code> and worth keeping. Three modes, three colours. Do not add a
+        fourth without retiring one.</p>
+        <div class="grid g3" id="mode-sw"></div>
       </div>
 
       <div>
@@ -1024,6 +1032,7 @@ footer{border-top:1px solid var(--line); margin-top:var(--s7); padding-top:var(-
     ['Hull Gold', '#ffd700', 'The brand. Hull, sight ring, primary action.'],
     ['Flare', '#ffee88', 'Top of every gold gradient. Highlights.'],
     ['Ingot', '#cc8800', 'Bottom of every gold gradient. Shadow side.'],
+    ['Brass', '#ccaa66', 'Secondary text that has to stay easy to read.'],
     ['Bronze', '#aa8844', 'Secondary text on dark, taglines.'],
     ['Dust', '#8a7a55', 'Muted labels, metadata. Void only.'],
     ['Rising Red', '#c41e3a', 'The core, the swarm, danger. Not text.'],
@@ -1063,6 +1072,13 @@ footer{border-top:1px solid var(--line); margin-top:var(--s7); padding-top:var(-
   CORE.forEach(function (c) { coreEl.appendChild(swatch(c[0], c[1], c[2], c[3])); });
   var powEl = document.getElementById('power-sw');
   POWER.forEach(function (c) { powEl.appendChild(swatch(c[0], c[1], '', '')); });
+  var MODE = [
+    ['Daily Patrol', '#ffd700', 'The main event, so it gets the brand gold.'],
+    ['Iron Rain', '#aecbee', 'The only non-gold mode.'],
+    ['Training Ground', '#aa8844', 'Deliberately quieter.']
+  ];
+  var modeEl = document.getElementById('mode-sw');
+  MODE.forEach(function (c) { modeEl.appendChild(swatch(c[0], c[1], c[2], '')); });
 
   /* ---------- medals ------------------------------------------------------- */
   var METALS = [
