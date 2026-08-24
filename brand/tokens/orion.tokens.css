@@ -13,6 +13,7 @@
   --orion-gold: #ffd700;         /* the brand. Ship hull, sight ring, primary action */
   --orion-flare: #ffee88;        /* gold highlight, top of every gold gradient */
   --orion-ingot: #cc8800;        /* gold shadow, bottom of every gold gradient */
+  --orion-brass: #ccaa66;        /* secondary text on dark (8.93:1 on Void) */
   --orion-bronze: #aa8844;       /* secondary text on dark, taglines, straplines */
   --orion-dust: #8a7a55;         /* muted labels, metadata */
 
