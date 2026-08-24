@@ -457,7 +457,7 @@ button.launch {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  color: #5a4828;
+  color: var(--orion-bronze);
   font-size: 10px;
   letter-spacing: 0.2em;
   margin-right: -0.2em;
@@ -839,7 +839,7 @@ button.launch {
 }
 
 .calendar-day.missed {
-  color: #6a5a45;
+  color: var(--orion-dust);
 }
 
 .calendar-day.selected {
@@ -939,7 +939,7 @@ button.launch {
 }
 
 .menu-mode-btn.training .daily-sub {
-  color: #6a6048;
+  color: var(--orion-mode-training);
   font-size: 10px;
   text-transform: none;
   letter-spacing: 0.06em;
