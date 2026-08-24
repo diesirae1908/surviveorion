@@ -4,6 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: brand conformance Phases 2–5 (branch `sam/brand-conformance`)
+
+- **Kit fix:** added `--orion-brass: #ccaa66` to `brand/tokens/orion.tokens.css` (JSON already
+  had it). `PALETTE` has no brass field; all shared values agree. Commit `3874392`.
+- **Phase 2:** collapsed four near-duplicate UI hex literals to palette tokens (alarm,
+  medal-silver, dust). **Skipped** `render.ts:127`: `#141426` ≠ `PALETTE.bgTop` (`#12121e`).
+  Commit `75de44a`.
+- **Phase 3:** fixed three WCAG AA failures (`.daily-day` → bronze, `.calendar-day.missed` →
+  dust, training `.daily-sub` → `--orion-mode-training`). Commit `861f930`.
+- **Phase 4:** em dash in `ui.ts:711`, manifest colon, kit OG swap, favicon r=37/stroke=11,
+  tutorial spin deduped to one exclamation (touch keeps it). Commit `b10753f`.
+- **Phase 5:** collapsed 12 letter-spacing literals to three roles + two strapline tokens
+  (`0.25em` intro-gate enter, `0.4em` tutorial tap-continue); `.mono` uses
+  `var(--orion-font-mono)`. Commit `90aa33d`.
+- Phase 1 (`rgba()` → `color-mix`) skipped by decision. Verified: tsc, sim-test, npm test,
+  contrast audit, em-dash grep clean.
+
 ## 2026-08-24: brand conformance Phase 0 — CSS token layer (branch `sam/brand-conformance`)
 
 - **Phase 0 only** per `brand/CONFORMANCE.md`: extended `:root` in `src/style.css` with

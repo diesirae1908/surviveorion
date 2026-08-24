@@ -71,7 +71,9 @@
     "tracking": {
       "display": "0.06em",
       "label": "0.14em",
-      "body": "0"
+      "body": "0",
+      "strapline": "0.25em",
+      "straplineWide": "0.4em"
     }
   },
   "radius": {

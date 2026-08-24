@@ -63,6 +63,8 @@
   --orion-tracking-display: 0.06em;  /* ORION, screen titles */
   --orion-tracking-label: 0.14em;    /* PILOT, SCORE, all-caps HUD labels */
   --orion-tracking-body: 0;
+  --orion-tracking-strapline: 0.25em;      /* wide CTAs: tap to enter */
+  --orion-tracking-strapline-wide: 0.4em;    /* tutorial tap-continue */
 
   /* ---- Radius and rhythm ---------------------------------------------- */
   --orion-radius-sm: 6px;

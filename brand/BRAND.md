@@ -284,16 +284,17 @@ kit had not recorded them. The code was right; the kit was under-specified.
 
 ### Still open
 
-1. **`public/manifest.webmanifest` name field contains an em dash**: `"ORION — Survive the
-   Swarm"`. Should be `"ORION: Survive the Swarm"`. The 2026-08-17 copy sweep caught the game
-   strings but not the manifest. Player-facing.
-2. **`public/og.png` reads `DAILY PATROL — SURVIVE THE SWARM`**, same em dash. The replacement
-   is already drawn: `assets/social/png/orion-og-1200x630.png`. Player-facing.
-3. **The favicon is an inline data-URI SVG in `index.html`** with `r=40 stroke-width=8`, close
-   to but not identical to `assets/icon/orion-favicon.svg` (`r=37 stroke-width=11`). Swap in the
-   kit version so the ring weight matches everywhere.
+Nothing from the original §11 audit remains open on this branch.
 
-All three are small. Items 1 and 2 are the ones players see.
+### Fixed on `sam/brand-conformance` (Phases 2–5, 2026-08-24)
+
+1. **`public/manifest.webmanifest` name** now `"ORION: Survive the Swarm"` (colon, no em dash).
+2. **`public/og.png`** replaced with `brand/assets/social/png/orion-og-1200x630.png`.
+3. **Inline favicon in `index.html`** matches kit (`r=37`, `stroke-width=11`).
+4. Three WCAG contrast failures in `style.css` (`.daily-day`, `.calendar-day.missed`,
+   training `.daily-sub`).
+5. Four near-duplicate UI colours collapsed to palette tokens; em dash in `ui.ts:711` fixed;
+   tutorial spin exclamation deduped; letter-spacing collapsed to tracking tokens.
 
 ### Fixed on the branch that added this kit (`sam/brand-kit`, not yet on `main`)
 

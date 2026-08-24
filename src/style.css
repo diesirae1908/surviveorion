@@ -68,6 +68,8 @@
   --orion-tracking-display: 0.06em;  /* ORION, screen titles */
   --orion-tracking-label: 0.14em;    /* PILOT, SCORE, all-caps HUD labels */
   --orion-tracking-body: 0;
+  --orion-tracking-strapline: 0.25em;      /* wide CTAs: tap to enter */
+  --orion-tracking-strapline-wide: 0.4em;    /* tutorial tap-continue */
 
   /* ---- Motion (matches the game's easing) ----------------------------- */
   --orion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -171,8 +173,8 @@ body {
 
 .title {
   font-size: clamp(56px, 14vw, 110px);
-  letter-spacing: 0.1em;
-  margin-right: -0.1em;
+  letter-spacing: var(--orion-tracking-display);
+  margin-right: -0.06em;
   font-weight: bold;
   background: linear-gradient(180deg, var(--orion-flare) 0%, var(--orion-gold) 45%, var(--orion-ingot) 100%);
   -webkit-background-clip: text;
@@ -183,8 +185,8 @@ body {
 
 .subtitle {
   color: var(--orion-bronze);
-  letter-spacing: 0.22em;
-  margin-right: -0.22em;
+  letter-spacing: var(--orion-tracking-label);
+  margin-right: -0.14em;
   font-size: clamp(11px, 2.5vw, 15px);
   text-transform: uppercase;
 }
@@ -198,7 +200,7 @@ body {
 
 .heading {
   font-size: clamp(40px, 9vw, 68px);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
   margin-right: -0.06em;
   font-weight: bold;
   color: var(--orion-red);
@@ -225,7 +227,7 @@ body {
   display: block;
   color: var(--orion-bronze);
   font-size: 11px;
-  letter-spacing: 0.25em;
+  letter-spacing: var(--orion-tracking-label);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
@@ -237,7 +239,7 @@ body {
 
 .new-best {
   color: var(--orion-gold);
-  letter-spacing: 0.14em;
+  letter-spacing: var(--orion-tracking-label);
   margin-right: -0.14em;
   font-size: 14px;
   text-transform: uppercase;
@@ -248,7 +250,7 @@ body {
 .result-highlight {
   color: var(--orion-flare);
   font-size: 14px;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--orion-tracking-body);
   background: rgba(255, 215, 0, 0.08);
   border: 1px solid rgba(255, 215, 0, 0.3);
   padding: 6px 16px;
@@ -288,7 +290,7 @@ body {
 .result-sub {
   color: var(--orion-bronze);
   font-size: 13px;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
   text-transform: uppercase;
 }
 
@@ -300,7 +302,7 @@ button {
   background: linear-gradient(135deg, var(--orion-hull-line) 0%, #1a1a2a 100%);
   color: var(--orion-flare);
   font-size: 17px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--orion-tracking-label);
   text-indent: 0.14em;
   padding: 14px 46px;
   min-width: 240px;
@@ -330,7 +332,7 @@ button.primary:active {
 button.launch {
   font-size: 22px;
   padding: 20px 80px;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--orion-tracking-label);
   animation: launchGlow 2.4s ease-in-out infinite;
 }
 
@@ -351,7 +353,7 @@ button.launch {
   gap: 10px;
   padding: 10px 26px;
   font-size: 13px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--orion-tracking-label);
   border: 1px solid rgba(170, 136, 68, 0.55);
   background: rgba(26, 26, 42, 0.6);
   color: var(--orion-brass);
@@ -371,7 +373,7 @@ button.launch {
   color: var(--orion-dust);
   font-size: 11px;
   text-transform: none;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .pilot-badge:hover .sub {
@@ -387,7 +389,7 @@ button.launch {
   gap: 3px;
   padding: 10px 26px;
   font-size: 14px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--orion-tracking-label);
   border: 1px solid rgba(170, 190, 220, 0.45);
   background: rgba(22, 28, 40, 0.6);
   color: var(--orion-mode-ironrain);
@@ -401,7 +403,7 @@ button.launch {
   color: #6d7f99;
   font-size: 11px;
   text-transform: none;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .menu-mode-btn.ironrain:hover {
@@ -418,7 +420,7 @@ button.launch {
   gap: 3px;
   padding: 10px 26px;
   font-size: 14px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--orion-tracking-label);
   border: 1px solid rgba(255, 215, 0, 0.45);
   background: rgba(42, 34, 16, 0.55);
   color: var(--orion-gold);
@@ -428,14 +430,14 @@ button.launch {
   color: var(--orion-dust);
   font-size: 11px;
   text-transform: none;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .daily-btn .daily-hint {
   color: var(--orion-flare);
   font-size: 11px;
   text-transform: none;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .daily-btn .daily-hint:empty {
@@ -459,8 +461,8 @@ button.launch {
   gap: 8px;
   color: var(--orion-bronze);
   font-size: 10px;
-  letter-spacing: 0.2em;
-  margin-right: -0.2em;
+  letter-spacing: var(--orion-tracking-label);
+  margin-right: -0.14em;
   text-transform: uppercase;
   margin-top: -2px;
 }
@@ -468,7 +470,7 @@ button.launch {
 .daily-day b {
   color: var(--orion-gold);
   font-size: 36px;
-  letter-spacing: 0;
+  letter-spacing: var(--orion-tracking-body);
   margin-right: 0;
   font-weight: bold;
   line-height: 1;
@@ -494,7 +496,7 @@ button.launch {
   background: var(--orion-alarm);
   font-size: 10px;
   font-weight: bold;
-  letter-spacing: 0.12em;
+  letter-spacing: var(--orion-tracking-label);
   padding: 2px 8px;
   border-radius: 3px;
   text-shadow: none;
@@ -512,7 +514,7 @@ button.launch {
   color: var(--orion-gold);
   font-size: 16px;
   font-weight: bold;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
   text-transform: uppercase;
   text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
 }
@@ -520,7 +522,7 @@ button.launch {
 .mutator-briefing {
   color: var(--orion-brass);
   font-size: 12px;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--orion-tracking-body);
   line-height: 1.4;
   font-style: italic;
 }
@@ -528,7 +530,7 @@ button.launch {
 .mutator-subline {
   color: #8a9aa8;
   font-size: 10px;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--orion-tracking-body);
   line-height: 1.35;
 }
 
@@ -545,7 +547,7 @@ button.launch {
 
 .medal-pip {
   font-size: 12px;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--orion-tracking-body);
 }
 
 .medal-pip.copper {
@@ -564,7 +566,7 @@ button.launch {
 .medal-earned {
   color: var(--orion-dust);
   font-size: 13px;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--orion-tracking-display);
   text-transform: uppercase;
 }
 
@@ -613,14 +615,14 @@ button.launch {
   margin-left: 4px;
   color: var(--orion-brass);
   font-size: 13px;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 /* today's-leader line on the lobby (same id as the menu daily hint) */
 .daily-hint.lobby-hint {
   color: var(--orion-flare);
   font-size: 14px;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .daily-hint.lobby-hint:empty {
@@ -636,7 +638,7 @@ button.launch {
   color: var(--orion-brass);
   font-size: 14px;
   line-height: 1.7;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .daily-locked b {
@@ -646,14 +648,14 @@ button.launch {
 .daily-locked-sub {
   color: var(--orion-dust);
   font-size: 12px;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
   margin-top: -4px;
 }
 
 .daily-best-line {
   color: var(--orion-flare);
   font-size: 14px;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .daily-best-line b {
@@ -675,7 +677,7 @@ button.launch {
   flex-shrink: 0;
   color: var(--orion-dust);
   font-size: 10px;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
   text-transform: uppercase;
   padding: 2px 6px;
   border: 1px solid rgba(170, 136, 68, 0.35);
@@ -699,7 +701,7 @@ button.launch {
   color: var(--orion-dust);
   font-family: inherit;
   font-size: 12px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--orion-tracking-label);
   text-transform: uppercase;
   cursor: pointer;
   padding: 6px 10px;
@@ -745,7 +747,7 @@ button.launch {
   min-width: 0;
   color: var(--orion-gold);
   font-size: 13px;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--orion-tracking-display);
   text-transform: uppercase;
 }
 
@@ -759,7 +761,7 @@ button.launch {
 .calendar-weekday {
   color: var(--orion-dust);
   font-size: 10px;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--orion-tracking-body);
   text-transform: uppercase;
   text-align: center;
   padding-bottom: 2px;
@@ -781,7 +783,7 @@ button.launch {
   gap: 1px;
   padding: 2px;
   font-size: 12px;
-  letter-spacing: 0;
+  letter-spacing: var(--orion-tracking-body);
   text-indent: 0;
   text-transform: none;
   border: 1px solid rgba(170, 136, 68, 0.3);
@@ -879,7 +881,7 @@ button.launch {
 .cal-detail-date {
   color: var(--orion-gold);
   font-size: 13px;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
   text-transform: uppercase;
 }
 
@@ -902,7 +904,7 @@ button.launch {
 .cal-detail-medal {
   color: var(--orion-dust);
   font-size: 12px;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--orion-tracking-body);
   text-transform: uppercase;
 }
 
@@ -927,7 +929,7 @@ button.launch {
   gap: 2px;
   padding: 7px 22px;
   font-size: 12px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--orion-tracking-label);
   border: 1px solid rgba(170, 136, 68, 0.3);
   background: transparent;
   color: var(--orion-bronze);
@@ -942,7 +944,7 @@ button.launch {
   color: var(--orion-mode-training);
   font-size: 10px;
   text-transform: none;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .menu-mode-btn.training:hover {
@@ -965,16 +967,16 @@ button.launch {
 /* game-over: Iron Rain tag (steel counterpart of the daily tag) */
 .ironrain-tag {
   color: var(--orion-mode-ironrain);
-  letter-spacing: 0.16em;
-  margin-right: -0.16em;
+  letter-spacing: var(--orion-tracking-label);
+  margin-right: -0.14em;
   font-size: 12px;
 }
 
 /* game-over: Daily Patrol tag + best-run comparison line */
 .daily-tag {
   color: var(--orion-gold);
-  letter-spacing: 0.16em;
-  margin-right: -0.16em;
+  letter-spacing: var(--orion-tracking-label);
+  margin-right: -0.14em;
   font-size: 12px;
   text-transform: uppercase;
 }
@@ -982,7 +984,7 @@ button.launch {
 .run-delta {
   color: var(--orion-dust);
   font-size: 13px;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .run-delta.gold {
@@ -993,7 +995,7 @@ button.launch {
 .badge .badge-progress {
   color: var(--orion-brass);
   font-size: 9px;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .corner-btn {
@@ -1008,7 +1010,7 @@ button.launch {
   background: rgba(26, 26, 42, 0.5);
   color: var(--orion-bronze);
   text-indent: 0;
-  letter-spacing: 0;
+  letter-spacing: var(--orion-tracking-body);
 }
 
 .corner-btn:hover {
@@ -1092,8 +1094,8 @@ button.launch {
 .manual-title {
   color: var(--orion-bronze);
   font-size: 11px;
-  letter-spacing: 0.18em;
-  margin-right: -0.18em;
+  letter-spacing: var(--orion-tracking-label);
+  margin-right: -0.14em;
 }
 
 .manual {
@@ -1210,7 +1212,7 @@ button.launch {
   min-width: 0;
   padding: 8px 16px;
   font-size: 12px;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--orion-tracking-label);
 }
 
 .profile-chip {
@@ -1320,7 +1322,7 @@ textarea.field {
 .last-attempt-hint {
   color: var(--orion-alarm);
   font-size: 13px;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--orion-tracking-body);
   text-shadow: 0 0 12px rgba(204, 68, 85, 0.4);
 }
 
@@ -1359,7 +1361,7 @@ button.link-btn {
   padding: 4px;
   color: var(--orion-dust);
   font-size: 12px;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--orion-tracking-display);
   text-indent: 0;
   text-transform: none;
   text-decoration: underline;
@@ -1369,7 +1371,7 @@ button.link-btn {
 /* calendar link is discovery, not primary — keep it unobtrusive */
 button.calendar-link {
   font-size: 10px;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--orion-tracking-display);
   opacity: 0.75;
   margin-top: -4px;
 }
@@ -1442,8 +1444,8 @@ button.link-btn:active {
 }
 
 .mono {
-  font-family: "SF Mono", Menlo, Consolas, monospace;
-  letter-spacing: 0.15em;
+  font-family: var(--orion-font-mono);
+  letter-spacing: var(--orion-tracking-label);
 }
 
 /* --- friends --- */
@@ -1520,7 +1522,7 @@ button.link-btn:active {
   text-align: center;
   color: var(--orion-flare);
   font-size: 19px;
-  letter-spacing: 0.15em;
+  letter-spacing: var(--orion-tracking-label);
 }
 
 .pilot-stats {
@@ -1564,13 +1566,13 @@ button.link-btn:active {
 .badge .badge-name {
   color: var(--orion-flare);
   font-size: 10px;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .badge .badge-tier {
   color: var(--orion-bronze);
   font-size: 8px;
-  letter-spacing: 0.25em;
+  letter-spacing: var(--orion-tracking-label);
   text-transform: uppercase;
 }
 
@@ -1597,15 +1599,15 @@ button.link-btn:active {
 .badge-earned-title {
   color: var(--orion-gold);
   font-size: 11px;
-  letter-spacing: 0.2em;
-  margin-right: -0.2em;
+  letter-spacing: var(--orion-tracking-label);
+  margin-right: -0.14em;
   animation: enterPulse 1.6s ease-in-out infinite;
 }
 
 .badge-earned-row {
   color: var(--orion-flare);
   font-size: 15px;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--orion-tracking-display);
 }
 
 .badge-earned-row .badge-icon {
@@ -1648,7 +1650,7 @@ button.link-btn:active {
 .score-breakdown {
   color: var(--orion-bronze);
   font-size: 13px;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--orion-tracking-body);
 }
 
 .score-breakdown span {
@@ -1748,7 +1750,7 @@ button.link-btn:active {
   color: var(--orion-flare);
   font-size: 15px;
   line-height: 1.55;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
   background: rgba(10, 10, 18, 0.72);
   border: 1px solid rgba(170, 136, 68, 0.5);
   border-radius: 4px;
@@ -1757,7 +1759,7 @@ button.link-btn:active {
 
 .tutorial-hint b {
   color: var(--orion-gold);
-  letter-spacing: 0.2em;
+  letter-spacing: var(--orion-tracking-label);
 }
 
 .tutorial-hint.pop {
@@ -1807,7 +1809,7 @@ button.link-btn:active {
   color: var(--orion-flare);
   font-size: 16px;
   line-height: 1.6;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--orion-tracking-display);
   background: rgba(10, 10, 18, 0.9);
   border: 1px solid rgba(170, 136, 68, 0.6);
   border-radius: 4px;
@@ -1827,7 +1829,7 @@ button.link-btn:active {
 
 .tutorial-modal b {
   color: var(--orion-gold);
-  letter-spacing: 0.2em;
+  letter-spacing: var(--orion-tracking-label);
 }
 
 /* transient notice (e.g. tilt fell back to the stick); above every screen */
@@ -1843,7 +1845,7 @@ button.link-btn:active {
   color: var(--orion-flare);
   font-size: 13px;
   line-height: 1.55;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--orion-tracking-body);
   background: rgba(10, 10, 18, 0.92);
   border: 1px solid rgba(170, 136, 68, 0.6);
   border-radius: 4px;
@@ -1860,7 +1862,7 @@ button.link-btn:active {
   margin-top: 16px;
   color: var(--orion-gold);
   font-size: 12px;
-  letter-spacing: 0.4em;
+  letter-spacing: var(--orion-tracking-strapline-wide);
   margin-right: -0.4em;
   text-transform: uppercase;
   animation: enterPulse 1.6s ease-in-out infinite;
@@ -1889,8 +1891,8 @@ button.link-btn:active {
 .intro-gate .enter {
   color: var(--orion-gold);
   font-size: 15px;
-  letter-spacing: 0.24em;
-  margin-right: -0.24em;
+  letter-spacing: var(--orion-tracking-strapline);
+  margin-right: -0.25em;
   text-transform: uppercase;
   animation: enterPulse 1.6s ease-in-out infinite;
 }
@@ -1898,7 +1900,7 @@ button.link-btn:active {
 .gate-tagline {
   color: var(--orion-dust);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: var(--orion-tracking-label);
   text-align: center;
   max-width: 260px;
   line-height: 1.7;
