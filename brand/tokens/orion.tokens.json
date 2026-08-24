@@ -1,0 +1,110 @@
+{
+  "$schema": "https://design-tokens.org/schema.json",
+  "name": "ORION",
+  "version": "1.0.0",
+  "lastVerified": "2026-08-24",
+  "source": "diesirae1908/surviveorion src/config.ts PALETTE + src/style.css",
+  "color": {
+    "core": {
+      "void": "#0a0a12",
+      "deepSpace": "#12121e",
+      "hullLine": "#2a2a3a",
+      "gold": "#ffd700",
+      "flare": "#ffee88",
+      "ingot": "#cc8800",
+      "brass": "#ccaa66",
+      "bronze": "#aa8844",
+      "dust": "#8a7a55",
+      "red": "#c41e3a",
+      "alarm": "#ff4455",
+      "ash": "#7a1020",
+      "starlight": "#fff7e0"
+    },
+    "power": {
+      "shield": "#66ccff",
+      "shockwave": "#ffd700",
+      "pulse": "#ffaa33",
+      "magnet": "#cc66ff",
+      "afterburner": "#ff6633",
+      "freeze": "#9fe8ff",
+      "missiles": "#a8ff9e",
+      "starshell": "#ffd24d",
+      "arc": "#88eeff",
+      "autocannon": "#e8e8f8",
+      "meteors": "#ffce55",
+      "vortex": "#8877ff"
+    },
+    "mode": {
+      "daily": "#ffd700",
+      "ironrain": "#aecbee",
+      "training": "#aa8844"
+    },
+    "medal": {
+      "gold": "#ffd700",
+      "silver": "#d7d7d7",
+      "copper": "#cd7f32"
+    }
+  },
+  "gradient": {
+    "gold": [
+      "#ffee88",
+      "#ffd700",
+      "#cc8800"
+    ],
+    "hull": [
+      "#cc8800",
+      "#ffd700",
+      "#ffee88"
+    ],
+    "space": [
+      "#12121e",
+      "#0a0a12"
+    ]
+  },
+  "typography": {
+    "family": "'Rajdhani', 'Titillium Web', 'Segoe UI', system-ui, sans-serif",
+    "weights": {
+      "body": 500,
+      "label": 600,
+      "display": 700
+    },
+    "tracking": {
+      "display": "0.06em",
+      "label": "0.14em",
+      "body": "0",
+      "strapline": "0.25em",
+      "straplineWide": "0.4em"
+    }
+  },
+  "radius": {
+    "sm": 6,
+    "md": 12,
+    "lg": 22
+  },
+  "chamfer": 0.22,
+  "space": [
+    6,
+    12,
+    18,
+    28,
+    44
+  ],
+  "motion": {
+    "easeOut": "cubic-bezier(0.16, 1, 0.3, 1)",
+    "instant": 120,
+    "screen": 350,
+    "fadeOut": 700,
+    "gameOver": 1600
+  },
+  "contrastOnVoid": {
+    "starlight": 18.43,
+    "gold": 14.06,
+    "flare": 16.75,
+    "ingot": 6.66,
+    "brass": 8.93,
+    "bronze": 5.93,
+    "dust": 4.69,
+    "red": 3.37,
+    "alarm": 5.83
+  }
+}

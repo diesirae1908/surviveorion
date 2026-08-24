@@ -60,12 +60,12 @@ export class Tutorial {
     if (this.env.inertia) {
       return (
         `<b>FLIGHT SCHOOL</b><br/>Thrust with ${this.env.moveKeys.split(" ")[0] ?? "W"}, ` +
-        "turn with the side keys.<br/>Take her for a spin!"
+        "turn with the side keys.<br/>Give her a try."
       );
     }
     return (
       `<b>FLIGHT SCHOOL</b><br/>Fly with ${this.env.moveKeys}. Ship goes that way.` +
-      "<br/>Take her for a spin!"
+      "<br/>See how she handles."
     );
   }
 

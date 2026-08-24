@@ -124,7 +124,7 @@ export class Renderer {
       this.cssH / 2,
       Math.max(this.cssW, this.cssH) * 0.7,
     );
-    grad.addColorStop(0, "#141426");
+    grad.addColorStop(0, PALETTE.bgTop);
     grad.addColorStop(1, PALETTE.bgBottom);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, this.cssW, this.cssH);

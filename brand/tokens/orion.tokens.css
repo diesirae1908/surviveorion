@@ -1,0 +1,87 @@
+/* ORION design tokens
+ * Source of truth for colour. Mirrors src/config.ts PALETTE and src/style.css
+ * in diesirae1908/surviveorion. If the game changes a value, change it here too.
+ * Last verified against the repo: 2026-08-24
+ */
+
+:root {
+  /* ---- Core ---------------------------------------------------------- */
+  --orion-void: #0a0a12;         /* page background, PWA theme-color */
+  --orion-deep-space: #12121e;   /* raised surfaces, top of the arena gradient */
+  --orion-hull-line: #2a2a3a;    /* dividers, card borders */
+
+  --orion-gold: #ffd700;         /* the brand. Ship hull, sight ring, primary action */
+  --orion-flare: #ffee88;        /* gold highlight, top of every gold gradient */
+  --orion-ingot: #cc8800;        /* gold shadow, bottom of every gold gradient */
+  --orion-brass: #ccaa66;        /* secondary text on dark (8.93:1 on Void) */
+  --orion-bronze: #aa8844;       /* secondary text on dark, taglines, straplines */
+  --orion-dust: #8a7a55;         /* muted labels, metadata */
+
+  --orion-red: #c41e3a;          /* Rising Red. The core, the swarm, danger */
+  --orion-alarm: #ff4455;        /* bright danger. Red TEXT uses this, never --orion-red */
+  --orion-ash: #7a1020;          /* red shadow */
+
+  --orion-starlight: #fff7e0;    /* primary text. Warm white, never pure #ffffff */
+
+  /* ---- Gradients ------------------------------------------------------ */
+  --orion-gradient-gold: linear-gradient(180deg, #ffee88 0%, #ffd700 55%, #cc8800 100%);
+  --orion-gradient-hull: linear-gradient(90deg, #cc8800 0%, #ffd700 60%, #ffee88 100%);
+  --orion-gradient-space: radial-gradient(ellipse at center, #12121e 0%, #0a0a12 100%);
+
+  /* ---- Power signals (functional colour, never decoration) ------------ */
+  --orion-power-shield: #66ccff;      /* Aegis Shield */
+  --orion-power-shockwave: #ffd700;   /* Shockwave */
+  --orion-power-pulse: #ffaa33;       /* Pulse Shot */
+  --orion-power-magnet: #cc66ff;      /* Magnet */
+  --orion-power-afterburner: #ff6633; /* Afterburner */
+  --orion-power-freeze: #9fe8ff;      /* Cryo Field */
+  --orion-power-missiles: #a8ff9e;    /* Missile Swarm */
+  --orion-power-starshell: #ffd24d;   /* Starshell */
+  --orion-power-arc: #88eeff;         /* Arc Lightning */
+  --orion-power-autocannon: #e8e8f8;  /* Autocannon */
+  --orion-power-meteors: #ffce55;     /* Meteors */
+  --orion-power-vortex: #8877ff;      /* Vortex */
+
+  /* ---- Mode identity (each game mode owns one colour) ------------------ */
+  --orion-mode-daily: #ffd700;      /* Daily Patrol: the main event, so it gets the brand gold */
+  --orion-mode-ironrain: #aecbee;   /* Iron Rain: cold blue, the only non-gold mode */
+  --orion-mode-training: #aa8844;   /* Training Ground: bronze, deliberately quieter */
+
+  /* ---- Medal metals --------------------------------------------------- */
+  --orion-medal-gold: #ffd700;
+  --orion-medal-silver: #d7d7d7;
+  --orion-medal-copper: #cd7f32;
+
+  /* ---- Type ----------------------------------------------------------- */
+  --orion-font: 'Rajdhani', 'Titillium Web', 'Segoe UI', system-ui, sans-serif;
+  --orion-font-mono: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, monospace;
+
+  --orion-weight-body: 500;
+  --orion-weight-label: 600;
+  --orion-weight-display: 700;
+
+  --orion-tracking-display: 0.06em;  /* ORION, screen titles */
+  --orion-tracking-label: 0.14em;    /* PILOT, SCORE, all-caps HUD labels */
+  --orion-tracking-body: 0;
+  --orion-tracking-strapline: 0.25em;      /* wide CTAs: tap to enter */
+  --orion-tracking-strapline-wide: 0.4em;    /* tutorial tap-continue */
+
+  /* ---- Radius and rhythm ---------------------------------------------- */
+  --orion-radius-sm: 6px;
+  --orion-radius-md: 12px;
+  --orion-radius-lg: 22px;   /* app-icon tile corner */
+  --orion-chamfer: 0.22;     /* corner cut as a fraction of the shorter side */
+
+  --orion-space-1: 6px;
+  --orion-space-2: 12px;
+  --orion-space-3: 18px;
+  --orion-space-4: 28px;
+  --orion-space-5: 44px;
+
+  /* ---- Motion (matches the game's easing) ----------------------------- */
+  --orion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --orion-dur-instant: 120ms;
+  --orion-dur-screen: 350ms;   /* .screen fadeIn */
+  --orion-dur-fadeout: 700ms;  /* .screen.fade-out */
+  --orion-dur-gameover: 1600ms;/* game over rising out of the death veil */
+}

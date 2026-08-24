@@ -4,6 +4,122 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: brand conformance PM review follow-up (branch `sam/brand-conformance`)
+
+- Applied two items previously escalated as skipped: `render.ts:127` arena gradient top now
+  `PALETTE.bgTop` (`#12121e`, deliberate Phase 2 drift collapse); `.calendar-nav-btn:disabled`
+  `#6a5a45` → `var(--orion-dust)` (Phase 3.2 second occurrence). Visual/CSS only.
+- Commit: `48b7bfb`.
+
+## 2026-08-24: brand conformance Phases 2–5 (branch `sam/brand-conformance`)
+
+- **Kit fix:** added `--orion-brass: #ccaa66` to `brand/tokens/orion.tokens.css` (JSON already
+  had it). `PALETTE` has no brass field; all shared values agree. Commit `3874392`.
+- **Phase 2:** collapsed four near-duplicate UI hex literals to palette tokens (alarm,
+  medal-silver, dust). Commit `75de44a`. Arena gradient top (`render.ts:127`) applied in PM
+  follow-up commit.
+- **Phase 3:** fixed WCAG AA failures: `.daily-day` → bronze, `.calendar-day.missed` and
+  `.calendar-nav-btn:disabled` → dust, training `.daily-sub` → `--orion-mode-training`.
+  Commit `861f930` (+ PM follow-up for disabled nav btn).
+- **Phase 4:** em dash in `ui.ts:711`, manifest colon, kit OG swap, favicon r=37/stroke=11,
+  tutorial spin deduped to one exclamation (touch keeps it). Commit `b10753f`.
+- **Phase 5:** collapsed 12 letter-spacing literals to three roles + two strapline tokens
+  (`0.25em` intro-gate enter, `0.4em` tutorial tap-continue); `.mono` uses
+  `var(--orion-font-mono)`. Commit `8b14406`.
+- Phase 1 (`rgba()` → `color-mix`) skipped by decision. Verified: tsc, sim-test, npm test,
+  contrast audit, em-dash grep clean.
+
+## 2026-08-24: brand conformance Phase 0 — CSS token layer (branch `sam/brand-conformance`)
+
+- **Phase 0 only** per `brand/CONFORMANCE.md`: extended `:root` in `src/style.css` with
+  colour, type and motion tokens from `brand/tokens/orion.tokens.css` (kept the four
+  `--safe-*` insets). Added `--orion-brass: #ccaa66` in `:root` because the mapping table
+  references it but the tokens file on this branch had not caught up yet.
+- Replaced **132** hex literals outside `:root` with `var(--orion-*)` where the value
+  exactly matched the 16-token palette mapping (13 distinct palette values present in the
+  file). Left **4** near-duplicate hex values untouched for Phase 2: `#ff4444`, `#cc4455`,
+  `#e6e6e6`, `#666`. Did not touch `rgba()` calls or any `.ts` files.
+- Verified: `npx tsc --noEmit` clean, `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED.
+  Zero gameplay/determinism impact (CSS-only).
+- Commit: `a20cec2`. Follow-ups: Phases 1–5 in `brand/CONFORMANCE.md`.
+
+## 2026-08-24: brand conformance audit + implementation spec (branch `sam/brand-kit`)
+
+- Added `brand/CONFORMANCE.md`: the spec for bringing this codebase in line with
+  the brand kit. Every finding was grepped and verified here, with file and line
+  numbers, ordered into phases with acceptance checks. Written to be handed
+  straight to Cursor.
+- **The headline finding: there is no colour token layer.** `:root` in
+  `src/style.css` holds four safe-area insets and nothing else, while the file
+  carries 148 hex literals (28 distinct) and 77 `rgba()` calls, 46 of which are
+  gold or bronze at some alpha. That is Phase 0 of the spec.
+- **Three confirmed WCAG AA failures on live text**, each read in full rule
+  context, none of them an opacity artefact: `.daily-day` `#5a4828` at 2.25:1
+  (`style.css:390`), `.calendar-day.missed` `#6a5a45` at 2.97:1 (`:674` and
+  `:776`), `.menu-mode-btn.training .daily-sub` `#6a6048` at 3.17:1 on 10px
+  text (`:876`).
+- **New player-facing em dash found**: `src/ui.ts:711` "Last patrol today — make
+  it count." The 2026-08-17 sweep missed it. Adds to the known manifest one.
+- **Two findings went the other way: the code was right and the kit was wrong.**
+  Both are now in the kit rather than being "fixed" out of the code.
+  - `#ccaa66` is used 10 times as secondary text and measures 8.93:1, better
+    than Bronze at 5.93:1. Added to the palette as **Brass**.
+  - `.menu-mode-btn` already runs a mode-identity colour system: Daily gold,
+    Iron Rain `#aecbee`, Training bronze. Documented as **Mode identity**, three
+    modes and three colours.
+- Explicitly ruled compliant, so nobody churns them later: the two `#ffffff` in
+  `render.ts` (`:1724`, `:1792`) are the hot core of a flash, not UI; and
+  `.heading` `color: #c41e3a` (`style.css:138`) is 40px+ bold, where Rising Red's
+  3.37:1 passes AA for large text. Roughly 40 further off-palette values in
+  `render.ts` / `main.ts` / `mines.ts` are VFX gradient stops and are out of
+  scope by design.
+- Nothing in `src/`, `server/` or `public/` changed in this commit. The spec is
+  the deliverable; the work it describes is not done.
+
+## 2026-08-24: brand kit added + product docs repositioned (branch `sam/brand-kit`)
+
+- Added `brand/`, the ORION brand kit v1.0. Derived from this repo, not
+  invented beside it: colour from `src/config.ts` `PALETTE`, type from the
+  shipped `src/style.css`, voice from player-facing strings already live.
+  Contents: `BRAND.md` (the book), `VOICE.md` (three named voices),
+  `COPY-BANK.md`, `tokens/` (CSS + JSON), `assets/` (logo lockups, app icons,
+  OG, social header, 1080 share-card template, medals, palette sheet, SVG and
+  PNG), `brand-book.html`, and `scripts/` (the generators).
+- New drawn work: the wordmark is now vector outlines (chamfered letterforms,
+  no font dependency) and the mark is "the Patrol Sight", the shipped
+  ring-and-dot favicon evolved with diagonal cuts on the four axes.
+- **Positioning corrected, Lucas 2026-08-24: Orion is a daily dodging game.**
+  The "mobile-first inertia arcade" framing describes the previous game.
+  Inertia is close to a hidden feature now, and is not the pitch. Rewritten in
+  `PRODUCT.md` (Positioning, Product Purpose) and at the top of `AGENTS.md`.
+- `AGENTS.md` also now states plainly that this repo is the ONLY live Orion.
+  The Unity build at `~/Documents/personal/_archive/unity/Orion/` is an
+  archive, not a sibling version, and nothing outside this repo is a source of
+  truth about how the game works. Its old `../design/`, `../_archive/` sibling
+  paths predated the 2026-08-23 move to `~/Documents/games/orion-web` and were
+  wrong; removed.
+- `PRODUCT.md` Brand Commitments fixed: font is Rajdhani (it said Georgia; the
+  shipped `style.css` has always set Rajdhani), and the palette is now LOCKED
+  and points at `brand/tokens/orion.tokens.css`.
+- Measured, not asserted: `brand/scripts/contrast-audit.cjs` runs the WCAG
+  numbers behind `BRAND.md`. Two results that constrain code: **Rising Red
+  `#c41e3a` is 3.37:1 on Void and fails AA for body text**, so red text must
+  use Alarm `#ff4455` (5.83:1); and **Dust `#8a7a55` clears AA on Void (4.69)
+  but fails on Deep Space (4.42)**, so muted text on raised surfaces uses
+  Bronze `#aa8844`.
+- Generators are `.cjs` on purpose: this repo is `"type": "module"`, which
+  would otherwise make Node read them as ES modules and fail. They resolve
+  `../assets` relative to themselves. Verified by re-running all three from
+  the new location and diffing: every asset reproduced byte-identically.
+- Docs-and-assets only. No `src/`, `server/`, `public/` or build change, so no
+  type-check or sim-test was warranted and nothing here can affect gameplay.
+  Not pushed to `main`: `main` auto-deploys to production.
+- **Still open**, listed in `brand/BRAND.md` §11: the em dash in
+  `public/manifest.webmanifest`'s name field and in the live `public/og.png`
+  (both player-facing; the replacement OG is drawn at
+  `brand/assets/social/png/orion-og-1200x630.png`), and the inline data-URI
+  favicon in `index.html` using a different ring weight than the kit favicon.
+
 ## 2026-08-18: append-only Daily Mutators MERGED + DEPLOYED (main `2b8554e`)
 
 - Lucas: "ok all push live". Merged `sam/mutator-hardening` into `main` as
