@@ -491,7 +491,7 @@ button.launch {
 /* ?mutator= preview override badge, on the lobby briefing card */
 .preview-badge {
   color: #1a1206;
-  background: #ff4444;
+  background: var(--orion-alarm);
   font-size: 10px;
   font-weight: bold;
   letter-spacing: 0.12em;
@@ -574,7 +574,7 @@ button.launch {
 }
 
 .medal-earned.silver {
-  color: #e6e6e6;
+  color: var(--orion-medal-silver);
   text-shadow: 0 0 16px rgba(230, 230, 230, 0.4);
 }
 
@@ -1174,7 +1174,7 @@ button.launch {
 }
 
 .hint {
-  color: #666;
+  color: var(--orion-dust);
   font-size: 13px;
   line-height: 1.7;
   max-width: 420px;
@@ -1318,7 +1318,7 @@ textarea.field {
 }
 
 .last-attempt-hint {
-  color: #cc4455;
+  color: var(--orion-alarm);
   font-size: 13px;
   letter-spacing: 0.04em;
   text-shadow: 0 0 12px rgba(204, 68, 85, 0.4);
