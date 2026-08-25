@@ -1,0 +1,7 @@
+inbox/
+out/
+.env
+auth/
+node_modules/
+fixtures/*.webm
+fixtures/*.mp4
