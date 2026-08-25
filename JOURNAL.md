@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: clip sidecar JSON + named downloads (branch `sam/clip-sidecar`)
+
+- Downloaded clips now use `orion_<YYYY-MM-DD>_day<N>_<mutator-id>_<score>.<ext>` and a same-basename JSON sidecar (`day`, mutators, this-run medal, score, survivalTime, closestCall, top 5 grazes as `{time, clearance}` only). Snapshot at game-over so a later save cannot read a reset world. Nothing uploads or persists. No callsign.
+- Recording path untouched (`startRecording`, 360s cap, bitrate, chunks, mime picker). `trackClosestCall` unchanged; `trackTopGrazes` is additive and reads world time/position only (no `Math.random` / seeded streams).
+- **iOS download path that shipped:** Chromium (Cursor browser) is not iOS Safari. Dual programmatic download was not live-device-tested on iPhone/iPad. Desktop / non-iOS: Save clip fires video + JSON in the same click. iOS/iPadOS WebKit (`iPhone`/`iPad`/`iPod`, plus iPadOS-as-Mac + touch): Save clip is video only; a visible **Save JSON** `<a download>` sits next to it (second user gesture). No `setTimeout` dual-click.
+- Verified: `npx tsc --noEmit`, `npx tsx scripts/sim-test.ts` (ALL CHECKS PASSED, including Daily Patrol determinism), `npm test` (includes new `test:clip-sidecar` + recorder memory-cap assertions).
+- Commit: pending on this branch. Follow-ups: live-device check on iOS Safari if Lucas wants the desktop dual-download path proven/denied there; not required to ship the conservative WebKit link.
+
 ## 2026-08-24: brand wordmark + PWA icons (branch `sam/brand-wordmark`)
 
 - **Wordmark:** menu, daily lobby, and intro gate now render the kit vector wordmark

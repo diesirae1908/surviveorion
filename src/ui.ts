@@ -105,6 +105,9 @@ export interface GameOverStats {
   clipReady?: boolean;
   /** That clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
   clipCapped?: boolean;
+  /** iOS/WebKit fallback: object URL for a visible Save JSON <a download>. */
+  clipJsonHref?: string;
+  clipJsonFilename?: string;
 }
 
 /**
@@ -552,6 +555,20 @@ export class Ui {
     });
     btn.classList.add("share-btn");
     return btn;
+  }
+
+  /**
+   * Second-gesture JSON download for iOS/WebKit (and any host that cannot
+   * fire two programmatic downloads from one click). Real <a download>, not
+   * a button that clicks a hidden link.
+   */
+  private saveJsonLink(href: string, filename: string): HTMLAnchorElement {
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = filename;
+    a.textContent = "Save JSON";
+    a.className = "share-btn";
+    return a;
   }
 
   /**
@@ -1669,7 +1686,12 @@ export class Ui {
       screen.appendChild(this.shareButton());
     }
     if (stats.clipReady) {
-      screen.appendChild(this.saveClipButton());
+      const clipRow = this.el("div", "clip-save-row", "");
+      clipRow.appendChild(this.saveClipButton());
+      if (stats.clipJsonHref && stats.clipJsonFilename) {
+        clipRow.appendChild(this.saveJsonLink(stats.clipJsonHref, stats.clipJsonFilename));
+      }
+      screen.appendChild(clipRow);
       if (stats.clipCapped) {
         screen.appendChild(
           this.el(

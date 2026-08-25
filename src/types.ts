@@ -390,4 +390,6 @@ export interface World {
 
   /** Tightest graze of the run so far (the game-over "closest call" highlight). */
   closestCall: ClosestCall | null;
+  /** Closest grazes of the run, smallest clearance first, capped at 5. */
+  topGrazes: ClosestCall[];
 }
