@@ -13,6 +13,8 @@ const JOBS = [
   ['social/orion-og.svg',                'social/png/orion-og-1200x630.png', 1200, false],
   ['social/orion-header-1500x500.svg',   'social/png/orion-header-1500x500.png', 1500, false],
   ['social/orion-share-card-template.svg','social/png/orion-share-card-1080.png', 1080, false],
+  ['social/orion-thumbnail-template.svg',  'social/png/orion-thumbnail-template-1280.png', 1280, false],
+  ['social/orion-cover-vertical-template.svg', 'social/png/orion-cover-vertical-1080.png', 1080, false],
   ['logo/orion-logo-horizontal.svg',     'logo/png/orion-logo-horizontal-1600.png', 1600, true],
   ['logo/orion-logo-horizontal-mono-white.svg', 'logo/png/orion-logo-horizontal-mono-white-1600.png', 1600, true],
   ['logo/orion-logo-horizontal-mono-black.svg', 'logo/png/orion-logo-horizontal-mono-black-1600.png', 1600, true],
