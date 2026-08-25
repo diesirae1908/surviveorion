@@ -17,6 +17,7 @@ Keep them in sync; if they ever disagree, the game repo wins.
 | **[VOICE.md](VOICE.md)** | Three named voices (Mission Control, The Log, Wingmate), when to use each, with shipped examples and anti-examples. |
 | **[COPY-BANK.md](COPY-BANK.md)** | Paste-ready lines: taglines, store copy, social, in-game strings, support replies. |
 | **[CONFORMANCE.md](CONFORMANCE.md)** | The implementation spec: what in the live code disagrees with this kit, file and line, in phases. Written to be handed to Cursor. |
+| **[SOCIAL.md](SOCIAL.md)** | The social engine: content formats, platform playbook, and the automation pipeline for Instagram, TikTok and YouTube. |
 | **[tokens/](tokens/)** | `orion.tokens.css` and `orion.tokens.json`. Source of truth for colour, type, radius, motion. |
 
 ## Assets
@@ -31,6 +32,8 @@ assets/
               png/  1024 · 512 · 192 · 180 · 32
   social/     orion-og.svg (1200x630) · orion-header-1500x500.svg
               orion-share-card-template.svg (1080x1080, {{TOKEN}} slots)
+              orion-thumbnail-template.svg (1280x720, YouTube overlay)
+              orion-cover-vertical-template.svg (1080x1920, TikTok/Reels)
               png/  ready to upload
   badges/     orion-medal-gold / -silver / -copper .svg
               png/  400px transparent

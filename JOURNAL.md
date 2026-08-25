@@ -4,6 +4,27 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: social engine plan + video templates (branch `sam/brand-kit`)
+
+- Added `brand/SOCIAL.md`: the organic social strategy for TikTok, Instagram
+  and YouTube. Five named content formats (CLOSE CALL, SPACE DUST, THE BOARD,
+  TODAY'S PATROL, FLIGHT SCHOOL), each a preset rather than a creative
+  decision, plus the automation pipeline design, caption templates, and the
+  sound-licensing rules that keep auto-posting safe.
+- New assets: `brand/assets/social/orion-thumbnail-template.svg` (1280x720
+  YouTube overlay with {{TITLE_LINE1}}/{{TITLE_LINE2}}/{{TAG}} slots, gameplay
+  still layers underneath the scrim) and
+  `brand/assets/social/orion-cover-vertical-template.svg` (1080x1920 for
+  TikTok/Reels/Shorts covers and end-cards, platform safe zones respected).
+  Generator: `brand/scripts/05-social-templates.cjs`. PNG exports included.
+- The plan leans on what this repo already ships: `recorder.ts` (built for
+  exactly this, per its own header) and `highlights.ts` closest-call telemetry
+  as a deterministic auto-editor cut list.
+- Follow-up dispatch it defines (not done): on clip download, also emit a JSON
+  sidecar (day, mutator, score, medal, top graze timestamps) and a structured
+  filename. Client-side only, no gameplay change.
+- Docs and assets only; no game code touched.
+
 ## 2026-08-24: brand conformance audit + implementation spec (branch `sam/brand-kit`)
 
 - Added `brand/CONFORMANCE.md`: the spec for bringing this codebase in line with
