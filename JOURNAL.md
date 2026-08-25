@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-25: sidecar track + Chrome hint LIVE
+
+- Lucas: "push live" (Aug 25, ~3:26 PM PT). Merged `sam/sidecar-track` to main
+  (`d62b554`). Ships `track` / `arena` / `view` on the clip sidecar plus the
+  desktop Chrome Save JSON + Automatic downloads hint. Not a gameplay change.
+- Recorder path untouched. Pushing `origin/main` (Render auto-deploy).
+
 ## 2026-08-25: desktop Chrome second-download hint (branch `sam/sidecar-track`)
 
 - Track sidecar (`track` / `arena` / `view`) was already on this branch from
