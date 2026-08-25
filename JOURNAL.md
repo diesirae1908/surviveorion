@@ -10,7 +10,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Recording path untouched (`startRecording`, 360s cap, bitrate, chunks, mime picker). `trackClosestCall` unchanged; `trackTopGrazes` is additive and reads world time/position only (no `Math.random` / seeded streams).
 - **iOS download path that shipped:** Chromium (Cursor browser) is not iOS Safari. Dual programmatic download was not live-device-tested on iPhone/iPad. Desktop / non-iOS: Save clip fires video + JSON in the same click. iOS/iPadOS WebKit (`iPhone`/`iPad`/`iPod`, plus iPadOS-as-Mac + touch): Save clip is video only; a visible **Save JSON** `<a download>` sits next to it (second user gesture). No `setTimeout` dual-click.
 - Verified: `npx tsc --noEmit`, `npx tsx scripts/sim-test.ts` (ALL CHECKS PASSED, including Daily Patrol determinism), `npm test` (includes new `test:clip-sidecar` + recorder memory-cap assertions).
-- Commit: pending on this branch. Follow-ups: live-device check on iOS Safari if Lucas wants the desktop dual-download path proven/denied there; not required to ship the conservative WebKit link.
+- Commit: `80965c9`. Follow-ups: live-device check on iOS Safari if Lucas wants the desktop dual-download path proven/denied there; not required to ship the conservative WebKit link.
 
 ## 2026-08-24: brand wordmark + PWA icons (branch `sam/brand-wordmark`)
 
