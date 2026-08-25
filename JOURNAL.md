@@ -18,7 +18,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Verified: `npx tsc --noEmit`, `npx tsx scripts/sim-test.ts`, `npx tsx
   scripts/test-clip-sidecar.ts` (new UA tests for Chrome/Edge/Opera/Android/
   Safari/Firefox).
-- Not a deploy. Feature branch only.
+- Commit: `03e881e`. Not a deploy. Feature branch only.
 
 ## 2026-08-24: clip sidecar ship track (branch `sam/sidecar-track`)
 
