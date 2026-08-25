@@ -1,0 +1,13 @@
+{
+  "day": 42,
+  "mutatorIds": ["arsenal", "starfall"],
+  "mutatorNames": ["ARSENAL", "STARFALL"],
+  "score": 50000,
+  "medal": "silver",
+  "survivalTime": 95,
+  "closestCall": { "time": 40.2, "x": 100, "y": 200, "clearance": 0.08 },
+  "topGrazes": [
+    { "time": 40.2, "clearance": 0.08 },
+    { "time": 55.0, "clearance": 0.14 }
+  ]
+}
