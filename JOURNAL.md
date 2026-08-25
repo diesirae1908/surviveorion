@@ -8,7 +8,7 @@
 - Pixel-diff rendered board vs `presets/newbest-board-day43.png`: max channel delta 246, MAE 6.086, not byte-identical. Layout, type (Rajdhani), and numbers match. Deltas are Chromium AA / gold-gradient rasterization, not a cover-template leftover. Renderer left as-is; reference not edited.
 - Re-rendered only `out/golden/NEW_BEST.mp4` (12.854s, 1080x1920, 24fps H.264 + AAC). Play is still last 8s + celebration-funk board. No new tagline overlay (locked recipe has none). WASTED/PATROL not redone. `out/approved/` not written (dir absent).
 - `npm test`: 66/66. Board fill uses sidecar/HUD numbers; missing prev-best fails loud for non-fixture clips; no em dashes; renderer source does not hardcode 3246228.
-- No remote, no push.
+- Commit: `e5025bb` on local main. No remote, no push.
 
 ## 2026-08-25 (Aug 25 ~2:20 PM PT): locked-preset runner plus C-E plumbing
 
