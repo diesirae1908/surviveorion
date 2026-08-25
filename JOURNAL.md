@@ -4,6 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: brand wordmark + PWA icons (branch `sam/brand-wordmark`)
+
+- **Wordmark:** menu, daily lobby, and intro gate now render the kit vector wordmark
+  (`brand/assets/logo/orion-wordmark.svg`) via a shared `wordmarkTitle()` helper in
+  `ui.ts` instead of Rajdhani gradient text. SVG uses Flare→Gold→Ingot gradient, unique
+  gradient ids per instance, `role="img"` + `aria-label="ORION"`, and a gold drop-shadow
+  filter. `.title` CSS retargeted to `.wordmark-svg` width
+  `clamp(240px, 60vw, 474px)` (maps the old `font-size: clamp(56px, 14vw, 110px)` cap
+  height to the 431:100 aspect ratio; 110px tall ≈ 474px wide).
+- **PWA icons:** replaced stale `public/icons/icon-{192,512,180}.png` with kit app-icon
+  renders; added `icon-512-maskable.png` from `orion-app-icon-maskable-512.png` and pointed
+  manifest maskable purpose at it. Apple-touch uses `orion-app-icon-180.png` (full-bleed app
+  icon, not the favicon tile).
+- Verified: `npx tsc --noEmit`, `npx tsx scripts/sim-test.ts` (1 flaky retry on unrelated
+  pending-grab check), `npm test`, `npm run build`. No gameplay changes.
+- Commits: `8fb4890` (wordmark), `29ae493` (icons + manifest).
+
 ## 2026-08-24: brand conformance PM review follow-up (branch `sam/brand-conformance`)
 
 - Applied two items previously escalated as skipped: `render.ts:127` arena gradient top now

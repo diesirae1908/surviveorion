@@ -172,15 +172,15 @@ body {
 }
 
 .title {
-  font-size: clamp(56px, 14vw, 110px);
-  letter-spacing: var(--orion-tracking-display);
-  margin-right: -0.06em;
-  font-weight: bold;
-  background: linear-gradient(180deg, var(--orion-flare) 0%, var(--orion-gold) 45%, var(--orion-ingot) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 60px rgba(255, 215, 0, 0.25);
+  display: flex;
+  justify-content: center;
+  line-height: 0;
+}
+
+.title .wordmark-svg {
+  width: clamp(240px, 60vw, 474px);
+  height: auto;
+  filter: drop-shadow(0 0 60px rgba(255, 215, 0, 0.25));
 }
 
 .subtitle {
