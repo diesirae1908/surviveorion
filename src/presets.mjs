@@ -231,13 +231,10 @@ export async function requirePresetInputs(format, record) {
   } else if (format === "NEW_BEST") {
     assertNewBestEligible(record.sidecar, basename);
     await requireAsset(ASSETS.celebrationFunk, basename, "celebration-funk.wav");
+    await requireAsset(PRESETS.newBestBoardTemplate, basename, "NEW BEST board template");
+    await requireAsset(PRESETS.newBestBoardFont, basename, "Rajdhani-Bold.ttf");
     newBestSourceTimes(record.probe.duration, basename);
     voidPadSpec(record.probe.width, record.probe.height, basename);
-    try {
-      await access(PRESETS.newBestBoard);
-    } catch {
-      await requireAsset(ASSETS.coverSvg, basename, "brand cover template (NEW BEST board)");
-    }
   } else {
     throw new Error(`Unknown locked preset "${format}" for "${basename}"`);
   }

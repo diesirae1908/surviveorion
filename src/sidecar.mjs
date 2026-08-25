@@ -24,6 +24,7 @@ const MEDALS = new Set(["gold", "silver", "copper", null]);
  * @property {number} survivalTime
  * @property {({ time: number, x: number, y: number, clearance: number }|null)} closestCall
  * @property {{ time: number, clearance: number }[]} topGrazes
+ * @property {number} [bestScore]
  */
 
 /**

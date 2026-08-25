@@ -7,8 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { ASSETS, PRESET_CACHE_DIR, PRESETS, defaultBoardMusic } from "./paths.mjs";
-import { renderCoverPng } from "./endcard.mjs";
-import { formatScore } from "./captions.mjs";
+import { ensureNewBestBoard } from "./newbest-board.mjs";
 import {
   formatFfmpegCommand,
   requireFfmpegFilters,
@@ -39,29 +38,6 @@ function yExpr(yCenter) {
 
 function xExpr(expr) {
   return `'max(0,min(${expr}-(iw/zoom)/2,iw-iw/zoom))'`;
-}
-
-/**
- * @param {import('./sidecar.mjs').ClipSidecar} sidecar
- * @param {string} dest
- */
-export async function ensureNewBestBoard(sidecar, dest) {
-  try {
-    const { access } = await import("node:fs/promises");
-    await access(PRESETS.newBestBoard);
-    return PRESETS.newBestBoard;
-  } catch {
-    /* Claude-session board PNG was not extracted; fill the brand cover template. */
-  }
-  const { readFile } = await import("node:fs/promises");
-  const mutator = sidecar.mutatorNames[0] || "PATROL";
-  const filled = (await readFile(ASSETS.coverSvg, "utf8"))
-    .replaceAll("{{HOOK_LINE1}}", "NEW BEST")
-    .replaceAll("{{HOOK_LINE2}}", formatScore(sidecar.score))
-    .replaceAll("{{TAG}}", `DAY ${sidecar.day} · ${mutator}`);
-  await mkdir(path.dirname(dest), { recursive: true });
-  await renderCoverPng(filled, dest);
-  return dest;
 }
 
 /**
@@ -332,9 +308,12 @@ export async function renderPreset({ format, record, outputPath, dry = false }) 
 
   let boardPath;
   if (format === "NEW_BEST" && !dry) {
-    boardPath = await ensureNewBestBoard(record.sidecar, path.join(workDir, "board.png"));
+    boardPath = await ensureNewBestBoard(record.sidecar, path.join(workDir, "board.png"), {
+      videoPath: record.videoPath,
+      basename,
+    });
   } else if (format === "NEW_BEST") {
-    boardPath = PRESETS.newBestBoard;
+    boardPath = path.join(workDir, "board.png");
   }
 
   const steps = buildPresetSteps(format, record, outputPath, { workDir, boardPath });

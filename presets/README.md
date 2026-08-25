@@ -38,3 +38,21 @@ Build recipe notes (hard-won, keep):
 - ffmpeg-static has no drawtext: taglines and text are pre-rendered PNGs (Chromium+Rajdhani).
 - VO tightened with silenceremove (7.6s -> 3.9s); freeze length = VO + 0.4s.
 - Braam is synthesized (aevalsrc layered decaying sines), so nothing is licensed.
+
+## NEW BEST board template (added 2026-08-25, after Cursor flagged the missing asset)
+
+Cursor's Phase B golden used the brand vertical cover template for the score board. That is
+NOT the approved look. The approved board (from newbest-day43-v4-funk) is now here:
+
+- `newbest-board-day43.png`: the exact approved reference render (day 43 values).
+- `newbest-board.template.html`: parameterized reconstruction, tokens {{SCORE}}
+  {{PREV_BEST}} {{DAY}} {{MUTATOR}}. Render at 1080x1920 with headless Chromium,
+  `waitUntil: 'load'` + `document.fonts.ready` (NOT networkidle, it hangs). Star field is
+  seeded, renders are stable. Font: `fonts/Rajdhani-Bold.ttf`, loaded via relative
+  @font-face, no network.
+- PREV_BEST comes from the sidecar's stored previous best; if absent, read the HUD BEST
+  from the clip's first frames or fail loudly. Never invent the number: the tagline/board
+  number must match what the footage shows (standing rule after the COUNTER miss).
+
+Phase B: re-render the NEW_BEST golden with this template and diff against
+`newbest-board-day43.png` before locking.

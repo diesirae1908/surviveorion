@@ -46,7 +46,10 @@ export const PRESETS = {
   dir: path.join(REPO_ROOT, "presets"),
   tagWasted: path.join(REPO_ROOT, "presets/tag-wasted.png"),
   tagPatrol: path.join(REPO_ROOT, "presets/tag-patrol.png"),
-  newBestBoard: path.join(REPO_ROOT, "presets/new-best-board.png"),
+  tagNewBest: path.join(REPO_ROOT, "presets/tag-newbest.png"),
+  newBestBoardTemplate: path.join(REPO_ROOT, "presets/newbest-board.template.html"),
+  newBestBoardReference: path.join(REPO_ROOT, "presets/newbest-board-day43.png"),
+  newBestBoardFont: path.join(REPO_ROOT, "presets/fonts/Rajdhani-Bold.ttf"),
 };
 
 export const FIXTURES_DIR = path.join(REPO_ROOT, "fixtures");

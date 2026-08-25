@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-08-25 (Aug 25 ~3:42 PM PT): lock NEW_BEST golden to the HTML board template
+
+- Vendored approved board assets into `presets/`: `newbest-board.template.html`, `newbest-board-day43.png` (reference), `tag-newbest.png`, `fonts/Rajdhani-Bold.ttf`, README section "NEW BEST board template". Replaced the brand-cover-SVG fallback Lucas rejected.
+- Board render (`src/newbest-board.mjs`): substitute `{{SCORE}} {{PREV_BEST}} {{DAY}} {{MUTATOR}}`, Playwright screenshot 1080x1920 `deviceScaleFactor` 1, `waitUntil: 'load'` + `document.fonts.ready` (not networkidle). Star field stays seeded.
+- PREV_BEST: tesseract not installed. ffmpeg cropped the HUD corner (700x220 from 0,0) of `fixtures/orion_2026-08-25_day43_arsenal_3490380.webm` at 0.5s, 1s, and 2s. All three frames show `BEST 3,246,228`. Wrote that verified HUD value as `sidecar.bestScore: 3246228` (not copied from the reference PNG; the renderer has no previous-best constant). SCORE 3,490,380 / DAY 43 / ARSENAL from the sidecar.
+- Pixel-diff rendered board vs `presets/newbest-board-day43.png`: max channel delta 246, MAE 6.086, not byte-identical. Layout, type (Rajdhani), and numbers match. Deltas are Chromium AA / gold-gradient rasterization, not a cover-template leftover. Renderer left as-is; reference not edited.
+- Re-rendered only `out/golden/NEW_BEST.mp4` (12.854s, 1080x1920, 24fps H.264 + AAC). Play is still last 8s + celebration-funk board. No new tagline overlay (locked recipe has none). WASTED/PATROL not redone. `out/approved/` not written (dir absent).
+- `npm test`: 66/66. Board fill uses sidecar/HUD numbers; missing prev-best fails loud for non-fixture clips; no em dashes; renderer source does not hardcode 3246228.
+- No remote, no push.
+
 ## 2026-08-25 (Aug 25 ~2:20 PM PT): locked-preset runner plus C-E plumbing
 
 - Vendored locked recipes: `presets/` (README, day43-wasted-segments.sh, tag-*.png), `assets/audio/` (he-knew VO, celebration-funk), `assets/memes/wasted.png`, `IDEAS.md`, `DIRECTION-V3.md`.

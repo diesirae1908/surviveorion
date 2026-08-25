@@ -5,3 +5,4 @@ auth/
 node_modules/
 fixtures/*.webm
 fixtures/*.mp4
+presets/.filled-*.html
