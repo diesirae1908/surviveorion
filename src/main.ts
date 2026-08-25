@@ -26,6 +26,7 @@ import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
 import {
   buildClipSidecar,
   clipSidecarBasename,
+  isDesktopChrome,
   isIosWebKit,
   type ClipSidecar,
 } from "./clipSidecar";
@@ -802,6 +803,7 @@ function startRun(): void {
     runIsDaily,
     runIsTraining,
   );
+  world.clipView = { w: canvas.clientWidth, h: canvas.clientHeight };
   recordBeaten = false;
   particles.clear();
   popups.clear();
@@ -907,6 +909,9 @@ function snapshotClipSidecar(): void {
     survivalTime: world.time,
     closestCall: world.closestCall,
     topGrazes: world.topGrazes,
+    track: world.shipTrack,
+    arena: world.clipArena,
+    view: world.clipView,
     mutators,
     daily: runIsDaily,
     gameMode: runGameMode,
@@ -1035,9 +1040,14 @@ function showGameOverUi(): void {
     clipReady: lastClipBlob !== null,
     clipCapped: lastClipCapped,
     clipJsonHref:
-      lastClipBlob && isIosWebKit() && lastClipJsonUrl ? lastClipJsonUrl : undefined,
+      lastClipBlob && (isIosWebKit() || isDesktopChrome()) && lastClipJsonUrl
+        ? lastClipJsonUrl
+        : undefined,
     clipJsonFilename:
-      lastClipBlob && isIosWebKit() && lastClipBasename ? `${lastClipBasename}.json` : undefined,
+      lastClipBlob && (isIosWebKit() || isDesktopChrome()) && lastClipBasename
+        ? `${lastClipBasename}.json`
+        : undefined,
+    clipJsonChromeHint: lastClipBlob && isDesktopChrome() ? true : undefined,
   });
   submitRun();
 }

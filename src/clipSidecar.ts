@@ -19,6 +19,13 @@ export interface ClipSidecarGraze {
   clearance: number;
 }
 
+/** `[t, x, y]` ship sample in world units. t is world.time (seconds). */
+export type ClipSidecarTrackSample = [number, number, number];
+
+/** 2 Hz (every 0.5s of world time). 720 entries = 6 min, matches RECORDING_MAX_SECONDS. */
+export const CLIP_TRACK_INTERVAL = 0.5;
+export const CLIP_TRACK_CAP = 720;
+
 export interface ClipSidecar {
   day: number;
   mutatorIds: string[];
@@ -28,6 +35,9 @@ export interface ClipSidecar {
   survivalTime: number;
   closestCall: ClosestCall | null;
   topGrazes: ClipSidecarGraze[];
+  track: ClipSidecarTrackSample[];
+  arena: { w: number; h: number };
+  view: { w: number; h: number };
 }
 
 export interface ClipSidecarInput {
@@ -35,6 +45,9 @@ export interface ClipSidecarInput {
   survivalTime: number;
   closestCall: ClosestCall | null;
   topGrazes: ClosestCall[];
+  track: ClipSidecarTrackSample[];
+  arena: { w: number; h: number };
+  view: { w: number; h: number };
   mutators: Mutator[];
   /** Daily Patrol (including preview). Fullgame Classic/Iron Rain are false. */
   daily: boolean;
@@ -45,6 +58,27 @@ export interface ClipSidecarInput {
 
 function copyCall(call: ClosestCall): ClosestCall {
   return { time: call.time, x: call.x, y: call.y, clearance: call.clearance };
+}
+
+export function roundTrackCoord(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Append one `[t, x, y]` sample when world time has reached the next 0.5s
+ * mark, capped at CLIP_TRACK_CAP. Mutates `track` in place. Reads the
+ * supplied time/position only; no RNG, no schedule streams.
+ */
+export function sampleShipTrack(
+  track: ClipSidecarTrackSample[],
+  time: number,
+  x: number,
+  y: number,
+): void {
+  if (track.length >= CLIP_TRACK_CAP) return;
+  const due = track.length * CLIP_TRACK_INTERVAL;
+  if (time + 1e-9 < due) return;
+  track.push([roundTrackCoord(time), roundTrackCoord(x), roundTrackCoord(y)]);
 }
 
 /** This-run medal vs the supplied mutators' thresholds; null if none or no tier. */
@@ -63,6 +97,9 @@ export function buildClipSidecar(input: ClipSidecarInput): ClipSidecar {
     survivalTime: input.survivalTime,
     closestCall: input.closestCall ? copyCall(input.closestCall) : null,
     topGrazes: input.topGrazes.map((g) => ({ time: g.time, clearance: g.clearance })),
+    track: input.track.map((p) => [p[0], p[1], p[2]] as ClipSidecarTrackSample),
+    arena: { w: input.arena.w, h: input.arena.h },
+    view: { w: input.view.w, h: input.view.h },
   };
 }
 
@@ -100,4 +137,24 @@ export function isIosWebKit(
   if (/iP(hone|ad|od)/.test(ua)) return true;
   if (/Macintosh/.test(ua) && n.maxTouchPoints > 1) return true;
   return false;
+}
+
+/**
+ * Desktop Chrome / Chromium (not iOS WebKit, not Android, not Edge or Opera).
+ * These hosts often silently drop a second programmatic download in one click;
+ * pair with a visible Save JSON link and the Automatic downloads hint.
+ */
+export function isDesktopChrome(
+  nav?: Pick<Navigator, "userAgent" | "maxTouchPoints"> | { userAgent: string; maxTouchPoints: number },
+): boolean {
+  const n = nav ?? (typeof navigator === "undefined" ? undefined : navigator);
+  if (!n) return false;
+  if (isIosWebKit(n)) return false;
+  const ua = n.userAgent;
+  if (/Android/.test(ua)) return false;
+  if (/Mobile/.test(ua)) return false;
+  if (/Edg\//.test(ua)) return false;
+  if (/OPR\//.test(ua)) return false;
+  if (!/Chrome\//.test(ua)) return false;
+  return true;
 }
