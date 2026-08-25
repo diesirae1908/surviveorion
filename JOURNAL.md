@@ -19,7 +19,7 @@ why, commit hash, follow-ups), committed together with the work. See
   icon, not the favicon tile).
 - Verified: `npx tsc --noEmit`, `npx tsx scripts/sim-test.ts` (1 flaky retry on unrelated
   pending-grab check), `npm test`, `npm run build`. No gameplay changes.
-- Commits: `8fb4890` (wordmark), `880ac0c` (icons + manifest).
+- Commits: `8fb4890` (wordmark), `29ae493` (icons + manifest).
 
 ## 2026-08-24: brand conformance PM review follow-up (branch `sam/brand-conformance`)
 
