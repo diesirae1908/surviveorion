@@ -25,12 +25,15 @@ clips plus JSON sidecars from `orion-web`.
 - `fixtures/` test media; large `.webm`/`.mp4` are local-only (see `fixtures/README.md`).
 - `src/harvest.mjs` ffprobe + sidecar parse.
 - `src/plan.mjs` pure cut-plan math (unit-tested).
-- `src/beats.mjs` / `src/crop.mjs` / `src/ass.mjs` Phase B v2 (EDITING.md). Platform .txt files are Phase C.
-- `src/edit.mjs` CutPlan + beat sheet -> ffmpeg. Full-bleed crop, freeze CTA. `src/endcard.mjs` unused in v2.
-- Queue, thumbnails, posting: later phases per SPEC.
+- `src/beats.mjs` / `src/crop.mjs` / `src/ass.mjs` / `src/edit.mjs` Phase B v2 beat-sheet path (tests only; not golden/batch).
+- `src/presets.mjs` / `src/preset-runner.mjs` locked recipes (WASTED, PATROL, NEW_BEST). Golden and batch use this path only.
+- `src/captions.mjs` on-video helpers plus platform .txt files. `src/thumbnail.mjs` YouTube 1280x720 from the brand template.
+- `src/queue.mjs` writes `out/pending/`. Posting reads only `out/approved/` (human move). `src/post*.mjs` never writes approved.
 
 ## Commands
 
-- `npm test` unit tests (parsing, cut plans, captions, dry filtergraph).
-- `npm run golden` Phase B v2: day43 THE BOARD + TODAY'S PATROL, plus synthetic CLOSE CALL, to `out/golden/`.
+- `npm test` unit tests (parsing, cut plans, captions, queue, post path-guard, preset fail-loud).
+- `npm run golden` locked day43 presets (WASTED, PATROL, NEW_BEST) to `out/golden/`. `--dry` prints ffmpeg steps.
+- `npm run batch` harvest -> locked presets -> captions -> pending. Never posts.
+- `npm run post` Phase D/E over `out/approved/` only.
 - `npm run extract-mutators` refresh `assets/mutators.json` from a local orion-web checkout.

@@ -9,9 +9,14 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "golden": "node scripts/golden.mjs",
+    "batch": "node scripts/batch.mjs",
+    "post": "node scripts/post.mjs",
+    "auth:youtube": "node src/auth-youtube.mjs --print-url",
+    "auth:instagram": "node src/auth-instagram.mjs --print-steps",
     "extract-mutators": "node scripts/extract-mutators.mjs"
   },
   "dependencies": {
+    "googleapis": "^176.0.0",
     "playwright": "^1.55.0"
   }
 }

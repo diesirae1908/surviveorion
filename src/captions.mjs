@@ -149,6 +149,129 @@ export function videoCaption(format, sidecar, extras = {}) {
   };
 }
 
+export const TAG_BANK = [
+  "#arcadegame",
+  "#indiegame",
+  "#browsergame",
+  "#dailychallenge",
+  "#dodge",
+  "#gamingmemes",
+  "#satisfying",
+  "#closecall",
+];
+
+/**
+ * Deterministic 4-6 tags from the bank plus a mutator tag. Never the whole bank.
+ * @param {number} day
+ * @param {string} [mutatorId]
+ */
+export function rotateTags(day, mutatorId) {
+  const extra = mutatorId ? [`#${String(mutatorId).replace(/[^a-z0-9]+/gi, "")}`] : [];
+  const bank = [...TAG_BANK, ...extra];
+  const count = 4 + (Math.abs(day) % 3);
+  const start = Math.abs(day) % bank.length;
+  /** @type {string[]} */
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const tag = bank[(start + i) % bank.length];
+    if (!out.includes(tag)) out.push(tag);
+  }
+  return out;
+}
+
+/**
+ * Platform caption files for locked presets (and v2 formats).
+ * @param {string} format
+ * @param {import('./sidecar.mjs').ClipSidecar} sidecar
+ * @param {{ suggestedSound?: string }} [extras]
+ */
+export function platformCaptions(format, sidecar, extras = {}) {
+  const mutator = sidecar.mutatorNames[0] || "PATROL";
+  const subline = sublineFor(sidecar.mutatorIds[0]);
+  const score = formatScore(sidecar.score);
+  const tags = rotateTags(sidecar.day, sidecar.mutatorIds[0]);
+  const tagLine = tags.join(" ");
+
+  let tiktok;
+  let instagram;
+  let youtubeTitle;
+  let youtubeDescription;
+  let suggestedSound = extras.suggestedSound ?? "";
+
+  if (format === "WASTED") {
+    tiktok = `Day ${sidecar.day} ${mutator}: flying too close to the stars. Same seed as everyone else. Link in bio.\n\n${tagLine}`;
+    instagram = tiktok;
+    youtubeTitle = `Day ${sidecar.day} WASTED · ${mutator}`;
+    youtubeDescription = `Day ${sidecar.day} ${mutator}. He flew too close to the stars.\nSame seed as everyone else. Three attempts. Free in your browser.\n\n${tagLine}\n\nsurviveorion.com`;
+  } else if (format === "NEW_BEST") {
+    tiktok = `${score} on Day ${sidecar.day}. New best. Same seed as everyone else. That is the whole point.\n\n${tagLine}`;
+    instagram = tiktok;
+    youtubeTitle = `${score} · Day ${sidecar.day} NEW BEST`;
+    youtubeDescription = `${score} on Day ${sidecar.day}. New best. Same seed as everyone else. That is the whole point.\nFree in your browser.\n\n${tagLine}\n\nsurviveorion.com`;
+    suggestedSound = extras.suggestedSound ?? "Celebration";
+  } else if (format === "PATROL" || format === "TODAYS_PATROL") {
+    const brief = subline ? `${subline} ` : "";
+    tiktok = `Today every pilot on earth flies ${mutator}: ${brief}Three attempts. Free, in your browser.\n\n${tagLine}`;
+    instagram = tiktok;
+    youtubeTitle = `Day ${sidecar.day} ${mutator} · today's patrol`;
+    youtubeDescription = `Today every pilot on earth flies ${mutator}: ${brief}Three attempts. Free, in your browser.\n\n${tagLine}\n\nsurviveorion.com`;
+  } else if (format === "THE_BOARD") {
+    tiktok = `${score} on Day ${sidecar.day}. Same seed as everyone else. That is the whole point.\n\n${tagLine}`;
+    instagram = tiktok;
+    youtubeTitle = `${score} · Day ${sidecar.day}`;
+    youtubeDescription = `${score} on Day ${sidecar.day}. Same seed as everyone else. That is the whole point.\n\n${tagLine}\n\nsurviveorion.com`;
+  } else if (format === "CLOSE_CALL") {
+    tiktok = `Day ${sidecar.day}, ${mutator}. Could you dodge it? Link in bio.\n\n${tagLine}`;
+    instagram = tiktok;
+    youtubeTitle = `Day ${sidecar.day} close call · ${mutator}`;
+    youtubeDescription = `Day ${sidecar.day} ${mutator}. Could you dodge it?\n\n${tagLine}\n\nsurviveorion.com`;
+  } else if (format === "SPACE_DUST") {
+    tiktok = `Day ${sidecar.day} attempt: ${Math.round(sidecar.survivalTime)}s. The daily patrol is undefeated.\n\n${tagLine}`;
+    instagram = tiktok;
+    youtubeTitle = `Day ${sidecar.day} space dust`;
+    youtubeDescription = `Day ${sidecar.day} attempt: ${Math.round(sidecar.survivalTime)}s. The daily patrol is undefeated.\n\n${tagLine}\n\nsurviveorion.com`;
+  } else {
+    throw new Error(`Unknown format for platform captions: ${format}`);
+  }
+
+  const youtubeBody = `${youtubeTitle}\n\n${youtubeDescription}`;
+  assertCaptionVoice(tiktok, `${format} tiktok`);
+  assertCaptionVoice(instagram, `${format} instagram`);
+  assertCaptionVoice(youtubeTitle, `${format} youtube title`);
+  assertCaptionVoice(youtubeDescription, `${format} youtube description`);
+  if (!youtubeDescription.trimEnd().endsWith("surviveorion.com")) {
+    throw new Error(`${format} YouTube description must end with surviveorion.com`);
+  }
+
+  return {
+    tiktok,
+    instagram,
+    youtube: youtubeBody,
+    youtubeTitle,
+    youtubeDescription,
+    tags,
+    suggestedSound,
+  };
+}
+
+export function tiktokManualManifest(captions) {
+  const sound = captions.suggestedSound
+    ? `Suggested sound: ${captions.suggestedSound}`
+    : "Suggested sound: none (audio is baked).";
+  const text = [
+    "TikTok v1: no API. Open TikTok on the phone and attach this clip.",
+    "",
+    sound,
+    "",
+    "Caption:",
+    captions.tiktok,
+    "",
+    "Steps: open TikTok -> + -> upload video.mp4 -> paste caption -> attach the suggested sound if any -> post.",
+  ].join("\n");
+  assertCaptionVoice(text, "tiktok manual");
+  return text;
+}
+
 /**
  * Mission Control endcard slots. Deterministic from the sidecar, no grazes invented.
  * @param {import('./sidecar.mjs').ClipSidecar} sidecar

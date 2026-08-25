@@ -105,8 +105,22 @@ export function parseSidecar(raw, basename) {
     survivalTime: o.survivalTime,
     closestCall,
     topGrazes,
+    ...parseOptionalBestScore(o, prefix),
     ...parseOptionalTrack(o, prefix),
   };
+}
+
+/**
+ * HUD BEST. Missing is fine except when a NEW BEST render is requested.
+ * @param {Record<string, unknown>} o
+ * @param {string} prefix
+ */
+function parseOptionalBestScore(o, prefix) {
+  if (o.bestScore === undefined) return {};
+  if (typeof o.bestScore !== "number" || !Number.isFinite(o.bestScore)) {
+    throw new Error(`${prefix}: bestScore must be a number when present`);
+  }
+  return { bestScore: Math.floor(o.bestScore) };
 }
 
 /**

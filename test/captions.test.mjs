@@ -6,6 +6,8 @@ import {
   endcardCopy,
   formatScore,
   formatScoreShort,
+  platformCaptions,
+  rotateTags,
   videoCaption,
 } from "../src/captions.mjs";
 
@@ -51,5 +53,26 @@ describe("captions", () => {
   it("formats scores", () => {
     assert.equal(formatScore(3490380), "3,490,380");
     assert.equal(formatScoreShort(3490380), "3.49M");
+  });
+
+  it("platform captions: no em dash, at most one bang, YT ends with surviveorion.com", () => {
+    for (const format of ["WASTED", "NEW_BEST", "PATROL"]) {
+      const caps = platformCaptions(format, day43);
+      for (const text of [caps.tiktok, caps.instagram, caps.youtube, caps.youtubeTitle, caps.youtubeDescription]) {
+        assert.ok(!text.includes("\u2014"), `${format} has em dash`);
+        assert.ok((text.match(/!/g) || []).length <= 1, `${format} has more than one !`);
+      }
+      assert.ok(caps.youtubeDescription.trimEnd().endsWith("surviveorion.com"));
+    }
+  });
+
+  it("tag rotation is deterministic on day and never the whole bank", () => {
+    const a = rotateTags(43, "arsenal");
+    const b = rotateTags(43, "arsenal");
+    const c = rotateTags(44, "arsenal");
+    assert.deepEqual(a, b);
+    assert.notDeepEqual(a, c);
+    assert.ok(a.length >= 4 && a.length <= 6);
+    assert.ok(a.length < 9);
   });
 });

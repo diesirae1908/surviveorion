@@ -266,6 +266,7 @@ export async function harvestDirectory(dir, options = {}) {
           patrolClaimedDays.add(date);
         }
         const isFirstOfUtcDay = options.isFirstOfUtcDay?.(date) ?? defaultFirst;
+        record.isFirstOfUtcDay = isFirstOfUtcDay;
 
         plansByBasename[record.basename] = buildCutPlans({
           sourceBasename: record.basename,

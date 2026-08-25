@@ -1,5 +1,17 @@
 # JOURNAL
 
+## 2026-08-25 (Aug 25 ~2:20 PM PT): locked-preset runner plus C-E plumbing
+
+- Vendored locked recipes: `presets/` (README, day43-wasted-segments.sh, tag-*.png), `assets/audio/` (he-knew VO, celebration-funk), `assets/memes/wasted.png`, `IDEAS.md`, `DIRECTION-V3.md`.
+- Phase B golden/batch now runs `src/presets.mjs` + `src/preset-runner.mjs` only (WASTED, PATROL, NEW_BEST). No fallback to beats/edit.mjs. Missing video/asset/dims/filter throws with the basename. `--dry` prints the exact ffmpeg steps.
+- WASTED mix locked: VO x2.1, music 0.42 / 0.10 under VO / 0.62 late, 200ms silence, wasted.png slam. Slow-mo is a second-pass setpts (same-graph setpts after zoompan does not stretch).
+- C: platform captions + deterministic tag rotation + YouTube thumbnail from the brand SVG template. Queue writes `out/pending/<date>_<format>_<n>/` and regenerates `REVIEW.md`.
+- D/E: posting reads only `out/approved/` (realpath guard). YouTube/IG implemented, tests mock network. TikTok v1 is a manual-tap manifest. `npm run post` never runs live in this session. `npm run batch` never posts and never writes `out/approved/`.
+- `googleapis` added for YouTube upload. AUTH.md copied from SPEC. launchd template is batch-only.
+- `npm test`: 60/60. Goldens actually rendered this session: PATROL 9.29s 1080x1920, WASTED 14.2s with AAC, NEW_BEST ~12.9s (board from brand cover template; Claude-session board PNG was not in the extract).
+- Posting was not executed. `out/approved/` was not written by the pipeline (dir absent). No remote, no push, no OAuth mint.
+- Commit: local main, hash filled after commit.
+
 ## 2026-08-25 (Aug 24 ~10:32 PM PT): Phase B v2 grammar + day43 goldens
 
 - Copied V2 pack: `EDITING.md`, `HOOKS.md`, `assets/memes/` (16 PNG + LICENSE), `assets/brand/fonts/Anton-Regular.ttf` (OFL, keep Rajdhani), `scripts/make-meme-overlays.cjs` (paths pointed at `assets/`). SPEC.md Phase B now points at EDITING.md; v1 letterbox recipe dropped.
