@@ -10,7 +10,7 @@
 - `googleapis` added for YouTube upload. AUTH.md copied from SPEC. launchd template is batch-only.
 - `npm test`: 60/60. Goldens actually rendered this session: PATROL 9.29s 1080x1920, WASTED 14.2s with AAC, NEW_BEST ~12.9s (board from brand cover template; Claude-session board PNG was not in the extract).
 - Posting was not executed. `out/approved/` was not written by the pipeline (dir absent). No remote, no push, no OAuth mint.
-- Commit: local main, hash filled after commit.
+- Commit: `4020b7f` on local main. No remote, no push.
 
 ## 2026-08-25 (Aug 24 ~10:32 PM PT): Phase B v2 grammar + day43 goldens
 
