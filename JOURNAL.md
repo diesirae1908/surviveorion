@@ -4,6 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: privacy policy + terms pages (branch `sam/legal-pages`)
+
+- Added `public/privacy.html` and `public/terms.html`, needed as the App domain
+  links for the Google OAuth consent screen (orion-social YouTube auth), and
+  overdue for a live game anyway. Served at `/privacy.html` and `/terms.html`
+  via the existing dist static handler; SPA fallback makes extension-less
+  paths land on the game, so the `.html` URLs are canonical.
+- Content derived from the actual code, not boilerplate: visits store a
+  truncated SHA-256 `ip_hash` and never raw IPs (`server/db.mjs` schema
+  comment), no third-party analytics exists, password hashes are salted,
+  Google Sign-In stores `google_sub`, clips never upload (`recorder.ts`).
+  Contact channel is the in-game feedback form. Governing law BC, Canada.
+- Kit-styled standalone pages (Void/gold, Rajdhani, the sight mark inline),
+  cross-linked, both linked back to `/`. No em dashes.
+- NOT merged: pushing `main` deploys. This change does need a real Render
+  rebuild (public/ ships in the build), so no `[skip render]` when merging.
+
 ## 2026-08-24: SOCIAL.md + video templates onto main's kit; fix lists closed out (branch `sam/social-docs`)
 
 - The social plan and its two template assets were on `sam/brand-kit` (`15719c7`)
