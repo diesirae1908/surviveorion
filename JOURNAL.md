@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: clip sidecar LIVE on surviveorion.com
+
+- Lucas: "ok push live". Merged `sam/clip-sidecar` into main as `--no-ff` `ec48410`.
+- Render `dep-da6ge93m8hqs738l1jb0` live. Bundle `index-DWisqDku.js` -> `index-DVAZWGBt.js`. Live JS has `Save JSON`, `topGrazes`, named `orion_${` basename. `/api/config` 200.
+
 ## 2026-08-24: clip sidecar JSON + named downloads (branch `sam/clip-sidecar`)
 
 - Downloaded clips now use `orion_<YYYY-MM-DD>_day<N>_<mutator-id>_<score>.<ext>` and a same-basename JSON sidecar (`day`, mutators, this-run medal, score, survivalTime, closestCall, top 5 grazes as `{time, clearance}` only). Snapshot at game-over so a later save cannot read a reset world. Nothing uploads or persists. No callsign.
