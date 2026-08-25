@@ -8,6 +8,7 @@ import {
   closestCallTier,
   grazeClearance,
   trackClosestCall,
+  trackTopGrazes,
   type ClosestCall,
 } from "../src/highlights";
 
@@ -36,6 +37,36 @@ check("first call becomes current", trackClosestCall(null, a), a);
 check("closer call replaces current", trackClosestCall(a, b), b);
 check("further call does not replace current", trackClosestCall(b, c), b);
 
+function checkJson(label: string, actual: unknown, expected: unknown): void {
+  const aJson = JSON.stringify(actual);
+  const eJson = JSON.stringify(expected);
+  if (aJson !== eJson) {
+    failures++;
+    console.error(`FAIL ${label}: expected ${eJson}, got ${aJson}`);
+  }
+}
+
+const d: ClosestCall = { time: 40, x: 3, y: 3, clearance: 0.15 };
+const e: ClosestCall = { time: 50, x: 4, y: 4, clearance: 0.35 };
+const f: ClosestCall = { time: 60, x: 5, y: 5, clearance: 0.05 };
+const worse: ClosestCall = { time: 70, x: 6, y: 6, clearance: 0.95 };
+
+checkJson("top grazes: first call is kept", trackTopGrazes([], a), [a]);
+checkJson("top grazes: order by smallest clearance", trackTopGrazes([a], b), [b, a]);
+checkJson("top grazes: worse call still listed until cap", trackTopGrazes([b, a], c), [b, a, c]);
+
+let top = trackTopGrazes([], a);
+top = trackTopGrazes(top, b);
+top = trackTopGrazes(top, c);
+top = trackTopGrazes(top, d);
+top = trackTopGrazes(top, e);
+checkJson("top grazes: five kept, ordered", top, [d, b, e, a, c]);
+top = trackTopGrazes(top, f);
+checkJson("top grazes: cap 5, closest stays, worse of the five drops", top, [f, d, b, e, a]);
+top = trackTopGrazes(top, worse);
+checkJson("top grazes: ignore a call worse than the current five", top, [f, d, b, e, a]);
+check("top grazes: closest of the list matches trackClosestCall", top[0], f);
+
 // closestCallTier: tier boundaries.
 check("tier at 0 is hair", closestCallTier(0), "hair");
 check("tier at 0.25 is hair", closestCallTier(0.25), "hair");
@@ -61,4 +92,6 @@ if (failures > 0) {
   console.error(`\n${failures} highlight check(s) FAILED.`);
   process.exit(1);
 }
-console.log("ALL CHECKS PASSED: grazeClearance, trackClosestCall, closestCallTier, closestCallLabel.");
+console.log(
+  "ALL CHECKS PASSED: grazeClearance, trackClosestCall, trackTopGrazes, closestCallTier, closestCallLabel.",
+);

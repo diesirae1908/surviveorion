@@ -964,6 +964,38 @@ button.launch {
   border-color: rgba(255, 215, 0, 0.55);
 }
 
+.clip-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+a.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 215, 0, 0.55);
+  background: linear-gradient(135deg, var(--orion-hull-line) 0%, #1a1a2a 100%);
+  color: var(--orion-flare);
+  letter-spacing: var(--orion-tracking-label);
+  text-indent: 0.14em;
+  text-transform: uppercase;
+  box-sizing: border-box;
+}
+
+a.share-btn:hover,
+a.share-btn:active {
+  border-color: var(--orion-gold);
+  color: var(--orion-gold);
+  box-shadow: 0 0 24px rgba(255, 215, 0, 0.25);
+}
+
 /* game-over: Iron Rain tag (steel counterpart of the daily tag) */
 .ironrain-tag {
   color: var(--orion-mode-ironrain);

@@ -24,7 +24,14 @@ import { sanitizePinnedRow } from "./nickname";
 import { clamp01, hashString, setRunSeed } from "./math";
 import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
 import {
+  buildClipSidecar,
+  clipSidecarBasename,
+  isIosWebKit,
+  type ClipSidecar,
+} from "./clipSidecar";
+import {
   clearActiveMutators,
+  getActiveMutators,
   getMutatorById,
   getMutatorsForDate,
   mutatorViewScale,
@@ -193,6 +200,11 @@ let activeRecording: RecordingHandle | null = null;
 let lastClipBlob: Blob | null = null;
 /** True if that clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
 let lastClipCapped = false;
+/** Sidecar snapshotted at game-over so a later save cannot read a reset world. */
+let lastClipSidecar: ClipSidecar | null = null;
+let lastClipBasename: string | null = null;
+/** Object URL for the iOS/WebKit Save JSON <a download>; revoked on the next run. */
+let lastClipJsonUrl: string | null = null;
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -396,9 +408,14 @@ const ui = new Ui(settings, {
     await api.sendFeedback(message, email);
   },
   onSaveClip: () => {
-    if (!lastClipBlob) return false;
-    const label = runIsDaily ? `daily-${dailyNumber()}` : runGameMode;
-    downloadClip(lastClipBlob, `orion-${label}-${Date.now()}.${clipExtension(lastClipBlob)}`);
+    if (!lastClipBlob || !lastClipBasename) return false;
+    downloadClip(lastClipBlob, `${lastClipBasename}.${clipExtension(lastClipBlob)}`);
+    // iOS/iPadOS WebKit often swallows a second programmatic download in the
+    // same click. Video only here; those clients get a visible Save JSON link.
+    if (!isIosWebKit() && lastClipSidecar) {
+      const jsonBlob = new Blob([JSON.stringify(lastClipSidecar)], { type: "application/json" });
+      downloadClip(jsonBlob, `${lastClipBasename}.json`);
+    }
     return true;
   },
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
@@ -798,6 +815,12 @@ function startRun(): void {
   // so skip it there rather than burn CPU for nothing.
   lastClipBlob = null;
   lastClipCapped = false;
+  lastClipSidecar = null;
+  lastClipBasename = null;
+  if (lastClipJsonUrl) {
+    URL.revokeObjectURL(lastClipJsonUrl);
+    lastClipJsonUrl = null;
+  }
   activeRecording = settings.recordRuns && !runIsTraining ? startRecording(canvas) : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
@@ -876,6 +899,26 @@ function quitToMenu(): void {
   showMenu();
 }
 
+/** Freeze clip metadata at death so a later Save clip cannot read a reset world. */
+function snapshotClipSidecar(): void {
+  const mutators = getActiveMutators().slice();
+  const input = {
+    score: world.score,
+    survivalTime: world.time,
+    closestCall: world.closestCall,
+    topGrazes: world.topGrazes,
+    mutators,
+    daily: runIsDaily,
+    gameMode: runGameMode,
+  };
+  lastClipSidecar = buildClipSidecar(input);
+  lastClipBasename = clipSidecarBasename(input);
+  if (lastClipJsonUrl) URL.revokeObjectURL(lastClipJsonUrl);
+  lastClipJsonUrl = URL.createObjectURL(
+    new Blob([JSON.stringify(lastClipSidecar)], { type: "application/json" }),
+  );
+}
+
 /** Death: start the crimson veil; the game-over screen fades in mid-veil. */
 function onGameOver(): void {
   state = "gameover";
@@ -885,8 +928,10 @@ function onGameOver(): void {
   audio.playTrack("gameover");
   // stop recording now, not when the game-over UI shows: finalizing the clip
   // (MediaRecorder flush) overlaps the death cinematic instead of adding a
-  // delay before the result screen appears
+  // delay before the result screen appears. Snapshot sidecar fields first so
+  // a later Save clip cannot read a reset world.
   if (activeRecording) {
+    snapshotClipSidecar();
     const rec = activeRecording;
     activeRecording = null;
     void rec.stop().then((blob) => {
@@ -989,6 +1034,10 @@ function showGameOverUi(): void {
     closestCallLabel: closestCallLabel(world.closestCall),
     clipReady: lastClipBlob !== null,
     clipCapped: lastClipCapped,
+    clipJsonHref:
+      lastClipBlob && isIosWebKit() && lastClipJsonUrl ? lastClipJsonUrl : undefined,
+    clipJsonFilename:
+      lastClipBlob && isIosWebKit() && lastClipBasename ? `${lastClipBasename}.json` : undefined,
   });
   submitRun();
 }

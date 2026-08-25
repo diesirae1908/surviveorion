@@ -42,6 +42,22 @@ export function trackClosestCall(
   return current;
 }
 
+/**
+ * Keep the closest grazes of the run, ordered by smallest clearance, capped
+ * at `limit` (default 5). Additive to trackClosestCall: the single closest
+ * call stays the dedicated game-over highlight; this is the sidecar list.
+ */
+export function trackTopGrazes(
+  current: ClosestCall[],
+  candidate: ClosestCall,
+  limit = 5,
+): ClosestCall[] {
+  const next = current.length === 0 ? [candidate] : [...current, candidate];
+  next.sort((a, b) => a.clearance - b.clearance);
+  if (next.length > limit) next.length = limit;
+  return next;
+}
+
 export type ClosestCallTier = "hair" | "razor" | "clean";
 
 /** Coarse tiers for the highlight copy: closer calls get punchier language. */

@@ -9,7 +9,7 @@ import { blastRadius, createPowersState, detonateShield, updatePowers } from "./
 import { registerGraze, updateScoring } from "./scoring";
 import { createShip, updateShip } from "./ship";
 import { updateStarfallRain } from "./starfall";
-import { grazeClearance, trackClosestCall } from "./highlights";
+import { grazeClearance, trackClosestCall, trackTopGrazes } from "./highlights";
 import type { World } from "./types";
 
 export const DEATH_TO_GAMEOVER_SECONDS = 1.4;
@@ -72,6 +72,7 @@ export function createWorld(
     shake: 0,
     events: [],
     closestCall: null,
+    topGrazes: [],
   };
   if (!sandbox) {
     initSpawner(world);
@@ -295,12 +296,14 @@ function handleGrazes(world: World): void {
       d.grazeTimer = SCORING.grazeCooldown;
       registerGraze(world, d.x, d.y);
       const clearance = grazeClearance(Math.sqrt(sq), contact, SCORING.grazeBand);
-      world.closestCall = trackClosestCall(world.closestCall, {
+      const candidate = {
         time: world.time,
         x: d.x,
         y: d.y,
         clearance,
-      });
+      };
+      world.closestCall = trackClosestCall(world.closestCall, candidate);
+      world.topGrazes = trackTopGrazes(world.topGrazes, candidate);
     }
   }
 }

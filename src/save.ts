@@ -152,8 +152,8 @@ export interface DailyAttempts {
 }
 
 /** Same UTC day boundary as the Daily Patrol seed in main.ts. */
-export function utcDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+export function utcDateString(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
 }
 
 // --- Local per-device history (patrol calendar) ---
