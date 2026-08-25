@@ -10,6 +10,7 @@ import { registerGraze, updateScoring } from "./scoring";
 import { createShip, updateShip } from "./ship";
 import { updateStarfallRain } from "./starfall";
 import { grazeClearance, trackClosestCall, trackTopGrazes } from "./highlights";
+import { sampleShipTrack } from "./clipSidecar";
 import type { World } from "./types";
 
 export const DEATH_TO_GAMEOVER_SECONDS = 1.4;
@@ -73,7 +74,11 @@ export function createWorld(
     events: [],
     closestCall: null,
     topGrazes: [],
+    shipTrack: [],
+    clipArena: { w: viewW, h: viewH },
+    clipView: { w: 0, h: 0 },
   };
+  sampleShipTrack(world.shipTrack, world.time, world.ship.x, world.ship.y);
   if (!sandbox) {
     initSpawner(world);
     initPickups(world);
@@ -110,6 +115,9 @@ export function tick(world: World, input: InputState, dt: number): void {
   handleShipMineCollisions(world);
   handleShipBlastCollisions(world);
   handleGrazes(world);
+  if (world.phase === "playing") {
+    sampleShipTrack(world.shipTrack, world.time, world.ship.x, world.ship.y);
+  }
 
   // sweep dead drones
   world.drones = world.drones.filter((d) => d.alive);

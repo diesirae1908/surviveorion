@@ -2,14 +2,22 @@
 //
 //   npx tsx scripts/test-clip-sidecar.ts
 
+import { FIXED_DT } from "../src/config";
 import {
   buildClipSidecar,
+  CLIP_TRACK_CAP,
+  CLIP_TRACK_INTERVAL,
   clipSidecarBasename,
   clipSidecarMutatorSlot,
   isIosWebKit,
+  roundTrackCoord,
+  sampleShipTrack,
   sidecarMedal,
   type ClipSidecarInput,
+  type ClipSidecarTrackSample,
 } from "../src/clipSidecar";
+import { createWorld, tick } from "../src/gameState";
+import type { InputState } from "../src/input";
 import { medalThresholdsFor } from "../src/medals";
 import { getMutatorById } from "../src/mutators";
 
@@ -50,6 +58,9 @@ const dailySunday: ClipSidecarInput = {
   survivalTime: 91.5,
   closestCall: closest,
   topGrazes: [grazeB, grazeA],
+  track: [],
+  arena: { w: 17.8, h: 10 },
+  view: { w: 1280, h: 720 },
   mutators: [blackout, giants],
   daily: true,
   gameMode: "classic",
@@ -77,6 +88,9 @@ const fullgame: ClipSidecarInput = {
   survivalTime: 30,
   closestCall: null,
   topGrazes: [],
+  track: [[0, 0, 0]],
+  arena: { w: 20, h: 12 },
+  view: { w: 390, h: 844 },
   mutators: [],
   daily: false,
   gameMode: "ironrain",
@@ -105,6 +119,18 @@ checkJson("topGrazes is time+clearance only", payload.topGrazes, [
   { time: 20, clearance: 0.2 },
   { time: 10, clearance: 0.4 },
 ]);
+checkJson("empty track ships as []", payload.track, []);
+checkJson("arena is run-start world size", payload.arena, { w: 17.8, h: 10 });
+checkJson("view is run-start CSS pixels", payload.view, { w: 1280, h: 720 });
+
+const fullPayload = buildClipSidecar(fullgame);
+checkJson("track copies samples", fullPayload.track, [[0, 0, 0]]);
+checkJson("fullgame arena", fullPayload.arena, { w: 20, h: 12 });
+checkJson("fullgame view", fullPayload.view, { w: 390, h: 844 });
+fullgame.track[0][1] = 99;
+fullgame.arena.w = 1;
+check("buildClipSidecar freezes track", fullPayload.track[0][1], 0);
+check("buildClipSidecar freezes arena", fullPayload.arena.w, 20);
 
 const emptyPayload = buildClipSidecar(emptyDaily);
 check("medal is null when no mutators", emptyPayload.medal, null);
@@ -116,6 +142,75 @@ check("medal null when under copper", sidecarMedal(underCopper, [blackout, giant
 
 const goldScore = thresholds.gold;
 check("this-run gold when score clears gold", sidecarMedal(goldScore, [blackout, giants]), "gold");
+
+// --- ship track: cadence, cap, scripted run ---
+check("track interval is 0.5s (2 Hz)", CLIP_TRACK_INTERVAL, 0.5);
+check("track cap is 720 (6 min)", CLIP_TRACK_CAP, 720);
+
+const unitTrack: ClipSidecarTrackSample[] = [];
+sampleShipTrack(unitTrack, 0, 1.234, -5.678);
+sampleShipTrack(unitTrack, 0.25, 9, 9);
+sampleShipTrack(unitTrack, 0.5, 2.005, 3.994);
+checkJson("sampler: t=0 then 0.5, mid-interval skipped, coords rounded", unitTrack, [
+  [0, 1.23, -5.68],
+  [0.5, 2.01, 3.99],
+]);
+
+const capTrack: ClipSidecarTrackSample[] = [];
+for (let i = 0; i < CLIP_TRACK_CAP + 80; i++) {
+  sampleShipTrack(capTrack, i * CLIP_TRACK_INTERVAL, i, -i);
+}
+check("cap holds at 720", capTrack.length, CLIP_TRACK_CAP);
+check("first sample t is 0", capTrack[0][0], 0);
+check("last sample t is 359.5", capTrack[CLIP_TRACK_CAP - 1][0], 359.5);
+sampleShipTrack(capTrack, 400, 99, 99);
+check("cap still holds after late sample", capTrack.length, CLIP_TRACK_CAP);
+
+const drive: InputState = {
+  turn: 0,
+  thrust: 0,
+  heading: null,
+  moveVector: { x: 1, y: 0 },
+  inertia: false,
+  cruiseSpeed: 8,
+};
+const scripted = createWorld(20, 12, true);
+checkJson("arena frozen at createWorld", scripted.clipArena, { w: 20, h: 12 });
+checkJson("t=0 sample is origin", scripted.shipTrack[0], [0, 0, 0]);
+
+const expected: ClipSidecarTrackSample[] = [];
+function noteExpected(): void {
+  const due = expected.length * CLIP_TRACK_INTERVAL;
+  if (scripted.time + 1e-9 >= due && expected.length < CLIP_TRACK_CAP) {
+    expected.push([
+      roundTrackCoord(scripted.time),
+      roundTrackCoord(scripted.ship.x),
+      roundTrackCoord(scripted.ship.y),
+    ]);
+  }
+}
+noteExpected();
+const scriptedSeconds = 2;
+for (let i = 0; i < Math.round(scriptedSeconds / FIXED_DT); i++) {
+  tick(scripted, drive, FIXED_DT);
+  noteExpected();
+}
+check("scripted run has 5 samples (0..2.0 at 0.5s)", scripted.shipTrack.length, 5);
+for (let i = 1; i < scripted.shipTrack.length; i++) {
+  const dt = roundTrackCoord(scripted.shipTrack[i][0] - scripted.shipTrack[i - 1][0]);
+  check(`cadence sample ${i} is 0.5s`, dt, CLIP_TRACK_INTERVAL);
+}
+checkJson("scripted track matches observed ship positions", scripted.shipTrack, expected);
+check("scripted ship left the origin", scripted.shipTrack[scripted.shipTrack.length - 1][1] > 0, true);
+
+const scriptedSidecar = buildClipSidecar({
+  ...fullgame,
+  track: scripted.shipTrack,
+  arena: scripted.clipArena,
+  view: { w: 390, h: 844 },
+  survivalTime: scripted.time,
+});
+checkJson("sidecar track is the scripted run", scriptedSidecar.track, expected);
 
 check("iOS iPhone detected", isIosWebKit({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", maxTouchPoints: 5 }), true);
 check("iOS iPad detected", isIosWebKit({ userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)", maxTouchPoints: 5 }), true);
@@ -142,4 +237,4 @@ if (failures > 0) {
   console.error(`\n${failures} clip-sidecar check(s) FAILED.`);
   process.exit(1);
 }
-console.log("ALL CHECKS PASSED: clip sidecar basename, JSON shape, medal, iOS detect.");
+console.log("ALL CHECKS PASSED: clip sidecar basename, JSON shape, medal, iOS detect, ship track.");

@@ -4,6 +4,19 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: clip sidecar ship track (branch `sam/sidecar-track`)
+
+- Sidecar JSON now includes `track` (`[t, x, y]` at 2 Hz, cap 720 / 6 min) plus
+  frozen `arena` (world units) and `view` (canvas CSS px) so social cuts can
+  follow the flight without guessing a crop. Snapshot still at game-over.
+- Sampling is additive telemetry: `sampleShipTrack` in `tick` next to grazes,
+  plus the t=0 origin sample at `createWorld`. Reads `world.time` and ship x/y
+  only. No recording-path changes, no `trackClosestCall` change, no seeded
+  streams / `Math.random`.
+- Verified: `npx tsc --noEmit`, `npx tsx scripts/sim-test.ts`, `npm test`
+  (clip-sidecar now asserts 0.5s cadence, 720 cap, and a scripted-run match).
+- Not a deploy. Feature branch only.
+
 ## 2026-08-24: privacy policy + terms pages (branch `sam/legal-pages`)
 
 - Added `public/privacy.html` and `public/terms.html`, needed as the App domain

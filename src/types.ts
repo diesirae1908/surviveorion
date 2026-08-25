@@ -392,4 +392,13 @@ export interface World {
   closestCall: ClosestCall | null;
   /** Closest grazes of the run, smallest clearance first, capped at 5. */
   topGrazes: ClosestCall[];
+
+  /**
+   * Clip sidecar ship track: `[t, x, y]` at 2 Hz from world.time and ship
+   * position only. Frozen arena/view are the run-start sizes (world units /
+   * canvas CSS px); resizeWorld does not rewrite them.
+   */
+  shipTrack: [number, number, number][];
+  clipArena: { w: number; h: number };
+  clipView: { w: number; h: number };
 }

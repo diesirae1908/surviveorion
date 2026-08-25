@@ -802,6 +802,7 @@ function startRun(): void {
     runIsDaily,
     runIsTraining,
   );
+  world.clipView = { w: canvas.clientWidth, h: canvas.clientHeight };
   recordBeaten = false;
   particles.clear();
   popups.clear();
@@ -907,6 +908,9 @@ function snapshotClipSidecar(): void {
     survivalTime: world.time,
     closestCall: world.closestCall,
     topGrazes: world.topGrazes,
+    track: world.shipTrack,
+    arena: world.clipArena,
+    view: world.clipView,
     mutators,
     daily: runIsDaily,
     gameMode: runGameMode,
