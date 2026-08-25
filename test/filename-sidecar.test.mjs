@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseFilename } from "../src/filename.mjs";
+import { basenameWithoutExt, parseFilename } from "../src/filename.mjs";
 import { parseSidecarFile } from "../src/sidecar.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +45,17 @@ describe("filename parsing", () => {
       /Filename contract mismatch/
     );
   });
+
+  it("strips video and json extensions for pairing", () => {
+    assert.equal(
+      basenameWithoutExt("orion_2026-08-25_day43_arsenal_3490380.webm"),
+      "orion_2026-08-25_day43_arsenal_3490380"
+    );
+    assert.equal(
+      basenameWithoutExt("orion_2026-08-25_day43_arsenal_3490380.json"),
+      "orion_2026-08-25_day43_arsenal_3490380"
+    );
+  });
 });
 
 describe("sidecar parsing", () => {
@@ -69,6 +80,24 @@ describe("sidecar parsing", () => {
     const { sidecar } = await loadSidecar("orion_2026-08-24_day0_classic_1500000");
     assert.deepEqual(sidecar.mutatorIds, []);
     assert.equal(sidecar.medal, "gold");
+  });
+
+  it("parses the real day43 sidecar as-is", async () => {
+    const text = await readFile(
+      path.join(path.dirname(__dirname), "fixtures", "orion_2026-08-25_day43_arsenal_3490380.json"),
+      "utf8"
+    );
+    const { sidecar } = parseSidecarFile(
+      text,
+      "orion_2026-08-25_day43_arsenal_3490380.json"
+    );
+    assert.equal(sidecar.day, 43);
+    assert.equal(sidecar.score, 3490380);
+    assert.equal(sidecar.medal, "gold");
+    assert.equal(sidecar.survivalTime, 270);
+    assert.equal(sidecar.closestCall, null);
+    assert.deepEqual(sidecar.topGrazes, []);
+    assert.deepEqual(sidecar.mutatorIds, ["arsenal"]);
   });
 
   it("rejects filename/sidecar score drift", async () => {

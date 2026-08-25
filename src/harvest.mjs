@@ -12,6 +12,7 @@ import { parseSidecarFile } from "./sidecar.mjs";
 import { buildCutPlans } from "./plan.mjs";
 
 const execFileAsync = promisify(execFile);
+const FFPROBE_OPTS = { maxBuffer: 16 * 1024 * 1024, encoding: "utf8" };
 
 /**
  * @typedef {object} ProbeResult
@@ -19,6 +20,7 @@ const execFileAsync = promisify(execFile);
  * @property {number} height
  * @property {number} duration
  * @property {number} fps
+ * @property {boolean} hasAudio
  */
 
 /**
@@ -49,41 +51,93 @@ function parseFrameRate(rate) {
 export async function ffprobeVideo(videoPath) {
   let stdout;
   try {
-    ({ stdout } = await execFileAsync("ffprobe", [
-      "-v",
-      "error",
-      "-select_streams",
-      "v:0",
-      "-show_entries",
-      "stream=width,height,r_frame_rate",
-      "-show_entries",
-      "format=duration",
-      "-of",
-      "json",
-      videoPath,
-    ]));
+    ({ stdout } = await execFileAsync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-show_entries",
+        "stream=width,height,r_frame_rate,codec_type,duration",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "json",
+        videoPath,
+      ],
+      FFPROBE_OPTS
+    ));
   } catch (err) {
     const msg = /** @type {NodeJS.ErrnoException} */ (err).message ?? String(err);
     throw new Error(`ffprobe failed for "${videoPath}": ${msg}`);
   }
 
   const data = JSON.parse(stdout);
-  const stream = data.streams?.[0];
-  if (!stream?.width || !stream?.height) {
+  const streams = data.streams ?? [];
+  const videoStream = streams.find((s) => s.codec_type === "video") ?? streams[0];
+  if (!videoStream?.width || !videoStream?.height) {
     throw new Error(`ffprobe missing video dimensions for "${videoPath}"`);
   }
 
-  const duration = Number(data.format?.duration ?? stream.duration ?? 0);
+  const fps = parseFrameRate(videoStream.r_frame_rate);
+  const hasAudio = streams.some((s) => s.codec_type === "audio");
+
+  // Chrome MediaRecorder WebM often has format duration=N/A and a bogus
+  // one-frame stream duration. Only trust container duration; else packets.
+  const formatDur = Number(data.format?.duration);
+  let duration = Number.isFinite(formatDur) && formatDur > 0 ? formatDur : 0;
+  if (!duration) {
+    duration = await probeDurationFromPackets(videoPath, fps);
+  }
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error(`ffprobe missing duration for "${videoPath}"`);
   }
 
   return {
-    width: stream.width,
-    height: stream.height,
+    width: videoStream.width,
+    height: videoStream.height,
     duration,
-    fps: parseFrameRate(stream.r_frame_rate),
+    fps,
+    hasAudio,
   };
+}
+
+/**
+ * Chrome MediaRecorder WebM often has duration=N/A. Count packets / fps.
+ * Dumping every pts via execFile can return only the first line.
+ * @param {string} videoPath
+ * @param {number} fps
+ */
+export async function probeDurationFromPackets(videoPath, fps) {
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-count_packets",
+        "-show_entries",
+        "stream=nb_read_packets",
+        "-of",
+        "json",
+        videoPath,
+      ],
+      FFPROBE_OPTS
+    ));
+  } catch (err) {
+    const msg = /** @type {NodeJS.ErrnoException} */ (err).message ?? String(err);
+    throw new Error(`ffprobe packet scan failed for "${videoPath}": ${msg}`);
+  }
+
+  const data = JSON.parse(stdout);
+  const n = Number(data.streams?.[0]?.nb_read_packets);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`ffprobe found no packets for "${videoPath}"`);
+  }
+  const rate = fps > 0 ? fps : 30;
+  return n / rate;
 }
 
 /**

@@ -157,25 +157,32 @@ describe("format eligibility on hand-written fixtures", () => {
   });
 });
 
-describe("day43 fixture sidecar (optional)", () => {
-  it("accepts real day43 JSON when present", async () => {
+describe("day43 fixture sidecar", () => {
+  it("plans THE BOARD + TODAY'S PATROL from the real sidecar", async () => {
     const day43Path = path.join(
       path.dirname(__dirname),
       "fixtures",
       "orion_2026-08-25_day43_arsenal_3490380.json"
     );
-    let text;
-    try {
-      text = await readFile(day43Path, "utf8");
-    } catch {
-      return; // skip until Lucas drops the sidecar
-    }
-
+    const text = await readFile(day43Path, "utf8");
     const { sidecar } = parseSidecarFile(
       text,
       "orion_2026-08-25_day43_arsenal_3490380.json"
     );
     assert.equal(sidecar.score, 3490380);
     assert.deepEqual(sidecar.mutatorIds, ["arsenal"]);
+    assert.deepEqual(sidecar.topGrazes, []);
+    const plans = buildCutPlans({
+      sourceBasename: "orion_2026-08-25_day43_arsenal_3490380",
+      sidecar,
+      duration: 7678 / 24,
+      isFirstOfUtcDay: true,
+    });
+    assert.deepEqual(
+      plans.map((p) => p.format),
+      ["THE_BOARD", "TODAYS_PATROL"]
+    );
+    assert.deepEqual(plans[0].cut, theBoardCut(7678 / 24));
+    assert.deepEqual(plans[1].cut, todaysPatrolCut(7678 / 24));
   });
 });

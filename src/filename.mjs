@@ -96,7 +96,7 @@ export function parseSidecarFilename(jsonBasename) {
  * @returns {string} basename without extension
  */
 export function basenameWithoutExt(basename) {
-  return basename.replace(/\.(webm|mp4)$/i, "");
+  return basename.replace(/\.(webm|mp4|json)$/i, "");
 }
 
 /**

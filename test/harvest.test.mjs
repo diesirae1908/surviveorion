@@ -34,11 +34,19 @@ describe("harvest", () => {
     }
   });
 
-  it("day43 fixture reports missing JSON loudly", async () => {
+  it("harvests the real day43 pair with isFirstOfUtcDay", async () => {
     const result = await tryHarvestDay43(path.join(REPO_ROOT, "fixtures"));
-    assert.equal(result.ok, false);
-    assert.match(result.error, /missing matching \.json sidecar/);
-    assert.match(result.error, /orion_2026-08-25_day43_arsenal_3490380\.webm/);
+    if (!result.ok) {
+      if (/Missing video/.test(result.error ?? "")) return;
+      throw new Error(result.error);
+    }
+    assert.equal(result.record.sidecar.score, 3490380);
+    assert.deepEqual(result.record.sidecar.topGrazes, []);
+    assert.equal(result.record.sidecar.closestCall, null);
+    assert.deepEqual(
+      result.plans.map((p) => p.format),
+      ["THE_BOARD", "TODAYS_PATROL"]
+    );
   });
 
   it("ffprobes day43 webm when present locally", async () => {
