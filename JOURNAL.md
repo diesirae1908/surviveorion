@@ -1,5 +1,10 @@
 # JOURNAL
 
+## 2026-08-25 (Aug 25 ~4:08 PM PT): private GitHub remote
+
+- Lucas: "ok, push everything live". Game repo already on surviveorion.com (`04deff9`, bundle `index-Cn4JTljO.js`). This pipeline had no origin.
+- Created private `diesirae1908/orion-social` and pushed `main`. `.env`, `auth/`, `out/`, fixture video stay gitignored. `out/approved/` still absent: nothing posted to YT/IG/TikTok.
+
 ## 2026-08-25 (Aug 25 ~3:42 PM PT): lock NEW_BEST golden to the HTML board template
 
 - Vendored approved board assets into `presets/`: `newbest-board.template.html`, `newbest-board-day43.png` (reference), `tag-newbest.png`, `fonts/Rajdhani-Bold.ttf`, README section "NEW BEST board template". Replaced the brand-cover-SVG fallback Lucas rejected.
