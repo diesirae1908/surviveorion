@@ -3,6 +3,11 @@
 *Written 2026-08-24 against `diesirae1908/surviveorion` @ `7856ae6`. Every finding below was
 grepped and verified in the actual codebase, with line numbers. Nothing here is a guess.*
 
+> **STATUS, Aug 24, 2026: executed.** Phases 0, 2, 3, 4 and 5 shipped to `main` as `68ee261`
+> (wordmark/icons follow-up `5e5f360`). Phase 1 is optional and was skipped by choice. This
+> document stays as the record of what was checked and why; the line numbers reference `7856ae6`
+> and have since shifted.
+
 **How to use this in Cursor:** open the repo, paste the "Brief" block below into the agent, and
 point it at this file. Work the phases in order. Phase 0 is blocking; everything after it is
 independent, so each task can be its own commit and its own review.

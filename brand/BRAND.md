@@ -282,29 +282,22 @@ Two palette entries in §6, **Brass `#ccaa66`** and the **mode identity** trio, 
 audit rather than the original derivation: the code was already using them consistently and the
 kit had not recorded them. The code was right; the kit was under-specified.
 
-### Still open
+### Status: executed Aug 24, 2026
 
-Nothing from the original §11 audit remains open on this branch.
+The conformance run happened the same day the spec landed (Cursor, plan-pool model, merged to
+`main` as `68ee261` with follow-ups `5e5f360` and `ec48410`). Done:
 
-### Fixed on `sam/brand-conformance` (Phases 2–5, 2026-08-24)
+- **Phases 0, 2, 3, 4, 5**: colour tokens in `:root`, near-duplicate colours collapsed, the
+  three WCAG failures fixed, the manifest and `og.png` em dashes gone, the favicon ring weight
+  matched, the tracking scale collapsed to tokens (plus two deliberate strapline tokens added
+  per the spec's escape hatch).
+- **Beyond the spec**: the kit wordmark now replaces the typed ORION title on menu screens, and
+  the PWA icons are the kit renders with a fixed maskable entry.
+- **Clip sidecar** (`SOCIAL.md` build step 1): downloads are named from run metadata with a JSON
+  sidecar (this-run medal, closest call, top 5 grazes). Desktop gets both files in one click;
+  iOS/WebKit gets a visible Save JSON link because dual download could not be proven there.
 
-1. **`public/manifest.webmanifest` name** now `"ORION: Survive the Swarm"` (colon, no em dash).
-2. **`public/og.png`** replaced with `brand/assets/social/png/orion-og-1200x630.png`.
-3. **Inline favicon in `index.html`** matches kit (`r=37`, `stroke-width=11`).
-4. WCAG contrast failures in `style.css` (`.daily-day`, `.calendar-day.missed`,
-   `.calendar-nav-btn:disabled`, training `.daily-sub`).
-5. Near-duplicate UI colours collapsed to palette tokens, including arena gradient top
-   (`render.ts:127` → `PALETTE.bgTop`); em dash in `ui.ts:711` fixed; tutorial spin
-   exclamation deduped; letter-spacing collapsed to tracking tokens.
+Still open, by choice:
 
-### Fixed on the branch that added this kit (`sam/brand-kit`, not yet on `main`)
-
-4. `PRODUCT.md` pitched "the only mobile-first inertia arcade". Rewritten to the daily-dodging
-   positioning in §1, with a note recording that it was Lucas's call on 2026-08-24.
-5. `PRODUCT.md` recorded the UI font as Georgia. The shipped `style.css` sets Rajdhani.
-   Corrected.
-6. `PRODUCT.md` called the palette "recorded as evidence, not locked". It is locked now and
-   points at `brand/tokens/`.
-7. `AGENTS.md` opened on the same stale positioning, and its sibling-folder paths predated the
-   2026-08-23 move. Rewritten, and it now says plainly that this repo is the only live Orion and
-   the Unity build is an archive, not a sibling version.
+1. **Phase 1 of [CONFORMANCE.md](CONFORMANCE.md)** (alpha variants via `color-mix`): optional,
+   cosmetic plumbing across 46 lines. Do it whenever a quiet day wants it, or never.

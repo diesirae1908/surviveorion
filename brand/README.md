@@ -60,20 +60,12 @@ them is a plain string replace, client-side or server-side.
 
 Full measured contrast table is in [BRAND.md §6](BRAND.md).
 
-## What to fix in the game
+## Conformance status
 
-**Still open**, all small, the first two player-facing:
-
-1. `public/manifest.webmanifest` name field contains an em dash. Should read
-   `ORION: Survive the Swarm`.
-2. The live `public/og.png` carries the same em dash. `assets/social/png/orion-og-1200x630.png`
-   replaces it.
-3. The inline data-URI favicon in `index.html` uses `r=40 stroke-width=8`; the kit favicon uses
-   `r=37 stroke-width=11`. Swap it so the ring weight matches everywhere.
-
-**Already fixed** on the branch that added this kit to the game repo (`sam/brand-kit`, not yet
-on `main`): `PRODUCT.md` positioning, font and palette-lock, and `AGENTS.md` positioning plus its
-stale sibling-folder paths. See [BRAND.md §11](BRAND.md).
+The [CONFORMANCE.md](CONFORMANCE.md) run executed Aug 24, 2026 (phases 0, 2 to 5, merged as
+`68ee261`): tokens are in `:root`, the WCAG failures and player-facing em dashes are fixed, the
+favicon matches, and the kit wordmark and icons are live in the game. Only optional Phase 1
+(`color-mix` alpha variants) remains, by choice. Details in [BRAND.md §11](BRAND.md).
 
 ## Regenerating
 

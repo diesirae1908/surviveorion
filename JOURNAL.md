@@ -4,6 +4,19 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-24: SOCIAL.md + video templates onto main's kit; fix lists closed out (branch `sam/social-docs`)
+
+- The social plan and its two template assets were on `sam/brand-kit` (`15719c7`)
+  but missed the kit merge to `main` (`68ee261` took the branch at `c5e7dd9`).
+  This branch adds them onto the current kit: `brand/SOCIAL.md`, the 1280x720
+  thumbnail overlay and 1080x1920 vertical cover templates (SVG + PNG), their
+  generator `05-social-templates.cjs`, and the two export-list entries.
+- `brand/BRAND.md` §11, `brand/README.md` and `brand/CONFORMANCE.md` updated
+  from "still open" to the executed state: phases 0, 2 to 5 shipped Aug 24 as
+  `68ee261`, wordmark/icons as `5e5f360`, clip sidecar as `ec48410`. Only
+  optional Phase 1 (color-mix alpha variants) remains, by choice.
+- Docs and brand assets only; no game code.
+
 ## 2026-08-24: clip sidecar JSON + named downloads (branch `sam/clip-sidecar`)
 
 - Downloaded clips now use `orion_<YYYY-MM-DD>_day<N>_<mutator-id>_<score>.<ext>` and a same-basename JSON sidecar (`day`, mutators, this-run medal, score, survivalTime, closestCall, top 5 grazes as `{time, clearance}` only). Snapshot at game-over so a later save cannot read a reset world. Nothing uploads or persists. No callsign.
