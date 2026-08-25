@@ -138,3 +138,23 @@ export function isIosWebKit(
   if (/Macintosh/.test(ua) && n.maxTouchPoints > 1) return true;
   return false;
 }
+
+/**
+ * Desktop Chrome / Chromium (not iOS WebKit, not Android, not Edge or Opera).
+ * These hosts often silently drop a second programmatic download in one click;
+ * pair with a visible Save JSON link and the Automatic downloads hint.
+ */
+export function isDesktopChrome(
+  nav?: Pick<Navigator, "userAgent" | "maxTouchPoints"> | { userAgent: string; maxTouchPoints: number },
+): boolean {
+  const n = nav ?? (typeof navigator === "undefined" ? undefined : navigator);
+  if (!n) return false;
+  if (isIosWebKit(n)) return false;
+  const ua = n.userAgent;
+  if (/Android/.test(ua)) return false;
+  if (/Mobile/.test(ua)) return false;
+  if (/Edg\//.test(ua)) return false;
+  if (/OPR\//.test(ua)) return false;
+  if (!/Chrome\//.test(ua)) return false;
+  return true;
+}

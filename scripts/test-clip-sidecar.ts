@@ -9,6 +9,7 @@ import {
   CLIP_TRACK_INTERVAL,
   clipSidecarBasename,
   clipSidecarMutatorSlot,
+  isDesktopChrome,
   isIosWebKit,
   roundTrackCoord,
   sampleShipTrack,
@@ -233,8 +234,45 @@ check(
   false,
 );
 
+const chromeLinux =
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+const chromeMac =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+const chromeWin =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+const edgeWin =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0";
+const operaWin =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 OPR/114.0.0.0";
+const androidChrome =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36";
+const safariMac =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+const firefoxLinux = "Mozilla/5.0 (X11; Linux x86_64; rv:129.0) Gecko/20100101 Firefox/129.0";
+
+check("desktop Chrome Linux", isDesktopChrome({ userAgent: chromeLinux, maxTouchPoints: 0 }), true);
+check("desktop Chrome Mac", isDesktopChrome({ userAgent: chromeMac, maxTouchPoints: 0 }), true);
+check("desktop Chrome Windows", isDesktopChrome({ userAgent: chromeWin, maxTouchPoints: 0 }), true);
+check("Edge is not desktop Chrome", isDesktopChrome({ userAgent: edgeWin, maxTouchPoints: 0 }), false);
+check("Opera is not desktop Chrome", isDesktopChrome({ userAgent: operaWin, maxTouchPoints: 0 }), false);
+check("Android Chrome is not desktop Chrome", isDesktopChrome({ userAgent: androidChrome, maxTouchPoints: 5 }), false);
+check("Safari Mac is not desktop Chrome", isDesktopChrome({ userAgent: safariMac, maxTouchPoints: 0 }), false);
+check("Firefox is not desktop Chrome", isDesktopChrome({ userAgent: firefoxLinux, maxTouchPoints: 0 }), false);
+check(
+  "iOS iPhone is not desktop Chrome",
+  isDesktopChrome({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", maxTouchPoints: 5 }),
+  false,
+);
+check(
+  "iPadOS-as-Mac is not desktop Chrome",
+  isDesktopChrome({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 5 }),
+  false,
+);
+
 if (failures > 0) {
   console.error(`\n${failures} clip-sidecar check(s) FAILED.`);
   process.exit(1);
 }
-console.log("ALL CHECKS PASSED: clip sidecar basename, JSON shape, medal, iOS detect, ship track.");
+console.log(
+  "ALL CHECKS PASSED: clip sidecar basename, JSON shape, medal, iOS/Chrome detect, ship track.",
+);

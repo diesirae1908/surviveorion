@@ -4,6 +4,22 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-25: desktop Chrome second-download hint (branch `sam/sidecar-track`)
+
+- Track sidecar (`track` / `arena` / `view`) was already on this branch from
+  2026-08-24; this commit is the Chrome follow-up only.
+- Desktop Chrome often silently drops the second programmatic download (JSON)
+  when Save clip fires video + JSON in one click. Added `isDesktopChrome()`
+  next to `isIosWebKit()` in `clipSidecar.ts`; desktop Chrome now gets the
+  same visible Save JSON link as iOS plus a field-hint pointing at
+  `chrome://settings/content/automaticDownloads`. iOS path unchanged (video
+  only programmatic, Save JSON link, no Chrome hint). Other desktop browsers
+  keep dual programmatic download with no hint.
+- Verified: `npx tsc --noEmit`, `npx tsx scripts/sim-test.ts`, `npx tsx
+  scripts/test-clip-sidecar.ts` (new UA tests for Chrome/Edge/Opera/Android/
+  Safari/Firefox).
+- Not a deploy. Feature branch only.
+
 ## 2026-08-24: clip sidecar ship track (branch `sam/sidecar-track`)
 
 - Sidecar JSON now includes `track` (`[t, x, y]` at 2 Hz, cap 720 / 6 min) plus

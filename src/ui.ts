@@ -105,9 +105,11 @@ export interface GameOverStats {
   clipReady?: boolean;
   /** That clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
   clipCapped?: boolean;
-  /** iOS/WebKit fallback: object URL for a visible Save JSON <a download>. */
+  /** iOS/WebKit and desktop Chrome fallback: object URL for a visible Save JSON <a download>. */
   clipJsonHref?: string;
   clipJsonFilename?: string;
+  /** Desktop Chrome: second programmatic download may be blocked; show settings hint. */
+  clipJsonChromeHint?: boolean;
 }
 
 /**
@@ -1692,6 +1694,16 @@ export class Ui {
         clipRow.appendChild(this.saveJsonLink(stats.clipJsonHref, stats.clipJsonFilename));
       }
       screen.appendChild(clipRow);
+      if (stats.clipJsonChromeHint) {
+        screen.appendChild(
+          this.el(
+            "div",
+            "field-hint center",
+            "JSON missing? Chrome blocks the second file. Allow Automatic downloads for this site " +
+              "(chrome://settings/content/automaticDownloads), then Save clip again. Or click Save JSON.",
+          ),
+        );
+      }
       if (stats.clipCapped) {
         screen.appendChild(
           this.el(
