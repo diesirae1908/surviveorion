@@ -275,6 +275,8 @@ function fmtScoreShort(n: number): string {
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
 export class Ui {
+  private static wordmarkSeq = 0;
+
   private root: HTMLElement;
   private pauseBtn: HTMLButtonElement;
 
@@ -502,6 +504,26 @@ export class Ui {
     return e;
   }
 
+  /** Kit wordmark (`brand/assets/logo/orion-wordmark.svg`) for screen titles. */
+  private wordmarkTitle(): HTMLElement {
+    const gradId = `orion-wordmark-grad-${++Ui.wordmarkSeq}`;
+    const wrap = document.createElement("div");
+    wrap.className = "title";
+    wrap.innerHTML =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 431 100" role="img" aria-label="ORION" class="wordmark-svg">` +
+      `<defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>` +
+      `</linearGradient></defs>` +
+      `<g fill="url(#${gradId})" fill-rule="evenodd">` +
+      `<path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>` +
+      `<path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/>` +
+      `<path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/>` +
+      `<path transform="translate(249,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>` +
+      `<path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/>` +
+      `</g></svg>`;
+    return wrap;
+  }
+
   /** Share-result button with inline outcome feedback (Shared! / Copied!). */
   private shareButton(): HTMLButtonElement {
     const btn = this.button("Share result", false, () => {
@@ -568,7 +590,7 @@ export class Ui {
     this.pauseBtn.style.display = "none";
 
     const screen = this.el("div", "screen menu", "");
-    screen.appendChild(this.el("div", "title", "ORION"));
+    screen.appendChild(this.wordmarkTitle());
     screen.appendChild(this.el("div", "subtitle", "Survive the swarm"));
     screen.appendChild(this.el("div", "divider", ""));
 
@@ -660,7 +682,7 @@ export class Ui {
     this.pauseBtn.style.display = "none";
 
     const screen = this.el("div", "screen menu", "");
-    screen.appendChild(this.el("div", "title", "ORION"));
+    screen.appendChild(this.wordmarkTitle());
     screen.appendChild(this.el("div", "subtitle", "Daily Patrol"));
     screen.appendChild(this.el("div", "divider", ""));
 
@@ -1407,7 +1429,7 @@ export class Ui {
     this.pauseBtn.style.display = "none";
 
     const gate = this.el("div", "intro-gate", "");
-    gate.appendChild(this.el("div", "title", "ORION"));
+    gate.appendChild(this.wordmarkTitle());
     gate.appendChild(this.el("div", "enter", "Tap to enter"));
     gate.appendChild(
       this.el("div", "gate-tagline", "Dodge the swarm · 3 attempts daily · same run for every pilot"),
