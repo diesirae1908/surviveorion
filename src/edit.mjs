@@ -1,314 +1,95 @@
 /**
- * CutPlan -> ffmpeg filtergraph -> 1080x1920 H.264 MP4.
- * --dry prints the command without running ffmpeg.
+ * CutPlan + beat sheet -> ffmpeg. Full-bleed 9:16, freeze CTA, no fade-out.
  */
 
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { buildAss } from "./ass.mjs";
+import { gameplayBeats, textEvents, FREEZE_S } from "./beats.mjs";
+import {
+  precomputeCropPath,
+  sendcmdFromPath,
+  CROP_FPS,
+} from "./crop.mjs";
 import {
   ASSETS,
   FIXTURES_DIR,
   GOLDEN_DIR,
+  MEME,
+  OUT_DIR,
   REPO_ROOT,
+  defaultBoardMusic,
 } from "./paths.mjs";
-import {
-  estimateRajdhaniWidth,
-  formatScore,
-  videoCaption,
-} from "./captions.mjs";
-import { endcardCachePath, ensureEndcard } from "./endcard.mjs";
 import { tryHarvestDay43 } from "./harvest.mjs";
 import {
-  ensureCaptionOverlayPng,
-  ffmpegHasDrawtext,
+  ensureBeatOverlayPngs,
+  ffmpegHasLibass,
 } from "./overlay-text.mjs";
+import { buildBeatSheet } from "./beats.mjs";
 
 export const CANON = {
   width: 1080,
   height: 1920,
   fps: 30,
   crf: 19,
-  void: "0x0a0a12",
-  starlight: "0xfff7e0",
-  alarm: "0xff4455",
-  gold: "0xffd700",
-  captionY: 180,
-  captionH: 120,
-  captionLine1Y: 222,
-  captionLine2Y: 268,
   wmW: 64,
   wmX: 1080 - 64 - 36,
-  wmY: 1920 - 64 - 320,
+  wmY: 1920 - 64 - 250,
   wmOpacity: 0.6,
-  scoreY: 1360,
-  scoreSize: 64,
-  xfade: 0.25,
-  endcard: 1.5,
+};
+
+const SFX_FILES = {
+  riser: ASSETS.sfxRiser,
+  boom: ASSETS.sfxBoom,
+  rewind: ASSETS.sfxRewind,
+  whoosh: ASSETS.sfxWhoosh,
+  wah: ASSETS.sfxWah,
+  braam: ASSETS.sfxBraam,
 };
 
 /**
- * @param {{ start: number, end: number }} cut
- * @param {{ start: number, end: number, rate: number }} slowMo
- * @returns {{ start: number, end: number, rate: number }[]}
+ * @param {import('./beats.mjs').Beat[]} beats
  */
-export function slowMoSegments(cut, slowMo) {
-  const s = Math.max(cut.start, slowMo.start);
-  const e = Math.min(cut.end, slowMo.end);
-  /** @type {{ start: number, end: number, rate: number }[]} */
-  const segs = [];
-  if (s > cut.start + 1e-4) segs.push({ start: cut.start, end: s, rate: 1 });
-  if (e > s + 1e-4) segs.push({ start: s, end: e, rate: slowMo.rate ?? 0.5 });
-  if (cut.end > e + 1e-4) segs.push({ start: e, end: cut.end, rate: 1 });
-  return segs;
+export function sheetGameplayDuration(beats) {
+  const last = beats[beats.length - 1];
+  if (!last) return 0;
+  return last.kind === "freeze" ? last.outStart : last.outEnd;
 }
 
 /**
- * @param {import('./plan.mjs').CutPlan} plan
+ * Map output time to source time via gameplay beats (v2.1 track).
+ * @param {import('./beats.mjs').Beat[]} beats
+ * @param {number} outT
  */
-export function gameplayDuration(plan) {
-  if (plan.slowMo) {
-    return slowMoSegments(plan.cut, plan.slowMo).reduce(
-      (sum, seg) => sum + (seg.end - seg.start) / seg.rate,
-      0
-    );
+export function sourceTimeAt(beats, outT) {
+  for (const b of gameplayBeats(beats)) {
+    if (outT >= b.outStart && outT <= b.outEnd && b.srcStart != null) {
+      const span = b.outEnd - b.outStart || 1;
+      const u = (outT - b.outStart) / span;
+      return b.srcStart + u * ((b.srcEnd ?? b.srcStart) - b.srcStart);
+    }
   }
-  return plan.cut.end - plan.cut.start;
+  return 0;
 }
 
 /**
- * @param {import('./plan.mjs').FormatId} format
+ * @param {number} rate
  */
-export function gameAudioGain(format) {
-  return format === "SPACE_DUST" ? 0.5 : 0.85;
-}
-
-function escapeDrawtext(text) {
-  return String(text)
-    .replace(/\\/g, "\\\\")
-    .replace(/'/g, "'\\''")
-    .replace(/:/g, "\\:")
-    .replace(/%/g, "\\%");
+export function atempoFor(rate) {
+  if (rate >= 0.5 && rate <= 2) return rate;
+  if (rate < 0.5) return 0.5;
+  return 2;
 }
 
 function escapeFilterPath(p) {
-  return p.replace(/\\/g, "/").replace(/:/g, "\\:");
+  return p.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "'\\''");
 }
 
-function frameChain() {
-  return [
-    "scale=1080:-2",
-    "pad=1080:1920:0:'max(0\\,min(1920-ih\\,1920*0.46-ih/2))':color=0x0a0a12",
-    "fps=30",
-    "format=yuv420p",
-  ].join(",");
-}
-
-function captionFilters(plan, sidecar, fontfile) {
-  const caption = videoCaption(plan.format, sidecar, { graze: plan.graze });
-  const font = escapeFilterPath(fontfile);
-  const filters = [
-    `drawbox=x=0:y=${CANON.captionY}:w=1080:h=${CANON.captionH}:color=0x0a0a12@0.72:t=fill`,
-  ];
-  const ys = [CANON.captionLine1Y, CANON.captionLine2Y];
-  caption.lines.forEach((line, i) => {
-    if (!line) return;
-    const y = ys[i] ?? CANON.captionLine1Y;
-    filters.push(
-      `drawtext=fontfile='${font}':text='${escapeDrawtext(line)}':fontcolor=${CANON.starlight}:fontsize=${caption.fontSize}:x=(w-text_w)/2:y=${y}`
-    );
-    for (const name of caption.mutatorNames) {
-      const idx = line.indexOf(name);
-      if (idx < 0) continue;
-      const prefixW = estimateRajdhaniWidth(line.slice(0, idx), caption.fontSize);
-      const fullW = estimateRajdhaniWidth(line, caption.fontSize);
-      const x = Math.round((1080 - fullW) / 2 + prefixW);
-      filters.push(
-        `drawtext=fontfile='${font}':text='${escapeDrawtext(name)}':fontcolor=${CANON.alarm}:fontsize=${caption.fontSize}:x=${x}:y=${y}`
-      );
-    }
-  });
-  return filters;
-}
-
-function scoreFilter(sidecar, fontfile) {
-  const font = escapeFilterPath(fontfile);
-  return `drawtext=fontfile='${font}':text='${escapeDrawtext(formatScore(sidecar.score))}':fontcolor=${CANON.gold}:fontsize=${CANON.scoreSize}:x=(w-text_w)/2:y=${CANON.scoreY}`;
-}
-
-/**
- * @param {{
- *   videoPath: string,
- *   markPath: string,
- *   endcardPath?: string | null,
- *   sfxPath?: string | null,
- *   musicPath?: string | null,
- *   plan: import('./plan.mjs').CutPlan,
- * }} opts
- */
-export function buildInputArgs({
-  videoPath,
-  markPath,
-  endcardPath = null,
-  sfxPath = null,
-  musicPath = null,
-  captionPng = null,
-  plan,
-}) {
-  /** @type {string[]} */
-  const args = ["-i", videoPath, "-i", markPath];
-  /** @type {{ video: number, mark: number, endcard?: number, sfx?: number, music?: number, caption?: number }} */
-  const inputMap = { video: 0, mark: 1 };
-  let n = 2;
-  if (captionPng) {
-    args.push("-i", captionPng);
-    inputMap.caption = n++;
-  }
-  if (plan.endcardSeconds && endcardPath) {
-    args.push("-loop", "1", "-t", String(plan.endcardSeconds), "-i", endcardPath);
-    inputMap.endcard = n++;
-  }
-  if (plan.format === "SPACE_DUST" && sfxPath) {
-    args.push("-i", sfxPath);
-    inputMap.sfx = n++;
-  }
-  if (musicPath) {
-    args.push("-stream_loop", "-1", "-i", musicPath);
-    inputMap.music = n++;
-  }
-  return { args, inputMap };
-}
-
-/**
- * @param {{
- *   plan: import('./plan.mjs').CutPlan,
- *   record: { sidecar: import('./sidecar.mjs').ClipSidecar, probe?: { hasAudio?: boolean } },
- *   inputMap: { mark: number, endcard?: number, sfx?: number, music?: number },
- *   fontBold: string,
- * }} ctx
- */
-export function buildFilterComplex({ plan, record, inputMap, fontBold }) {
-  const parts = [];
-  const frame = frameChain();
-  const hasAudio = Boolean(record.probe?.hasAudio);
-  const gp = gameplayDuration(plan);
-  const wantsEndcard = Boolean(plan.endcardSeconds) && inputMap.endcard != null;
-
-  if (plan.slowMo) {
-    const segs = slowMoSegments(plan.cut, plan.slowMo);
-    const labels = segs.map((_, i) => `[v${i}]`);
-    segs.forEach((seg, i) => {
-      const pts =
-        seg.rate === 1
-          ? "setpts=PTS-STARTPTS"
-          : "setpts=PTS-STARTPTS,setpts=2*PTS";
-      parts.push(
-        `[0:v]trim=start=${seg.start}:end=${seg.end},${pts},${frame}${labels[i]}`
-      );
-    });
-    if (segs.length === 1) {
-      parts.push(`${labels[0]}null[framed]`);
-    } else {
-      parts.push(`${labels.join("")}concat=n=${segs.length}:v=1:a=0[framed]`);
-    }
-  } else {
-    parts.push(
-      `[0:v]trim=start=${plan.cut.start}:end=${plan.cut.end},setpts=PTS-STARTPTS,${frame}[framed]`
-    );
-  }
-
-  if (inputMap.caption != null) {
-    const scrim = `drawbox=x=0:y=${CANON.captionY}:w=1080:h=${CANON.captionH}:color=0x0a0a12@0.72:t=fill`;
-    parts.push(`[framed]${scrim}[vscrim]`);
-    parts.push(`[${inputMap.caption}:v]format=rgba[cap]`);
-    parts.push(`[vscrim][cap]overlay=0:0[vtext]`);
-  } else {
-    const overlays = captionFilters(plan, record.sidecar, fontBold);
-    if (plan.format === "THE_BOARD") {
-      overlays.push(scoreFilter(record.sidecar, fontBold));
-    }
-    parts.push(`[framed]${overlays.join(",")}[vtext]`);
-  }
-  parts.push(
-    `[${inputMap.mark}:v]scale=${CANON.wmW}:-1,format=rgba,colorchannelmixer=aa=${CANON.wmOpacity}[wm]`
-  );
-  parts.push(`[vtext][wm]overlay=${CANON.wmX}:${CANON.wmY}[vmarked]`);
-
-  if (wantsEndcard) {
-    const offset = Math.max(0, gp - CANON.xfade);
-    parts.push(
-      `[${inputMap.endcard}:v]scale=1080:1920,fps=30,format=yuv420p,setpts=PTS-STARTPTS[ec]`
-    );
-    parts.push(
-      `[vmarked]format=yuv420p[va];[va][ec]xfade=transition=fade:duration=${CANON.xfade}:offset=${offset}[vout]`
-    );
-  } else {
-    parts.push(`[vmarked]format=yuv420p[vout]`);
-  }
-
-  const gain = gameAudioGain(plan.format);
-  let aLast = "[agame]";
-
-  if (plan.slowMo && hasAudio) {
-    const segs = slowMoSegments(plan.cut, plan.slowMo);
-    const labels = segs.map((_, i) => `[a${i}]`);
-    segs.forEach((seg, i) => {
-      const tempo = seg.rate === 1 ? "" : ",atempo=0.5";
-      parts.push(
-        `[0:a]atrim=start=${seg.start}:end=${seg.end},asetpts=PTS-STARTPTS${tempo}${labels[i]}`
-      );
-    });
-    if (segs.length === 1) {
-      parts.push(`${labels[0]}volume=${gain}[agame]`);
-    } else {
-      parts.push(
-        `${labels.join("")}concat=n=${segs.length}:v=0:a=1,volume=${gain}[agame]`
-      );
-    }
-  } else if (hasAudio) {
-    parts.push(
-      `[0:a]atrim=start=${plan.cut.start}:end=${plan.cut.end},asetpts=PTS-STARTPTS,volume=${gain}[agame]`
-    );
-  } else {
-    parts.push(
-      `anullsrc=channel_layout=stereo:sample_rate=48000,atrim=0:${gp},asetpts=PTS-STARTPTS,volume=${gain}[agame]`
-    );
-  }
-
-  if (plan.format === "SPACE_DUST" && inputMap.sfx != null) {
-    const delayMs = Math.max(0, Math.round((gp - 0.12) * 1000));
-    parts.push(
-      `[${inputMap.sfx}:a]aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=48000,adelay=${delayMs}|${delayMs}[sfx]`
-    );
-    parts.push(
-      `[agame][sfx]amix=inputs=2:duration=first:dropout_transition=0[amixs]`
-    );
-    aLast = "[amixs]";
-  }
-
-  if (inputMap.music != null) {
-    parts.push(
-      `[${inputMap.music}:a]aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=48000,volume=0.35[amusic]`
-    );
-    parts.push(
-      `${aLast}[amusic]amix=inputs=2:duration=first:dropout_transition=0[amixm]`
-    );
-    aLast = "[amixm]";
-  }
-
-  if (wantsEndcard) {
-    const fadeStart = Math.max(0, gp - CANON.xfade);
-    const pad = Math.max(0, (plan.endcardSeconds ?? CANON.endcard) - CANON.xfade);
-    parts.push(
-      `${aLast}afade=t=out:st=${fadeStart}:d=${CANON.xfade},apad=pad_dur=${pad}[aout]`
-    );
-  } else {
-    parts.push(`${aLast}acopy[aout]`);
-  }
-
-  return parts.join(";");
+function even(n) {
+  return Math.max(2, Math.round(n) & ~1);
 }
 
 /**
@@ -323,51 +104,351 @@ export function formatCommand(args) {
 }
 
 /**
- * Build a full ffmpeg argv list. Does not run ffmpeg.
+ * @deprecated v1 helper kept for the dry-test migration window
+ */
+export function slowMoSegments(cut, slowMo) {
+  const s = Math.max(cut.start, slowMo.start);
+  const e = Math.min(cut.end, slowMo.end);
+  /** @type {{ start: number, end: number, rate: number }[]} */
+  const segs = [];
+  if (s > cut.start + 1e-4) segs.push({ start: cut.start, end: s, rate: 1 });
+  if (e > s + 1e-4) segs.push({ start: s, end: e, rate: slowMo.rate ?? 0.5 });
+  if (cut.end > e + 1e-4) segs.push({ start: e, end: cut.end, rate: 1 });
+  return segs;
+}
+
+export function gameplayDuration(plan) {
+  if (plan.sheetDuration) return plan.sheetDuration;
+  if (plan.beats) return sheetGameplayDuration(plan.beats) + FREEZE_S;
+  return plan.cut.end - plan.cut.start;
+}
+
+async function fileExists(p) {
+  try {
+    await stat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @param {import('./plan.mjs').CutPlan} plan
+ * @param {import('./sidecar.mjs').ClipSidecar} sidecar
+ * @param {number} duration
+ */
+export function sheetForPlan(plan, sidecar, duration) {
+  if (plan.beats?.length) {
+    return {
+      format: plan.format,
+      beats: plan.beats,
+      duration: plan.sheetDuration ?? sheetGameplayDuration(plan.beats) + FREEZE_S,
+      punches: plan.punches ?? [],
+      shakes: plan.shakes ?? [],
+    };
+  }
+  return buildBeatSheet(plan.format, sidecar, duration, { graze: plan.graze });
+}
+
+/**
  * @param {{
  *   plan: import('./plan.mjs').CutPlan,
- *   record: {
- *     videoPath: string,
- *     sidecar: import('./sidecar.mjs').ClipSidecar,
- *     probe?: { hasAudio?: boolean },
- *     filename?: { date?: string },
- *   },
+ *   record: { videoPath: string, sidecar: object, probe?: { width?: number, height?: number, hasAudio?: boolean, duration?: number } },
  *   outputPath: string,
  *   musicPath?: string | null,
- *   endcardPath?: string | null,
+ *   cropCmdPath: string,
+ *   assPath: string,
+ *   useLibass: boolean,
+ *   overlays: { captions: { dest: string, start: number, end: number }[], scoreCard?: string, scoreCorner?: string, scoreCardAt?: number, scoreCornerRange?: [number, number] },
+ *   sourceW: number,
+ *   sourceH: number,
+ *   initialCrop: { x: number, y: number, w: number, h: number },
+ *   sfxHits: { file: string, at: number }[],
+ *   sheet: ReturnType<typeof sheetForPlan>,
+ * }} ctx
+ */
+export function buildFilterComplex(ctx) {
+  const {
+    plan,
+    record,
+    cropCmdPath,
+    assPath,
+    useLibass,
+    overlays,
+    sourceW,
+    sourceH,
+    initialCrop,
+    sfxHits,
+    musicPath,
+    sheet,
+  } = ctx;
+  const parts = [];
+  const hasAudio = Boolean(record.probe?.hasAudio);
+  const beats = sheet.beats;
+  const gp = gameplayBeats(beats);
+  const playDur = sheetGameplayDuration(beats);
+  const freeze = FREEZE_S;
+
+  gp.forEach((b, i) => {
+    const rate = b.rate ?? 1;
+    const pts = rate === 1 ? "setpts=PTS-STARTPTS" : `setpts=PTS-STARTPTS,setpts=PTS/${rate}`;
+    parts.push(
+      `[0:v]trim=start=${b.srcStart}:end=${b.srcEnd},${pts},fps=${CANON.fps}[g${i}]`
+    );
+  });
+
+  parts.push(
+    `color=c=white:s=${sourceW}x${sourceH}:d=0.2:r=${CROP_FPS}[flash]`
+  );
+
+  const vLabels = [];
+  let gi = 0;
+  for (const b of beats) {
+    if (b.kind === "flash") {
+      parts.push(`[flash]trim=start=0:end=${(b.outEnd - b.outStart).toFixed(3)},setpts=PTS-STARTPTS[fl${vLabels.length}]`);
+      vLabels.push(`[fl${vLabels.length}]`);
+    } else if (b.kind === "gameplay" && !b.overlayOnly) {
+      vLabels.push(`[g${gi++}]`);
+    }
+  }
+  parts.push(
+    `${vLabels.join("")}concat=n=${vLabels.length}:v=1:a=0[played]`
+  );
+
+  const crop0 = `w=${even(initialCrop.w)}:h=${even(initialCrop.h)}:x=${even(initialCrop.x)}:y=${even(initialCrop.y)}`;
+  parts.push(
+    `[played]fps=${CANON.fps},sendcmd=f='${escapeFilterPath(cropCmdPath)}',crop=${crop0},scale=${CANON.width}:${CANON.height},format=yuv420p[bleed]`
+  );
+  parts.push(
+    `[bleed]tpad=stop_mode=clone:stop_duration=${freeze}[frozen]`
+  );
+
+  let vLast = "frozen";
+  let n = 0;
+  const overlayInput = (label) => {
+    const src = `[${label}]`;
+    return src;
+  };
+
+  parts.push(`[1:v]scale=${CANON.wmW}:-1,format=rgba,colorchannelmixer=aa=${CANON.wmOpacity}[wm]`);
+  parts.push(`[2:v]format=rgba[vig]`);
+
+  if (useLibass) {
+    parts.push(
+      `[${vLast}]subtitles='${escapeFilterPath(assPath)}'[vsub]`
+    );
+    vLast = "vsub";
+  } else {
+    for (const cap of overlays.captions) {
+      const tag = `c${n++}`;
+      parts.push(
+        `[${vLast}][${cap.input}:v]overlay=0:0:enable='between(t,${cap.start.toFixed(3)},${cap.end.toFixed(3)})'[${tag}]`
+      );
+      vLast = tag;
+    }
+  }
+
+  if (overlays.scoreCorner && overlays.scoreCornerInput != null) {
+    const tag = `sc${n++}`;
+    const [a, b] = overlays.scoreCornerRange ?? [1.2, 8.0];
+    parts.push(
+      `[${vLast}][${overlays.scoreCornerInput}:v]overlay=0:0:enable='between(t,${a},${b})'[${tag}]`
+    );
+    vLast = tag;
+  }
+  if (overlays.scoreCard && overlays.scoreCardInput != null) {
+    const tag = `sd${n++}`;
+    const at = overlays.scoreCardAt ?? 8.0;
+    parts.push(
+      `[${vLast}][${overlays.scoreCardInput}:v]overlay=0:0:enable='gte(t,${at})'[${tag}]`
+    );
+    vLast = tag;
+  }
+
+  for (const meme of overlays.memes ?? []) {
+    const tag = `m${n++}`;
+    const x = meme.x ?? "(W-w)/2";
+    const y = meme.y ?? "(H-h)/2-120";
+    parts.push(
+      `[${meme.input}:v]scale=${meme.w ?? 720}:-1,format=rgba[ms${tag}]`
+    );
+    parts.push(
+      `[${vLast}][ms${tag}]overlay=${x}:${y}:enable='between(t,${meme.start.toFixed(3)},${meme.end.toFixed(3)})'[${tag}]`
+    );
+    vLast = tag;
+  }
+
+  parts.push(`[${vLast}][vig]overlay=0:0[vvig]`);
+  parts.push(`[vvig][wm]overlay=${CANON.wmX}:${CANON.wmY}[vout]`);
+
+  const gain = 0.5;
+  const aSegs = [];
+  gp.forEach((b, i) => {
+    if (hasAudio) {
+      const tempo = b.rate && b.rate !== 1 ? `,atempo=${atempoFor(b.rate)}` : "";
+      parts.push(
+        `[0:a]atrim=start=${b.srcStart}:end=${b.srcEnd},asetpts=PTS-STARTPTS${tempo}[as${i}]`
+      );
+    } else {
+      const dur = b.outEnd - b.outStart;
+      parts.push(
+        `anullsrc=channel_layout=stereo:sample_rate=48000,atrim=0:${dur.toFixed(3)},asetpts=PTS-STARTPTS[as${i}]`
+      );
+    }
+    aSegs.push(`[as${i}]`);
+  });
+
+  const flashBeats = beats.filter((b) => b.kind === "flash");
+  flashBeats.forEach((b, i) => {
+    parts.push(
+      `anullsrc=channel_layout=stereo:sample_rate=48000,atrim=0:${(b.outEnd - b.outStart).toFixed(3)},asetpts=PTS-STARTPTS[af${i}]`
+    );
+  });
+
+  const aConcat = [];
+  let ai = 0;
+  let fi = 0;
+  for (const b of beats) {
+    if (b.kind === "flash") aConcat.push(`[af${fi++}]`);
+    else if (b.kind === "gameplay" && !b.overlayOnly) aConcat.push(aSegs[ai++]);
+  }
+  parts.push(
+    `${aConcat.join("")}concat=n=${aConcat.length}:v=0:a=1,volume=${gain},apad=pad_dur=${freeze}[agame]`
+  );
+
+  let aLast = "agame";
+  sfxHits.forEach((hit, i) => {
+    const ms = Math.max(0, Math.round(hit.at * 1000));
+    parts.push(
+      `[${hit.input}:a]aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=48000,adelay=${ms}|${ms}[sfx${i}]`
+    );
+  });
+  if (sfxHits.length) {
+    const inputs = [`[${aLast}]`, ...sfxHits.map((_, i) => `[sfx${i}]`)].join("");
+    parts.push(
+      `${inputs}amix=inputs=${sfxHits.length + 1}:duration=first:dropout_transition=0:normalize=0[amixs]`
+    );
+    aLast = "amixs";
+  }
+
+  if (musicPath && ctx.musicInput != null) {
+    parts.push(
+      `[${ctx.musicInput}:a]aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=48000,volume=0.35[amusic]`
+    );
+    parts.push(
+      `[${aLast}][amusic]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[amixm]`
+    );
+    aLast = "amixm";
+  }
+
+  parts.push(`[${aLast}]atrim=0:${(playDur + freeze).toFixed(3)},asetpts=PTS-STARTPTS[aout]`);
+
+  void overlayInput;
+  void plan;
+  return parts.join(";");
+}
+
+/**
+ * @param {{
+ *   plan: import('./plan.mjs').CutPlan,
+ *   record: object,
+ *   outputPath: string,
+ *   musicPath?: string | null,
+ *   cropCmdPath: string,
+ *   assPath: string,
+ *   useLibass?: boolean,
+ *   overlayFiles?: object,
+ *   sourceW: number,
+ *   sourceH: number,
+ *   cropPath: ReturnType<typeof precomputeCropPath>,
+ *   sheet: ReturnType<typeof sheetForPlan>,
  * }} opts
  */
-export function buildFfmpegCommand({
-  plan,
-  record,
-  outputPath,
-  musicPath = null,
-  endcardPath = null,
-  captionPng = null,
-}) {
-  const date = record.filename?.date ?? "unknown";
-  const resolvedEndcard =
-    endcardPath ?? (plan.endcardSeconds ? endcardCachePath(date) : null);
-  const { args: inputArgs, inputMap } = buildInputArgs({
-    videoPath: record.videoPath,
-    markPath: ASSETS.mark,
-    endcardPath: resolvedEndcard,
-    sfxPath: ASSETS.sfxImpact,
-    musicPath,
-    captionPng,
+export function buildFfmpegCommand(opts) {
+  const {
     plan,
-  });
+    record,
+    outputPath,
+    musicPath = null,
+    cropCmdPath,
+    assPath,
+    useLibass = false,
+    overlayFiles = { captions: [] },
+    sourceW,
+    sourceH,
+    cropPath,
+    sheet,
+  } = opts;
+
+  const args = ["ffmpeg", "-hide_banner", "-y", "-i", record.videoPath, "-i", ASSETS.mark, "-i", MEME.vignette];
+  const inputMap = { video: 0, mark: 1, vig: 2 };
+  let n = 3;
+
+  const captions = [];
+  if (!useLibass) {
+    for (const cap of overlayFiles.captions ?? []) {
+      args.push("-i", cap.dest);
+      captions.push({ ...cap, input: n++ });
+    }
+  }
+
+  let scoreCornerInput;
+  let scoreCardInput;
+  if (overlayFiles.scoreCorner) {
+    args.push("-i", overlayFiles.scoreCorner);
+    scoreCornerInput = n++;
+  }
+  if (overlayFiles.scoreCard) {
+    args.push("-i", overlayFiles.scoreCard);
+    scoreCardInput = n++;
+  }
+
+  const memes = [];
+  for (const meme of overlayFiles.memes ?? []) {
+    args.push("-i", meme.path);
+    memes.push({ ...meme, input: n++ });
+  }
+
+  const sfxHits = [];
+  for (const hit of overlayFiles.sfxHits ?? []) {
+    args.push("-i", hit.file);
+    sfxHits.push({ ...hit, input: n++ });
+  }
+
+  let musicInput;
+  if (musicPath) {
+    args.push("-stream_loop", "-1", "-i", musicPath);
+    musicInput = n++;
+  }
+
+  const overlays = {
+    captions,
+    memes,
+    scoreCard: overlayFiles.scoreCard,
+    scoreCorner: overlayFiles.scoreCorner,
+    scoreCardInput,
+    scoreCornerInput,
+    scoreCardAt: overlayFiles.scoreCardAt,
+    scoreCornerRange: overlayFiles.scoreCornerRange,
+  };
+
   const filterComplex = buildFilterComplex({
     plan,
     record,
-    inputMap,
-    fontBold: ASSETS.fontBold,
+    cropCmdPath,
+    assPath,
+    useLibass,
+    overlays,
+    sourceW,
+    sourceH,
+    initialCrop: cropPath.frames[0],
+    sfxHits,
+    musicPath,
+    musicInput,
+    sheet,
   });
-  const args = [
-    "ffmpeg",
-    "-hide_banner",
-    "-y",
-    ...inputArgs,
+
+  args.push(
     "-filter_complex",
     filterComplex,
     "-map",
@@ -390,9 +471,43 @@ export function buildFfmpegCommand({
     "192k",
     "-movflags",
     "+faststart",
-    outputPath,
-  ];
-  return { args, filterComplex, inputMap };
+    outputPath
+  );
+
+  return { args, filterComplex, inputMap, cropMode: cropPath.mode };
+}
+
+function collectSfxHits(sheet) {
+  /** @type {{ file: string, at: number, name: string }[]} */
+  const hits = [];
+  for (const b of sheet.beats) {
+    for (const s of b.sfx ?? []) {
+      const file = SFX_FILES[s.name];
+      if (file) hits.push({ file, at: s.at, name: s.name });
+    }
+  }
+  return hits;
+}
+
+function collectMemes(sheet) {
+  /** @type {{ name: string, path: string, start: number, end: number, w?: number }[]} */
+  const out = [];
+  for (const b of sheet.beats) {
+    for (const name of b.memes ?? []) {
+      const file = path.join(ASSETS.memes, `${name}.png`);
+      const hold = Math.min(1.2, Math.max(0.6, b.outEnd - b.outStart));
+      let start = b.outStart;
+      if (name === "red-circle") start = Math.max(b.outStart, 5.2);
+      out.push({
+        name,
+        path: file,
+        start,
+        end: Math.min(b.outEnd, start + hold),
+        w: name === "red-circle" ? 420 : name === "rip" ? 360 : 780,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -431,45 +546,90 @@ export async function renderEdit({
   plan,
   record,
   outputPath,
-  musicPath = null,
+  musicPath,
   dry = false,
 }) {
   await mkdir(path.dirname(outputPath), { recursive: true });
-  const date = record.filename?.date ?? "unknown";
-  let endcardPath = null;
-  if (plan.endcardSeconds) {
-    if (dry) {
-      try {
-        endcardPath = await ensureEndcard(record.sidecar, date);
-      } catch {
-        endcardPath = endcardCachePath(date);
-      }
-    } else {
-      endcardPath = await ensureEndcard(record.sidecar, date);
-    }
-  }
+  const sourceW = record.probe?.width ?? 1920;
+  const sourceH = record.probe?.height ?? 1080;
+  const duration = record.probe?.duration ?? plan.cut.end;
+  const sheet = sheetForPlan(plan, record.sidecar, duration);
 
-  let captionPng = null;
-  if (!(await ffmpegHasDrawtext())) {
-    captionPng = await ensureCaptionOverlayPng(plan, record.sidecar);
+  let resolvedMusic = musicPath;
+  if (resolvedMusic === undefined && plan.format === "THE_BOARD") {
+    const candidate = defaultBoardMusic();
+    resolvedMusic = (await fileExists(candidate)) ? candidate : null;
+  }
+  if (!resolvedMusic) resolvedMusic = null;
+
+  const crop = precomputeCropPath({
+    duration: sheetGameplayDuration(sheet.beats),
+    sourceW,
+    sourceH,
+    sidecar: record.sidecar,
+    graze: plan.graze,
+    punches: sheet.punches,
+    shakes: sheet.shakes,
+    sourceTimeAt: (t) => sourceTimeAt(sheet.beats, t),
+  });
+
+  const cacheDir = path.join(OUT_DIR, ".cache", "v2");
+  await mkdir(cacheDir, { recursive: true });
+  const cropCmdPath = path.join(cacheDir, `${plan.format}.crop.txt`);
+  const assPath = path.join(cacheDir, `${plan.format}.ass`);
+  await writeFile(cropCmdPath, sendcmdFromPath(crop.frames));
+  await writeFile(assPath, buildAss(textEvents(sheet.beats)));
+
+  const useLibass = await ffmpegHasLibass();
+  const events = textEvents(sheet.beats);
+  const wantsCard = sheet.beats.some((b) => b.scoreCard);
+  const wantsCorner = sheet.beats.some((b) => b.scoreOdometer);
+
+  let overlayFiles = { captions: [], memes: collectMemes(sheet), sfxHits: [] };
+  for (const hit of collectSfxHits(sheet)) {
+    if (await fileExists(hit.file)) overlayFiles.sfxHits.push(hit);
+  }
+  overlayFiles.memes = overlayFiles.memes.filter((m) => true);
+
+  if (!useLibass || wantsCard || wantsCorner) {
+    const pngs = await ensureBeatOverlayPngs(events, record.sidecar, {
+      scoreCard: wantsCard,
+      scoreCorner: wantsCorner,
+    });
+    overlayFiles.captions = (pngs.captions ?? []).map((c, i) => ({
+      dest: c.dest,
+      start: events[i].start,
+      end: events[i].end,
+    }));
+    overlayFiles.scoreCard = pngs.scoreCard;
+    overlayFiles.scoreCorner = pngs.scoreCorner;
+    overlayFiles.scoreCardAt = sheet.beats.find((b) => b.scoreCard)?.outStart;
+    const od = sheet.beats.find((b) => b.scoreOdometer);
+    if (od) overlayFiles.scoreCornerRange = [od.outStart, od.outEnd];
   }
 
   const built = buildFfmpegCommand({
     plan,
     record,
     outputPath,
-    musicPath,
-    endcardPath,
-    captionPng,
+    musicPath: resolvedMusic,
+    cropCmdPath,
+    assPath,
+    useLibass,
+    overlayFiles,
+    sourceW,
+    sourceH,
+    cropPath: crop,
+    sheet,
   });
 
   if (dry) {
-    return built;
+    return { ...built, assPath, cropCmdPath, useLibass, cropMode: crop.mode };
   }
 
   const ffArgs = built.args.slice(1);
   await runFfmpeg(ffArgs);
-  return { ...built, outputPath };
+  return { ...built, outputPath, assPath, useLibass, cropMode: crop.mode };
 }
 
 function parseCli(argv) {
@@ -492,43 +652,42 @@ function parseCli(argv) {
   return out;
 }
 
-function closeCallDemoPlan() {
-  return {
-    format: /** @type {const} */ ("CLOSE_CALL"),
-    sourceBasename: "demo",
-    cut: { start: 4, end: 14 },
-    slowMo: { start: 9.6, end: 10.6, rate: 0.5 },
-    graze: { time: 10, clearance: 0.05 },
-  };
-}
-
-function closeCallDemoRecord() {
-  return {
-    videoPath: path.join(REPO_ROOT, "fixtures", "demo.webm"),
-    sidecar: {
-      day: 1,
-      mutatorIds: ["arsenal"],
-      mutatorNames: ["ARSENAL"],
-      score: 100,
-      medal: null,
-      survivalTime: 60,
-      closestCall: null,
-      topGrazes: [],
-    },
-    probe: { width: 1920, height: 1080, duration: 60, fps: 30, hasAudio: true },
-    filename: { date: "2026-08-25" },
-  };
-}
-
 async function main(argv) {
   const cli = parseCli(argv);
 
   if (cli.closeCallDemo) {
-    const built = buildFfmpegCommand({
-      plan: closeCallDemoPlan(),
-      record: closeCallDemoRecord(),
+    const sidecar = {
+      day: 10,
+      mutatorIds: ["pit"],
+      mutatorNames: ["THE PIT"],
+      score: 8000,
+      medal: null,
+      survivalTime: 45,
+      closestCall: { time: 10.5, x: 1, y: 2, clearance: 0.05 },
+      topGrazes: [{ time: 10.5, clearance: 0.05 }],
+    };
+    const plan = {
+      format: /** @type {const} */ ("CLOSE_CALL"),
+      sourceBasename: "demo",
+      cut: { start: 4.5, end: 14.5 },
+      graze: { time: 10.5, clearance: 0.05, x: 1, y: 2 },
+    };
+    const sheet = buildBeatSheet("CLOSE_CALL", sidecar, 50, { graze: plan.graze });
+    plan.beats = sheet.beats;
+    plan.sheetDuration = sheet.duration;
+    plan.punches = sheet.punches;
+    plan.shakes = sheet.shakes;
+    const built = await renderEdit({
+      plan,
+      record: {
+        videoPath: path.join(REPO_ROOT, "fixtures", "demo.webm"),
+        sidecar,
+        probe: { width: 1920, height: 1080, duration: 50, fps: 30, hasAudio: true },
+        filename: { date: "2026-08-21" },
+      },
       outputPath: path.join(GOLDEN_DIR, "CLOSE_CALL_demo.mp4"),
       musicPath: cli.music,
+      dry: true,
     });
     console.log(formatCommand(built.args));
     return;

@@ -107,34 +107,18 @@ fixture sidecars (day43 real one + hand-written edge cases: 8s death, Sunday dou
 
 ## Phase B: rendering (ffmpeg)
 
-One canonical output: 1080x1920, H.264 high, yuv420p, CRF 19, 30fps, AAC audio. Recipe, in
-order:
+**v2 grammar lives in `EDITING.md`.** That file replaces this section's v1 recipe (letterbox
+pad, static caption band, 22s patrol, fade-out endcard). Everything else in this SPEC stands.
 
-1. **Frame**: scale input to fit 1080 width (game clips are landscape or portrait; never
-   crop gameplay). Pad to 1080x1920 with Void `#0a0a12`; the game background blends into it.
-   Vertical position: gameplay centered at 46% height (leaves the caption band clear).
-2. **Slow-mo** (CLOSE CALL only): three-segment `trim` + `setpts` + `concat`. Audio gets the
-   matching `atempo`.
-3. **Caption band**: `drawtext` with vendored Rajdhani Bold on a Void scrim
-   (`drawbox` alpha 0.72) in the top safe area (y approximately 180-300). Text comes from
-   captions.mjs, max 2 lines, Starlight `#fff7e0`; mutator names in Alarm `#ff4455` via a
-   second drawtext. Never raw text over gameplay.
-4. **Watermark**: mark PNG, width 64px, bottom-right at (1080-64-36, 1920-64-320), opacity
-   0.6. Inside every platform's safe zone.
-5. **Score burn** (THE BOARD only): `drawtext` of the formatted score, Rajdhani 700, gold,
-   tabular position, bottom third.
-6. **Endcard** (THE BOARD, TODAY'S PATROL): 1.5s of the vertical cover template PNG with the
-   day's `{{HOOK_LINE1/2}}`/`{{TAG}}` filled (render the SVG via the same headless-Chromium
-   trick as the kit's export script, cached per day), crossfade 0.25s.
-7. **Audio**: game audio at 0.85 for CLOSE CALL/THE BOARD/TODAY'S PATROL. SPACE DUST: game
-   audio 0.5 plus one SFX from `assets/sfx/` at the death frame. A `--music <track>` flag can
-   bed a Suno track at 0.35 under any format. Never bake third-party meme audio; that is
-   attached in-app at publish time (see SOCIAL.md sound rules).
+Canonical output is still 1080x1920, H.264 high, yuv420p, CRF 19, 30fps, AAC. Five laws:
+full-bleed crop (never letterbox/pad), cold open on the peak, visual velocity every 2.5s,
+ramp the moment, end into the loop (freeze CTA, no fade out). Duration caps: SPACE DUST
+6-9s · CLOSE CALL 8-11s · THE BOARD 9-12s · TODAY'S PATROL 10-14s.
 
-`edit.mjs` builds the filtergraph from the CutPlan; a `--dry` flag prints the ffmpeg command
-without running. Golden-run script `npm run golden` renders all eligible formats for the
-day43 fixture and writes them to `out/golden/` for eyeball review; it is the Phase B
-acceptance gate.
+`edit.mjs` builds the filtergraph from the CutPlan + beat sheet; `--dry` prints the ffmpeg
+command without running. `npm run golden` re-renders day43 eligible formats plus one
+synthetic CLOSE CALL from `test/fixtures` into `out/golden/`. The pipeline never writes
+`out/approved/`.
 
 ## Phase C: captions, thumbnail, queue
 
@@ -235,9 +219,9 @@ DEFAULT_PRIVACY=public    # set to private for the first test uploads
 ## Acceptance for "v1 done"
 
 1. `npm test` green.
-2. `npm run golden` renders CLOSE CALL, THE BOARD and TODAY'S PATROL from the day43 fixture
-   (it is not SPACE DUST eligible) and they look right by eye: framing, caption band, slow-mo
-   moment, watermark, endcard.
+2. `npm run golden` re-renders THE BOARD and TODAY'S PATROL from the day43 fixture (empty
+   grazes: no CLOSE CALL, not SPACE DUST) plus one synthetic CLOSE CALL from `test/fixtures`.
+   Checklist is in `EDITING.md` (full-bleed, hook in 0.5s, velocity, ramp, freeze CTA).
 3. `npm run batch` on an inbox of two runs produces a clean queue + REVIEW.md.
 4. One real YouTube upload with `DEFAULT_PRIVACY=private` succeeds end to end, thumbnail
    included, and is visible in Studio.

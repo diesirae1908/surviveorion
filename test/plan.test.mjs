@@ -38,16 +38,17 @@ describe("cut plan math", () => {
     assert.equal(cut.end, 60);
   });
 
-  it("SPACE DUST uses whole run when duration <= 12s", () => {
+  it("SPACE DUST uses whole run when duration <= 9s", () => {
     assert.deepEqual(spaceDustCut(8), { start: 0, end: 8 });
-    assert.deepEqual(spaceDustCut(12), { start: 0, end: 12 });
+    assert.deepEqual(spaceDustCut(9), { start: 0, end: 9 });
   });
 
-  it("SPACE DUST uses last 8s when duration > 12s", () => {
+  it("SPACE DUST uses last 8s when duration > 9s", () => {
     assert.deepEqual(spaceDustCut(30), { start: 22, end: 30 });
+    assert.deepEqual(spaceDustCut(12), { start: 4, end: 12 });
   });
 
-  it("THE BOARD last 12s plus endcard flag", () => {
+  it("THE BOARD last 10s, no endcard, crop v2.0", () => {
     const plans = buildCutPlans({
       sourceBasename: "test",
       sidecar: {
@@ -65,13 +66,16 @@ describe("cut plan math", () => {
     });
     const board = plans.find((p) => p.format === "THE_BOARD");
     assert.ok(board);
-    assert.deepEqual(board.cut, { start: 88, end: 100 });
-    assert.equal(board.endcardSeconds, 1.5);
+    assert.deepEqual(board.cut, { start: 90, end: 100 });
+    assert.equal(board.endcardSeconds, undefined);
+    assert.equal(board.cropMode, "v2.0");
+    assert.ok(board.sheetDuration <= 12);
+    assert.ok(board.sheetDuration >= 9);
   });
 
-  it("TODAY'S PATROL first 22s", () => {
-    assert.deepEqual(todaysPatrolCut(60), { start: 0, end: 22 });
-    assert.deepEqual(todaysPatrolCut(15), { start: 0, end: 15 });
+  it("TODAY'S PATROL first 10s (v1 22s retired)", () => {
+    assert.deepEqual(todaysPatrolCut(60), { start: 0, end: 10 });
+    assert.deepEqual(todaysPatrolCut(8), { start: 0, end: 8 });
   });
 });
 

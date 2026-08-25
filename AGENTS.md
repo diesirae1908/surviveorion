@@ -25,12 +25,12 @@ clips plus JSON sidecars from `orion-web`.
 - `fixtures/` test media; large `.webm`/`.mp4` are local-only (see `fixtures/README.md`).
 - `src/harvest.mjs` ffprobe + sidecar parse.
 - `src/plan.mjs` pure cut-plan math (unit-tested).
-- `src/captions.mjs` on-video burn-in templates (Phase B). Platform .txt files are Phase C.
-- `src/edit.mjs` CutPlan -> ffmpeg. `src/endcard.mjs` cover SVG -> PNG (playwright, cached per day).
+- `src/beats.mjs` / `src/crop.mjs` / `src/ass.mjs` Phase B v2 (EDITING.md). Platform .txt files are Phase C.
+- `src/edit.mjs` CutPlan + beat sheet -> ffmpeg. Full-bleed crop, freeze CTA. `src/endcard.mjs` unused in v2.
 - Queue, thumbnails, posting: later phases per SPEC.
 
 ## Commands
 
 - `npm test` unit tests (parsing, cut plans, captions, dry filtergraph).
-- `npm run golden` Phase B acceptance: render day43 eligible formats to `out/golden/`.
+- `npm run golden` Phase B v2: day43 THE BOARD + TODAY'S PATROL, plus synthetic CLOSE CALL, to `out/golden/`.
 - `npm run extract-mutators` refresh `assets/mutators.json` from a local orion-web checkout.

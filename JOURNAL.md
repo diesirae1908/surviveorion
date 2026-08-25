@@ -1,5 +1,21 @@
 # JOURNAL
 
+## 2026-08-25 (Aug 24 ~10:32 PM PT): Phase B v2 grammar + day43 goldens
+
+- Copied V2 pack: `EDITING.md`, `HOOKS.md`, `assets/memes/` (16 PNG + LICENSE), `assets/brand/fonts/Anton-Regular.ttf` (OFL, keep Rajdhani), `scripts/make-meme-overlays.cjs` (paths pointed at `assets/`). SPEC.md Phase B now points at EDITING.md; v1 letterbox recipe dropped.
+- Crop engine **v2.0** (day43 JSON has no `track`/`arena`/`view`): CLOSE CALL anchors graze world x,y; others arena-center + 6%/s push-in; clamp; 400ms ease. Precomputed sendcmd+crop. v2.1 path is wired if those fields appear later.
+- Beat sheets from EDITING.md. Caps: SPACE DUST 6-9 / CLOSE CALL 8-11 / THE BOARD 9-12 / TODAY'S PATROL 10-14. v1 22s patrol retired. Freeze CTA, no fade-out endcard.
+- Captions: always write `.ass` (`out/.cache/v2/`). Homebrew ffmpeg 8.1.2 has **no libass** (and no drawtext); goldens used PNG overlay fallback.
+- Sound: game ducked 6 dB under original CC0 SFX (riser/boom/rewind/whoosh/wah/braam). THE BOARD beds `orion-web/public/music/empire-of-the-stars.mp3` at 0.35 (`assets/music/README.md` symlink note). No third-party meme audio.
+- day43 sidecar untouched: `topGrazes: []`, `closestCall: null`. Eligible THE BOARD + TODAY'S PATROL only. Synthetic CLOSE CALL from `test/fixtures/orion_2026-08-21_day10_pit_8000.json` (graze t=10.5, x=1, y=2, clearance 0.05) over the day43 video.
+- **Goldens** (`out/golden/`, gitignored):
+  - `THE_BOARD.mp4` 9.900s, 1080x1920, H.264 High, 30fps, AAC (4.4MB)
+  - `TODAYS_PATROL.mp4` 11.400s, same codec (2.1MB)
+  - `CLOSE_CALL.mp4` 9.600s, same codec (2.0MB)
+- day43 beat sheets: BOARD `{score}. one life.` / still alive somehow / score card / `same seed as you.`; PATROL `ARSENAL DAY` / `double the pickups.` / everyone flies this exact run / `3 attempts. free.` / `your move, pilot`.
+- `npm test`: 48/48 pass (crop-path + beat-sheet math covered).
+- Nothing posted. Nothing in `out/approved/` (dir absent). No remote, no push. Stopped for review. No Phase C/D.
+
 ## 2026-08-25 (Aug 24 ~9:47 PM PT): Phase B rendering + day43 golden
 
 - Real day43 sidecar dropped by Lucas (not reconstructed). `topGrazes: []`, `closestCall: null`, `survivalTime: 270`, gold / 3,490,380. JSON committed; webm stays gitignored.

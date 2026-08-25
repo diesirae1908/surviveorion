@@ -26,18 +26,18 @@ describe("captions", () => {
     assert.doesNotThrow(() => assertNoEmDash("foo - bar"));
   });
 
-  it("THE BOARD burn-in is two lines, no em dash", () => {
+  it("THE BOARD beat-1 hook is the score, no em dash", () => {
     const cap = videoCaption("THE_BOARD", day43);
     assert.ok(cap.lines.length <= 2);
     assert.match(cap.lines[0], /3,490,380/);
+    assert.match(cap.lines[0], /one life/);
     assert.ok(!cap.lines.join(" ").includes("\u2014"));
   });
 
-  it("TODAY'S PATROL uses ARSENAL subline and Alarm-ready mutator name", () => {
+  it("TODAY'S PATROL beat-1 is ARSENAL DAY", () => {
     const cap = videoCaption("TODAYS_PATROL", day43);
     assert.ok(cap.lines.length <= 2);
-    assert.match(cap.lines[0], /ARSENAL/);
-    assert.match(cap.lines[1], /twice as often/);
+    assert.equal(cap.lines[0], "ARSENAL DAY");
     assert.deepEqual(cap.mutatorNames, ["ARSENAL"]);
   });
 

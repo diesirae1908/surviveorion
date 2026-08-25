@@ -1,5 +1,6 @@
 /**
- * On-video caption burn-in (Phase B). Platform caption files are Phase C.
+ * On-video caption helpers (Phase B v2). Beat text lives in beats.mjs / HOOKS.md.
+ * Platform caption files are Phase C.
  */
 
 import { readFileSync } from "node:fs";
@@ -100,15 +101,15 @@ export function estimateRajdhaniWidth(text, fontSize) {
  * @param {string[]} lines
  * @param {number} [maxWidth]
  */
-export function fitFontSize(lines, maxWidth = 1000) {
-  let size = 38;
-  while (size > 22) {
+export function fitFontSize(lines, maxWidth = 1000, start = 96) {
+  let size = start;
+  while (size > 48) {
     if (lines.every((line) => estimateRajdhaniWidth(line, size) <= maxWidth)) {
       return size;
     }
-    size -= 1;
+    size -= 2;
   }
-  return 22;
+  return 48;
 }
 
 /**
@@ -117,34 +118,23 @@ export function fitFontSize(lines, maxWidth = 1000) {
  * @param {{ graze?: { clearance: number } }} [extras]
  */
 export function videoCaption(format, sidecar, extras = {}) {
-  const mutator = sidecar.mutatorNames[0] || "";
-  const subline = sublineFor(sidecar.mutatorIds[0]);
+  const mutator = sidecar.mutatorNames[0] || "PATROL";
 
   /** @type {string[]} */
   let lines = [];
   if (format === "THE_BOARD") {
-    lines = [
-      `${formatScore(sidecar.score)} on Day ${sidecar.day}.`,
-      "Same seed as everyone else. That is the whole point.",
-    ];
+    lines = [`${formatScore(sidecar.score)}. one life.`];
   } else if (format === "TODAYS_PATROL") {
-    lines = [
-      `Today every pilot on earth flies ${mutator}:`,
-      subline,
-    ];
+    lines = [`${mutator} DAY`];
   } else if (format === "CLOSE_CALL") {
     const pct = extras.graze
-      ? Math.max(0, Math.round(extras.graze.clearance * 100))
-      : 0;
-    lines = [
-      `${pct}% of a hull between him and deletion.`,
-      `Day ${sidecar.day}${mutator ? `, ${mutator}` : ""}.`,
-    ];
+      ? (extras.graze.clearance * 100).toFixed(1)
+      : "0.0";
+    lines = Number(pct) <= 8
+      ? [`${pct}% FROM DEATH`]
+      : [`DEATH MISSED BY`, `${pct}%`];
   } else if (format === "SPACE_DUST") {
-    lines = [
-      `Day ${sidecar.day} attempt: ${Math.round(sidecar.survivalTime)}s.`,
-      "The daily patrol is undefeated.",
-    ];
+    lines = [`day ${sidecar.day}: ${Math.round(sidecar.survivalTime)} SECONDS`];
   } else {
     throw new Error(`Unknown format for caption: ${format}`);
   }
@@ -155,7 +145,7 @@ export function videoCaption(format, sidecar, extras = {}) {
   return {
     lines,
     mutatorNames: sidecar.mutatorNames,
-    fontSize: fitFontSize(lines),
+    fontSize: fitFontSize(lines, 1000, 96),
   };
 }
 

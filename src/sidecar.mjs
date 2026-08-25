@@ -105,7 +105,48 @@ export function parseSidecar(raw, basename) {
     survivalTime: o.survivalTime,
     closestCall,
     topGrazes,
+    ...parseOptionalTrack(o, prefix),
   };
+}
+
+/**
+ * v2.1 fields. Missing is fine (crop engine uses v2.0 fallbacks).
+ * Present but wrong shape fails loudly.
+ * @param {Record<string, unknown>} o
+ * @param {string} prefix
+ */
+function parseOptionalTrack(o, prefix) {
+  /** @type {{ track?: [number, number, number][], arena?: { w: number, h: number }, view?: { w: number, h: number } }} */
+  const extra = {};
+  if (o.track !== undefined) {
+    if (!Array.isArray(o.track)) {
+      throw new Error(`${prefix}: track must be an array`);
+    }
+    extra.track = o.track.map((row, i) => {
+      if (!Array.isArray(row) || row.length < 3 || row.some((n) => typeof n !== "number")) {
+        throw new Error(`${prefix}: track[${i}] must be [t,x,y] numbers`);
+      }
+      return /** @type {[number, number, number]} */ ([row[0], row[1], row[2]]);
+    });
+  }
+  if (o.arena !== undefined) {
+    extra.arena = parseSize(o.arena, `${prefix}: arena`);
+  }
+  if (o.view !== undefined) {
+    extra.view = parseSize(o.view, `${prefix}: view`);
+  }
+  return extra;
+}
+
+function parseSize(raw, label) {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error(`${label} must be {w,h}`);
+  }
+  const s = /** @type {Record<string, unknown>} */ (raw);
+  if (typeof s.w !== "number" || typeof s.h !== "number") {
+    throw new Error(`${label} fields w,h must be numbers`);
+  }
+  return { w: s.w, h: s.h };
 }
 
 /**

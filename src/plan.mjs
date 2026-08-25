@@ -2,6 +2,9 @@
  * Pure cut-plan math from a RunRecord.
  */
 
+import { buildBeatSheet } from "./beats.mjs";
+import { resolveCropMode } from "./crop.mjs";
+
 /** @typedef {'CLOSE_CALL'|'SPACE_DUST'|'THE_BOARD'|'TODAYS_PATROL'} FormatId */
 
 /**
@@ -23,13 +26,14 @@
  * @property {string} sourceBasename
  * @property {CutSegment} cut
  * @property {SlowMoSegment} [slowMo]
- * @property {number} [endcardSeconds]
- * @property {{ time: number, clearance: number }} [graze]
+ * @property {{ time: number, clearance: number, x?: number, y?: number }} [graze]
+ * @property {import('./beats.mjs').Beat[]} [beats]
+ * @property {number} [sheetDuration]
+ * @property {'v2.0'|'v2.1'} cropMode
  */
 
 const CLOSE_CALL_MAX = 2;
 const CLOSE_CALL_CLEARANCE = 0.15;
-const ENCARD_SECONDS = 1.5;
 
 /**
  * @param {import('./sidecar.mjs').ClipSidecar} sidecar
@@ -45,7 +49,11 @@ export function eligibleCloseCallGrazes(sidecar) {
       const key = `${g.time}:${g.clearance}`;
       if (!seen.has(key)) {
         seen.add(key);
-        grazes.push(g);
+        grazes.push({
+          time: g.time,
+          clearance: g.clearance,
+          ...(g.x != null && g.y != null ? { x: g.x, y: g.y } : {}),
+        });
       }
     }
   }
@@ -54,12 +62,22 @@ export function eligibleCloseCallGrazes(sidecar) {
     const c = sidecar.closestCall;
     const key = `${c.time}:${c.clearance}`;
     if (!seen.has(key)) {
-      grazes.push({ time: c.time, clearance: c.clearance });
+      grazes.push({ time: c.time, clearance: c.clearance, x: c.x, y: c.y });
     }
   }
 
   grazes.sort((a, b) => a.clearance - b.clearance || a.time - b.time);
-  return grazes.slice(0, CLOSE_CALL_MAX);
+  const top = grazes.slice(0, CLOSE_CALL_MAX);
+  if (sidecar.closestCall) {
+    const c = sidecar.closestCall;
+    for (const g of top) {
+      if (g.x == null && g.time === c.time) {
+        g.x = c.x;
+        g.y = c.y;
+      }
+    }
+  }
+  return top;
 }
 
 /**
@@ -86,29 +104,31 @@ export function closeCallCut(t, end) {
  * @returns {CutSegment}
  */
 export function spaceDustCut(duration) {
-  if (duration <= 12) {
+  if (duration <= 9) {
     return { start: 0, end: duration };
   }
   return { start: Math.max(0, duration - 8), end: duration };
 }
 
 /**
+ * Last ~10s of source (v2 board stretch + death). No endcard.
  * @param {number} duration
  * @returns {CutSegment}
  */
 export function theBoardCut(duration) {
   return {
-    start: Math.max(0, duration - 12),
+    start: Math.max(0, duration - 10),
     end: duration,
   };
 }
 
 /**
+ * Representative first stretch. v1 22s patrol is retired.
  * @param {number} duration
  * @returns {CutSegment}
  */
 export function todaysPatrolCut(duration) {
-  return { start: 0, end: Math.min(22, duration) };
+  return { start: 0, end: Math.min(10, duration) };
 }
 
 /**
@@ -152,41 +172,64 @@ export function isTodaysPatrolEligible(sidecar, isFirstOfUtcDay) {
 export function buildCutPlans({ sourceBasename, sidecar, duration, isFirstOfUtcDay = false }) {
   /** @type {CutPlan[]} */
   const plans = [];
+  const cropMode = resolveCropMode(sidecar);
 
   for (const graze of eligibleCloseCallGrazes(sidecar)) {
     const { cut, slowMo } = closeCallCut(graze.time, duration);
+    const sheet = buildBeatSheet("CLOSE_CALL", sidecar, duration, { graze });
     plans.push({
       format: "CLOSE_CALL",
       sourceBasename,
       cut,
       slowMo,
       graze,
+      beats: sheet.beats,
+      sheetDuration: sheet.duration,
+      punches: sheet.punches,
+      shakes: sheet.shakes,
+      cropMode,
     });
   }
 
   if (isSpaceDustEligible(sidecar)) {
+    const sheet = buildBeatSheet("SPACE_DUST", sidecar, duration);
     plans.push({
       format: "SPACE_DUST",
       sourceBasename,
       cut: spaceDustCut(duration),
+      beats: sheet.beats,
+      sheetDuration: sheet.duration,
+      punches: sheet.punches,
+      shakes: sheet.shakes,
+      cropMode,
     });
   }
 
   if (isTheBoardEligible(sidecar)) {
+    const sheet = buildBeatSheet("THE_BOARD", sidecar, duration);
     plans.push({
       format: "THE_BOARD",
       sourceBasename,
       cut: theBoardCut(duration),
-      endcardSeconds: ENCARD_SECONDS,
+      beats: sheet.beats,
+      sheetDuration: sheet.duration,
+      punches: sheet.punches,
+      shakes: sheet.shakes,
+      cropMode,
     });
   }
 
   if (isTodaysPatrolEligible(sidecar, isFirstOfUtcDay)) {
+    const sheet = buildBeatSheet("TODAYS_PATROL", sidecar, duration);
     plans.push({
       format: "TODAYS_PATROL",
       sourceBasename,
       cut: todaysPatrolCut(duration),
-      endcardSeconds: ENCARD_SECONDS,
+      beats: sheet.beats,
+      sheetDuration: sheet.duration,
+      punches: sheet.punches,
+      shakes: sheet.shakes,
+      cropMode,
     });
   }
 
