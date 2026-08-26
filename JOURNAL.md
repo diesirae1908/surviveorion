@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: player feedback fixes LIVE
+
+- Lucas approved deploy. Merged `sam/feedback-aug26` → main (`e1e1abc`,
+  `--no-ff`). Pushed `origin/main`; Render auto-deployed `surviveorion`.
+- Live bundle flipped `index-H0A3VNmC.js` → `index-B5mS0Bc1.js` (~1 min after
+  push; brief 502 mid-deploy). HTTP 200 confirmed.
+
 ## 2026-08-26: player feedback fixes from admin queue (branch `sam/feedback-aug26`)
 
 - `/admin` feedback queue, five items: blocked callsigns now show a
