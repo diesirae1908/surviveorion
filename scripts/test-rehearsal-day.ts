@@ -1,6 +1,7 @@
 /**
  * Rehearsal ?day= contract: future-day mutator pick + daily seed match the
  * real date-hash paths (same shared instance pilots will get).
+ * Also locks the ?rehearsal= director gate decision table (mirrors main.ts).
  * Run: npx tsx scripts/test-rehearsal-day.ts
  */
 import { hashString } from "../src/math";
@@ -32,6 +33,19 @@ for (const d of sampleDates) {
   if (want === undefined) continue;
   check(`?day=${d} mutator pick matches snapshot`, mutatorIdsForDate(d) === want, `got "${mutatorIdsForDate(d)}"`);
 }
+
+/** Mirrors main.ts gate: param wins on this load; off clears; else read storage. */
+function rehearsalDirectorActive(param: string | null, stored: string | null): boolean {
+  if (param === "director") return true;
+  if (param === "off") return false;
+  return stored === "director";
+}
+
+check("?rehearsal=director unlocks even without storage", rehearsalDirectorActive("director", null));
+check("?rehearsal=director wins over stored off", rehearsalDirectorActive("director", ""));
+check("?rehearsal=off locks even with stored director", !rehearsalDirectorActive("off", "director"));
+check("no param reads stored director flag", rehearsalDirectorActive(null, "director"));
+check("no param without storage stays locked", !rehearsalDirectorActive(null, null));
 
 // Seed path is the same function the client uses at run start for a rehearsed day.
 {

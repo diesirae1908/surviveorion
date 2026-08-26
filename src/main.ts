@@ -125,7 +125,9 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * specific mutator by id kills the everyone-discovers-the-day-together
  * scarcity that's the whole point of a daily. Restricted to localhost/127.0.0.1
  * (so `npm run dev` keeps the rehearsal tool for tuning); on production the
- * params are ignored unless `localStorage.orion.rehearsal === "director"`.
+ * params are ignored unless the director gate is open (`localStorage.orion.rehearsal
+ * === "director"`, set via `?rehearsal=director` which persists for later visits;
+ * `?rehearsal=off` clears it). The param applies on the same page load — no reload.
  *
  * `?day=YYYY-MM-DD` (same gate) forces the daily run seed and, unless
  * `?mutator=` overrides it, the mutator pick to that UTC date — identical
@@ -140,7 +142,28 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * falls back to today's real mutator(s).
  */
 const PREVIEW_ALLOWED_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-const REHEARSAL_DIRECTOR = localStorage.getItem("orion.rehearsal") === "director";
+const rehearsalParam = new URLSearchParams(location.search).get("rehearsal");
+let REHEARSAL_DIRECTOR = false;
+if (rehearsalParam === "director") {
+  try {
+    localStorage.setItem("orion.rehearsal", "director");
+  } catch {
+    /* private browsing */
+  }
+  REHEARSAL_DIRECTOR = true;
+} else if (rehearsalParam === "off") {
+  try {
+    localStorage.removeItem("orion.rehearsal");
+  } catch {
+    /* private browsing */
+  }
+} else {
+  try {
+    REHEARSAL_DIRECTOR = localStorage.getItem("orion.rehearsal") === "director";
+  } catch {
+    /* private browsing */
+  }
+}
 const PREVIEW_ALLOWED = PREVIEW_ALLOWED_HOST || REHEARSAL_DIRECTOR;
 
 function parsePreviewDayParam(): Date | null {
