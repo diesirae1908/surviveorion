@@ -191,7 +191,7 @@ const publicUser = (u) => ({ callsign: u.callsign, country: u.country });
 const sanitizeEntry = (e) => (e ? { ...e, callsign: sanitizeCallsignForDisplay(e.callsign) } : e);
 /** Drop server-only merge metadata before any leaderboard row reaches a client. */
 const publicBoardEntry = (e) => {
-  const { virtual: _v, ...rest } = e;
+  const { virtual: _v, userId: _u, ...rest } = e;
   return sanitizeEntry(rest);
 };
 const sanitizeEntries = (list) => list.map(publicBoardEntry);

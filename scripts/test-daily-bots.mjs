@@ -71,6 +71,22 @@ const endDayA = dayStartA + 86_399_000;
   check("combined board tops out at limit", board.length <= 50);
 }
 
+// --- public wire shape: no bot userId leaks (matches publicBoardEntry in index.mjs) ---
+{
+  const toPublic = (e) => {
+    const { virtual: _v, userId: _u, ...rest } = e;
+    return rest;
+  };
+  const board = dailyLeaderboardCombinedWithBots({ dailyDate: DATE_A, limit: 50, nowMs: endDayA }).map(toPublic);
+  const wire = JSON.stringify(board);
+  const botIdLeak = wire.match(/bot:[^"]+/);
+  check("public board JSON has no bot: userId values", !botIdLeak, botIdLeak?.[0] ?? "");
+  check(
+    "public board rows omit userId",
+    board.every((e) => !("userId" in e)),
+  );
+}
+
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);
   process.exit(1);

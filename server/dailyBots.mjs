@@ -125,8 +125,8 @@ function botScore(rng) {
   if (r < 0.55) return Math.floor(3000 + rng() * 57000);
   if (r < 0.82) return Math.floor(60000 + rng() * 90000);
   if (r < 0.96) return Math.floor(150000 + rng() * 130000);
-  if (r < 0.99) return Math.floor(280000 + rng() * 20000);
-  return Math.floor(300000 + rng() * 80000);
+  if (r < 0.995) return Math.floor(280000 + rng() * 20000);
+  return Math.floor(300000 + rng() * 30000);
 }
 
 /**

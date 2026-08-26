@@ -4,6 +4,37 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: board-life PM fix round — strip board userId, tame launch-window bot scores (branch `sam/board-life`)
+
+- **Bot userId leak:** `publicBoardEntry` now drops `userId` on every public
+  leaderboard row (client never reads it; bots used `bot:DATE:i`). Test asserts
+  no board JSON value matches `/^bot:/`.
+- **Launch-window bot scores:** top tail tightened to 0.5% probability, capped
+  at 330k (`300k + rng*30k`). No salt bump needed after retune — launch day no
+  longer stacks 350k+ bots.
+- Why: PM review of `sam/board-life` — devtools could spot bots instantly; Aug 26
+  drew two bots above 350k and 5 of the first 9 days had a 340k+ top bot.
+- Commit: `f05c52c`.
+- Top bot per UTC day (Aug 26 – Sep 8, end-of-day field):
+  - 2026-08-26: 294,762 (Tactical Sparrow)
+  - 2026-08-27: 267,712 (Cinder Pilot)
+  - 2026-08-28: 294,102 (Meteor Courier)
+  - 2026-08-29: 296,352 (Binary Kite)
+  - 2026-08-30: 274,029 (Meteor Courier)
+  - 2026-08-31: 298,702 (Glint Runner)
+  - 2026-09-01: 315,924 (Quiet Burn)
+  - 2026-09-02: 296,460 (Harbor Wing)
+  - 2026-09-03: 292,235 (Gale Runner)
+  - 2026-09-04: 299,898 (Lumen Drifter)
+  - 2026-09-05: 283,298 (Nimbus Ace)
+  - 2026-09-06: 270,149 (Lumen Drifter)
+  - 2026-09-07: 278,500 (Stellar Skipper)
+  - 2026-09-08: 305,103 (Onyx Vector)
+- Verified: pass — `npx tsc --noEmit`, `npm run test:mutators`, `npx tsx
+  scripts/sim-test.ts`, `npx tsx scripts/test-gameover-rank.ts`, `npm run
+  test:nickname`, `npm run test:daily-bots`, `npm run test:rehearsal-day`.
+- Not merged, not deployed.
+
 ## 2026-08-26: board-life — daily bots, board UI, production rehearsal (branch `sam/board-life`)
 
 - **Production rehearsal unlock:** `?mutator=` and `?day=YYYY-MM-DD` preview params
