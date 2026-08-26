@@ -1,7 +1,7 @@
 import { POWERS, SHIP, TILT } from "./config";
 import type { InputState } from "./input";
 import { mutatorWindVector } from "./mutators";
-import { clampToBounds } from "./physics";
+import { cancelIntoWallWind, clampToBounds } from "./physics";
 import type { Ship, World } from "./types";
 
 export function createShip(): Ship {
@@ -25,14 +25,16 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   s.prevY = s.y;
   s.prevAngle = s.angle;
 
-  // SOLAR WIND: a constant per-day crosswind nudges position every tick,
-  // ahead of every control scheme below. Only active counter-steering
-  // (thrust or heading) holds a course against it. Same for every pilot
-  // (fixed direction/strength for the day, see mutators.ts).
-  const wind = mutatorWindVector();
+  // SOLAR WIND: a hashed crosswind nudges position every tick, ahead of
+  // every control scheme below (afterburner included). Into-wall wind is
+  // dropped once the hull is already on that wall, so the current cannot
+  // keep shoving past the bound and wiping escape thrust. Drones keep the
+  // raw positional add (see enemies.ts).
+  const wind = mutatorWindVector(world.time);
   if (wind) {
-    s.x += wind.x * dt;
-    s.y += wind.y * dt;
+    const w = cancelIntoWallWind(s, world, SHIP.radius, wind);
+    s.x += w.x * dt;
+    s.y += w.y * dt;
   }
 
   // afterburner dash: locked on a straight line at dash speed, input ignored

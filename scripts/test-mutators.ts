@@ -10,9 +10,10 @@
  * do not "fix" the test to match the new numbers, figure out why a day
  * that should be untouched moved.
  */
+import { SHIP } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
-import { hashString, setRunSeed } from "../src/math";
+import { hashString, rand, scheduleRand, setRunSeed } from "../src/math";
 import {
   clearActiveMutators,
   getActiveMutators,
@@ -26,10 +27,13 @@ import {
   mutatorPickupMagnetStrength,
   mutatorTelegraphDurationScale,
   mutatorViewScale,
+  mutatorWindShiftWarning,
   mutatorWindVector,
   setActiveMutators,
   type Mutator,
 } from "../src/mutators";
+import { cancelIntoWallWind, clampToBounds } from "../src/physics";
+import type { World } from "../src/types";
 import golden from "./mutator-snapshot.json";
 
 const input: InputState = {
@@ -410,6 +414,157 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
     }
   }
   check("no mutator-id string literals leak outside mutators.ts", leaks.length === 0, leaks.join(" | "));
+}
+
+// --- 8. Clamp keeps outward velocity; wind headings come from hashString,
+// never rand()/scheduleRand(); holding away from the wall frees the ship.
+{
+  const bounds = { viewW: 10, viewH: 10 } as World;
+  const r = 0.12;
+  const hh = bounds.viewH / 2 - r;
+  const hw = bounds.viewW / 2 - r;
+
+  const topOut = { x: 0, y: hh + 1, prevX: 0, prevY: hh, vx: 0, vy: -3 };
+  clampToBounds(topOut, bounds, r);
+  check("clamp top keeps outward vy", topOut.vy === -3 && topOut.y === hh, `vy=${topOut.vy} y=${topOut.y}`);
+
+  const topIn = { x: 0, y: hh + 1, prevX: 0, prevY: hh, vx: 0, vy: 3 };
+  clampToBounds(topIn, bounds, r);
+  check("clamp top zeros inward vy", topIn.vy === 0 && topIn.y === hh, `vy=${topIn.vy}`);
+
+  const botOut = { x: 0, y: -hh - 1, prevX: 0, prevY: -hh, vx: 0, vy: 2 };
+  clampToBounds(botOut, bounds, r);
+  check("clamp bottom keeps outward vy", botOut.vy === 2 && botOut.y === -hh);
+
+  const botIn = { x: 0, y: -hh - 1, prevX: 0, prevY: -hh, vx: 0, vy: -2 };
+  clampToBounds(botIn, bounds, r);
+  check("clamp bottom zeros inward vy", botIn.vy === 0);
+
+  const leftOut = { x: -hw - 1, y: 0, prevX: -hw, prevY: 0, vx: 4, vy: 0 };
+  clampToBounds(leftOut, bounds, r);
+  check("clamp left keeps outward vx", leftOut.vx === 4 && leftOut.x === -hw);
+
+  const leftIn = { x: -hw - 1, y: 0, prevX: -hw, prevY: 0, vx: -4, vy: 0 };
+  clampToBounds(leftIn, bounds, r);
+  check("clamp left zeros inward vx", leftIn.vx === 0);
+
+  const rightOut = { x: hw + 1, y: 0, prevX: hw, prevY: 0, vx: -5, vy: 0 };
+  clampToBounds(rightOut, bounds, r);
+  check("clamp right keeps outward vx", rightOut.vx === -5 && rightOut.x === hw);
+
+  const rightIn = { x: hw + 1, y: 0, prevX: hw, prevY: 0, vx: 5, vy: 0 };
+  clampToBounds(rightIn, bounds, r);
+  check("clamp right zeros inward vx", rightIn.vx === 0);
+
+  const pinned = { x: 0, y: hh };
+  const cancelled = cancelIntoWallWind(pinned, bounds, r, { x: 0.8, y: 2.0 });
+  check("into-wall +y wind is dropped on the top wall", cancelled.x === 0.8 && cancelled.y === 0, `${cancelled.x},${cancelled.y}`);
+
+  const windDate = new Date("2026-08-26T00:00:00Z");
+  const solar = getMutatorById("solar-wind")!;
+  setRunSeed(42);
+  const streamA = rand();
+  const schedA = scheduleRand();
+  setRunSeed(42);
+  setActiveMutators([solar], windDate);
+  const v0 = mutatorWindVector(0);
+  const vLater = mutatorWindVector(40);
+  let warnAt: number | null = null;
+  let warn = null as ReturnType<typeof mutatorWindShiftWarning>;
+  for (let t = 0; t < 40; t += 0.05) {
+    const w = mutatorWindShiftWarning(t);
+    if (w) {
+      warnAt = t;
+      warn = w;
+      break;
+    }
+  }
+  const streamB = rand();
+  const schedB = scheduleRand();
+  check("wind headings do not consume seeded streams", streamA === streamB && schedA === schedB);
+
+  const expected0 = ((hashString("orion-wind-2026-08-26") % 10007) / 10007) * Math.PI * 2;
+  check("t=0 heading exists", !!v0);
+  if (v0) {
+    const got = Math.atan2(v0.y, v0.x);
+    let d = Math.abs(got - expected0) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    check("t=0 angle is hashString(orion-wind-2026-08-26)", d < 1e-9, `got ${got} want ${expected0}`);
+    check("strength stays 2.2", Math.abs(Math.hypot(v0.x, v0.y) - 2.2) < 1e-9, `${Math.hypot(v0.x, v0.y)}`);
+  }
+  check("a later segment has a vector", !!v0 && !!vLater);
+  if (v0 && vLater) {
+    const a0 = Math.atan2(v0.y, v0.x);
+    const a1 = Math.atan2(vLater.y, vLater.x);
+    let d = Math.abs(a0 - a1) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    check("shift is at least 25 degrees", d >= (25 * Math.PI) / 180 - 1e-6, `diff ${((d * 180) / Math.PI).toFixed(1)} deg`);
+  }
+  check("a warning window appears in the first 40s", warnAt !== null && !!warn);
+  if (warn && warnAt !== null) {
+    check("warning countdown is inside 2.5s", warn.secondsLeft > 0 && warn.secondsLeft <= 2.5 + 1e-6, `${warn.secondsLeft}`);
+    let turn = Math.abs(warn.currentAngle - warn.incomingAngle) % (Math.PI * 2);
+    if (turn > Math.PI) turn = Math.PI * 2 - turn;
+    check("incoming heading is a visible turn", turn >= (25 * Math.PI) / 180 - 1e-6);
+    const live = mutatorWindVector(warnAt)!;
+    let liveDiff = Math.abs(Math.atan2(live.y, live.x) - warn.currentAngle) % (Math.PI * 2);
+    if (liveDiff > Math.PI) liveDiff = Math.PI * 2 - liveDiff;
+    check("warning current matches the live vector", liveDiff < 1e-6);
+    const after = mutatorWindVector(warnAt + warn.secondsLeft + 0.02)!;
+    let afterDiff = Math.abs(Math.atan2(after.y, after.x) - warn.incomingAngle) % (Math.PI * 2);
+    if (afterDiff > Math.PI) afterDiff = Math.PI * 2 - afterDiff;
+    check("vector after the flip matches incoming", afterDiff < 1e-4);
+    check("no warning at t=0 (mid-segment)", mutatorWindShiftWarning(0) === null);
+  }
+
+  const wall = worldHalfHeight();
+  function worldHalfHeight(): number {
+    const w = createWorld(16, 10, true, 0, "classic", true);
+    return w.viewH / 2 - SHIP.radius;
+  }
+
+  const inertiaWorld = createWorld(16, 10, true, 0, "classic", true);
+  inertiaWorld.ship.x = 0;
+  inertiaWorld.ship.y = wall;
+  inertiaWorld.ship.vx = 0;
+  inertiaWorld.ship.vy = 0;
+  inertiaWorld.ship.angle = -Math.PI / 2;
+  const inertiaInput: InputState = {
+    turn: 0,
+    thrust: 1,
+    heading: null,
+    moveVector: null,
+    inertia: true,
+    cruiseSpeed: 8,
+  };
+  for (let i = 0; i < 90; i++) tick(inertiaWorld, inertiaInput, 1 / 60);
+  check(
+    "inertia thrust frees the ship from the top wall",
+    inertiaWorld.ship.y < wall - 0.25,
+    `y=${inertiaWorld.ship.y.toFixed(3)} wall=${wall.toFixed(3)}`,
+  );
+
+  const directWorld = createWorld(16, 10, true, 0, "classic", true);
+  directWorld.ship.x = 0;
+  directWorld.ship.y = wall;
+  directWorld.ship.vx = 0;
+  directWorld.ship.vy = 0;
+  const directInput: InputState = {
+    turn: 0,
+    thrust: 0,
+    heading: null,
+    moveVector: { x: 0, y: -1 },
+    inertia: false,
+    cruiseSpeed: 8,
+  };
+  for (let i = 0; i < 45; i++) tick(directWorld, directInput, 1 / 60);
+  check(
+    "direct control frees the ship from the top wall",
+    directWorld.ship.y < wall - 0.25,
+    `y=${directWorld.ship.y.toFixed(3)} wall=${wall.toFixed(3)}`,
+  );
+
+  clearActiveMutators();
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);

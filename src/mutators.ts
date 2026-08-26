@@ -11,6 +11,9 @@
 // a value is used; the draw sequence itself is untouched. Wind (SOLAR WIND)
 // and the pickup homing pull (MAGNETIC FIELD) are both pure per-frame
 // kinematics with zero RNG involved, so they're safe for the same reason.
+// Wind heading is hashed from the UTC date plus a segment index and shifts
+// during the run (same schedule for every pilot); it is not a constant
+// per-day vector.
 //
 // Sundays (UTC) fly 2 compatible mutators (tagged so incompatible pairs,
 // e.g. two arena-size or two monopower days, can never co-occur). Overrides
@@ -82,8 +85,8 @@ export interface MutatorOverrides {
   mineIntervalScale?: number;
   /** Multiplies the arena view size (world.viewW/viewH); <1 shrinks it. */
   viewScale?: number;
-  /** Constant crosswind strength (units/sec); direction comes from the date
-   * hash, not the run-seeded streams (see mutatorWindVector below). */
+  /** Crosswind strength (units/sec); heading is hashed from the UTC date
+   * plus a segment index, not the run-seeded streams (see mutatorWindVector). */
   windStrength?: number;
   /** Slow ambient homing pull toward the ship, added on top of normal pickup
    * drift (units/sec); 0/undefined = no pull. */
@@ -583,8 +586,8 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "solar-wind",
     name: "SOLAR WIND",
-    briefing: "A steady current runs through the arena today.",
-    subline: "A constant crosswind pushes your ship and every drone the same way, all day.",
+    briefing: "The current shifts during the run. You'll get a warning.",
+    subline: "A crosswind pushes your ship and every drone. The heading changes every half minute, with a short warning before each flip.",
     difficultyFactor: 1.1,
     // Also excluded from THE PIT: a shrunk arena plus a constant crosswind
     // pinning you against the (now closer) walls tested as too much at once.
@@ -731,31 +734,91 @@ export function combinedDifficultyFactor(mutators: Mutator[]): number {
 // world), so Classic/Iron Rain/Training Ground never see an override.
 
 let active: Mutator[] = [];
-let activeWindVector: { x: number; y: number } | null = null;
+let activeWindDate: string | null = null;
+let activeWindStrength = 0;
+
+const WIND_PERIOD_MIN = 20;
+const WIND_PERIOD_MAX = 28;
+const WIND_WARNING = 2.5;
+const WIND_MIN_TURN = (25 * Math.PI) / 180;
+
+function windAngleFromKey(key: string): number {
+  return ((hashString(key) % 10007) / 10007) * Math.PI * 2;
+}
+
+function smallestAngleDiff(a: number, b: number): number {
+  let d = Math.abs(a - b) % (Math.PI * 2);
+  if (d > Math.PI) d = Math.PI * 2 - d;
+  return d;
+}
+
+function rawWindHeading(dateStr: string, segment: number): number {
+  // Segment 0 keeps the original per-day key so already-assigned days
+  // open on the same heading they always had.
+  const key = segment === 0 ? `orion-wind-${dateStr}` : `orion-wind-${dateStr}-${segment}`;
+  return windAngleFromKey(key);
+}
+
+function ensureWindTurn(angle: number, prev: number, dateStr: string, segment: number): number {
+  if (smallestAngleDiff(angle, prev) >= WIND_MIN_TURN) return angle;
+  const alt = windAngleFromKey(`orion-wind-${dateStr}-${segment}-alt`);
+  if (smallestAngleDiff(alt, prev) >= WIND_MIN_TURN) return alt;
+  return prev + Math.PI / 2;
+}
+
+function windPeriod(dateStr: string, segment: number): number {
+  const t = (hashString(`orion-wind-period-${dateStr}-${segment}`) % 10007) / 10007;
+  return WIND_PERIOD_MIN + t * (WIND_PERIOD_MAX - WIND_PERIOD_MIN);
+}
+
+interface WindState {
+  angle: number;
+  nextAngle: number;
+  secondsToFlip: number;
+}
+
+function windStateAt(dateStr: string, time: number): WindState {
+  let elapsed = 0;
+  let segment = 0;
+  let angle = rawWindHeading(dateStr, 0);
+  const t = Math.max(0, time);
+  while (segment < 10000) {
+    const period = windPeriod(dateStr, segment);
+    if (t < elapsed + period) {
+      const next = ensureWindTurn(rawWindHeading(dateStr, segment + 1), angle, dateStr, segment + 1);
+      return { angle, nextAngle: next, secondsToFlip: elapsed + period - t };
+    }
+    elapsed += period;
+    segment++;
+    angle = ensureWindTurn(rawWindHeading(dateStr, segment), angle, dateStr, segment);
+  }
+  return { angle, nextAngle: angle, secondsToFlip: WIND_PERIOD_MAX };
+}
 
 /**
- * `date` is only used to derive SOLAR WIND's direction (see below); it does
- * NOT draw from the run-seeded rand()/scheduleRand() streams: the angle is
- * a pure hash of the UTC date string, the same "deterministic from the date,
- * no stream draw" trick the mutator selection above already uses. That keeps
- * the whole feature outside the seeded-draw-count discipline entirely,
- * rather than resting on "one fixed draw at world setup" being threaded
- * correctly through every call site.
+ * `date` is only used to derive SOLAR WIND's headings (see below); it does
+ * NOT draw from the run-seeded rand()/scheduleRand() streams: each heading
+ * is a pure hash of the UTC date string plus a segment index, the same
+ * "deterministic from the date, no stream draw" trick the mutator selection
+ * above already uses. That keeps the whole feature outside the seeded-draw-
+ * count discipline entirely.
  */
 export function setActiveMutators(mutators: Mutator[], date: Date = new Date()): void {
   active = mutators;
   const strength = sumOf((o) => o.windStrength);
   if (strength > 0) {
-    const angle = (hashString(`orion-wind-${utcDateStr(date)}`) % 10007) / 10007 * Math.PI * 2;
-    activeWindVector = { x: Math.cos(angle) * strength, y: Math.sin(angle) * strength };
+    activeWindStrength = strength;
+    activeWindDate = utcDateStr(date);
   } else {
-    activeWindVector = null;
+    activeWindStrength = 0;
+    activeWindDate = null;
   }
 }
 
 export function clearActiveMutators(): void {
   active = [];
-  activeWindVector = null;
+  activeWindStrength = 0;
+  activeWindDate = null;
 }
 
 export function getActiveMutators(): Mutator[] {
@@ -940,9 +1003,29 @@ export function mutatorViewScale(): number {
   return scaleOf((o) => o.viewScale);
 }
 
-/** Constant crosswind (units/sec) for the day, or null on ordinary days. */
-export function mutatorWindVector(): { x: number; y: number } | null {
-  return activeWindVector;
+/** Crosswind (units/sec) at `time` seconds into the run, or null on ordinary days. */
+export function mutatorWindVector(time = 0): { x: number; y: number } | null {
+  if (activeWindDate === null || activeWindStrength <= 0) return null;
+  const { angle } = windStateAt(activeWindDate, time);
+  return { x: Math.cos(angle) * activeWindStrength, y: Math.sin(angle) * activeWindStrength };
+}
+
+export interface WindShiftWarning {
+  currentAngle: number;
+  incomingAngle: number;
+  secondsLeft: number;
+}
+
+/** Incoming heading + countdown during the pre-flip warning, else null. */
+export function mutatorWindShiftWarning(time: number): WindShiftWarning | null {
+  if (activeWindDate === null || activeWindStrength <= 0) return null;
+  const state = windStateAt(activeWindDate, time);
+  if (state.secondsToFlip <= 0 || state.secondsToFlip > WIND_WARNING) return null;
+  return {
+    currentAngle: state.angle,
+    incomingAngle: state.nextAngle,
+    secondsLeft: state.secondsToFlip,
+  };
 }
 
 export function mutatorPickupMagnetStrength(): number {
