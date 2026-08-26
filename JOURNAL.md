@@ -14,7 +14,7 @@ why, commit hash, follow-ups), committed together with the work. See
   longer stacks 350k+ bots.
 - Why: PM review of `sam/board-life` — devtools could spot bots instantly; Aug 26
   drew two bots above 350k and 5 of the first 9 days had a 340k+ top bot.
-- Commit: `f05c52c`.
+- Commit: `ae11f3f`.
 - Top bot per UTC day (Aug 26 – Sep 8, end-of-day field):
   - 2026-08-26: 294,762 (Tactical Sparrow)
   - 2026-08-27: 267,712 (Cinder Pilot)
