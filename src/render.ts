@@ -2,7 +2,7 @@ import { ASSEMBLY, MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP,
 import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
-import { mutatorRedTint } from "./mutators";
+import { mutatorRedTint, mutatorWindShiftWarning, mutatorWindVector } from "./mutators";
 import { blastRadius } from "./powers";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
@@ -147,6 +147,7 @@ export class Renderer {
 
     this.drawStars(opts.uiTime);
     this.drawArenaBoundary(world);
+    this.drawWindCurrent(world, opts.uiTime);
     this.drawOffscreenThreats(world);
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawMeteorTelegraphs(world, opts.uiTime);
@@ -1036,6 +1037,95 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  /** SOLAR WIND: gold current marks. Rim chevrons sit on the downwind edge
+   * and field ticks drift with the heading. During the pre-flip warning the
+   * incoming heading pulses in and the current one fades. */
+  private drawWindCurrent(world: World, uiTime: number): void {
+    if (world.phase !== "playing") return;
+    const wind = mutatorWindVector(world.time);
+    if (!wind) return;
+    const warning = mutatorWindShiftWarning(world.time);
+    const currentAngle = Math.atan2(wind.y, wind.x);
+    const pulse = warning ? 0.62 + 0.38 * Math.sin(uiTime * 11) : 1;
+    this.drawWindMarks(world, currentAngle, warning ? 0.28 * pulse : 0.32, uiTime, false);
+    if (warning) {
+      this.drawWindMarks(world, warning.incomingAngle, 0.58 * pulse, uiTime, true);
+    }
+  }
+
+  private drawWindMarks(
+    world: World,
+    angle: number,
+    alpha: number,
+    uiTime: number,
+    incoming: boolean,
+  ): void {
+    const { ctx } = this;
+    const hw = world.viewW / 2;
+    const hh = world.viewH / 2;
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    const color = incoming ? PALETTE.goldPale : PALETTE.bronze;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+
+    const drift = (uiTime * 1.4) % 1;
+    const cols = 4;
+    const rows = 3;
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const gx = ((i + 0.5) / cols - 0.5) * (hw * 2 - 1.6);
+        const gy = ((j + 0.5) / rows - 0.5) * (hh * 2 - 1.6);
+        const x = gx + ux * drift * 1.2;
+        const y = gy + uy * drift * 1.2;
+        if (Math.abs(x) > hw - 0.35 || Math.abs(y) > hh - 0.35) continue;
+        this.drawWindChevron(x, y, angle, incoming ? 0.16 : 0.13);
+      }
+    }
+
+    const inset = 0.4;
+    const count = 7;
+    if (uy > 0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(((i + 0.5) / count - 0.5) * (hw * 2 - 1.1), hh - inset, angle, 0.2);
+      }
+    }
+    if (uy < -0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(((i + 0.5) / count - 0.5) * (hw * 2 - 1.1), -hh + inset, angle, 0.2);
+      }
+    }
+    if (ux > 0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(hw - inset, ((i + 0.5) / count - 0.5) * (hh * 2 - 1.1), angle, 0.2);
+      }
+    }
+    if (ux < -0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(-hw + inset, ((i + 0.5) / count - 0.5) * (hh * 2 - 1.1), angle, 0.2);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private drawWindChevron(x: number, y: number, angle: number, size: number): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(size, 0);
+    ctx.lineTo(-size * 0.45, size * 0.55);
+    ctx.lineTo(-size * 0.45, -size * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   /** Red chevrons at the screen edge pointing at approaching off-screen drones. */
@@ -1957,6 +2047,11 @@ export class Renderer {
       ctx.fillStyle = PALETTE.gold;
       ctx.font = "bold 11px Georgia, serif";
       ctx.fillText("☀ D A I L Y   P A T R O L", this.cssW / 2, padTop + 26);
+      const warning = mutatorWindShiftWarning(world.time);
+      if (warning) {
+        ctx.fillStyle = PALETTE.goldPale;
+        ctx.fillText(`CURRENT TURNING  ${warning.secondsLeft.toFixed(1)}`, this.cssW / 2, padTop + 40);
+      }
     }
 
     // active power timers (bottom-left)

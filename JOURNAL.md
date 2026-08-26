@@ -4,6 +4,30 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-25: SOLAR WIND wall pin + shifting current (branch `sam/solar-wind-pin`)
+
+- Live Daily Patrol (UTC 2026-08-26) pinned the ship to the top wall. Wind
+  was a raw position nudge ahead of control; `clampToBounds` then zeroed
+  velocity on that axis unconditionally, including the outward component, so
+  thrust away could never accumulate. Inertia (thrust 12) never won a frame;
+  drones (unclamped) blew off the top and lined the rim with radar chevrons.
+- `clampToBounds` now only kills the into-wall component. `ship.ts` cancels
+  into-wall wind once the hull is already on that wall (covers the
+  afterburner path too). Drone wind stays a raw positional add.
+- The current now shifts during the run. Heading is `hashString` of the UTC
+  date plus a segment index (same family as the old per-day angle; segment 0
+  keeps `orion-wind-YYYY-MM-DD` so today still opens at ~67.8°). Period is
+  hashed in 20-28s of `world.time`, 2.5s warning, and a <25° no-op rehashes
+  with `-alt` or takes a quarter-turn. Strength stays 2.2 (or the summed
+  Sunday `windStrength`). No `rand()` / `scheduleRand()` draws. Snapshot
+  untouched.
+- In-world bronze current marks and rim chevrons show the live heading;
+  incoming heading pulses in during the warning. HUD line: `CURRENT TURNING`
+  plus countdown. Briefing/subline no longer claim a constant all-day current.
+- Verified: `npx tsc --noEmit`, `npm run test:mutators` (snapshot + clamp /
+  hash / wall-escape checks), `npx tsx scripts/sim-test.ts`. Not a deploy.
+  Feature branch only.
+
 ## 2026-08-25: sidecar track + Chrome hint LIVE
 
 - Lucas: "push live" (Aug 25, ~3:26 PM PT). Merged `sam/sidecar-track` to main

@@ -108,10 +108,11 @@ function droneSizeSpeedFactor(scale: number): number {
 export function updateDrones(world: World, dt: number): void {
   const ship = world.ship;
   const chase = world.phase === "playing";
-  // SOLAR WIND: a constant per-day crosswind, added as a pure positional
-  // nudge after each drone's own homing/script movement (see mutators.ts for
-  // why this stays outside the seeded-draw discipline entirely).
-  const wind = mutatorWindVector();
+  // SOLAR WIND: hashed crosswind, added as a pure positional nudge after
+  // each drone's own homing/script movement. Drones are not clamped: they
+  // ride the current off-screen. Same vector as the ship this frame
+  // (world.time; see mutators.ts). No seeded-stream draws.
+  const wind = mutatorWindVector(world.time);
 
   for (const d of world.drones) {
     d.prevX = d.x;
