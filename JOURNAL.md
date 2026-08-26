@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: rehearsal-link LIVE
+
+- PM review passed. Merged `sam/rehearsal-link` → main (`e47235b`,
+  `--no-ff`). Pushed `origin/main`; Render auto-deployed `surviveorion`.
+- Live bundle flipped `index-DUrIPklW.js` → `index-BCMteHRV.js` (~1 min
+  after push). HTTP 200 confirmed.
+- Invisible to players: `?rehearsal=director` unlocks rehearsal director mode
+  in one click; no param → unchanged behavior.
+
 ## 2026-08-26: rehearsal-link — one-click director unlock via URL (branch `sam/rehearsal-link`)
 
 - **`?rehearsal=director` / `?rehearsal=off`:** before `REHEARSAL_DIRECTOR` is
