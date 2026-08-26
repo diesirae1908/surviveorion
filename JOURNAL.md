@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-25: SOLAR WIND pin + shifting current LIVE
+
+- Lucas: "ok push live" (Aug 25, ~9:20 PM PT). Merged `sam/solar-wind-pin` to
+  main (`dc33928`). Ship can leave the wall again; current shifts every 20-28s
+  with a 2.5s CURRENT TURNING warning. Live Daily is UTC 2026-08-26 SOLAR WIND.
+- Pushing `origin/main` (Render auto-deploy).
+
 ## 2026-08-25: SOLAR WIND wall pin + shifting current (branch `sam/solar-wind-pin`)
 
 - Live Daily Patrol (UTC 2026-08-26) pinned the ship to the top wall. Wind
