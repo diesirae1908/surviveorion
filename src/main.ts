@@ -121,12 +121,16 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * first and skips it, so a preview run can't touch boards, streaks, or the
  * attempt budget.
  *
- * Dev-only (Lucas's call, 2026-08-10): letting anyone rehearse a specific
- * mutator by id kills the everyone-discovers-the-day-together scarcity
- * that's the whole point of a daily. Restricted to localhost/127.0.0.1 (so
- * `npm run dev` keeps the rehearsal tool for tuning); on a production
- * hostname the query param is ignored entirely: no card, no console id
- * list, the real day loads exactly as normal.
+ * Dev-only on localhost (Lucas's call, 2026-08-10): letting anyone rehearse a
+ * specific mutator by id kills the everyone-discovers-the-day-together
+ * scarcity that's the whole point of a daily. Restricted to localhost/127.0.0.1
+ * (so `npm run dev` keeps the rehearsal tool for tuning); on production the
+ * params are ignored unless `localStorage.orion.rehearsal === "director"`.
+ *
+ * `?day=YYYY-MM-DD` (same gate) forces the daily run seed and, unless
+ * `?mutator=` overrides it, the mutator pick to that UTC date — identical
+ * shared instance to what pilots will get. Invalid dates fall back to today,
+ * silently. Both params are sandboxed like any preview run.
  *
  * Unlike the real picker, no exclusion-tag compatibility check runs here,
  * the override forces exactly what's asked, including a combo that wouldn't
@@ -136,7 +140,19 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * falls back to today's real mutator(s).
  */
 const PREVIEW_ALLOWED_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-const PREVIEW_MUTATORS: Mutator[] = PREVIEW_ALLOWED_HOST
+const REHEARSAL_DIRECTOR = localStorage.getItem("orion.rehearsal") === "director";
+const PREVIEW_ALLOWED = PREVIEW_ALLOWED_HOST || REHEARSAL_DIRECTOR;
+
+function parsePreviewDayParam(): Date | null {
+  const raw = new URLSearchParams(location.search).get("day");
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const d = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== raw) return null;
+  return d;
+}
+
+const PREVIEW_DAY = PREVIEW_ALLOWED ? parsePreviewDayParam() : null;
+const PREVIEW_MUTATORS: Mutator[] = PREVIEW_ALLOWED
   ? (new URLSearchParams(location.search)
       .get("mutator")
       ?.split(",")
@@ -144,19 +160,37 @@ const PREVIEW_MUTATORS: Mutator[] = PREVIEW_ALLOWED_HOST
       .filter((m): m is Mutator => !!m)
       .slice(0, 2) ?? [])
   : [];
-const PREVIEW_ACTIVE = PREVIEW_MUTATORS.length > 0;
+const PREVIEW_ACTIVE = PREVIEW_ALLOWED && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null);
+/** Rehearsal date string for preview UI/console (null = today's real patrol). */
+const PREVIEW_REHEARSAL_DATE = PREVIEW_DAY?.toISOString().slice(0, 10) ?? null;
+
 if (PREVIEW_ACTIVE) {
+  const bits = [
+    PREVIEW_MUTATORS.length > 0
+      ? `mutator(s): ${PREVIEW_MUTATORS.map((m) => m.id).join(" + ")}`
+      : PREVIEW_DAY
+        ? `mutator(s): ${getMutatorsForDate(PREVIEW_DAY).map((m) => m.id).join(" + ") || "vanilla"}`
+        : null,
+    PREVIEW_REHEARSAL_DATE ? `date: ${PREVIEW_REHEARSAL_DATE}` : null,
+  ].filter(Boolean);
   console.log(
-    `[preview] forcing ${PREVIEW_MUTATORS.map((m) => m.id).join(" + ")} for this session. ` +
+    `[preview] ${bits.join(" · ")} for this session. ` +
       "Sandboxed: no daily attempt spent, no score submitted, no medal recorded " +
       "(game over still shows the medal this score would earn).",
   );
   console.log(`Valid mutator ids: ${MUTATOR_POOL.map((m) => m.id).join(", ")}`);
 }
 
-/** Today's Daily Mutator(s): the date-hash pick, or the ?mutator= preview override. */
+/** UTC date whose shared daily script preview/rehearsal runs use (today otherwise). */
+function previewDailyDate(): Date {
+  return PREVIEW_DAY ?? new Date();
+}
+
+/** Today's Daily Mutator(s): date-hash pick, preview override, or rehearsed day. */
 function todaysMutators(): Mutator[] {
-  return PREVIEW_ACTIVE ? PREVIEW_MUTATORS : getMutatorsForDate(new Date());
+  if (PREVIEW_MUTATORS.length > 0) return PREVIEW_MUTATORS;
+  if (PREVIEW_ACTIVE && PREVIEW_DAY) return getMutatorsForDate(PREVIEW_DAY);
+  return getMutatorsForDate(new Date());
 }
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -453,7 +487,7 @@ function showMenu(): void {
     const attempts = loadDailyAttempts();
     const mutatorsToday = todaysMutators();
     ui.showDailyLobby({
-      dayNumber: dailyNumber(),
+      dayNumber: dailyNumber(PREVIEW_REHEARSAL_DATE ? previewDailyDate() : undefined),
       attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
       maxAttempts: DAILY_MAX_ATTEMPTS,
       best: attempts.best,
@@ -465,6 +499,7 @@ function showMenu(): void {
       // lobby then skips the whole briefing card.
       medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
       preview: PREVIEW_ACTIVE,
+      previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
     });
     fillDailyHint();
     fillDailyBoard();
@@ -507,14 +542,14 @@ function fillDailyHint(): void {
 
 /**
  * Fill the daily-only lobby's inline leaderboard: one ranking merging every
- * device. The viewer's own row is highlighted wherever it lands in the
- * loaded window, or pinned separately if their rank falls outside it (no
- * pin if they're anonymous or haven't flown a daily run today).
+ * device. The UI shows the top 10 by default; the full board is kept client-
+ * side for search. The viewer's row is pinned below when their rank is outside
+ * the top 10 (no pin if anonymous or no daily run today).
  */
 function fillDailyBoard(): void {
   if (!api.online) return;
   void api
-    .dailyLeaderboardCombined()
+    .dailyLeaderboardCombined(200)
     .then((d) => {
       const myCallsign = api.user?.callsign;
       const entries = d.entries.map((e, i) => ({
@@ -525,17 +560,9 @@ function fillDailyBoard(): void {
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
       }));
-      // The pinned "me" row is built client-side from the account's raw
-      // callsign (never touched by the server's own sanitizeEntry pass on
-      // `entries` above), so it needs the same display-time masking the
-      // server applies everywhere else a callsign reaches a leaderboard-
-      // shaped, screenshot-prone surface (sanitizePinnedRow, 2026-08-17
-      // review finding). A blocked legacy name still shows the account
-      // owner their real callsign on account/settings screens (nickname.ts's
-      // carve-out is unchanged); it just doesn't get to sit pinned into
-      // this board's row markup.
+      const inTopTen = entries.slice(0, 10).some((e) => e.isMe);
       const pinned =
-        d.me && d.me.rank > entries.length && myCallsign
+        d.me && d.me.rank > 10 && myCallsign && !inTopTen
           ? sanitizePinnedRow({
               rank: d.me.rank,
               callsign: myCallsign,
@@ -764,7 +791,13 @@ function doLaunch(quick = false): void {
 
 /** Seed for today's Daily Patrol: same UTC date → same opening script. */
 function dailySeed(): number {
-  return hashString(`orion-daily-${new Date().toISOString().slice(0, 10)}`);
+  const dateStr = (runIsDaily && PREVIEW_ACTIVE && PREVIEW_DAY
+    ? PREVIEW_DAY
+    : new Date()
+  )
+    .toISOString()
+    .slice(0, 10);
+  return hashString(`orion-daily-${dateStr}`);
 }
 
 function startRun(): void {
@@ -785,7 +818,7 @@ function startRun(): void {
   // Ground never see an override (see mutators.ts). todaysMutators() folds
   // in the ?mutator= preview override, if one's active.
   if (runIsDaily) {
-    setActiveMutators(todaysMutators(), new Date());
+    setActiveMutators(todaysMutators(), previewDailyDate());
   } else {
     clearActiveMutators();
   }

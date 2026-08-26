@@ -4,6 +4,36 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: board-life — daily bots, board UI, production rehearsal (branch `sam/board-life`)
+
+- **Production rehearsal unlock:** `?mutator=` and `?day=YYYY-MM-DD` preview params
+  work on localhost/127.0.0.1 as before; on production they are ignored unless
+  `localStorage.orion.rehearsal === "director"`. Rehearsal runs stay sandboxed
+  (no daily attempt spent, no score submitted, no medal recorded).
+- **Virtual daily bot scores:** `server/dailyBots.mjs` — ~60 blocklist-safe bot
+  callsigns; hash-picked 20–40 bots per UTC day with plausible score curves;
+  submit times spread across the UTC day so the merged board fills in over time.
+  Bots merge into `mode=all` daily rankings and gap-to-goal but never touch the
+  DB, wingmates, or analytics (`virtual` stripped before JSON).
+- **Daily board UI:** daily-only lobby shows top 10 + callsign search + pinned
+  me-row (`.board-row.pinned`) on TODAY'S BOARD.
+- Why: early UTC hours left the daily lobby board empty; Lucas wanted a living
+  board and a production-safe way to rehearse future patrol days without
+  leaking the preview tool to every player.
+- Commit: `321aaa6`.
+- Verified: pass — `npx tsc --noEmit`, `npm run test:mutators` (golden snapshot
+  unchanged), `npx tsx scripts/sim-test.ts`, `npx tsx scripts/test-gameover-rank.ts`,
+  `npx tsx scripts/test-nickname.ts`, `node scripts/test-daily-bots.mjs`,
+  `npx tsx scripts/test-rehearsal-day.ts`.
+- Board samples (`GET /api/leaderboard/daily?mode=all&limit=10`):
+  - **Today `2026-08-26`:** Tactical Sparrow 359048 · Falcon Patch 351401 ·
+    Drift Courier 236134 · Onyx Vector 154333 · Jetstream Lark 149540 (bots +
+    any real pilots merged; `virtual` not exposed on wire).
+  - **Future `2026-09-15` (end-of-UTC-day module sim — HTTP endpoint is
+    today-only):** Apex Courier 364069 · Glint Runner 268221 · Waypoint Ghost
+    238749 · Zenith Tracer 174172 · Echo Vector 146909.
+- Not merged, not deployed.
+
 ## 2026-08-26: player feedback fixes LIVE
 
 - Lucas approved deploy. Merged `sam/feedback-aug26` → main (`e1e1abc`,

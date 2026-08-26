@@ -189,8 +189,10 @@ export interface DailyLobbyInfo {
   mutators: Mutator[];
   /** Today's medal score thresholds (already mutator-adjusted). Undefined before the launch gate opens. */
   medalThresholds?: MedalThresholds;
-  /** The ?mutator= preview override is active: unlimited, unscored runs. */
+  /** The ?mutator= / ?day= preview override is active: unlimited, unscored runs. */
   preview?: boolean;
+  /** Rehearsed UTC date when ?day= is active (shown on the preview badge). */
+  previewDate?: string;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -206,14 +208,23 @@ export interface DailyBoardRow {
 
 /**
  * Data for the daily-only lobby's inline board (see setDailyBoard):
- * `entries` is the loaded window ([] = no patrols flown yet today, null =
- * fetch failed / offline → hide the board entirely); `pinned` is the
- * viewer's own row when their rank falls outside `entries` (null = already
- * visible in the list above, no daily score yet, or anonymous).
+ * `entries` is the full merged board for the day; the UI shows the top 10
+ * by default (or search matches). `pinned` is the viewer's own row when
+ * their rank falls outside the visible top 10 (null = already visible,
+ * no daily score yet, or anonymous).
  */
 export interface DailyBoardData {
   entries: DailyBoardRow[];
   pinned: DailyBoardRow | null;
+}
+
+const DAILY_BOARD_TOP_N = 10;
+
+function normalizeCallsignSearch(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 /** A calendar cell, or null for a padding cell outside the visible month. */
@@ -284,6 +295,9 @@ export class Ui {
 
   private root: HTMLElement;
   private pauseBtn: HTMLButtonElement;
+  private dailyBoardFull: DailyBoardRow[] | null = null;
+  private dailyBoardPinned: DailyBoardRow | null = null;
+  private dailyBoardSearchQuery = "";
 
   /**
    * Back action for whichever submenu screen is currently showing (Settings,
@@ -335,6 +349,9 @@ export class Ui {
     this.root.innerHTML = "";
     this.submenuBack = null;
     this.submenuBackScreen = null;
+    this.dailyBoardFull = null;
+    this.dailyBoardPinned = null;
+    this.dailyBoardSearchQuery = "";
   }
 
   /**
@@ -578,9 +595,17 @@ export class Ui {
    * a plain-language subline stating what mechanically changed, 2 on UTC
    * Sundays) and today's medal score thresholds, shown before launch.
    */
-  private mutatorBriefingCard(mutators: Mutator[], thresholds: MedalThresholds, preview?: boolean): HTMLElement {
+  private mutatorBriefingCard(
+    mutators: Mutator[],
+    thresholds: MedalThresholds,
+    preview?: boolean,
+    previewDate?: string,
+  ): HTMLElement {
     const card = this.el("div", "mutator-card", "");
-    if (preview) card.appendChild(this.el("div", "preview-badge", "PREVIEW"));
+    if (preview) {
+      const label = previewDate ? `PREVIEW · ${previewDate}` : "PREVIEW";
+      card.appendChild(this.el("div", "preview-badge", label));
+    }
     for (const m of mutators) {
       card.appendChild(
         this.el(
@@ -713,7 +738,9 @@ export class Ui {
     // mutators.ts MUTATORS_START_DATE): skip the card entirely so the lobby
     // looks exactly like it did before this feature shipped.
     if (info.mutators.length > 0 && info.medalThresholds) {
-      screen.appendChild(this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview));
+      screen.appendChild(
+        this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview, info.previewDate),
+      );
     }
 
     // attempt pips: one per daily try, spent ones dimmed. A preview run
@@ -781,6 +808,18 @@ export class Ui {
       const boardWrap = this.el("div", "daily-board-wrap", "");
       boardWrap.id = "daily-lobby-board-wrap";
       boardWrap.appendChild(this.el("div", "manual-title", "TODAY'S BOARD"));
+      const search = document.createElement("input");
+      search.type = "search";
+      search.className = "field daily-board-search";
+      search.placeholder = "Search callsign…";
+      search.id = "daily-board-search";
+      search.autocomplete = "off";
+      search.spellcheck = false;
+      search.addEventListener("input", () => {
+        this.dailyBoardSearchQuery = search.value;
+        this.renderDailyBoardRows();
+      });
+      boardWrap.appendChild(search);
       const list = this.el("div", "board", `<div class="field-hint center">Loading…</div>`);
       list.id = "daily-lobby-board";
       boardWrap.appendChild(list);
@@ -1967,20 +2006,44 @@ export class Ui {
   setDailyBoard(data: DailyBoardData | null): void {
     const wrap = document.getElementById("daily-lobby-board-wrap");
     const list = document.getElementById("daily-lobby-board");
+    const search = document.getElementById("daily-board-search") as HTMLInputElement | null;
     if (!wrap || !list) return;
     if (data === null) {
       wrap.style.display = "none";
+      this.dailyBoardFull = null;
+      this.dailyBoardPinned = null;
       return;
     }
+    this.dailyBoardFull = data.entries;
+    this.dailyBoardPinned = data.pinned;
+    if (search && search.value !== this.dailyBoardSearchQuery) {
+      search.value = this.dailyBoardSearchQuery;
+    }
+    this.renderDailyBoardRows();
+  }
+
+  private renderDailyBoardRows(): void {
+    const list = document.getElementById("daily-lobby-board");
+    if (!list || this.dailyBoardFull === null) return;
     list.innerHTML = "";
-    if (data.entries.length === 0) {
+    const q = normalizeCallsignSearch(this.dailyBoardSearchQuery.trim());
+    if (this.dailyBoardFull.length === 0) {
       list.appendChild(
         this.el("div", "field-hint center", "No patrols flown yet today. Be the first!"),
       );
       return;
     }
-    for (const row of data.entries) list.appendChild(this.dailyBoardRow(row, false));
-    if (data.pinned) list.appendChild(this.dailyBoardRow(data.pinned, true));
+    const visible = q
+      ? this.dailyBoardFull.filter((row) =>
+          normalizeCallsignSearch(row.callsign).includes(q),
+        )
+      : this.dailyBoardFull.slice(0, DAILY_BOARD_TOP_N);
+    if (visible.length === 0) {
+      list.appendChild(this.el("div", "field-hint center", "No matching callsigns."));
+      return;
+    }
+    for (const row of visible) list.appendChild(this.dailyBoardRow(row, false));
+    if (!q && this.dailyBoardPinned) list.appendChild(this.dailyBoardRow(this.dailyBoardPinned, true));
   }
 
   private dailyBoardRow(row: DailyBoardRow, pinned: boolean): HTMLElement {

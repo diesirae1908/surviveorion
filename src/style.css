@@ -673,6 +673,11 @@ button.launch {
   border-top: 1px solid rgba(170, 136, 68, 0.2);
 }
 
+.daily-board-search {
+  width: 100%;
+  margin-bottom: 2px;
+}
+
 .board-row .device {
   flex-shrink: 0;
   color: var(--orion-dust);
