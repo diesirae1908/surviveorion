@@ -10,7 +10,7 @@
  * do not "fix" the test to match the new numbers, figure out why a day
  * that should be untouched moved.
  */
-import { SHIP } from "../src/config";
+import { POWERS, SHIP } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import { hashString, rand, scheduleRand, setRunSeed } from "../src/math";
@@ -562,6 +562,91 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
     "direct control frees the ship from the top wall",
     directWorld.ship.y < wall - 0.25,
     `y=${directWorld.ship.y.toFixed(3)} wall=${wall.toFixed(3)}`,
+  );
+
+  function findUpwardWindDate(): Date {
+    let best: { date: Date; score: number } | null = null;
+    for (let dayOff = 0; dayOff < 5000; dayOff++) {
+      const d = new Date(Date.UTC(2026, 0, 1 + dayOff));
+      setActiveMutators([solar], d);
+      const v = mutatorWindVector(0);
+      if (!v || v.y >= 0) continue;
+      const angle = Math.atan2(v.y, v.x);
+      let diff = Math.abs(angle - -Math.PI / 2) % (Math.PI * 2);
+      if (diff > Math.PI) diff = Math.PI * 2 - diff;
+      const score = diff - Math.min(0, v.y) * 0.01;
+      if (!best || score < best.score) best = { date: d, score };
+    }
+    if (!best) throw new Error("could not find an upward SOLAR WIND date for regression");
+    return best.date;
+  }
+
+  const upwardDate = findUpwardWindDate();
+  setActiveMutators([solar], upwardDate);
+  const upWind = mutatorWindVector(0)!;
+  check("upward-wind regression uses a mostly-up vector", upWind.y < -1 && Math.abs(upWind.x) < 1, `${upWind.x},${upWind.y}`);
+
+  const upInertia = createWorld(16, 10, true, 0, "classic", true);
+  upInertia.ship.x = 0;
+  upInertia.ship.y = wall;
+  upInertia.ship.vx = 0;
+  upInertia.ship.vy = 0;
+  upInertia.ship.angle = -Math.PI / 2;
+  const upInertiaInput: InputState = {
+    turn: 0,
+    thrust: 1,
+    heading: null,
+    moveVector: null,
+    inertia: true,
+    cruiseSpeed: 8,
+  };
+  for (let i = 0; i < 90; i++) tick(upInertia, upInertiaInput, 1 / 60);
+  check(
+    "upward wind: inertia thrust frees the ship from the top wall",
+    upInertia.ship.y < wall - 0.25,
+    `y=${upInertia.ship.y.toFixed(3)} wall=${wall.toFixed(3)} wind=${upWind.x.toFixed(2)},${upWind.y.toFixed(2)}`,
+  );
+
+  const upDirect = createWorld(16, 10, true, 0, "classic", true);
+  upDirect.ship.x = 0;
+  upDirect.ship.y = wall;
+  upDirect.ship.vx = 0;
+  upDirect.ship.vy = 0;
+  const upDirectInput: InputState = {
+    turn: 0,
+    thrust: 0,
+    heading: null,
+    moveVector: { x: 0, y: -1 },
+    inertia: false,
+    cruiseSpeed: 8,
+  };
+  for (let i = 0; i < 45; i++) tick(upDirect, upDirectInput, 1 / 60);
+  check(
+    "upward wind: direct control frees the ship from the top wall",
+    upDirect.ship.y < wall - 0.25,
+    `y=${upDirect.ship.y.toFixed(3)} wall=${wall.toFixed(3)}`,
+  );
+
+  const upDash = createWorld(16, 10, true, 0, "classic", true);
+  upDash.ship.x = 0;
+  upDash.ship.y = wall;
+  upDash.ship.vx = 0;
+  upDash.ship.vy = 0;
+  upDash.ship.angle = -Math.PI / 2;
+  upDash.powers.afterburnerDash = POWERS.afterburner.dashDuration;
+  const dashInput: InputState = {
+    turn: 0,
+    thrust: 0,
+    heading: null,
+    moveVector: null,
+    inertia: true,
+    cruiseSpeed: 8,
+  };
+  for (let i = 0; i < 30; i++) tick(upDash, dashInput, 1 / 60);
+  check(
+    "upward wind: afterburner dash frees the ship from the top wall",
+    upDash.ship.y < wall - 0.25,
+    `y=${upDash.ship.y.toFixed(3)} wall=${wall.toFixed(3)}`,
   );
 
   clearActiveMutators();

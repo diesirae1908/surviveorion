@@ -21,6 +21,16 @@ function check(label: string, cond: boolean): void {
   }
 }
 
+function rankOpts(overrides: Partial<{ isDaily: boolean; callsign: string; country: string; runScore: number }> = {}) {
+  return {
+    isDaily: false,
+    callsign: "Ace",
+    country: "us",
+    runScore: 5000,
+    ...overrides,
+  };
+}
+
 function baseInput(overrides: Partial<GameOverRankInput> = {}): GameOverRankInput {
   return {
     best: 5000,
@@ -38,9 +48,7 @@ function baseInput(overrides: Partial<GameOverRankInput> = {}): GameOverRankInpu
 // coerced into a bogus number, so the renderer can omit the line entirely. ---
 {
   const r = deriveGameOverRank(baseInput({ best: 0, worldRank: null, countryRank: null }), {
-    isDaily: false,
-    callsign: "Rookie",
-    country: "us",
+    ...rankOpts({ runScore: 0, callsign: "Rookie", country: "us" }),
   });
   check("no-rank run: primaryRank is null, not a stringified null", r.primaryRank === null);
   check("no-rank run: country omitted (no countryRank)", r.country === null);
@@ -50,38 +58,24 @@ function baseInput(overrides: Partial<GameOverRankInput> = {}): GameOverRankInpu
 // TODAY'S BOARD), not both Daily AND World stacked together. ---
 {
   const r = deriveGameOverRank(baseInput({ dailyRank: 3, worldRank: 42 }), {
-    isDaily: true,
-    callsign: "Ace",
-    country: "ca",
+    ...rankOpts({ isDaily: true, country: "ca" }),
   });
   check("daily run: primary label is Daily Patrol", r.primaryLabel === "Daily Patrol");
   check("daily run: primary rank is the daily rank, not world", r.primaryRank === 3);
 }
 
 {
-  const r = deriveGameOverRank(baseInput({ dailyRank: null, worldRank: 42 }), {
-    isDaily: false,
-    callsign: "Ace",
-    country: "ca",
-  });
+  const r = deriveGameOverRank(baseInput({ dailyRank: null, worldRank: 42 }), rankOpts({ country: "ca" }));
   check("non-daily run: primary label is World rank", r.primaryLabel === "World rank");
   check("non-daily run: primary rank is the world rank", r.primaryRank === 42);
 }
 
 // --- Country rank: only surfaced when both a country and a rank exist. ---
 {
-  const withCountry = deriveGameOverRank(baseInput({ countryRank: 7 }), {
-    isDaily: false,
-    callsign: "Ace",
-    country: "fr",
-  });
+  const withCountry = deriveGameOverRank(baseInput({ countryRank: 7 }), rankOpts({ country: "fr" }));
   check("country rank present + known country: shown", withCountry.country?.rank === 7 && withCountry.country?.code === "fr");
 
-  const noCountrySet = deriveGameOverRank(baseInput({ countryRank: 7 }), {
-    isDaily: false,
-    callsign: "Ace",
-    country: "",
-  });
+  const noCountrySet = deriveGameOverRank(baseInput({ countryRank: 7 }), rankOpts({ country: "" }));
   check("country rank present but no country set: omitted", noCountrySet.country === null);
 }
 
@@ -91,54 +85,49 @@ function baseInput(overrides: Partial<GameOverRankInput> = {}): GameOverRankInpu
 {
   const wingmateAhead = deriveGameOverRank(
     baseInput({ best: 100, nextAbove: { callsign: "Stranger", score: 150 }, nextWingmate: { callsign: "Buddy", score: 120 } }),
-    { isDaily: false, callsign: "Ace", country: "us" },
+    rankOpts({ runScore: 100 }),
   );
   check("wingmate preferred over stranger", wingmateAhead.target?.callsign === "Buddy");
   check("wingmate flagged isWingmate", wingmateAhead.target?.isWingmate === true);
 
   const strangerOnly = deriveGameOverRank(
     baseInput({ best: 100, nextAbove: { callsign: "Stranger", score: 150 }, nextWingmate: null }),
-    { isDaily: false, callsign: "Ace", country: "us" },
+    rankOpts({ runScore: 100 }),
   );
   check("stranger target when no wingmate", strangerOnly.target?.callsign === "Stranger");
   check("stranger target not flagged isWingmate", strangerOnly.target?.isWingmate === false);
 
   const alreadyAhead = deriveGameOverRank(
     baseInput({ best: 200, nextAbove: { callsign: "Stranger", score: 150 }, nextWingmate: null }),
-    { isDaily: false, callsign: "Ace", country: "us" },
+    rankOpts({ runScore: 200 }),
   );
   check("no target once you're already ahead of the candidate", alreadyAhead.target === null);
 
   const tied = deriveGameOverRank(
     baseInput({ best: 150, nextAbove: { callsign: "Stranger", score: 150 }, nextWingmate: null }),
-    { isDaily: false, callsign: "Ace", country: "us" },
+    rankOpts({ runScore: 150 }),
   );
   check("no target on an exact tie (nothing left to catch)", tied.target === null);
 }
 
-// --- me: carries the submitting pilot's own callsign/score/country through
-// for the board's highlighted own-row, EXCEPT the callsign is masked if it
-// would be blocked today (2026-08-17 review finding: `me` renders straight
-// into the exact board-row markup a player screenshots to share their run,
-// same shape as a public leaderboard row, so a blocked legacy callsign
-// can't ride along here either, just like it can't on a public board). ---
+// --- me: carries this run's score (not the board best) plus callsign/country
+// for the pinned own-row. Callsign is masked if blocked. ---
 {
-  const r = deriveGameOverRank(baseInput({ best: 777 }), { isDaily: false, callsign: "Voyager", country: "jp" });
+  const r = deriveGameOverRank(baseInput({ best: 9000 }), rankOpts({ runScore: 777, callsign: "Voyager", country: "jp" }));
   check("me.callsign passthrough for a clean callsign", r.me.callsign === "Voyager");
-  check("me.score passthrough", r.me.score === 777);
+  check("me.score is this run, not the board best", r.me.score === 777);
   check("me.country passthrough", r.me.country === "jp");
 }
 {
-  // reproduces the exact leak: a blocked legacy callsign must come out of
-  // deriveGameOverRank already redacted, not the raw string, since this is
-  // the only place the game-over screen's own-row sanitization can happen
-  // (the account owner's private views elsewhere are deliberately exempt).
+  const r = deriveGameOverRank(baseInput({ best: 9000 }), rankOpts({ runScore: 4200, callsign: "Voyager" }));
+  check("me.score stays on this run when best is higher", r.me.score === 4200);
+}
+{
   const r = deriveGameOverRank(baseInput({ best: 1200 }), {
-    isDaily: false,
-    callsign: "trump rapes kids",
-    country: "us",
+    ...rankOpts({ runScore: 1200, callsign: "trump rapes kids" }),
   });
-  check("me.callsign is redacted for a blocked legacy callsign, not the raw string", r.me.callsign === "Callsign redacted");
+  check("me.callsign is a fun pseudonym for a blocked legacy callsign", r.me.callsign !== "trump rapes kids");
+  check("me.callsign is not the old static redaction string", r.me.callsign !== "Callsign redacted");
   check("me.score still passes through for a blocked callsign", r.me.score === 1200);
 }
 
@@ -146,5 +135,5 @@ if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);
   process.exit(1);
 } else {
-  console.log("ALL CHECKS PASSED: game-over rank slot (null-rank bug, single primary rank, country rank, wingmate/stranger/no target, own-callsign masking).");
+  console.log("ALL CHECKS PASSED: game-over rank slot (null-rank bug, single primary rank, country rank, wingmate/stranger/no target, this-run score on me row, callsign masking).");
 }

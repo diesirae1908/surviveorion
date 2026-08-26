@@ -108,10 +108,10 @@ function droneSizeSpeedFactor(scale: number): number {
 export function updateDrones(world: World, dt: number): void {
   const ship = world.ship;
   const chase = world.phase === "playing";
-  // SOLAR WIND: hashed crosswind, added as a pure positional nudge after
-  // each drone's own homing/script movement. Drones are not clamped: they
-  // ride the current off-screen. Same vector as the ship this frame
-  // (world.time; see mutators.ts). No seeded-stream draws.
+  // SOLAR WIND: hashed crosswind nudge after homing/script movement. Only a
+  // fraction of the displacement sticks (see DRONE.windDriftFraction) so
+  // drones visibly drift without net-leaving the arena. Same vector as the
+  // ship this frame (world.time; see mutators.ts). No seeded-stream draws.
   const wind = mutatorWindVector(world.time);
 
   for (const d of world.drones) {
@@ -231,8 +231,9 @@ export function updateDrones(world: World, dt: number): void {
     d.x += d.vx * dt;
     d.y += d.vy * dt;
     if (wind) {
-      d.x += wind.x * dt;
-      d.y += wind.y * dt;
+      const stick = DRONE.windDriftFraction;
+      d.x += wind.x * dt * stick;
+      d.y += wind.y * dt * stick;
     }
   }
 }

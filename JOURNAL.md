@@ -4,6 +4,29 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: player feedback fixes from admin queue (branch `sam/feedback-aug26`)
+
+- `/admin` feedback queue, five items: blocked callsigns now show a
+  deterministic fun pseudonym (FNV-1a over the raw name, same 24-name list in
+  `src/nickname.ts` + `server/nickname.mjs`, list parity asserted in
+  `scripts/test-nickname.ts`) instead of the static "Callsign redacted";
+  game-over comparison board pins **this run's** score on the me-row (`runScore`
+  in `deriveGameOverRank`; gap-to-goal + target row hidden when this run already
+  passed the chase pilot); SOLAR WIND drones only take ~30% of the wind
+  displacement (`DRONE.windDriftFraction: 0.3`, ~70% compensated in homing) so
+  the opening stays dense without losing visible drift; upward-wind top-wall
+  escape regression in `scripts/test-mutators.ts` (inertia thrust, direct
+  control, afterburner dash); player-facing em-dash sweep in
+  `scripts/test-nickname.ts` (409 / Welcome back / vortex already comma/colon;
+  sweep guards regression).
+- Why: Lucas (#9 pseudonym, #10 game-over score confusion), live SOLAR WIND
+  emptiness (#12), and a stale-bundle top-wall report (#11) worth locking in.
+- Wind balance pick: partial drift fraction over rim-steer because it preserves
+  the current's feel with one tunable and no extra per-drone steering logic.
+- Commit: `420d432`.
+- Verified: pass — `npx tsc --noEmit`, `npm run test:mutators` (golden snapshot unchanged), `npx tsx scripts/sim-test.ts`, `npx tsx scripts/test-gameover-rank.ts`, `npx tsx scripts/test-nickname.ts`.
+- Not merged, not deployed.
+
 ## 2026-08-25: SOLAR WIND pin + shifting current LIVE
 
 - Lucas: "ok push live" (Aug 25, ~9:20 PM PT). Merged `sam/solar-wind-pin` to

@@ -186,27 +186,63 @@ check(
 
 // --- display-time sanitization (legacy-row backstop) ---
 
+const blockedLegacy = "trump rapes kids";
+const clientPseudonym = client.sanitizeCallsignForDisplay(blockedLegacy);
+const serverPseudonym = server.sanitizeCallsignForDisplay(blockedLegacy);
+
+check(
+  "client/server blocked-pseudonym lists match",
+  JSON.stringify(client.BLOCKED_CALLSIGN_PSEUDONYMS),
+  JSON.stringify(server.BLOCKED_CALLSIGN_PSEUDONYMS),
+);
+check("client/server blocked pseudonym match", clientPseudonym, serverPseudonym);
+check("blocked pseudonym is deterministic on the client", client.sanitizeCallsignForDisplay(blockedLegacy), clientPseudonym);
+check("blocked pseudonym is not the old static string", clientPseudonym !== "Callsign redacted", true);
+check("blocked pseudonym is not the raw callsign", clientPseudonym !== blockedLegacy, true);
+
 check(
   "client sanitizes a blocked legacy callsign",
-  client.sanitizeCallsignForDisplay("trump rapes kids"),
-  "Callsign redacted",
+  client.sanitizeCallsignForDisplay(blockedLegacy),
+  clientPseudonym,
 );
 check(
   "server sanitizes a blocked legacy callsign",
-  server.sanitizeCallsignForDisplay("trump rapes kids"),
-  "Callsign redacted",
+  server.sanitizeCallsignForDisplay(blockedLegacy),
+  serverPseudonym,
 );
 check("client leaves a clean callsign untouched", client.sanitizeCallsignForDisplay("Ace"), "Ace");
 check("server leaves a clean callsign untouched", server.sanitizeCallsignForDisplay("Ace"), "Ace");
+const malformedClientPseudonym = client.sanitizeCallsignForDisplay(null as unknown as string);
+const malformedServerPseudonym = server.sanitizeCallsignForDisplay(null as unknown as string);
 check(
-  "client sanitizes non-string",
-  client.sanitizeCallsignForDisplay(null as unknown as string),
-  "Callsign redacted",
+  "client/server malformed-input pseudonym match",
+  malformedClientPseudonym,
+  malformedServerPseudonym,
 );
 check(
-  "server sanitizes non-string",
-  server.sanitizeCallsignForDisplay(null as unknown as string),
-  "Callsign redacted",
+  "client sanitizes non-string to a pseudonym",
+  client.BLOCKED_CALLSIGN_PSEUDONYMS.includes(malformedClientPseudonym as never),
+  true,
+);
+check(
+  "server sanitizes non-string to a pseudonym",
+  server.BLOCKED_CALLSIGN_PSEUDONYMS.includes(malformedServerPseudonym),
+  true,
+);
+check(
+  "client sanitizes undefined like null",
+  client.sanitizeCallsignForDisplay(undefined as unknown as string),
+  malformedClientPseudonym,
+);
+check(
+  "server sanitizes undefined like null",
+  server.sanitizeCallsignForDisplay(undefined as unknown as string),
+  malformedServerPseudonym,
+);
+check(
+  "clean empty string stays empty (not a blocked legacy row)",
+  client.sanitizeCallsignForDisplay(""),
+  "",
 );
 
 // --- sanitizePinnedRow (2026-08-17 review finding): client-built "pinned
@@ -219,12 +255,12 @@ check(
 check(
   "sanitizePinnedRow redacts a blocked legacy callsign",
   client.sanitizePinnedRow({ callsign: "trump rapes kids", rank: 12, score: 4200, isMe: true }).callsign,
-  "Callsign redacted",
+  clientPseudonym,
 );
 check(
   "sanitizePinnedRow preserves non-callsign fields on a blocked row",
   JSON.stringify(client.sanitizePinnedRow({ callsign: "trump rapes kids", rank: 12, score: 4200, isMe: true })),
-  JSON.stringify({ callsign: "Callsign redacted", rank: 12, score: 4200, isMe: true }),
+  JSON.stringify({ callsign: clientPseudonym, rank: 12, score: 4200, isMe: true }),
 );
 check(
   "sanitizePinnedRow leaves a clean callsign's row untouched",
@@ -232,11 +268,46 @@ check(
   JSON.stringify({ callsign: "Ace", rank: 3, score: 9001 }),
 );
 
+// --- player-facing copy: no em dashes (U+2014) in string literals ---
+{
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const ROOT = new URL("..", import.meta.url).pathname;
+  const files = [
+    "src/main.ts",
+    "src/ui.ts",
+    "src/config.ts",
+    "src/community.ts",
+    "src/tutorial.ts",
+    "src/share.ts",
+    "src/badges.ts",
+    "src/mutators.ts",
+  ];
+  const offenders: string[] = [];
+  for (const rel of files) {
+    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) continue;
+      if (/["'`][^"'`]*—/.test(line)) offenders.push(`${rel}: ${line.trim()}`);
+    }
+  }
+  const serverText = fs.readFileSync(path.join(ROOT, "server/index.mjs"), "utf8");
+  for (const line of serverText.split("\n")) {
+    if (!line.includes("error:")) continue;
+    if (/["'`][^"'`]*—/.test(line)) offenders.push(`server/index.mjs: ${line.trim()}`);
+  }
+  if (offenders.length > 0) {
+    failures += offenders.length;
+    for (const o of offenders) console.error(`FAIL em dash in player copy: ${o}`);
+  }
+}
+
 if (failures > 0) {
   console.error(`\n${failures} nickname filter check(s) FAILED.`);
   process.exit(1);
 }
 console.log(
   `ALL CHECKS PASSED: ${ALLOWED.length + BLOCKED.length} names x 2 implementations, ` +
-    `messages, elongation tolerance, display sanitization, pinned-row masking.`,
+    `messages, elongation tolerance, pseudonym list parity, display sanitization, pinned-row masking, em-dash sweep.`,
 );

@@ -148,7 +148,7 @@ export interface GameOverRankInput {
  */
 export function deriveGameOverRank(
   r: GameOverRankInput,
-  opts: { isDaily: boolean; callsign: string; country: string },
+  opts: { isDaily: boolean; callsign: string; country: string; runScore: number },
 ): GameOverRankResult {
   // Daily Patrol is the relevant board on a daily run (the same board
   // TODAY'S BOARD shows) — World rank otherwise. One primary number, not
@@ -171,7 +171,7 @@ export function deriveGameOverRank(
     // `target` (server-sanitized before it ever reaches this function) it's
     // the account's own raw callsign passed straight from main.ts, so it
     // needs the same display-time masking here (2026-08-17 review finding).
-    me: { callsign: sanitizeCallsignForDisplay(opts.callsign), score: r.best, country: opts.country },
+    me: { callsign: sanitizeCallsignForDisplay(opts.callsign), score: opts.runScore, country: opts.country },
   };
 }
 
@@ -1842,7 +1842,7 @@ export class Ui {
     line.innerHTML = "";
     this.setGameOverCountryRank(data.country);
 
-    if (data.target) {
+    if (data.target && data.me.score < data.target.score) {
       const gap = Math.max(1, Math.floor(data.target.score - data.me.score + 1)).toLocaleString();
       const who = data.target.isWingmate
         ? `your wingmate <b>${escapeHtml(data.target.callsign)}</b>`
@@ -1851,7 +1851,7 @@ export class Ui {
     }
 
     const board = this.el("div", "board result-board", "");
-    if (data.target) {
+    if (data.target && data.me.score < data.target.score) {
       board.appendChild(
         this.el(
           "div",

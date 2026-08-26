@@ -28,8 +28,8 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   // SOLAR WIND: a hashed crosswind nudges position every tick, ahead of
   // every control scheme below (afterburner included). Into-wall wind is
   // dropped once the hull is already on that wall, so the current cannot
-  // keep shoving past the bound and wiping escape thrust. Drones keep the
-  // raw positional add (see enemies.ts).
+  // keep shoving past the bound and wiping escape thrust. Drones take a
+  // partial drift fraction instead (see enemies.ts).
   const wind = mutatorWindVector(world.time);
   if (wind) {
     const w = cancelIntoWallWind(s, world, SHIP.radius, wind);

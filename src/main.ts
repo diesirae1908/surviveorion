@@ -1072,6 +1072,7 @@ function renderRankResult(r: SubmitResult): void {
       isDaily: runIsDaily,
       callsign: api.user?.callsign ?? "You",
       country: api.user?.country ?? "",
+      runScore: Math.floor(world.score),
     }),
   );
   const earned = (r.newBadges ?? [])
