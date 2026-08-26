@@ -20,6 +20,11 @@ import { validateRun, MODES, GAME_MODES } from "./validate.mjs";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname.mjs";
 import { qualifyingBadges } from "./badges.mjs";
 import { isValidUtcDateStr } from "./dateUtils.mjs";
+import {
+  dailyLeaderboardCombinedWithBots,
+  dailyRankCombinedWithBots,
+  nextAboveCombinedDailyWithBots,
+} from "./dailyBoard.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -184,7 +189,12 @@ const publicUser = (u) => ({ callsign: u.callsign, country: u.country });
  * publicUser(): the account owner needs to see their own real callsign.
  */
 const sanitizeEntry = (e) => (e ? { ...e, callsign: sanitizeCallsignForDisplay(e.callsign) } : e);
-const sanitizeEntries = (list) => list.map(sanitizeEntry);
+/** Drop server-only merge metadata before any leaderboard row reaches a client. */
+const publicBoardEntry = (e) => {
+  const { virtual: _v, userId: _u, ...rest } = e;
+  return sanitizeEntry(rest);
+};
+const sanitizeEntries = (list) => list.map(publicBoardEntry);
 
 /**
  * Auto-naming for Google/Clerk signups: the display name comes from a
@@ -471,10 +481,12 @@ const routes = {
       countryRank: user.country
         ? store.rankOf(user.id, { country: user.country, mode: run.mode, gameMode })
         : null,
-      dailyRank: dailyDate ? (store.dailyRankCombined(user.id, dailyDate)?.rank ?? null) : null,
+      dailyRank: dailyDate
+        ? (dailyRankCombinedWithBots(user.id, dailyDate)?.rank ?? null)
+        : null,
       nextAbove: sanitizeEntry(
         dailyDate
-          ? store.nextAboveCombinedDaily(user.id, dailyDate)
+          ? nextAboveCombinedDailyWithBots(user.id, dailyDate)
           : store.nextAbove(user.id, run.mode, gameMode),
       ),
       nextWingmate: sanitizeEntry(
@@ -562,8 +574,8 @@ const routes = {
     const dailyDate = utcDate();
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
     if (mode === "all") {
-      const entries = sanitizeEntries(store.dailyLeaderboardCombined({ dailyDate, limit }));
-      const me = user ? store.dailyRankCombined(user.id, dailyDate) : null;
+      const entries = sanitizeEntries(dailyLeaderboardCombinedWithBots({ dailyDate, limit }));
+      const me = user ? dailyRankCombinedWithBots(user.id, dailyDate) : null;
       return json(res, 200, { date: dailyDate, entries, me });
     }
     if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
