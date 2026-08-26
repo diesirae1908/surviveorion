@@ -20,7 +20,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Why: early UTC hours left the daily lobby board empty; Lucas wanted a living
   board and a production-safe way to rehearse future patrol days without
   leaking the preview tool to every player.
-- Commit: `321aaa6`.
+- Commit: `46c7463`.
 - Verified: pass — `npx tsc --noEmit`, `npm run test:mutators` (golden snapshot
   unchanged), `npx tsx scripts/sim-test.ts`, `npx tsx scripts/test-gameover-rank.ts`,
   `npx tsx scripts/test-nickname.ts`, `node scripts/test-daily-bots.mjs`,
