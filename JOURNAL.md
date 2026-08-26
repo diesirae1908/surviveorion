@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: board-life LIVE
+
+- Lucas approved deploy. Merged `sam/board-life` → main (`752c831`,
+  `--no-ff`). Pushed `origin/main`; Render auto-deployed `surviveorion`.
+- Live bundle flipped `index-B5mS0Bc1.js` → `index-DUrIPklW.js` (~1.5 min
+  after push; brief 502 mid-deploy). HTTP 200 confirmed.
+- Daily board check (`GET /api/leaderboard/daily?mode=all&limit=12`): 7/12
+  entries are bot callsigns (e.g. Tactical Sparrow, Falcon Patch, Drift
+  Courier); no entry exposes `userId`.
+
 ## 2026-08-26: board-life PM fix round — strip board userId, tame launch-window bot scores (branch `sam/board-life`)
 
 - **Bot userId leak:** `publicBoardEntry` now drops `userId` on every public
