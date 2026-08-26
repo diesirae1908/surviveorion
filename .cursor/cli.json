@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(npm)",
+      "Shell(npx)",
+      "Shell(node)",
+      "Shell(yarn)",
+      "Shell(pnpm)",
+      "Shell(git)",
+      "Shell(gh)",
+      "Shell(ls)",
+      "Shell(cat)",
+      "Shell(grep)",
+      "Shell(rg)",
+      "Shell(find)",
+      "Shell(sed)",
+      "Shell(awk)",
+      "Shell(head)",
+      "Shell(tail)",
+      "Shell(wc)",
+      "Shell(echo)",
+      "Shell(mkdir)",
+      "Shell(cp)",
+      "Shell(mv)",
+      "Shell(diff)"
+    ],
+    "deny": [
+      "Shell(git:push --force*)",
+      "Shell(git:push -f*)",
+      "Shell(git:clean*)",
+      "Shell(rm:-rf*)",
+      "Shell(rm:-fr*)",
+      "Shell(rm:-r*)"
+    ]
+  }
+}

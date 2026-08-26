@@ -176,10 +176,51 @@ export function pickRejectionMessage() {
 // sit on a public board while its owner hasn't renamed. Deliberately NOT
 // applied to the account owner's own view of their own callsign (see
 // publicUser() in index.mjs) — they need to see the real value to know it
-// needs changing.
-const REDACTED_CALLSIGN = "Callsign redacted";
+// needs changing. Blocked names map to a deterministic fun pseudonym (FNV-1a
+// over the raw callsign) — keep BLOCKED_CALLSIGN_PSEUDONYMS and
+// fnv1aCallsign in lockstep with src/nickname.ts.
+export const BLOCKED_CALLSIGN_PSEUDONYMS = [
+  "Dusty Comet",
+  "Space Cadet 7",
+  "Captain Void",
+  "Orbit Gremlin",
+  "Rogue Meteor",
+  "Moon Moth",
+  "Solar Windbag",
+  "Nebula Nobody",
+  "Asteroid Ace",
+  "Cosmic Turnip",
+  "Star Muffin",
+  "Zero G Hero",
+  "Drifting Pickle",
+  "Warp Snail",
+  "Galaxy Goose",
+  "Photon Phantom",
+  "Quasar Quokka",
+  "Belt Runner",
+  "Redacted Comet",
+  "Anonymous Nova",
+  "Pluto Apologist",
+  "Comet Chaser",
+  "Stray Satellite",
+  "Major Moonbeam",
+];
+
+/** FNV-1a 32-bit hash — must match src/nickname.ts fnv1aCallsign exactly. */
+function fnv1aCallsign(raw) {
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function blockedCallsignPseudonym(raw) {
+  return BLOCKED_CALLSIGN_PSEUDONYMS[fnv1aCallsign(raw) % BLOCKED_CALLSIGN_PSEUDONYMS.length];
+}
 
 export function sanitizeCallsignForDisplay(raw) {
-  if (typeof raw !== "string") return REDACTED_CALLSIGN;
-  return isNicknameBlocked(raw) ? REDACTED_CALLSIGN : raw;
+  if (typeof raw !== "string") return blockedCallsignPseudonym("");
+  return isNicknameBlocked(raw) ? blockedCallsignPseudonym(raw) : raw;
 }

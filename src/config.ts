@@ -79,6 +79,9 @@ export const DRONE = {
   // Inert while scaleClamp is pinned to one size (see SPAWNER.scaleClamp);
   // widen the clamp again to bring back "small = slower, large = faster".
   sizeSpeed: { small: 0.7, large: 1.25 },
+  // SOLAR WIND: fraction of crosswind displacement that sticks (~70% compensated
+  // in homing so pursuit pressure and on-screen density stay near a no-wind day).
+  windDriftFraction: 0.3,
 };
 
 export type FormationKind =
