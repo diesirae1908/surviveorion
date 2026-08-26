@@ -14,7 +14,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Tests:** `scripts/test-rehearsal-day.ts` now asserts the gate decision table.
 - Why: follow-up to production rehearsal unlock (`752c831`) — Lucas needs a
   shareable link that unlocks and rehearses without a manual reload.
-- Commit: (pending).
+- Commit: `e556b01`.
 - Follow-up: merge when ready; not deployed from this branch.
 
 ## 2026-08-26: board-life LIVE
