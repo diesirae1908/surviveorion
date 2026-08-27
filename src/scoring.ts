@@ -1,4 +1,5 @@
 import { SCORING } from "./config";
+import { mutatorGrazePointsScale } from "./mutators";
 import type { World } from "./types";
 
 /**
@@ -57,7 +58,8 @@ export function registerGraze(world: World, x = 0, y = 0): number {
   world.maxMultiplier = Math.max(world.maxMultiplier, world.multiplier);
   world.multiplierDecayTimer = SCORING.multiplierDecayDelay;
 
-  const points = SCORING.grazePoints * world.multiplier * dangerFactor(world);
+  const points =
+    SCORING.grazePoints * mutatorGrazePointsScale() * world.multiplier * dangerFactor(world);
   world.score += points;
   world.scoreBonuses += points;
   world.events.push({ type: "graze", x, y, points: Math.round(points) });

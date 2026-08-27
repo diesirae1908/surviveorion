@@ -387,7 +387,11 @@ export const CREATURE_DAYS = {
     // ...and the ceiling: past this a "wave" stops reading as a converging
     // pack and becomes unrelated single hunters.
     veeStaggerMax: 1.4,
-    waveIntervalEarly: [11, 14] as const,
+    // 2026-08-26: [11,14] left the first 30s quiet. Shared ramp already
+    // climbs after openingMinutes (0.45), so only the opening shelf needed
+    // a tighter cadence. Do not move CREATURE_DAYS.openingMinutes/rampMinutes
+    // (those are shared by every creature day).
+    waveIntervalEarly: [8, 11] as const,
     // 2026-08-12 "no chill" pass: [6, 7.5] to [4.2, 5.4], the biggest cadence
     // move in this pass. A hunter vee only lives 6s (ASSEMBLY.kinds.hunter),
     // so waves 6-7.5s apart meant the pack was reliably DEAD before the next
@@ -567,13 +571,10 @@ export const MINES = {
 // rain regardless of how they fly. Gated entirely behind the STARFALL
 // mutator; every other day and mode is untouched.
 export const STARFALL_RAIN = {
-  intervalStart: 4.0, // seconds between impacts near minute zero
-  intervalFloor: 1.0, // seconds between impacts once fully ramped
-  // 2026-08-12 mid-ramp densify: 3.5 to 2.5, so the rain thickens noticeably
-  // across the first two minutes instead of creeping. Lighter touch than the
-  // creature days (this day's early game already had real pressure), and the
-  // opening is untouched: the first impacts still land intervalStart apart.
-  rampMinutes: 2.5, // time to go from intervalStart to intervalFloor
+  // 2026-08-26: opening 4.0s / 2.5 min ramp felt slow before 1 min.
+  intervalStart: 2.6, // seconds between impacts near minute zero
+  intervalFloor: 0.7, // seconds between impacts once fully ramped
+  rampMinutes: 1.2, // time to go from intervalStart to intervalFloor
   // Past the ramp the sky keeps opening up (2026-08-11 late-growth pass): the
   // interval keeps shrinking instead of sitting on intervalFloor forever, so
   // STARFALL's rain has an endless leg like Classic's density does. Reaches
@@ -589,6 +590,16 @@ export const STARFALL_RAIN = {
   radius: 1.8, // kill/lethal radius on impact, matches the Meteor Storm power's feel
   holdTime: 1.0, // lingering lethality after impact (same discipline as blasts elsewhere)
   waveLifetime: 0.6,
+};
+
+/** BLACKOUT lights-out pulse. Time-driven, no RNG. First pulse at 6s. */
+export const BLACKOUT = {
+  firstPulseAt: 6.0,
+  pulseIntervalSeconds: 6.0,
+  pulseDurationSeconds: 0.5,
+  pulseFadeSeconds: 0.15,
+  pulseVignetteOpacity: 0.65,
+  pulseTelegraphOpacity: 0.15,
 };
 
 // Competitive scoring: skilled play compounds. The multiplier climbs fast on
@@ -705,8 +716,8 @@ export const POWERS = {
     trailLifetime: 2.5,
     trailKillRadius: 0.55,
   },
-  // Flash-freezes every drone in a large area; frozen drones stop dead and
-  // shatter harmlessly if you fly into them before they thaw.
+  // Flash-freezes every drone and mine in a large area; frozen targets
+  // stop dead and shatter harmlessly if you fly into them before they thaw.
   freeze: {
     radius: 9,
     freezeDuration: 5,
@@ -885,7 +896,7 @@ export const POWER_HINTS: Record<PowerId, string> = {
   pulse: "aimed shots, kills pay double",
   magnet: "yanks the nearest power to your ship",
   afterburner: "warp dash, untouchable on arrival",
-  freeze: "freezes drones, shatter them for bonus",
+  freeze: "freezes drones and mines, shatter them for bonus",
   missiles: "homing missiles blast the swarm",
   starshell: "invulnerable, ram them!",
   arc: "lightning chains through the swarm",

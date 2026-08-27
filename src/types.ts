@@ -105,6 +105,8 @@ export interface Mine {
   lifetime: number;
   seed: number; // per-mine visual phase offset
   alive: boolean;
+  /** Seconds of freeze remaining (0 = live). Same timer as drone.frozen. */
+  frozen: number;
 }
 
 /** Guided missile from the Missile Swarm power. */

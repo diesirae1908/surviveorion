@@ -1,8 +1,15 @@
-import { ASSEMBLY, MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP, VIEW_MIN, type PowerId } from "./config";
+import { ASSEMBLY, BLACKOUT, MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP, VIEW_MIN, type PowerId } from "./config";
 import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
-import { mutatorRedTint, mutatorWindShiftWarning, mutatorWindVector } from "./mutators";
+import {
+  blackoutPulseAmount,
+  blackoutTelegraphMul,
+  mutatorBlackoutPulse,
+  mutatorRedTint,
+  mutatorWindShiftWarning,
+  mutatorWindVector,
+} from "./mutators";
 import { blastRadius } from "./powers";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
@@ -175,6 +182,9 @@ export class Renderer {
     if (world.daily && world.phase === "playing" && mutatorRedTint()) {
       this.drawRedAlertVignette(opts.uiTime);
     }
+    if (world.daily && world.phase === "playing" && mutatorBlackoutPulse()) {
+      this.drawBlackoutVignette(world.time);
+    }
     if (opts.showHud) this.drawHud(world, opts);
     if (opts.touch?.active) this.drawTouchOverlay(opts.touch);
 
@@ -203,6 +213,28 @@ export class Renderer {
     );
     grad.addColorStop(0, "rgba(196, 30, 58, 0)");
     grad.addColorStop(1, `rgba(196, 30, 58, ${(0.14 + 0.08 * pulse).toFixed(3)})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /** BLACKOUT: blue-black lights-out pulse, distinct from RED ALERT. */
+  private drawBlackoutVignette(runTime: number): void {
+    const amount = blackoutPulseAmount(runTime);
+    if (amount <= 0) return;
+    const { ctx } = this;
+    const W = this.cssW;
+    const H = this.cssH;
+    const opacity = BLACKOUT.pulseVignetteOpacity * amount;
+    const grad = ctx.createRadialGradient(
+      W / 2,
+      H / 2,
+      Math.min(W, H) * 0.22,
+      W / 2,
+      H / 2,
+      Math.max(W, H) * 0.78,
+    );
+    grad.addColorStop(0, `rgba(4, 8, 20, ${(opacity * 0.45).toFixed(3)})`);
+    grad.addColorStop(1, `rgba(2, 4, 12, ${opacity.toFixed(3)})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
   }
@@ -1166,6 +1198,7 @@ export class Renderer {
   private drawSpawnTelegraphs(world: World, time: number): void {
     if (world.spawnTelegraphs.length === 0) return;
     const { ctx } = this;
+    const blackoutMul = blackoutTelegraphMul(world.time);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const t of world.spawnTelegraphs) {
@@ -1174,7 +1207,7 @@ export class Renderer {
 
       // swelling core glow
       const r = 0.25 + progress * 0.45;
-      ctx.globalAlpha = (0.25 + progress * 0.6) * pulse;
+      ctx.globalAlpha = (0.25 + progress * 0.6) * pulse * blackoutMul;
       const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, r);
       g.addColorStop(0, "#ff8a7a");
       g.addColorStop(0.5, PALETTE.redBright);
@@ -1185,7 +1218,7 @@ export class Renderer {
       ctx.fill();
 
       // collapsing ring: reads as a countdown
-      ctx.globalAlpha = 0.55 * progress + 0.1;
+      ctx.globalAlpha = (0.55 * progress + 0.1) * blackoutMul;
       ctx.strokeStyle = PALETTE.redBright;
       ctx.lineWidth = 0.045;
       ctx.beginPath();
@@ -1199,6 +1232,7 @@ export class Renderer {
   private drawMeteorTelegraphs(world: World, time: number): void {
     if (world.meteorTelegraphs.length === 0) return;
     const { ctx } = this;
+    const blackoutMul = blackoutTelegraphMul(world.time);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const t of world.meteorTelegraphs) {
@@ -1207,7 +1241,7 @@ export class Renderer {
 
       // converging ring: starts wide, contracts down onto the blast radius
       const outerR = t.radius * (1.8 - 0.8 * progress);
-      ctx.globalAlpha = (0.35 + 0.45 * progress) * pulse;
+      ctx.globalAlpha = (0.35 + 0.45 * progress) * pulse * blackoutMul;
       ctx.strokeStyle = PALETTE.meteors;
       ctx.lineWidth = 0.05;
       ctx.beginPath();
@@ -1215,7 +1249,7 @@ export class Renderer {
       ctx.stroke();
 
       // ground footprint: soft glow that brightens as impact nears
-      ctx.globalAlpha = 0.12 + 0.28 * progress;
+      ctx.globalAlpha = (0.12 + 0.28 * progress) * blackoutMul;
       const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.radius);
       g.addColorStop(0, "#fff3c4");
       g.addColorStop(0.5, PALETTE.meteors);
@@ -1226,7 +1260,7 @@ export class Renderer {
       ctx.fill();
 
       // targeting-lock crosshair ticks: slow spin, freezes just before impact
-      ctx.globalAlpha = 0.6 + 0.4 * progress;
+      ctx.globalAlpha = (0.6 + 0.4 * progress) * blackoutMul;
       ctx.strokeStyle = "#fff3c4";
       ctx.lineWidth = 0.045;
       const spin = progress < 0.92 ? time * 1.4 : 0;
@@ -1252,6 +1286,7 @@ export class Renderer {
   private drawCreatureTelegraphs(world: World, time: number): void {
     if (world.creatureSpawnQueue.length === 0) return;
     const { ctx } = this;
+    const blackoutMul = blackoutTelegraphMul(world.time);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const q of world.creatureSpawnQueue) {
@@ -1265,14 +1300,14 @@ export class Renderer {
       const pulse = 0.6 + 0.4 * Math.sin(time * 14 + q.x * 3);
       const r = 0.7 + Math.sqrt(q.count) * 0.35;
 
-      ctx.globalAlpha = (0.25 + 0.5 * progress) * pulse;
+      ctx.globalAlpha = (0.25 + 0.5 * progress) * pulse * blackoutMul;
       ctx.strokeStyle = PALETTE.redBright;
       ctx.lineWidth = 0.05;
       ctx.beginPath();
       ctx.arc(q.x, q.y, r * (1.4 - 0.4 * progress), 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.globalAlpha = 0.1 + 0.22 * progress;
+      ctx.globalAlpha = (0.1 + 0.22 * progress) * blackoutMul;
       const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
       g.addColorStop(0, "#ffd8dd");
       g.addColorStop(0.5, PALETTE.redBright);
@@ -1680,6 +1715,23 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
       ctx.fill();
+
+      // Ice overlay after the mine sprite, half-opaque, so the mine stays
+      // readable instead of disappearing under the crystal.
+      if (m.frozen > 0) {
+        const thawFlicker = m.frozen < 1 && Math.sin(m.frozen * 30) > 0;
+        if (!thawFlicker) {
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = alpha * 0.5;
+          const ice = ctx.createRadialGradient(0, 0, r * 0.15, 0, 0, r * 1.35);
+          ice.addColorStop(0, "rgba(223, 250, 255, 0.85)");
+          ice.addColorStop(1, "rgba(77, 136, 184, 0)");
+          ctx.fillStyle = ice;
+          ctx.beginPath();
+          ctx.arc(0, 0, r * 1.35, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       ctx.restore();
     }

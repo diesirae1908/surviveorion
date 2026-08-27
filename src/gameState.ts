@@ -2,7 +2,7 @@ import { MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./co
 import { updateCreatureChoreography } from "./creatures";
 import { droneRadius, initSpawner, killDrone, updateAssemblies, updateDrones, updateSpawner } from "./enemies";
 import type { InputState } from "./input";
-import { isMineArmed, killMine, mineRadius, updateMines } from "./mines";
+import { isMineArmed, killMine, mineRadius, shatterFrozenMine, updateMines } from "./mines";
 import { circlesOverlap } from "./physics";
 import { initPickups, updatePickups } from "./pickups";
 import { blastRadius, createPowersState, detonateShield, updatePowers } from "./powers";
@@ -188,8 +188,16 @@ function handleShipMineCollisions(world: World): void {
     world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
 
   for (const m of world.mines) {
-    if (!m.alive || !isMineArmed(m)) continue;
+    if (!m.alive) continue;
     if (!circlesOverlap(s.x, s.y, shipR, m.x, m.y, mineRadius())) continue;
+
+    // frozen mines shatter on contact, same as frozen drones (no boom)
+    if (m.frozen > 0) {
+      shatterFrozenMine(world, m);
+      continue;
+    }
+
+    if (!isMineArmed(m)) continue;
 
     // starshell rams mines safely too: they detonate against the shell
     if (world.powers.starshellTimer > 0) {
