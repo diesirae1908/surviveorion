@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: PT-midnight Daily Patrol LIVE
+
+- Lucas: "push live" (Aug 26, ~9:17 PM PT). Merged `sam/pt-midnight-clerk-fix`
+  → main (`dd9fa66`, `--no-ff`) and pushed. Render `dep-da7rkntbedkc73ekblp0`
+  live. Brief 502 mid-update; HTTP 200 after.
+- Bundle `index-BCMteHRV.js` → `index-CzX0LK42.js`. Live JS has
+  `America/Los_Angeles` and `midnight Pacific`.
+- `GET /api/leaderboard/daily` date is `2026-08-26` (PT today). That is the
+  expected rewind: UTC had already rolled to Aug 27.
+- Next mutator change: midnight PT tonight (Aug 27 12:00 AM PT).
+
 ## 2026-08-26: restore Clerk import dropped by PT-midnight commit (branch `sam/pt-midnight-clerk-fix`)
 
 - `51f6bce` (PT midnight, landed on main via the buffer-youtube-title merge)
