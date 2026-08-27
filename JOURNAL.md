@@ -4,6 +4,20 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: restore Clerk import dropped by PT-midnight commit (branch `sam/pt-midnight-clerk-fix`)
+
+- `51f6bce` (PT midnight, landed on main via the buffer-youtube-title merge)
+  replaced the `clerk.mjs` import with `patrolDate.mjs`. Server boot then
+  crashed: `ReferenceError: clerkEnabled is not defined` at the listen log
+  (`server/index.mjs:1255`).
+- Render deploy `dep-da7rgo4s728c73aeaikg` (`9c6d383`) is `update_failed`.
+  Live stays `f928820` / bundle `index-BCMteHRV.js` (still UTC daily).
+- Restored `import { clerkEnabled, clerkPublishableKey, verifyClerkToken,
+  clerkUserProfile } from "./clerk.mjs"` next to the new `patrolDateStr`
+  import. PT midnight logic unchanged.
+- Do not merge until Lucas says; after midnight PT is the clean window
+  (a 5 PM–midnight PT deploy rewinds live Daily from UTC-tomorrow to PT-today).
+
 ## 2026-08-26: buffer-youtube-title LIVE
 
 - PM review passed (75/75 tests). Merged `sam/buffer-youtube-title` → main
