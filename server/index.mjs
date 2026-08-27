@@ -25,6 +25,7 @@ import {
   dailyRankCombinedWithBots,
   nextAboveCombinedDailyWithBots,
 } from "./dailyBoard.mjs";
+import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
