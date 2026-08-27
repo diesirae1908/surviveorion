@@ -45,6 +45,14 @@ npx tsx scripts/sim-test.ts   # headless playtest: runs the real game loop,
 - Type-check (`npx tsc --noEmit` or `npm run build`) and run the sim-test
   before pushing gameplay changes.
 
+## Social pipeline
+
+`social/` is the harvest → edit → caption → queue pipeline (formerly the standalone
+`orion-social` repo). Node 22 + ffmpeg. Strategy in `brand/SOCIAL.md`; spec in
+`social/SPEC.md`. Secrets in `social/.env` (covered by root `.gitignore`). Never post
+without human-approved files in `social/out/approved/`. Run tests with
+`cd social && npm test`.
+
 ## Brand
 
 `brand/` is the ORION brand kit (v1.0, 2026-08-24). It is the source of truth

@@ -14,7 +14,7 @@
     <string>batch</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/lucasnavilloz/Documents/games/orion-social</string>
+  <string>/Users/lucasnavilloz/Documents/games/orion-web/social</string>
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
@@ -23,8 +23,8 @@
     <integer>0</integer>
   </dict>
   <key>StandardOutPath</key>
-  <string>/Users/lucasnavilloz/Documents/games/orion-social/out/batch.log</string>
+  <string>/Users/lucasnavilloz/Documents/games/orion-web/social/out/batch.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/lucasnavilloz/Documents/games/orion-social/out/batch.err.log</string>
+  <string>/Users/lucasnavilloz/Documents/games/orion-web/social/out/batch.err.log</string>
 </dict>
 </plist>

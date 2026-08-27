@@ -350,6 +350,8 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 | `src/badges.ts` | Badge display metadata (ids mirror `server/badges.mjs`) |
 | `src/countries.ts` | Country list, flags, offline geo guess |
 | `server/` | Zero-dependency Node community server (http + sqlite) |
+| `social/` | Social clip pipeline: harvest, locked presets, captions, review queue, posting |
+| `brand/` | ORION brand kit (voice, copy, tokens, creator-kit, assets) |
 
 Music (Suno-generated, from the project's inspiration assets), one looping track per screen:
 

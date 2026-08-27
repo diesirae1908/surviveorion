@@ -1,5 +1,16 @@
 # JOURNAL
 
+## 2026-08-26: merged into orion-web at `social/`
+
+- `git subtree add --prefix=social ../orion-social main` from branch `sam/social-merge`.
+  History preserved: `fcce94e` through `82ee9f3` (9 commits). Standalone
+  `diesirae1908/orion-social` and `~/Documents/games/orion-social` left untouched.
+- Added Buffer posting path: `BUFFER_ACCESS_TOKEN` in `.env.example`,
+  `buffer-channels.json`, `scripts/post-buffer.mjs` (default `--dry`). Media field on
+  `CreatePostInput` not introspected (no token yet): wired as unconfirmed
+  `mediaAttachments` with `{ localPath }` pending live schema check.
+- `ops/com.orion.social.batch.plist` paths updated to `orion-web/social/`.
+
 ## 2026-08-25 (Aug 25 ~4:08 PM PT): private GitHub remote
 
 - Lucas: "ok, push everything live". Game repo already on surviveorion.com (`04deff9`, bundle `index-Cn4JTljO.js`). This pipeline had no origin.

@@ -1,4 +1,4 @@
-# orion-social
+# orion-social (lives at `social/` in orion-web)
 
 Automated social clip pipeline for ORION (surviveorion.com). Consumes game-recorded WebM/MP4
 clips plus JSON sidecars from `orion-web`.
@@ -36,4 +36,5 @@ clips plus JSON sidecars from `orion-web`.
 - `npm run golden` locked day43 presets (WASTED, PATROL, NEW_BEST) to `out/golden/`. `--dry` prints ffmpeg steps.
 - `npm run batch` harvest -> locked presets -> captions -> pending. Never posts.
 - `npm run post` Phase D/E over `out/approved/` only.
+- `node scripts/post-buffer.mjs` Buffer GraphQL path (default `--dry`; see `.env.example`).
 - `npm run extract-mutators` refresh `assets/mutators.json` from a local orion-web checkout.

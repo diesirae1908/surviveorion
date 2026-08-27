@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: social pipeline merge (branch `sam/social-merge`)
+
+- Merged `orion-social` into `social/` via `git subtree add` (history
+  `fcce94e`..`82ee9f3`). Standalone repo untouched until Lucas archives it.
+- Buffer posting script (`social/scripts/post-buffer.mjs`), channel ids config,
+  creator kit copied from Sam into `brand/creator-kit/`. Game code unchanged.
+- Not merged to main, not deployed.
+
 ## 2026-08-26: rehearsal-link LIVE
 
 - PM review passed. Merged `sam/rehearsal-link` → main (`e47235b`,
