@@ -147,7 +147,7 @@ events (time + clearance) from the existing highlights telemetry. Rename the cli
 structured form. Client-side only, no server change, no gameplay change, fits the privacy
 stance (nothing uploaded).
 
-**Step 2, the pipeline (new repo `orion-social`, the real build).** Node + ffmpeg, runs
+**Step 2, the pipeline (`social/` in this repo, the real build).** Node + ffmpeg, runs
 locally via launchd or in the cloud: harvest → edit presets per format → captions → thumbnail
 → queue. Output: a folder of ready posts plus a manifest. Posting: YouTube API direct, IG
 Graph API, TikTok drafts. Review queue starts as a folder Lucas looks at; graduates to Postiz

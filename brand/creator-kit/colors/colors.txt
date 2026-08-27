@@ -1,0 +1,14 @@
+ORION palette (copy hex into any editor)
+
+Void (background)      #0a0a12
+Hull Gold (primary)    #ffd700
+Flare (highlight)      #ffee88
+Ingot (deep gold)      #cc8800
+Brass                  #ccaa66
+Bronze                 #aa8844
+Dust (muted text)      #8a7a55
+Rising Red (danger)    #c41e3a  (large text only)
+Alarm (bright red)     #ff4455
+Starlight (off-white)  #fff7e0
+
+Text on Void: Hull Gold or Starlight. Red is for danger accents, never body text.

@@ -1,0 +1,10 @@
+{
+  "day": 1,
+  "mutatorIds": ["starfall"],
+  "mutatorNames": ["STARFALL"],
+  "score": 150,
+  "medal": null,
+  "survivalTime": 8,
+  "closestCall": null,
+  "topGrazes": []
+}

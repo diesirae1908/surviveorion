@@ -1,0 +1,12 @@
+{
+  "day": 0,
+  "mutatorIds": [],
+  "mutatorNames": [],
+  "score": 1500000,
+  "medal": "gold",
+  "survivalTime": 180,
+  "closestCall": { "time": 90.0, "x": 50, "y": 60, "clearance": 0.25 },
+  "topGrazes": [
+    { "time": 90.0, "clearance": 0.25 }
+  ]
+}
