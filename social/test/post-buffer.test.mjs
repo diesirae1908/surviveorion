@@ -54,15 +54,27 @@ describe("post-buffer", () => {
     assert.equal(input.channelId, CHANNEL_IDS.youtube);
   });
 
-  it("includes unconfirmed media attachment when mediaPath is set", () => {
+  it("wires the confirmed assets shape when mediaUrl is a public URL", () => {
     const { input } = buildCreatePostVariables({
       channel: "instagram",
       text: "with media",
       mode: "shareNow",
-      mediaPath: "/tmp/video.mp4",
+      mediaUrl: "https://example.com/clip.mp4",
       channelIds: CHANNEL_IDS,
     });
-    assert.deepEqual(input.mediaAttachments, [{ localPath: "/tmp/video.mp4" }]);
+    assert.deepEqual(input.assets, [{ video: { url: "https://example.com/clip.mp4" } }]);
+  });
+
+  it("rejects a local-looking mediaUrl", () => {
+    assert.throws(() =>
+      buildCreatePostVariables({
+        channel: "instagram",
+        text: "with media",
+        mode: "shareNow",
+        mediaUrl: "/tmp/video.mp4",
+        channelIds: CHANNEL_IDS,
+      }),
+    );
   });
 
   it("builds GraphQL request with bearer auth", () => {

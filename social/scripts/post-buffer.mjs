@@ -32,18 +32,30 @@ const CREATE_POST_MUTATION = `mutation CreatePost($input: CreatePostInput!) {
  * @param {object} opts
  * @param {BufferChannel} opts.channel
  * @param {string} opts.text
- * @param {string} [opts.mediaPath]
+ * @param {string} [opts.mediaUrl] Publicly reachable https URL to the video.
+ *   Buffer's `assets` field takes a hosted URL, not a local path (confirmed
+ *   via schema introspection: `CreatePostInput.assets: [AssetInput!]!` ->
+ *   `AssetInput.video: VideoAssetInput` -> `VideoAssetInput.url: String!`).
+ *   Buffer's GraphQL API exposes no upload mutation of its own, so the
+ *   caller must host the file somewhere reachable first: not yet wired
+ *   into this pipeline; see social/JOURNAL.md.
  * @param {BufferMode} opts.mode
  * @param {string} [opts.dueAt]
  * @param {Record<string, string>} opts.channelIds
  */
-export function buildCreatePostVariables({ channel, text, mediaPath, mode, dueAt, channelIds }) {
+export function buildCreatePostVariables({ channel, text, mediaUrl, mode, dueAt, channelIds }) {
   const channelId = channelIds[channel];
   if (!channelId) {
     throw new Error(`unknown channel: ${channel}`);
   }
   if (mode === "customScheduled" && !dueAt) {
     throw new Error("dueAt required for customScheduled mode");
+  }
+  if (mediaUrl && !/^https?:\/\//.test(mediaUrl)) {
+    throw new Error(
+      `mediaUrl must be a public http(s) URL, got a local-looking path: "${mediaUrl}". ` +
+        "Buffer's API takes a hosted URL, not a local file; host the clip first.",
+    );
   }
 
   /** @type {Record<string, unknown>} */
@@ -56,10 +68,8 @@ export function buildCreatePostVariables({ channel, text, mediaPath, mode, dueAt
   if (mode === "customScheduled") {
     input.dueAt = dueAt;
   }
-  if (mediaPath) {
-    // UNCONFIRMED: media field name not verified against live schema.
-    // Likely requires a prior upload step to obtain attachment ids/urls.
-    input.mediaAttachments = [{ localPath: mediaPath }];
+  if (mediaUrl) {
+    input.assets = [{ video: { url: mediaUrl } }];
   }
   return { input };
 }
@@ -91,7 +101,7 @@ export function loadBufferConfig(repoRoot = REPO_ROOT) {
  * @param {{
  *   channel: BufferChannel,
  *   text: string,
- *   mediaPath?: string,
+ *   mediaUrl?: string,
  *   mode: BufferMode,
  *   dueAt?: string,
  *   dry?: boolean,
@@ -102,7 +112,7 @@ export function loadBufferConfig(repoRoot = REPO_ROOT) {
 export async function createBufferPost({
   channel,
   text,
-  mediaPath,
+  mediaUrl,
   mode,
   dueAt,
   dry = true,
@@ -115,7 +125,7 @@ export async function createBufferPost({
   const variables = buildCreatePostVariables({
     channel,
     text,
-    mediaPath,
+    mediaUrl,
     mode,
     dueAt,
     channelIds: config.channels,
@@ -153,14 +163,14 @@ export async function createBufferPost({
  * @param {string[]} argv
  */
 function parseArgv(argv) {
-  /** @type {{ channel?: string, text?: string, mode?: string, mediaPath?: string, dueAt?: string, dry: boolean }} */
+  /** @type {{ channel?: string, text?: string, mode?: string, mediaUrl?: string, dueAt?: string, dry: boolean }} */
   const args = { dry: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--channel" && argv[i + 1]) args.channel = argv[++i];
     else if (a === "--text" && argv[i + 1]) args.text = argv[++i];
     else if (a === "--mode" && argv[i + 1]) args.mode = argv[++i];
-    else if (a === "--media" && argv[i + 1]) args.mediaPath = argv[++i];
+    else if (a === "--media-url" && argv[i + 1]) args.mediaUrl = argv[++i];
     else if (a === "--due-at" && argv[i + 1]) args.dueAt = argv[++i];
     else if (a === "--dry=false") args.dry = false;
     else if (a === "--dry") args.dry = true;
@@ -172,14 +182,14 @@ async function main() {
   const args = parseArgv(process.argv.slice(2));
   if (!args.channel || !args.text || !args.mode) {
     console.error(
-      'Usage: node social/scripts/post-buffer.mjs --channel instagram|tiktok|youtube --text "..." --mode addToQueue|customScheduled|shareNow [--media path] [--due-at ISO] [--dry] [--dry=false]'
+      'Usage: node social/scripts/post-buffer.mjs --channel instagram|tiktok|youtube --text "..." --mode addToQueue|customScheduled|shareNow [--media-url https://...] [--due-at ISO] [--dry] [--dry=false]'
     );
     process.exit(1);
   }
   const result = await createBufferPost({
     channel: /** @type {BufferChannel} */ (args.channel),
     text: args.text,
-    mediaPath: args.mediaPath,
+    mediaUrl: args.mediaUrl,
     mode: /** @type {BufferMode} */ (args.mode),
     dueAt: args.dueAt,
     dry: args.dry,
