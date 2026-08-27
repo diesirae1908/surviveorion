@@ -9,7 +9,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - `social/scripts/post-buffer.mjs`: optional `--youtube-title` / `youtubeTitle`
   sets `CreatePostInput.metadata.youtube.title` (distinct from post body `text`).
   JSDoc notes pipeline clips are 9:16; landscape media won't classify as Shorts.
-- Tests in `social/test/post-buffer.test.mjs`. Not merged to main.
+- Tests in `social/test/post-buffer.test.mjs`. Commit `21cc615`. Not merged to main.
 
 ## 2026-08-26: social pipeline merge (branch `sam/social-merge`)
 
