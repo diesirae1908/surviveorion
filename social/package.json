@@ -13,7 +13,8 @@
     "post": "node scripts/post.mjs",
     "auth:youtube": "node src/auth-youtube.mjs --print-url",
     "auth:instagram": "node src/auth-instagram.mjs --print-steps",
-    "extract-mutators": "node scripts/extract-mutators.mjs"
+    "extract-mutators": "node scripts/extract-mutators.mjs",
+    "calendar:buffer": "node scripts/calendar-to-buffer.mjs"
   },
   "dependencies": {
     "googleapis": "^176.0.0",

@@ -40,4 +40,5 @@ clips plus JSON sidecars from `orion-web`.
 - `npm run batch` harvest -> locked presets -> captions -> pending. Never posts.
 - `npm run post` Phase D/E over `out/approved/` only.
 - `node scripts/post-buffer.mjs` Buffer GraphQL path (default `--dry`; see `.env.example`).
+- `npm run calendar:buffer` reads `calendar.json` (from `ORION_Publishing_Calendar.xlsx`) and dry-runs Buffer for Approved+Linked rows. Live post is `--dry=false` and needs Lucas. Clips must already be at `--media-base` (default `https://surviveorion.com/social-drafts`).
 - `npm run extract-mutators` refresh `assets/mutators.json` from a local orion-web checkout.

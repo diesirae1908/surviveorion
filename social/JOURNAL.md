@@ -1,5 +1,13 @@
 # JOURNAL
 
+## 2026-08-26: calendar.xlsx -> Buffer dry path
+
+- Lucas's `ORION_Publishing_Calendar.xlsx` (20 rows, 3 Approved+Linked) exported
+  to `calendar.json`. `calendar-to-buffer.mjs` maps each approved row to IG/TT/YT
+  jobs. Default `--dry`. Past/today -> addToQueue; future -> 9am PT scheduled.
+- Does not host clips and does not post live. Next: copy the 3 linked files to
+  `public/social-drafts/` (public URL) after Lucas nods, then `--dry=false`.
+
 ## 2026-08-26: Buffer token vault (outside git)
 
 - Lucas asked for a "git secret" so Cursor can use the Buffer token. GitHub
