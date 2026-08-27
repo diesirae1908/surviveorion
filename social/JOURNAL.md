@@ -1,5 +1,10 @@
 # JOURNAL
 
+## 2026-08-26: 9 Buffer posts created for the 3 Approved rows
+
+- Trailer + He Knew queued. THE PIT customScheduled 9am PT Aug 27.
+- All three channels each. No further rows posted.
+
 ## 2026-08-26: trailer queued; remux HEVC .mov to H.264 for the other two
 
 - Live after HEAD fix: Launch Trailer created on IG/TT/YT (`scheduled` /

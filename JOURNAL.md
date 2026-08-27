@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: 3 approved rows are in Buffer (9 posts)
+
+- Launch Trailer + He Knew: addToQueue (IG/TT/YT). THE PIT: 9:00 AM PT
+  Aug 27 (`2026-08-27T16:00:00.000Z`). All `scheduled`.
+- Buffer post ids: trailer `6a8fcfa13a7f513da7433334` /
+  `6a8fcfa2afff9dcdac2093d0` / `6a8fcfa31295cfd65b486e22`; He Knew
+  `6a8fd0a91295cfd65b48792d` / `6a8fd0aaa20b784092ce0894` /
+  `6a8fd0abce24b9bfdde8b2c0`; THE PIT `6a8fd0acce24b9bfdde8b2f3` /
+  `6a8fd0ad50aea461e086d8a0` / `6a8fd0ae8854b4d2a031a423`.
+- Masters still in `final_videoasset/`. Nothing else posted.
+
 ## 2026-08-26: Buffer took the trailer; .mov HEVC failed
 
 - After HEAD+Content-Length went live, trailer posted to IG/TT/YT (queue).
