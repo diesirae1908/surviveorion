@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-27: player feedback #13-#18 LIVE
+
+- Lucas: "push live". Merged `sam/feedback-aug26-night` → main (`5f411f2`,
+  `--no-ff`). Pushing `origin/main`; Render auto-deploys `surviveorion`.
+- Five mutator feel fixes from last night's admin queue. Snapshot unchanged.
+
 ## 2026-08-26: player feedback #13-#18 (branch `sam/feedback-aug26-night`)
 
 - `/admin` queue, six new Luciano notes after the morning pass. GREAT WALL
