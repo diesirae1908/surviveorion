@@ -758,7 +758,7 @@ export function listFeedback(limit = 100) {
 // Vancouver UTC offset in Node and shift epochs before date(). Using today's
 // offset for a whole 14-day window means rows within an hour of midnight can
 // land one day off across a DST switch — fine for a hobby dashboard.
-// (Player-facing Daily Patrol rollover stays UTC — utcDate() in index.mjs.)
+// (Player-facing Daily Patrol rollover uses patrolDateStr() in index.mjs.)
 
 /** Milliseconds America/Vancouver lags behind UTC right now (7h PDT / 8h PST). */
 function ptOffsetMs(now = Date.now()) {

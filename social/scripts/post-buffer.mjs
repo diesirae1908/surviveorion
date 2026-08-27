@@ -41,9 +41,10 @@ const CREATE_POST_MUTATION = `mutation CreatePost($input: CreatePostInput!) {
  *   into this pipeline; see social/JOURNAL.md.
  * @param {BufferMode} opts.mode
  * @param {string} [opts.dueAt]
+ * @param {string} [opts.youtubeTitle] YouTube video title (distinct from post body text).
  * @param {Record<string, string>} opts.channelIds
  */
-export function buildCreatePostVariables({ channel, text, mediaUrl, mode, dueAt, channelIds }) {
+export function buildCreatePostVariables({ channel, text, mediaUrl, mode, dueAt, youtubeTitle, channelIds }) {
   const channelId = channelIds[channel];
   if (!channelId) {
     throw new Error(`unknown channel: ${channel}`);
@@ -70,6 +71,9 @@ export function buildCreatePostVariables({ channel, text, mediaUrl, mode, dueAt,
   }
   if (mediaUrl) {
     input.assets = [{ video: { url: mediaUrl } }];
+  }
+  if (channel === "youtube" && youtubeTitle) {
+    input.metadata = { youtube: { title: youtubeTitle } };
   }
   return { input };
 }
@@ -102,17 +106,24 @@ export function loadBufferConfig(repoRoot = REPO_ROOT) {
  *   channel: BufferChannel,
  *   text: string,
  *   mediaUrl?: string,
+ *   youtubeTitle?: string,
  *   mode: BufferMode,
  *   dueAt?: string,
  *   dry?: boolean,
  *   fetchImpl?: typeof fetch,
  *   repoRoot?: string,
  * }} opts
+ *
+ * Pipeline clips are 9:16 vertical by convention. A landscape or square
+ * mediaUrl will NOT land as a YouTube Short even if the caption says #Shorts;
+ * Shorts classification follows the video's aspect ratio and duration, not a
+ * settable Buffer field. Callers must only pass genuinely vertical clips.
  */
 export async function createBufferPost({
   channel,
   text,
   mediaUrl,
+  youtubeTitle,
   mode,
   dueAt,
   dry = true,
@@ -126,6 +137,7 @@ export async function createBufferPost({
     channel,
     text,
     mediaUrl,
+    youtubeTitle,
     mode,
     dueAt,
     channelIds: config.channels,
@@ -163,7 +175,7 @@ export async function createBufferPost({
  * @param {string[]} argv
  */
 function parseArgv(argv) {
-  /** @type {{ channel?: string, text?: string, mode?: string, mediaUrl?: string, dueAt?: string, dry: boolean }} */
+  /** @type {{ channel?: string, text?: string, mode?: string, mediaUrl?: string, youtubeTitle?: string, dueAt?: string, dry: boolean }} */
   const args = { dry: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -171,6 +183,7 @@ function parseArgv(argv) {
     else if (a === "--text" && argv[i + 1]) args.text = argv[++i];
     else if (a === "--mode" && argv[i + 1]) args.mode = argv[++i];
     else if (a === "--media-url" && argv[i + 1]) args.mediaUrl = argv[++i];
+    else if (a === "--youtube-title" && argv[i + 1]) args.youtubeTitle = argv[++i];
     else if (a === "--due-at" && argv[i + 1]) args.dueAt = argv[++i];
     else if (a === "--dry=false") args.dry = false;
     else if (a === "--dry") args.dry = true;
@@ -182,7 +195,7 @@ async function main() {
   const args = parseArgv(process.argv.slice(2));
   if (!args.channel || !args.text || !args.mode) {
     console.error(
-      'Usage: node social/scripts/post-buffer.mjs --channel instagram|tiktok|youtube --text "..." --mode addToQueue|customScheduled|shareNow [--media-url https://...] [--due-at ISO] [--dry] [--dry=false]'
+      'Usage: node social/scripts/post-buffer.mjs --channel instagram|tiktok|youtube --text "..." --mode addToQueue|customScheduled|shareNow [--media-url https://...] [--youtube-title "..."] [--due-at ISO] [--dry] [--dry=false]'
     );
     process.exit(1);
   }
@@ -190,6 +203,7 @@ async function main() {
     channel: /** @type {BufferChannel} */ (args.channel),
     text: args.text,
     mediaUrl: args.mediaUrl,
+    youtubeTitle: args.youtubeTitle,
     mode: /** @type {BufferMode} */ (args.mode),
     dueAt: args.dueAt,
     dry: args.dry,

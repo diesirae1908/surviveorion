@@ -1,5 +1,10 @@
 # JOURNAL
 
+## 2026-08-26: Buffer YouTube title metadata (branch `sam/buffer-youtube-title`)
+
+- `post-buffer.mjs`: `--youtube-title` wires `metadata.youtube.title` on YouTube
+  posts; body stays in `text`. Not merged to main.
+
 ## 2026-08-26: merged into orion-web at `social/`
 
 - `git subtree add --prefix=social ../orion-social main` from branch `sam/social-merge`.

@@ -2,6 +2,7 @@
 // Native share sheet on phones, clipboard on desktop.
 
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalTier } from "./medals";
+import { patrolDateStr } from "./patrolDate";
 import { DAILY_MAX_ATTEMPTS } from "./save";
 
 /**
@@ -17,9 +18,11 @@ export const DAILY_EPOCH_DATE = new Date(DAILY_EPOCH_UTC).toISOString().slice(0,
 
 const MS_PER_DAY = 86_400_000;
 
-/** Daily Patrol number for the current UTC date (same boundary as the seed). */
+/** Daily Patrol number for the current patrol date (same boundary as the seed). */
 export function dailyNumber(date = new Date()): number {
-  const today = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const dateStr = patrolDateStr(date);
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const today = Date.UTC(y, m - 1, d);
   return Math.round((today - DAILY_EPOCH_UTC) / MS_PER_DAY) + 1;
 }
 

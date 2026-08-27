@@ -91,6 +91,46 @@ describe("post-buffer", () => {
     assert.deepEqual(body.variables, { input: { text: "x" } });
   });
 
+  it("sets metadata.youtube.title when youtubeTitle is passed for youtube", () => {
+    const { input } = buildCreatePostVariables({
+      channel: "youtube",
+      text: "description body",
+      youtubeTitle: "Title Here",
+      mode: "shareNow",
+      channelIds: CHANNEL_IDS,
+    });
+    assert.deepEqual(input.metadata, { youtube: { title: "Title Here" } });
+    assert.equal(input.text, "description body");
+  });
+
+  it("omits metadata when youtubeTitle is omitted or channel is not youtube", () => {
+    const withoutTitle = buildCreatePostVariables({
+      channel: "youtube",
+      text: "description only",
+      mode: "shareNow",
+      channelIds: CHANNEL_IDS,
+    });
+    assert.equal(withoutTitle.input.metadata, undefined);
+
+    const instagram = buildCreatePostVariables({
+      channel: "instagram",
+      text: "hello",
+      youtubeTitle: "ignored",
+      mode: "shareNow",
+      channelIds: CHANNEL_IDS,
+    });
+    assert.equal(instagram.input.metadata, undefined);
+
+    const tiktok = buildCreatePostVariables({
+      channel: "tiktok",
+      text: "hello",
+      youtubeTitle: "ignored",
+      mode: "shareNow",
+      channelIds: CHANNEL_IDS,
+    });
+    assert.equal(tiktok.input.metadata, undefined);
+  });
+
   it("dry run prints request shape without calling fetch", async () => {
     let called = false;
     const result = await createBufferPost({

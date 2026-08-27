@@ -1,9 +1,10 @@
-// Virtual Daily Patrol board fillers: deterministic per UTC date, no DB rows.
+// Virtual Daily Patrol board fillers: deterministic per patrol date, no DB rows.
 // Generated at board-read time so the combined daily board never looks empty
-// early in the UTC day. Bots merge into rankings and gap-to-goal targets but
+// early in the patrol day. Bots merge into rankings and gap-to-goal targets but
 // never touch wingmates, analytics, or persisted stats.
 
 import { isNicknameBlocked, BLOCKED_CALLSIGN_PSEUDONYMS } from "./nickname.mjs";
+import { patrolDayStartMs } from "./patrolDate.mjs";
 
 /** FNV-1a 32-bit — matches src/math.ts hashString. */
 export function hashString(s) {
@@ -113,7 +114,7 @@ const BOT_COUNTRIES = [
 ];
 const BOT_MODES = ["desktop", "touch", "tilt"];
 
-/** Hash-picked bot count for a UTC date (20–40 inclusive). */
+/** Hash-picked bot count for a patrol date (20–40 inclusive). */
 export function dailyBotCount(dailyDate) {
   const rng = mulberry32(hashString(`orion-daily-bots-count-${dailyDate}`));
   return 20 + Math.floor(rng() * 21);
@@ -130,12 +131,12 @@ function botScore(rng) {
 }
 
 /**
- * All bots scheduled for a UTC day (including not-yet-arrived). Each bot
+ * All bots scheduled for a patrol day (including not-yet-arrived). Each bot
  * carries `_submitAt` for merge tie-breaks and time-gating at read time.
  */
 export function allDailyBotsForDate(dailyDate) {
   const count = dailyBotCount(dailyDate);
-  const dayStart = Date.parse(`${dailyDate}T00:00:00.000Z`);
+  const dayStart = patrolDayStartMs(dailyDate);
   const daySpan = 86_400_000;
 
   const rng = mulberry32(hashString(`orion-daily-bots-names-${dailyDate}`));
@@ -165,7 +166,7 @@ export function allDailyBotsForDate(dailyDate) {
   return bots;
 }
 
-/** Bots whose hash-seeded submit time has passed (UTC day fills in over time). */
+/** Bots whose hash-seeded submit time has passed (patrol day fills in over time). */
 export function visibleDailyBots(dailyDate, nowMs = Date.now()) {
   return allDailyBotsForDate(dailyDate).filter((b) => b._submitAt <= nowMs);
 }

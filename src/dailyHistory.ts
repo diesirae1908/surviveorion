@@ -8,7 +8,7 @@
 // only ever learns about a COMPLETED daily run (a submitted score). It has
 // no idea a run was ever started, so it can never see "attempted but did
 // not finish" on its own, only "completed" or "nothing". That distinction
-// is local-only (see save.ts DailyDayLog), and only exists for UTC days
+// is local-only (see save.ts DailyDayLog), and only exists for patrol days
 // this device was actually open for the rollover. A signed-in pilot's
 // completed-run history is authoritative from the day they created their
 // account onward (any earlier gap is "before this pilot existed", not
@@ -19,7 +19,7 @@ import { medalForScore, medalThresholdsForDate, type MedalTier } from "./medals"
 import { getMutatorsForDate, type Mutator } from "./mutators";
 import type { DailyDayLog } from "./save";
 
-/** One UTC day's confirmed server result (GET /api/me/daily-history). */
+/** One patrol day's confirmed server result (GET /api/me/daily-history). */
 export interface ServerDayEntry {
   date: string;
   best: number;
@@ -59,7 +59,7 @@ export interface DayInfo {
   time?: number;
   rank?: number | null;
   medal?: MedalTier | null;
-  /** 1 normally, 2 on UTC Sundays, [] before the mutator pool's launch gate. */
+  /** 1 normally, 2 on Sundays, [] before the mutator pool's launch gate. */
   mutators: Mutator[];
   /** True on "completed-local-only" when it's actually a genuine mismatch
    * (signed in, but the server disagrees) rather than simply "no server
@@ -68,7 +68,7 @@ export interface DayInfo {
 }
 
 export interface DayInfoOpts {
-  /** Today's UTC date string ('YYYY-MM-DD'). */
+  /** Today's patrol date string ('YYYY-MM-DD', Pacific Time). */
   today: string;
   /** Earliest date the calendar should treat as real Daily Patrol history:
    * max(feature launch date, this pilot's account creation date). */
@@ -149,7 +149,7 @@ export function dayInfoFor(dateStr: string, opts: DayInfoOpts): DayInfo {
   return { date: dateStr, status: "untracked", mutators };
 }
 
-// --- calendar date helpers (all UTC, matching the daily rollover) ---
+// --- calendar date helpers (civil YYYY-MM-DD labels, not live rollover) ---
 
 export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();

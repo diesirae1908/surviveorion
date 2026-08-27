@@ -12,6 +12,7 @@ const {
 } = await import("../server/dailyBots.mjs");
 const { dailyLeaderboardCombinedWithBots } = await import("../server/dailyBoard.mjs");
 const { isNicknameBlocked, BLOCKED_CALLSIGN_PSEUDONYMS } = await import("../server/nickname.mjs");
+const { patrolDayStartMs } = await import("../server/patrolDate.mjs");
 
 let failures = 0;
 function check(name, ok, detail = "") {
@@ -21,7 +22,7 @@ function check(name, ok, detail = "") {
 
 const DATE_A = "2026-09-15";
 const DATE_B = "2026-09-16";
-const dayStartA = Date.parse(`${DATE_A}T00:00:00.000Z`);
+const dayStartA = patrolDayStartMs(DATE_A);
 const midDayA = dayStartA + 43_200_000;
 const endDayA = dayStartA + 86_399_000;
 
@@ -56,12 +57,12 @@ const endDayA = dayStartA + 86_399_000;
   check("adjacent dates produce different bot sets", a1.join("|") !== b1.join("|"));
 }
 
-// --- time gating: early UTC morning < evening ---
+// --- time gating: early patrol morning < evening ---
 {
   const early = visibleDailyBots(DATE_A, dayStartA + 3_600_000);
   const evening = visibleDailyBots(DATE_A, endDayA);
-  check("early UTC day shows fewer bots than end of day", early.length < evening.length, `${early.length} vs ${evening.length}`);
-  check("end of UTC day shows the full scheduled field", evening.length === dailyBotCount(DATE_A));
+  check("early patrol day shows fewer bots than end of day", early.length < evening.length, `${early.length} vs ${evening.length}`);
+  check("end of patrol day shows the full scheduled field", evening.length === dailyBotCount(DATE_A));
 }
 
 // --- merged board includes bots with no real scores ---
