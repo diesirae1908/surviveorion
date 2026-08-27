@@ -345,7 +345,7 @@ export class Api {
     return this.request("GET", `/api/me/daily-history?from=${from}&to=${to}`);
   }
 
-  /** Today's Daily Patrol board (shared-seed runs, resets at UTC midnight). */
+  /** Today's Daily Patrol board (shared-seed runs, resets at midnight PT). */
   dailyLeaderboard(mode: BoardMode = "desktop"): Promise<LeaderboardResponse & { date: string }> {
     return this.request("GET", `/api/leaderboard/daily?mode=${mode}`);
   }

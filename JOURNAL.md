@@ -4,6 +4,29 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: Daily Patrol midnight PT rollover (branch `sam/pt-midnight-daily`)
+
+- **What changed:** Daily Patrol day boundary moved from UTC midnight to
+  **midnight America/Los_Angeles** (PDT/PST). Shared helpers:
+  `src/patrolDate.ts` (client) and `server/patrolDate.mjs` (server, same
+  algorithm). Live "today" now uses `patrolDateStr()` everywhere: mutator pick
+  (`getMutatorsForDateStr`), daily seed, attempt budget, server `daily_date`
+  stamp, countdown/`dailyResetLabel()`, virtual-bot submit windows, calendar
+  "today". `?day=YYYY-MM-DD` rehearsal still resolves mutators/seed from that
+  civil label; `getMutatorsForDate(new Date(\`${d}T00:00:00Z\`))` unchanged.
+- **Snapshot:** `scripts/mutator-snapshot.json` **bit-identical** —
+  `npm run test:mutators` PASS (144 dates).
+- **Deploy caveat:** If this ships between **5 PM PT and midnight PT**, live
+  Daily rewinds from the UTC-tomorrow date back to the PT-today date (mutator,
+  seed, board key, attempt budget all flip together). Scores already stored
+  under the UTC date label stay in SQLite; no migration. Mid-window deploy only.
+- **Verify:** `npx tsc --noEmit` PASS; `npm run test:mutators` PASS; `npm run
+  test:patrol-date` PASS; `npx tsx scripts/sim-test.ts` PASS; `npm run
+  test:daily-history` PASS; `npm run test:server-daily-history` PASS; `npm run
+  test:daily-combined-rank` PASS; `npm run test:daily-bots` PASS; `npm run
+  test:rehearsal-day` PASS.
+- Not merged to main. Not deployed.
+
 ## 2026-08-26: social pipeline merge (branch `sam/social-merge`)
 
 - Merged `orion-social` into `social/` via `git subtree add` (history

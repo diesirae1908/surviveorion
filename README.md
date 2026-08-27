@@ -120,13 +120,13 @@ community buttons simply don't appear.
   Iron Rain runs. The Inertia setting is flavor only — it doesn't change
   which board a run lands on.
 - **Daily Patrol** — a shared-seed daily run: the gameplay RNG is seeded from
-  the UTC date (`setRunSeed` in `src/math.ts`), so every pilot faces the same
+  the patrol date (`setRunSeed` in `src/math.ts`), so every pilot faces the same
   opening script that day. Daily runs land on a per-day board
   (`GET /api/leaderboard/daily`, `daily_date` column on `scores`; the "Daily
   Patrol" tab in the Leaderboard screen) *and* still count all-time.
-  **3 daily attempts per UTC day**, enforced server-side per account on score
+  **3 daily attempts per Pacific day**, enforced server-side per account on score
   submission (and mirrored client-side — see "The daily front door" below);
-  the board resets at UTC midnight. Launched from the menu's Daily Patrol
+  the board resets at midnight America/Los_Angeles. Launched from the menu's Daily Patrol
   button, which shows today's leader.
 - **Arenas** — private leaderboards: create one, share its 6-letter invite code.
 - **Wingmates (friends)** — add pilots by callsign (mutual accept; requests can
@@ -198,17 +198,17 @@ On the daily front door:
   **Daily Patrol lobby** (`showDailyLobby` in `src/ui.ts`): patrol number,
   attempt pips, today's leader, one Launch button. No Classic / Iron Rain /
   Arenas — those live at `/fullgame` (and, later, the mobile app).
-- **3 attempts per UTC day** (`orion.dailyAttempts` in `src/save.ts`, same
+- **3 attempts per Pacific day** (`orion.dailyAttempts` in `src/save.ts`, same
   day boundary as the daily seed), enforced in two layers: the client budget
   drives the UI (pips, lockout countdown; incognito resets it, accepted),
-  and the server independently rejects a 4th daily score per account per UTC
+  and the server independently rejects a 4th daily score per account per patrol
   day (`countDailyScores` on `POST /api/scores`) so a forged client can't
   flood the daily board. An attempt is spent when a daily
   run *starts*, so quitting mid-run counts. Dying inside the first 15s
   (`DAILY_FREE_DEATH_SECONDS`) refunds the attempt — the run never happened
   for the daily books (no best-of-day, no share card, not submitted as a
   daily score) and the game-over screen says so. After the third run the
-  lobby and game-over screens show a countdown to the next UTC midnight.
+  lobby and game-over screens show a countdown to the next midnight PT.
 - **Training Ground** — a free, unlimited, unscored practice arena
   (`training` on `World`, `TRAINING` in `src/config.ts`): a slow ambient
   trickle capped at ~14 drones, no formations/assemblies/mines, normal
