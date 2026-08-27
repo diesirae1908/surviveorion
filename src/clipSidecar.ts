@@ -11,7 +11,7 @@ import type { GameMode } from "./config";
 import type { ClosestCall } from "./highlights";
 import { medalForScore, medalThresholdsFor, type MedalTier } from "./medals";
 import type { Mutator } from "./mutators";
-import { utcDateString } from "./save";
+import { patrolDayString } from "./save";
 import { dailyNumber } from "./share";
 
 export interface ClipSidecarGraze {
@@ -116,7 +116,7 @@ export function clipSidecarMutatorSlot(input: Pick<ClipSidecarInput, "daily" | "
  * Non-daily /fullgame runs put `classic` / `ironrain` in the mutator slot.
  */
 export function clipSidecarBasename(input: ClipSidecarInput): string {
-  const date = utcDateString(input.now);
+  const date = patrolDayString(input.now);
   const day = dailyNumber(input.now);
   const slot = clipSidecarMutatorSlot(input);
   const score = Math.floor(input.score);

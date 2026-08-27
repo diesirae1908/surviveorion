@@ -701,7 +701,7 @@ export class CommunityUi {
     const dailyHint = this.el(
       "div",
       "field-hint center",
-      `Daily Patrol: everyone flies the same swarm today. New board at ${dailyResetLabel()} your time (UTC midnight).`,
+      `Daily Patrol: everyone flies the same swarm today. New board at ${dailyResetLabel()} (midnight Pacific).`,
     );
 
     const load = (): void => {

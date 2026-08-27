@@ -52,7 +52,7 @@ check("no param without storage stays locked", !rehearsalDirectorActive(null, nu
   const d = "2026-09-20";
   const a = dailySeedForDate(d);
   const b = dailySeedForDate(d);
-  check("daily seed is deterministic per UTC date", a === b, String(a));
+  check("daily seed is deterministic per patrol date", a === b, String(a));
   check("adjacent dates produce different daily seeds", dailySeedForDate(d) !== dailySeedForDate("2026-09-21"));
 }
 

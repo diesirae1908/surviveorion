@@ -25,7 +25,7 @@ import {
   dailyRankCombinedWithBots,
   nextAboveCombinedDailyWithBots,
 } from "./dailyBoard.mjs";
-import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
+import { patrolDateStr } from "./patrolDate.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -40,7 +40,7 @@ const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist
 
 const CALLSIGN_RE = /^[A-Za-z0-9_\- ]{3,20}$/;
 const COUNTRY_RE = /^([A-Z]{2})?$/;
-/** Daily Patrol attempts per UTC day — keep in sync with DAILY_MAX_ATTEMPTS in src/save.ts. */
+/** Daily Patrol attempts per Pacific day — keep in sync with DAILY_MAX_ATTEMPTS in src/save.ts. */
 const DAILY_MAX_ATTEMPTS = 3;
 
 // --- tiny helpers ---
@@ -98,8 +98,8 @@ function clientIp(req) {
 
 const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
 
-/** Today's UTC date, 'YYYY-MM-DD' — the Daily Patrol board key. */
-const utcDate = () => new Date().toISOString().slice(0, 10);
+/** Today's patrol date, 'YYYY-MM-DD' (America/Los_Angeles) — the Daily Patrol board key. */
+const patrolToday = () => patrolDateStr();
 
 /**
  * Board mode from a submitted run. Boards are per platform: desktop keyboard,
@@ -450,12 +450,12 @@ const routes = {
 
     // Daily Patrol: the server stamps the date itself (clients can't file
     // scores onto past/future boards). Daily runs count all-time too.
-    const dailyDate = body.daily === true ? utcDate() : null;
+    const dailyDate = body.daily === true ? patrolToday() : null;
     // The 3-attempts-per-day budget is enforced HERE, not just in the client's
     // localStorage — a forged client can't flood the daily board. (Refunded
     // <15s deaths never submit as daily, so legit players can't hit this.)
     if (dailyDate && store.countDailyScores(user.id, dailyDate) >= DAILY_MAX_ATTEMPTS)
-      return json(res, 429, { error: "daily attempt limit reached, next patrol at UTC midnight" });
+      return json(res, 429, { error: "daily attempt limit reached, next patrol at midnight Pacific" });
 
     store.insertScore(user.id, { ...run, dailyDate });
     store.insertRun(user.id, { ...run, platform: cleanPlatform(body.platform) });
@@ -565,13 +565,13 @@ const routes = {
     json(res, 200, { entries, me: me?.inScope ? me : null });
   },
 
-  // Daily Patrol: best daily-run score per pilot for today's UTC date.
+  // Daily Patrol: best daily-run score per pilot for today's patrol date.
   // The board resets naturally when the date rolls over. mode=all merges
   // every device into one ranking (the daily-only lobby's inline board);
   // per-device mode still powers the /fullgame Leaderboard screen's tabs.
   "GET /api/leaderboard/daily": (req, res, user, url) => {
     const mode = url.searchParams.get("mode") ?? "desktop";
-    const dailyDate = utcDate();
+    const dailyDate = patrolToday();
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
     if (mode === "all") {
       const entries = sanitizeEntries(dailyLeaderboardCombinedWithBots({ dailyDate, limit }));
@@ -604,7 +604,7 @@ const routes = {
     if (spanDays > 62) return json(res, 400, { error: "range too wide (max 62 days)" });
     // the client can't know the future, so clamp instead of rejecting it:
     // the current month's range naturally runs past today
-    const clampedTo = to > utcDate() ? utcDate() : to;
+    const clampedTo = to > patrolToday() ? patrolToday() : to;
     json(res, 200, { entries: store.dailyHistoryForUser(user.id, { from, to: clampedTo }) });
   },
 

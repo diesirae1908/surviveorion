@@ -1,5 +1,6 @@
 import { GAME_MODES, type GameMode, type SenseLevel } from "./config";
 import type { ControlMode } from "./input";
+import { patrolDateStr } from "./patrolDate";
 
 export type { ControlMode, SenseLevel };
 
@@ -121,7 +122,7 @@ export function bumpRunCount(): void {
   localStorage.setItem(RUN_COUNT_KEY, String(loadRunCount() + 1));
 }
 
-// --- Daily-only site: attempt budget (client-side, per UTC day) ---
+// --- Daily-only site: attempt budget (client-side, per patrol day) ---
 //
 // The daily variant allows DAILY_MAX_ATTEMPTS Daily Patrol launches per UTC
 // day (the same day boundary as the daily seed). Purely local — incognito
@@ -151,9 +152,14 @@ export interface DailyAttempts {
   best: DailyBestResult | null;
 }
 
-/** Same UTC day boundary as the Daily Patrol seed in main.ts. */
+/** Same Pacific day boundary as the Daily Patrol seed in main.ts. */
+export function patrolDayString(date = new Date()): string {
+  return patrolDateStr(date);
+}
+
+/** @deprecated Use patrolDayString. */
 export function utcDateString(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
+  return patrolDayString(date);
 }
 
 // --- Local per-device history (patrol calendar) ---
@@ -171,7 +177,7 @@ export function utcDateString(date = new Date()): string {
 
 const DAILY_HISTORY_MAX_DAYS = 120;
 
-/** One UTC day's local Daily Patrol record, archived once that day is over. */
+/** One patrol day's local Daily Patrol record, archived once that day is over. */
 export interface DailyDayLog {
   date: string;
   /** Attempts spent that day, whether or not any of them finished. */
@@ -204,7 +210,7 @@ export function loadDailyHistory(): DailyDayLog[] {
 }
 
 /** Archive a day's final attempt state (called when loadDailyAttempts()
- * below detects the UTC day has rolled over). Upserts by date and keeps
+ * below detects the patrol day has rolled over). Upserts by date and keeps
  * the log capped to the most recent DAILY_HISTORY_MAX_DAYS entries. */
 function archiveDailyDay(entry: { date: string; used: number; best: DailyBestResult | null }): void {
   const list = loadDailyHistoryRaw().filter((d) => d.date !== entry.date);
@@ -216,7 +222,7 @@ function archiveDailyDay(entry: { date: string; used: number; best: DailyBestRes
 /** Today's attempt state; a stale date resets the budget (and archives the
  * day that just ended into the local history, see above). */
 export function loadDailyAttempts(): DailyAttempts {
-  const fresh: DailyAttempts = { date: utcDateString(), used: 0, best: null };
+  const fresh: DailyAttempts = { date: patrolDayString(), used: 0, best: null };
   try {
     const raw = localStorage.getItem(DAILY_ATTEMPTS_KEY);
     if (!raw) return fresh;

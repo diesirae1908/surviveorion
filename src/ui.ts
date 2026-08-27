@@ -4,6 +4,7 @@ import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameM
 import type { DayInfo, DayStatus } from "./dailyHistory";
 import { isTypingTarget } from "./input";
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
+import { nextPatrolMidnight } from "./patrolDate";
 import type { Mutator } from "./mutators";
 import type {
   BooleanSetting,
@@ -270,13 +271,11 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * The Daily Patrol board resets at UTC midnight — which lands mid-evening in
- * the Americas, so scores "vanish" from today's board. Saying the reset time
- * in the player's local clock makes that legible ("resets at 8:00 PM").
+ * The Daily Patrol board resets at midnight Pacific Time. Show that instant
+ * in the player's local clock so PT pilots see "resets at 12:00 AM".
  */
 export function dailyResetLabel(): string {
-  const next = new Date();
-  next.setUTCHours(24, 0, 0, 0); // next UTC midnight
+  const next = nextPatrolMidnight();
   return next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 

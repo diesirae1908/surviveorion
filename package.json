@@ -22,6 +22,7 @@
     "test:daily-combined-rank": "node scripts/test-daily-combined-rank.mjs",
     "test:daily-bots": "node scripts/test-daily-bots.mjs",
     "test:rehearsal-day": "npx tsx scripts/test-rehearsal-day.ts",
+    "test:patrol-date": "npx tsx scripts/test-patrol-date.ts",
     "test:no-em-dash": "npx tsx scripts/test-no-em-dash.ts",
     "test:mutators": "npx tsx scripts/test-mutators.ts",
     "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutators"

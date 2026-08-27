@@ -1,6 +1,6 @@
 // Daily Mutators: a named, deterministic set of config overrides for Daily
 // Patrol, derived from the UTC date (same day boundary as the daily seed,
-// see `dailySeed()` in main.ts). Every pilot on the same UTC day gets the
+// see `dailySeed()` in main.ts). Every pilot on the same patrol day gets the
 // same mutator(s); selection needs no server call.
 //
 // Design constraint (shared-seed determinism, see math.ts and AGENTS.md):
@@ -609,19 +609,18 @@ export const MUTATOR_POOL: Mutator[] = [
 
 const MUTATOR_BY_ID = new Map(MUTATOR_POOL.map((m) => [m.id, m] as const));
 
-// --- selection: deterministic from the UTC date, no server call ---
+// --- selection: deterministic from the civil date label, no server call ---
 
-function utcDateStr(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function addUtcDays(dateStr: string, days: number): string {
+function addCivilDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);
-  return utcDateStr(new Date(Date.UTC(y, m - 1, d + days)));
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
 
-function isUtcSunday(date: Date): boolean {
-  return date.getUTCDay() === 0;
+/** True when the YYYY-MM-DD label falls on a Sunday (civil calendar). */
+function isSundayDateStr(dateStr: string): boolean {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
 }
 
 function shareTag(a: Mutator, b: Mutator): boolean {
@@ -633,7 +632,7 @@ function poolIndex(seedKey: string, length: number): number {
 }
 
 /**
- * Entries eligible on a given UTC date, preserving pool order. Selection
+ * Entries eligible on a given patrol date label, preserving pool order. Selection
  * below indexes into this, never the raw MUTATOR_POOL.length, so appending a
  * 23rd entry (future availableFrom) can never change what any past date
  * resolves to: past dates see the exact same eligible list, same length,
@@ -664,7 +663,7 @@ function eligiblePool(pool: Mutator[], dateStr: string): Mutator[] {
 function pickFirst(dateStr: string, pool: Mutator[]): Mutator {
   const eligible = eligiblePool(pool, dateStr);
   const idx = poolIndex(`orion-mutator-${dateStr}-1`, eligible.length);
-  const yesterdayStr = addUtcDays(dateStr, -1);
+  const yesterdayStr = addCivilDays(dateStr, -1);
   const yesterdayEligible = eligiblePool(pool, yesterdayStr);
   const yesterdayIdx =
     yesterdayEligible.length > 0 ? poolIndex(`orion-mutator-${yesterdayStr}-1`, yesterdayEligible.length) : -1;
@@ -678,7 +677,7 @@ function pickFirst(dateStr: string, pool: Mutator[]): Mutator {
 function pickSecond(dateStr: string, first: Mutator, pool: Mutator[]): Mutator {
   const eligible = eligiblePool(pool, dateStr);
   const start = poolIndex(`orion-mutator-${dateStr}-2`, eligible.length);
-  const yesterdayStr = addUtcDays(dateStr, -1);
+  const yesterdayStr = addCivilDays(dateStr, -1);
   const yesterdayEligible = eligiblePool(pool, yesterdayStr);
   const yesterdayIdx =
     yesterdayEligible.length > 0 ? poolIndex(`orion-mutator-${yesterdayStr}-2`, yesterdayEligible.length) : -1;
@@ -695,28 +694,31 @@ function pickSecond(dateStr: string, first: Mutator, pool: Mutator[]): Mutator {
   return fallback ?? first;
 }
 
-/** Today's (or any date's) mutator(s) from the live pool: 1 normally, 2 on
- * UTC Sundays. Thin wrapper so production always reads MUTATOR_POOL; the
- * pool parameter exists for test injection (see getMutatorsForDateFromPool). */
+/** Mutator(s) for a YYYY-MM-DD patrol label: 1 normally, 2 on Sundays. */
+export function getMutatorsForDateStr(dateStr: string, pool: Mutator[] = MUTATOR_POOL): Mutator[] {
+  if (dateStr < MUTATORS_START_DATE) return [];
+  const first = pickFirst(dateStr, pool);
+  if (!isSundayDateStr(dateStr)) return [first];
+  return [first, pickSecond(dateStr, first, pool)];
+}
+
+/** Resolve mutators for a Date anchored at UTC midnight of its label. Live
+ * "today" uses getMutatorsForDateStr(patrolDateStr()). */
 export function getMutatorsForDate(date: Date): Mutator[] {
-  return getMutatorsForDateFromPool(date, MUTATOR_POOL);
+  return getMutatorsForDateStr(date.toISOString().slice(0, 10));
 }
 
 /**
- * Same selection as `getMutatorsForDate`, but against an arbitrary pool
+ * Same selection as `getMutatorsForDateStr`, but against an arbitrary pool
  * instead of the live `MUTATOR_POOL`. Exists so tests can prove append-only
  * behavior (inject a pool with an extra future-dated entry and confirm every
  * past day's pick is untouched) without exporting the live pool as mutable
  * or duplicating the selection logic. Production always calls this with
- * `MUTATOR_POOL` via `getMutatorsForDate`; nothing else should call this
+ * `MUTATOR_POOL` via `getMutatorsForDateStr`; nothing else should call this
  * directly outside tests.
  */
 export function getMutatorsForDateFromPool(date: Date, pool: Mutator[]): Mutator[] {
-  const dateStr = utcDateStr(date);
-  if (dateStr < MUTATORS_START_DATE) return [];
-  const first = pickFirst(dateStr, pool);
-  if (!isUtcSunday(date)) return [first];
-  return [first, pickSecond(dateStr, first, pool)];
+  return getMutatorsForDateStr(date.toISOString().slice(0, 10), pool);
 }
 
 export function getMutatorById(id: string): Mutator | undefined {
@@ -803,12 +805,16 @@ function windStateAt(dateStr: string, time: number): WindState {
  * above already uses. That keeps the whole feature outside the seeded-draw-
  * count discipline entirely.
  */
-export function setActiveMutators(mutators: Mutator[], date: Date = new Date()): void {
+export function setActiveMutators(mutators: Mutator[], patrolDateLabel: string | Date = new Date()): void {
   active = mutators;
   const strength = sumOf((o) => o.windStrength);
+  const label =
+    typeof patrolDateLabel === "string"
+      ? patrolDateLabel
+      : patrolDateLabel.toISOString().slice(0, 10);
   if (strength > 0) {
     activeWindStrength = strength;
-    activeWindDate = utcDateStr(date);
+    activeWindDate = label;
   } else {
     activeWindStrength = 0;
     activeWindDate = null;

@@ -21,6 +21,7 @@ import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gam
 import { closestCallLabel } from "./highlights";
 import { Input, isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
+import { patrolDateStr } from "./patrolDate";
 import { clamp01, hashString, setRunSeed } from "./math";
 import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
 import {
@@ -35,6 +36,7 @@ import {
   getActiveMutators,
   getMutatorById,
   getMutatorsForDate,
+  getMutatorsForDateStr,
   mutatorViewScale,
   setActiveMutators,
   MUTATOR_POOL,
@@ -95,7 +97,7 @@ type AppState =
 /**
  * The site's two personalities, one build:
  * - the root (surviveorion.com) is "Orion Daily" — boots straight into a
- *   Daily Patrol lobby, 3 attempts per UTC day (local budget, incognito
+ *   Daily Patrol lobby, 3 attempts per Pacific day (local budget, incognito
  *   bypass accepted), a free Training Ground, and a shareable result card;
  * - /fullgame (or ?fullgame=1) is the full arcade game — Classic, Iron Rain,
  *   arenas, wingmates, pilot login, the works.
@@ -130,7 +132,7 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * `?rehearsal=off` clears it). The param applies on the same page load — no reload.
  *
  * `?day=YYYY-MM-DD` (same gate) forces the daily run seed and, unless
- * `?mutator=` overrides it, the mutator pick to that UTC date — identical
+ * `?mutator=` overrides it, the mutator pick to that civil date — identical
  * shared instance to what pilots will get. Invalid dates fall back to today,
  * silently. Both params are sandboxed like any preview run.
  *
@@ -204,6 +206,11 @@ if (PREVIEW_ACTIVE) {
   console.log(`Valid mutator ids: ${MUTATOR_POOL.map((m) => m.id).join(", ")}`);
 }
 
+/** Patrol date label for preview/rehearsal runs (today's PT date otherwise). */
+function currentPatrolDateStr(): string {
+  return PREVIEW_REHEARSAL_DATE ?? patrolDateStr();
+}
+
 /** UTC date whose shared daily script preview/rehearsal runs use (today otherwise). */
 function previewDailyDate(): Date {
   return PREVIEW_DAY ?? new Date();
@@ -213,7 +220,7 @@ function previewDailyDate(): Date {
 function todaysMutators(): Mutator[] {
   if (PREVIEW_MUTATORS.length > 0) return PREVIEW_MUTATORS;
   if (PREVIEW_ACTIVE && PREVIEW_DAY) return getMutatorsForDate(PREVIEW_DAY);
-  return getMutatorsForDate(new Date());
+  return getMutatorsForDateStr(patrolDateStr());
 }
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -631,7 +638,8 @@ function monthKeyStr({ year, month }: MonthKey): string {
 /** [earliest, latest] navigable months: never before the feature's epoch
  * (or this pilot's join date, if later and signed in), never after today. */
 function patrolCalendarBounds(): { min: MonthKey; max: MonthKey } {
-  const todayD = new Date();
+  const todayStr = patrolDateStr();
+  const [ty, tm] = todayStr.split("-").map(Number);
   const epochDate =
     api.signedIn && api.joinedAt
       ? maxDateStr(DAILY_EPOCH_DATE, new Date(api.joinedAt).toISOString().slice(0, 10))
@@ -639,7 +647,7 @@ function patrolCalendarBounds(): { min: MonthKey; max: MonthKey } {
   const epochD = new Date(`${epochDate}T00:00:00.000Z`);
   return {
     min: { year: epochD.getUTCFullYear(), month: epochD.getUTCMonth() },
-    max: { year: todayD.getUTCFullYear(), month: todayD.getUTCMonth() },
+    max: { year: ty, month: tm - 1 },
   };
 }
 
@@ -683,11 +691,7 @@ function calendarHandlers(): { onBack: () => void; onPrevMonth: () => void; onNe
  * is still in flight, so it doesn't look like a clean "no server data". */
 function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: boolean): PatrolCalendarMonth {
   const bounds = patrolCalendarBounds();
-  const today = utcDateStr(
-    new Date().getUTCFullYear(),
-    new Date().getUTCMonth(),
-    new Date().getUTCDate(),
-  );
+  const today = patrolDateStr();
   const epochDate =
     api.signedIn && api.joinedAt
       ? maxDateStr(DAILY_EPOCH_DATE, new Date(api.joinedAt).toISOString().slice(0, 10))
@@ -812,14 +816,12 @@ function doLaunch(quick = false): void {
   ui.fadeOutScreens();
 }
 
-/** Seed for today's Daily Patrol: same UTC date → same opening script. */
+/** Seed for today's Daily Patrol: same patrol date label → same opening script. */
 function dailySeed(): number {
-  const dateStr = (runIsDaily && PREVIEW_ACTIVE && PREVIEW_DAY
-    ? PREVIEW_DAY
-    : new Date()
-  )
-    .toISOString()
-    .slice(0, 10);
+  const dateStr =
+    runIsDaily && PREVIEW_ACTIVE && PREVIEW_REHEARSAL_DATE
+      ? PREVIEW_REHEARSAL_DATE
+      : currentPatrolDateStr();
   return hashString(`orion-daily-${dateStr}`);
 }
 
@@ -841,7 +843,7 @@ function startRun(): void {
   // Ground never see an override (see mutators.ts). todaysMutators() folds
   // in the ?mutator= preview override, if one's active.
   if (runIsDaily) {
-    setActiveMutators(todaysMutators(), previewDailyDate());
+    setActiveMutators(todaysMutators(), currentPatrolDateStr());
   } else {
     clearActiveMutators();
   }

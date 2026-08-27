@@ -133,8 +133,8 @@ first, then:
 
 - **Tier A, override-only.** A new `MUTATOR_POOL` entry that reuses existing
   override knobs (rate/scale/weight/interval multipliers, `firstOf`
-  replacements). Set `availableFrom` to a **future** UTC date, never in the
-  past, never "today" if pilots could already have scores on that UTC day.
+  replacements). Set `availableFrom` to a **future** patrol date, never in the
+  past, never "today" if pilots could already have scores on that date.
   Pick tags honestly (see "Sunday tags" below) and a `difficultyFactor` for
   the medal thresholds.
 - **Tier B, new runtime system.** Needs a new override flag on
@@ -280,8 +280,8 @@ first, then:
   event so ship position/kills can't desync it). Player-triggered randomness
   (power effects) and cosmetics stay on `Math.random`. `scripts/sim-test.ts`
   has a regression check (two seeded runs played differently must produce the
-  identical formation/power/mine script). Daily runs seed from the UTC date,
-  submit with `daily: true`
+  identical formation/power/mine script). Daily runs seed from the patrol date
+  (midnight America/Los_Angeles), submit with `daily: true`
   (server stamps `daily_date` on `scores`), rank on `GET /api/leaderboard/daily`
   (a tab in the Leaderboard screen, formerly "World Arena") and still count
   all-time. Menu button shows today's leader.
@@ -295,8 +295,8 @@ first, then:
   footer link (the /fullgame door is unlisted — URL only — since the public
   Reddit launch; no cinematic, no sign-in on the lobby; players get on
   the board via the game-over guest pseudo prompt), caps dailies at 3
-  attempts per UTC day (`orion.dailyAttempts` in save.ts client-side, and
-  the server independently rejects a 4th daily score per account per UTC day —
+  attempts per Pacific day (`orion.dailyAttempts` in save.ts client-side, and
+  the server independently rejects a 4th daily score per account per patrol day —
   spent at run start; a death inside the first 15s —
   `DAILY_FREE_DEATH_SECONDS` — refunds the attempt and the run doesn't count
   as a daily), adds a free unscored Training Ground (`training` on
