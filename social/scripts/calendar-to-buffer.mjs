@@ -57,16 +57,25 @@ export async function runCalendarToBuffer({
   const results = [];
   for (const job of jobs) {
     const local = localAssetPath(decodeURIComponent(job.mediaUrl.split("/").pop() ?? ""));
-    const posted = await createPost({
-      channel: job.channel,
-      text: job.text,
-      mediaUrl: job.mediaUrl,
-      youtubeTitle: job.youtubeTitle,
-      mode: job.mode,
-      dueAt: job.dueAt,
-      dry,
-    });
-    results.push({ ...job, localAsset: local, localAssetFound: Boolean(local), result: posted });
+    try {
+      const posted = await createPost({
+        channel: job.channel,
+        text: job.text,
+        mediaUrl: job.mediaUrl,
+        youtubeTitle: job.youtubeTitle,
+        mode: job.mode,
+        dueAt: job.dueAt,
+        dry,
+      });
+      results.push({ ...job, localAsset: local, localAssetFound: Boolean(local), result: posted });
+    } catch (err) {
+      results.push({
+        ...job,
+        localAsset: local,
+        localAssetFound: Boolean(local),
+        result: { error: err instanceof Error ? err.message : String(err) },
+      });
+    }
   }
   return results;
 }
@@ -103,7 +112,19 @@ async function main() {
     );
     return;
   }
-  console.log(JSON.stringify(results.map((r) => r.result), null, 2));
+  console.log(
+    JSON.stringify(
+      results.map((r) => ({
+        channel: r.channel,
+        mode: r.mode,
+        dueAt: r.dueAt,
+        mediaUrl: r.mediaUrl,
+        result: r.result,
+      })),
+      null,
+      2,
+    ),
+  );
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

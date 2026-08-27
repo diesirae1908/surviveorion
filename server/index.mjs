@@ -27,6 +27,7 @@ import {
 } from "./dailyBoard.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
+import { isStaticMethod, serveStatic } from "./serve-static.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -1172,55 +1173,6 @@ document.getElementById("key").addEventListener("keydown", (e) => { if (e.key ==
 </body>
 </html>`;
 
-// --- static file serving (production single-process mode) ---
-
-const MIME = {
-  ".html": "text/html",
-  ".js": "text/javascript",
-  ".css": "text/css",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".mov": "video/quicktime",
-  ".webm": "video/webm",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".json": "application/json",
-};
-
-function serveStatic(req, res, pathname) {
-  const safe = path.normalize(pathname).replace(/^(\.\.[/\\])+/, "");
-  let file = path.join(DIST, safe);
-  if (!file.startsWith(DIST)) return json(res, 403, { error: "forbidden" });
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST, "index.html");
-  if (!fs.existsSync(file)) return json(res, 404, { error: "not found (run npm run build)" });
-
-  // Cache policy: without one, browsers cache HTML heuristically and players
-  // keep an old bundle after a deploy (bit us on the Aug 10 mutators launch).
-  // Vite fingerprints /assets/* filenames, so those can cache forever; HTML
-  // (and the SPA fallback) must always revalidate so a deploy is picked up on
-  // the next load; everything else (icons, music, manifest) gets a short TTL.
-  const ext = path.extname(file);
-  const stat = fs.statSync(file);
-  const isAsset = /^[/\\]?assets[/\\]/.test(safe);
-  const cacheControl = isAsset
-    ? "public, max-age=31536000, immutable"
-    : ext === ".html"
-      ? "no-cache"
-      : "public, max-age=3600";
-
-  const lastModified = stat.mtime.toUTCString();
-  if (req.headers["if-modified-since"] === lastModified) {
-    res.writeHead(304, { "Cache-Control": cacheControl, "Last-Modified": lastModified });
-    return res.end();
-  }
-  res.writeHead(200, {
-    "Content-Type": MIME[ext] ?? "application/octet-stream",
-    "Cache-Control": cacheControl,
-    "Last-Modified": lastModified,
-  });
-  fs.createReadStream(file).pipe(res);
-}
-
 // --- server ---
 
 const server = http.createServer(async (req, res) => {
@@ -1240,8 +1192,8 @@ const server = http.createServer(async (req, res) => {
     }
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);
-    if (!url.pathname.startsWith("/api/") && SERVE_DIST && req.method === "GET") {
-      return serveStatic(req, res, url.pathname);
+    if (!url.pathname.startsWith("/api/") && SERVE_DIST && isStaticMethod(req.method)) {
+      return serveStatic(req, res, url.pathname, DIST);
     }
     json(res, 404, { error: "not found" });
   } catch (e) {

@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-08-26: first live Buffer batch failed, then retry after HEAD fix
+
+- Lucas: the 3 Approved + Linked rows are the go-ahead.
+- `--dry=false` #1: Instagram rejected (no reel type). `--dry=false` #2:
+  all 9 jobs "Video could not be read from its URL" because surviveorion
+  HEAD 404s and GET lacked Content-Length.
+- `post-buffer.mjs`: IG `type: reel` + `shouldShareToFeed`; YT `categoryId: 20`.
+  Batch no longer aborts on the first channel error.
+- Retry after the static HEAD deploy is live. Did not delete local video folders.
+
 ## 2026-08-26: approved clips copied to public/social-drafts
 
 - Lucas: the 3 Approved rows are the go-ahead. Copied (not moved) into

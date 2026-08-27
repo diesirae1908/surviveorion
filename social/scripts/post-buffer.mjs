@@ -72,8 +72,19 @@ export function buildCreatePostVariables({ channel, text, mediaUrl, mode, dueAt,
   if (mediaUrl) {
     input.assets = [{ video: { url: mediaUrl } }];
   }
-  if (channel === "youtube" && youtubeTitle) {
-    input.metadata = { youtube: { title: youtubeTitle } };
+  /** @type {Record<string, unknown>} */
+  const metadata = {};
+  if (channel === "instagram") {
+    metadata.instagram = { type: "reel", shouldShareToFeed: true };
+  }
+  if (channel === "youtube") {
+    metadata.youtube = {
+      title: youtubeTitle || text.slice(0, 100),
+      categoryId: "20",
+    };
+  }
+  if (Object.keys(metadata).length) {
+    input.metadata = metadata;
   }
   return { input };
 }

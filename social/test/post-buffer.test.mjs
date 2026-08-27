@@ -27,6 +27,7 @@ describe("post-buffer", () => {
       channelId: CHANNEL_IDS.instagram,
       schedulingType: "automatic",
       mode: "shareNow",
+      metadata: { instagram: { type: "reel", shouldShareToFeed: true } },
     });
   });
 
@@ -63,6 +64,7 @@ describe("post-buffer", () => {
       channelIds: CHANNEL_IDS,
     });
     assert.deepEqual(input.assets, [{ video: { url: "https://example.com/clip.mp4" } }]);
+    assert.deepEqual(input.metadata, { instagram: { type: "reel", shouldShareToFeed: true } });
   });
 
   it("rejects a local-looking mediaUrl", () => {
@@ -99,27 +101,22 @@ describe("post-buffer", () => {
       mode: "shareNow",
       channelIds: CHANNEL_IDS,
     });
-    assert.deepEqual(input.metadata, { youtube: { title: "Title Here" } });
+    assert.deepEqual(input.metadata, {
+      youtube: { title: "Title Here", categoryId: "20" },
+    });
     assert.equal(input.text, "description body");
   });
 
-  it("omits metadata when youtubeTitle is omitted or channel is not youtube", () => {
+  it("youtube falls back to text for title when youtubeTitle is omitted", () => {
     const withoutTitle = buildCreatePostVariables({
       channel: "youtube",
       text: "description only",
       mode: "shareNow",
       channelIds: CHANNEL_IDS,
     });
-    assert.equal(withoutTitle.input.metadata, undefined);
-
-    const instagram = buildCreatePostVariables({
-      channel: "instagram",
-      text: "hello",
-      youtubeTitle: "ignored",
-      mode: "shareNow",
-      channelIds: CHANNEL_IDS,
+    assert.deepEqual(withoutTitle.input.metadata, {
+      youtube: { title: "description only", categoryId: "20" },
     });
-    assert.equal(instagram.input.metadata, undefined);
 
     const tiktok = buildCreatePostVariables({
       channel: "tiktok",

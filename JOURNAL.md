@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: static HEAD + Buffer IG reel metadata
+
+- Live `calendar-to-buffer --dry=false` for the 3 Approved rows: Instagram
+  first failed (needs `metadata.instagram.type = reel`). After that fix,
+  all 9 jobs failed: Buffer cannot read the hosted URL.
+- Cause: `serveStatic` was GET-only, so HEAD on
+  `/social-drafts/*.mp4|.mov` returned 404, and GET had no Content-Length.
+  Buffer probes the URL before downloading.
+- Static serving extracted to `server/serve-static.mjs`: HEAD and GET share
+  headers, Content-Length + Accept-Ranges set. Instagram reel + YouTube
+  category 20 on create. Retry Buffer after this deploy is live.
+
 ## 2026-08-26: host 3 approved clips for Buffer
 
 - Copied (not moved) `orion_trailer.mp4`, `0826_heknew_916.mov`,
