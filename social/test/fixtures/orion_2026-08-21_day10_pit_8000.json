@@ -1,0 +1,14 @@
+{
+  "day": 10,
+  "mutatorIds": ["pit"],
+  "mutatorNames": ["THE PIT"],
+  "score": 8000,
+  "medal": null,
+  "survivalTime": 45,
+  "closestCall": { "time": 10.5, "x": 1, "y": 2, "clearance": 0.05 },
+  "topGrazes": [
+    { "time": 10.5, "clearance": 0.05 },
+    { "time": 25.0, "clearance": 0.12 },
+    { "time": 30.0, "clearance": 0.20 }
+  ]
+}

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "blackout",
+    "name": "BLACKOUT",
+    "subline": "On-screen spawn warnings are much shorter (0.5s instead of 1.4s). Everything else is normal."
+  },
+  {
+    "id": "red-alert",
+    "name": "RED ALERT",
+    "subline": "Spawn rate, formation frequency, and pickup drops all sped up. Drone speed is unchanged."
+  },
+  {
+    "id": "the-flood",
+    "name": "THE FLOOD",
+    "subline": "Formations almost never happen. Ambient density is up, but arrives in clearer packs with lanes between them."
+  },
+  {
+    "id": "great-wall",
+    "name": "GREAT WALL",
+    "subline": "No ambient drones at all. Only walls, mega walls, and pincers, faster than usual, released to hunt after their sweep. Deep in the run the walls keep coming faster and stray drones start leaking in."
+  },
+  {
+    "id": "year-of-the-serpent",
+    "name": "YEAR OF THE SERPENT",
+    "subline": "No ambient drones at all. Only serpent trains, more of them, released to hunt after their sweep. Deep in the run the trains keep coming faster and stray drones start leaking in."
+  },
+  {
+    "id": "menagerie",
+    "name": "MENAGERIE",
+    "subline": "A brief calm, then hunters, lances, wheels, and bombs take turns, drawn at random with no repeats back to back. Ambient is a faint trickle, ordinary formations are gone, and from a couple of minutes in two kinds usually fuse in at once. Power drops come a little slower than a usual Daily."
+  },
+  {
+    "id": "lancer-doctrine",
+    "name": "LANCER DOCTRINE",
+    "subline": "Salvos of parallel lance bars sweep in from one edge in sequence, more of them every minute past the first. No ambient swarm, no ordinary formations: the artillery is the whole day. Power drops come a little slower than a usual Daily."
+  },
+  {
+    "id": "wheelhouse",
+    "name": "WHEELHOUSE",
+    "subline": "Wheels roll through in lanes from alternating sides, Frogger-style. One lane at the open, then rush hour builds fast. No ambient swarm, no ordinary formations: the traffic is the whole day. Power drops come a little slower than a usual Daily."
+  },
+  {
+    "id": "hunting-party",
+    "name": "HUNTING PARTY",
+    "subline": "Waves of hunters close in from different edges and converge, growing in size and frequency fast after the first wave. No ambient swarm, no ordinary formations: the hunt is the whole day. Power drops come a little slower than a usual Daily."
+  },
+  {
+    "id": "demolition-day",
+    "name": "DEMOLITION DAY",
+    "subline": "Bomb slabs deploy continuously and detonate into shrapnel, crowding the arena fast after the first minute. No ambient swarm, no ordinary formations: the minefield is the whole day. Power drops come a little slower than a usual Daily."
+  },
+  {
+    "id": "titanfall",
+    "name": "TITANFALL",
+    "subline": "Evolutions are much rarer, only one active at a time, and roughly twice the usual size."
+  },
+  {
+    "id": "arsenal",
+    "name": "ARSENAL",
+    "subline": "Pickup drops roughly twice as often, ambient density up slightly."
+  },
+  {
+    "id": "overcharge",
+    "name": "OVERCHARGE",
+    "subline": "Drop rate is normal, but every power's blast radius, count, or duration is amplified."
+  },
+  {
+    "id": "cryo-winter",
+    "name": "CRYO WINTER",
+    "subline": "Every pickup is a Cryo Field."
+  },
+  {
+    "id": "iron-barrage",
+    "name": "IRON BARRAGE",
+    "subline": "Every pickup is a Missile Swarm."
+  },
+  {
+    "id": "singularity",
+    "name": "SINGULARITY",
+    "subline": "Vortex (normally benched) drops often today."
+  },
+  {
+    "id": "starfall",
+    "name": "STARFALL",
+    "subline": "A constant meteor rain falls all run, each impact flashed by a ground reticle first. The only drop is Shield, a little more often."
+  },
+  {
+    "id": "the-pit",
+    "name": "THE PIT",
+    "subline": "The arena is about 30% smaller in both dimensions."
+  },
+  {
+    "id": "giants",
+    "name": "GIANTS",
+    "subline": "Every drone is bigger and a bit slower. Fewer of them spawn."
+  },
+  {
+    "id": "minefield",
+    "name": "MINEFIELD",
+    "subline": "Mines appear roughly three times as often."
+  },
+  {
+    "id": "solar-wind",
+    "name": "SOLAR WIND",
+    "subline": "A constant crosswind pushes your ship and every drone the same way, all day."
+  },
+  {
+    "id": "magnetic-field",
+    "name": "MAGNETIC FIELD",
+    "subline": "Pickups slowly drift toward your ship all day, on top of their normal wander."
+  }
+]
