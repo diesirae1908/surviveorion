@@ -7,8 +7,10 @@ why, commit hash, follow-ups), committed together with the work. See
 ## 2026-08-27: player feedback #13-#18 LIVE
 
 - Lucas: "push live". Merged `sam/feedback-aug26-night` → main (`5f411f2`,
-  `--no-ff`). Pushing `origin/main`; Render auto-deploys `surviveorion`.
-- Five mutator feel fixes from last night's admin queue. Snapshot unchanged.
+  `--no-ff`). Pushed `origin/main`; Render `dep-da86f3rncjis73fdu2bg` live.
+- Bundle `index-CzX0LK42.js` → `index-DXuWiPE6.js`. HTTP 200. New copy is
+  in the live JS (Flood river, Blackout flicker, Starfall scarce shields,
+  Hunt early packs, Cryo mines). Hard refresh if the old bundle is cached.
 
 ## 2026-08-26: player feedback #13-#18 (branch `sam/feedback-aug26-night`)
 
