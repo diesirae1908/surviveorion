@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: Buffer YouTube title metadata (branch `sam/buffer-youtube-title`)
+
+- `social/scripts/post-buffer.mjs`: optional `--youtube-title` / `youtubeTitle`
+  sets `CreatePostInput.metadata.youtube.title` (distinct from post body `text`).
+  JSDoc notes pipeline clips are 9:16; landscape media won't classify as Shorts.
+- Tests in `social/test/post-buffer.test.mjs`. Not merged to main.
+
 ## 2026-08-26: social pipeline merge (branch `sam/social-merge`)
 
 - Merged `orion-social` into `social/` via `git subtree add` (history
