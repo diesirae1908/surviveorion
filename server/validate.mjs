@@ -11,7 +11,7 @@ const MAX_KILL_SCALE = 3; // pulsePointsScale * frozenPointsScale
 const CHAIN_EVERY = 5; // chainBonusEvery
 const CHAIN_POINTS = 40; // chainBonusPoints
 const PULSE_MULTI_POINTS = 60; // pulseMultiKillPoints (paid per kill past the threshold)
-const GRAZE_POINTS = 10; // grazePoints
+const GRAZE_POINTS = 15; // grazePoints * max mutatorGrazePointsScale (HUNTING PARTY 1.5x)
 const MAX_GRAZES_PER_SEC = 8; // generous ceiling (per-drone 1.5s cooldown in practice)
 // Generous physical ceiling. Ambient spawn rate reaches ~8/s late, but the
 // late-growth pass (2026-08-11) keeps creature and plateau mutator days

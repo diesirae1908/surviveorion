@@ -1,4 +1,4 @@
-import { MINES } from "./config";
+import { MINES, SCORING } from "./config";
 import { randRange, scheduleRange } from "./math";
 import { killDronesInRadius } from "./enemies";
 import { mutatorMineIntervalScale } from "./mutators";
@@ -37,6 +37,7 @@ export function updateMines(world: World, dt: number): void {
   for (let i = world.mines.length - 1; i >= 0; i--) {
     const m = world.mines[i];
     m.age += dt;
+    if (m.frozen > 0) m.frozen = Math.max(0, m.frozen - dt);
     if (!m.alive || m.age >= m.lifetime) world.mines.splice(i, 1);
   }
 }
@@ -81,6 +82,7 @@ function trySpawnMine(world: World): void {
       lifetime: MINES.lifetime,
       seed: Math.random() * Math.PI * 2, // visual bob phase, cosmetic
       alive: true,
+      frozen: 0,
     });
     return;
   }
@@ -113,6 +115,46 @@ export function killMine(world: World, m: Mine): void {
     const r = MINES.explosionRadius + MINES.radius;
     if (dx * dx + dy * dy <= r * r) killMine(world, other);
   }
+}
+
+/** Freeze every live mine inside a cryo field. Same duration as drones. */
+export function freezeMinesInRadius(
+  world: World,
+  x: number,
+  y: number,
+  radius: number,
+  duration: number,
+): void {
+  for (const m of world.mines) {
+    if (!m.alive) continue;
+    const dx = m.x - x;
+    const dy = m.y - y;
+    const r = radius + MINES.radius;
+    if (dx * dx + dy * dy <= r * r) m.frozen = duration;
+  }
+}
+
+/**
+ * Ram-shatter a frozen mine the way a frozen drone shatters: credit the
+ * frozen skill-kill, no chain explosion (that would not be harmless).
+ */
+export function shatterFrozenMine(world: World, m: Mine): void {
+  if (!m.alive || m.frozen <= 0) return;
+  m.alive = false;
+  const points = registerKill(world, m.x, m.y, {
+    pointsScale: SCORING.frozenPointsScale,
+    multiplierScale: SCORING.frozenMultiplierScale,
+  });
+  world.events.push({ type: "mineExploded", x: m.x, y: m.y, points });
+  world.shake = Math.max(world.shake, 0.18);
+  world.powers.waves.push({
+    x: m.x,
+    y: m.y,
+    elapsed: 0,
+    lifetime: 0.45,
+    maxRadius: MINES.radius * 2.2,
+    color: "#dffaff",
+  });
 }
 
 /** Blast helper for shockwave / shield detonation / pulse. */

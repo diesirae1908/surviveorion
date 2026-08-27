@@ -34,7 +34,7 @@
 
 import type { AssemblyKind } from "./types";
 import { hashString } from "./math";
-import { SPAWNER, type FormationKind, type PowerId } from "./config";
+import { BLACKOUT, SPAWNER, type FormationKind, type PowerId } from "./config";
 
 export interface MutatorOverrides {
   /** Multiplies the ambient spawn accumulation rate (spawns/sec). */
@@ -93,8 +93,12 @@ export interface MutatorOverrides {
   pickupMagnetStrength?: number;
   /** Cosmetic only: renderer shows a subtle red vignette (RED ALERT). */
   redTint?: boolean;
+  /** BLACKOUT only: time-driven lights-out pulse (vignette + dim telegraphs). */
+  blackoutPulse?: boolean;
   /** STARFALL only: turns on the environmental meteor rain (see starfall.ts). */
   meteorRainActive?: boolean;
+  /** Multiplies graze point pay for the day (1 = unchanged). */
+  grazePointsScale?: number;
   /** Caps the run's very first formation delay (seconds), so a zero-ambient
    * formation day (GREAT WALL, YEAR OF THE SERPENT) doesn't open on an
    * empty screen waiting for it. Only ever tightens the delay (Math.min),
@@ -230,17 +234,16 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "blackout",
     name: "BLACKOUT",
-    briefing: "The sirens are slow tonight.",
-    subline: "On-screen spawn warnings are much shorter (0.5s instead of 1.4s). Everything else is normal.",
+    briefing: "The grid flickers. When the lights cut, dodge blind.",
+    subline: "Spawn warnings stay short. Every few seconds the lights die and the warnings nearly vanish.",
     difficultyFactor: 1.1,
     tags: ["visibility"],
     availableFrom: MUTATORS_START_DATE,
-    // v2 (round 2): pure ratio=0 ("everything sneaks, no warning at all")
-    // tested too lethal for a dodge-only game: the evasive-bot harness in
-    // sim-test showed a real survival hit vs baseline. Keeping telegraphs on
-    // but cutting their warning time to ~1/3 preserves "vigilance day" while
-    // staying a fair fight: you still get a heads-up, just a short one.
-    overrides: { telegraphDurationScale: 0.36 },
+    // v3 (2026-08-26): skip-the-card pilots could not tell this day from a
+    // normal one. Keep the short-warning retune (ratio=0 was too lethal) and
+    // add a deterministic lights-out pulse so the identity is visible in the
+    // first 10 seconds. No extra seeded draws: pulse is a function of time.
+    overrides: { telegraphDurationScale: 0.36, blackoutPulse: true },
   },
   {
     id: "red-alert",
@@ -263,21 +266,19 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "the-flood",
     name: "THE FLOOD",
-    briefing: "No formations. Just a current of drones.",
-    subline: "Formations almost never happen. Ambient density is up, but arrives in clearer packs with lanes between them.",
+    briefing: "No formations. Just the river.",
+    subline: "Bigger packs, clearer lanes. The gaps will not wait.",
     difficultyFactor: 0.95,
     tags: ["density"],
     availableFrom: MUTATORS_START_DATE,
-    // v2 (round 2): Lucas's playability concern was legitimate. Toned the
-    // raw ambient rate down from 1.6 to 1.3, added a lower soft cap on loose
-    // drones (real lanes instead of the default 130-drone ceiling) and bigger
-    // clump grouping (same total density, gathered into fewer/bigger blobs
-    // with more open space between them), plus a touch more support.
+    // v3 (2026-08-26): v2 (1.3 / soft-cap 0.7) read as a normal day. Push
+    // the sliders: more current, bigger packs, formations near-absent, and
+    // let density actually build. pickupIntervalScale stays (not the identity).
     overrides: {
-      ambientRateScale: 1.3,
-      formationIntervalScale: 3.0,
-      ambientSoftCapScale: 0.7,
-      clumpMaxScale: 1.6,
+      ambientRateScale: 1.8,
+      formationIntervalScale: 4.5,
+      ambientSoftCapScale: 1.3,
+      clumpMaxScale: 2.2,
       pickupIntervalScale: 0.85,
     },
   },
@@ -427,8 +428,8 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "hunting-party",
     name: "HUNTING PARTY",
-    briefing: "Wolf packs only. You are the prey today.",
-    subline: "Waves of hunters close in from different edges and converge, growing in size and frequency fast after the first wave. No ambient swarm, no ordinary formations: the hunt is the whole day. Power drops come a little slower than a usual Daily.",
+    briefing: "Wolf packs only. They close in early.",
+    subline: "Waves tighten after the first half minute. Threading a pack pays more than a usual graze. No ambient swarm, no ordinary formations: the hunt is the whole day.",
     // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
     // bot's score median came in lowest of the four here (packs close in and
     // die one at a time rather than sweeping through in a batch).
@@ -440,6 +441,7 @@ export const MUTATOR_POOL: Mutator[] = [
       ambientRateScale: 0,
       formationIntervalScale: 30,
       pickupIntervalScale: CREATURE_DAY_PICKUP_SCALE,
+      grazePointsScale: 1.5,
     },
   },
   {
@@ -501,8 +503,8 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "cryo-winter",
     name: "CRYO WINTER",
-    briefing: "Every drop is a Cryo Field. Freeze the fleet.",
-    subline: "Every pickup is a Cryo Field.",
+    briefing: "Every drop is a Cryo Field. Freeze the fleet, and the mines.",
+    subline: "Ice freezes drones and mines. Ram the frozen ones to shatter them.",
     difficultyFactor: 0.9,
     tags: ["monopower"],
     availableFrom: MUTATORS_START_DATE,
@@ -531,8 +533,8 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "starfall",
     name: "STARFALL",
-    briefing: "The sky itself is falling. Shields up, pilot.",
-    subline: "A constant meteor rain falls all run, each impact flashed by a ground reticle first. The only drop is Shield, a little more often.",
+    briefing: "The sky opens early. Shields are scarce.",
+    subline: "Meteor rain from the first seconds. Shield is the only drop, and it is late.",
     difficultyFactor: 0.8,
     // v3 (round 3, replaced the monopower-Meteor-Storm version): now an
     // environmental event day, not a power day, but it still zeroes the
@@ -543,7 +545,7 @@ export const MUTATOR_POOL: Mutator[] = [
     availableFrom: MUTATORS_START_DATE,
     overrides: {
       powerWeights: monoPowerWeights("shield"),
-      pickupIntervalScale: 0.8,
+      pickupIntervalScale: 1.4,
       meteorRainActive: true,
     },
   },
@@ -1040,6 +1042,40 @@ export function mutatorPickupMagnetStrength(): number {
 
 export function mutatorRedTint(): boolean {
   return firstOf((o) => o.redTint) ?? false;
+}
+
+/** BLACKOUT only: lights-out pulse overlay + telegraph dim. */
+export function mutatorBlackoutPulse(): boolean {
+  return firstOf((o) => o.blackoutPulse) ?? false;
+}
+
+/**
+ * 0..1 vignette strength at run-seconds `time`. First pulse at 6s, then
+ * every pulseIntervalSeconds, 0.5s window with short fades. Pure function
+ * of time: no RNG, same for every pilot.
+ */
+export function blackoutPulseAmount(time: number): number {
+  const { firstPulseAt, pulseIntervalSeconds, pulseDurationSeconds, pulseFadeSeconds } =
+    BLACKOUT;
+  if (time < firstPulseAt) return 0;
+  const cycle = time % pulseIntervalSeconds;
+  if (cycle >= pulseDurationSeconds) return 0;
+  if (cycle < pulseFadeSeconds) return cycle / pulseFadeSeconds;
+  const fadeOut = pulseDurationSeconds - cycle;
+  if (fadeOut < pulseFadeSeconds) return fadeOut / pulseFadeSeconds;
+  return 1;
+}
+
+/** Multiplier on telegraph alpha during a BLACKOUT pulse (1 outside the window). */
+export function blackoutTelegraphMul(time: number): number {
+  if (!mutatorBlackoutPulse()) return 1;
+  const a = blackoutPulseAmount(time);
+  return 1 + (BLACKOUT.pulseTelegraphOpacity - 1) * a;
+}
+
+/** Multiplies graze point pay (1 on ordinary days). */
+export function mutatorGrazePointsScale(): number {
+  return scaleOf((o) => o.grazePointsScale);
 }
 
 /** STARFALL only: whether the environmental meteor rain should be running. */

@@ -4,6 +4,31 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: player feedback #13-#18 (branch `sam/feedback-aug26-night`)
+
+- `/admin` queue, six new Luciano notes after the morning pass. GREAT WALL
+  (#14) is praise, left alone. The other five shipped as a design spec from
+  Claude CLI (sonnet), then implemented here. Date snapshot untouched (144
+  dates). Shared creature-day ramp (`openingMinutes` / `rampMinutes`) not
+  moved: it already wakes at 0:27, and moving it would retune every creature
+  day.
+- THE FLOOD: ambient 1.3->1.8, formations 3.0->4.5, soft cap 0.7->1.3,
+  clumps 1.6->2.2. STARFALL: fewer shields (pickup 0.8->1.4), rain opens at
+  2.6s and ramps in 1.2 min. BLACKOUT: same 0.36 telegraph scale plus a
+  deterministic 6s lights-out pulse (blue-black vignette, telegraphs dim to
+  0.15). CRYO WINTER: ice freezes mines; ram-shatter like a frozen drone, no
+  boom; ice overlay at 0.5 so the mine stays readable. HUNTING PARTY: early
+  waves [11,14]->[8,11], hunting-only graze 1.5x; `validate.mjs` graze
+  ceiling 10->15.
+- Why: skip-the-card BLACKOUT felt like no mutator; Flood/Starfall/Hunt
+  openings were underwhelming; cryo ice hid live mines.
+- Not merged, not deployed (customer-facing feel; Lucas plays first).
+- Verified: pass — `npx tsc --noEmit`, `npm run test:mutators` (snapshot
+  unchanged), `npm run test:no-em-dash`, `npx tsx scripts/sim-test.ts` (all
+  22 mutators boot, Flood/Blackout/Starfall/Hunt playability bars hold).
+  `test:clip-sidecar` still fails on main from the PT-midnight day shift
+  (hardcoded UTC fixtures); not this change.
+
 ## 2026-08-26: 3 approved rows are in Buffer (9 posts)
 
 - Launch Trailer + He Knew: addToQueue (IG/TT/YT). THE PIT: 9:00 AM PT

@@ -4,7 +4,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 // randomness stays on Math.random — drawing from the seeded daily streams
 // here would desync the shared spawn script between players. OVERCHARGE's
 // amplification is a plain config-value multiplier on top, so it's safe too.
-import { isMineArmed, killMine, killMinesInRadius } from "./mines";
+import { freezeMinesInRadius, isMineArmed, killMine, killMinesInRadius } from "./mines";
 import { mutatorPowerAmpScale } from "./mutators";
 import type { ArcChainState, Drone, Mine, Pickup, PowersState, World } from "./types";
 import { clamp01 } from "./math";
@@ -160,6 +160,7 @@ export function activatePower(world: World, power: PowerId): void {
         const dy = d.y - world.ship.y;
         if (dx * dx + dy * dy <= r * r) d.frozen = duration;
       }
+      freezeMinesInRadius(world, world.ship.x, world.ship.y, r, duration);
       p.waves.push({
         x: world.ship.x,
         y: world.ship.y,

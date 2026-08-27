@@ -10,11 +10,13 @@
  * do not "fix" the test to match the new numbers, figure out why a day
  * that should be untouched moved.
  */
-import { POWERS, SHIP } from "../src/config";
+import { BLACKOUT, CREATURE_DAYS, MINES, POWERS, SHIP, STARFALL_RAIN } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import { hashString, rand, scheduleRand, setRunSeed } from "../src/math";
 import {
+  blackoutPulseAmount,
+  blackoutTelegraphMul,
   clearActiveMutators,
   getActiveMutators,
   getMutatorById,
@@ -23,7 +25,9 @@ import {
   MUTATOR_POOL,
   MUTATORS_START_DATE,
   mutatorAmbientRateScale,
+  mutatorBlackoutPulse,
   mutatorFormationWeights,
+  mutatorGrazePointsScale,
   mutatorPickupMagnetStrength,
   mutatorTelegraphDurationScale,
   mutatorViewScale,
@@ -32,6 +36,7 @@ import {
   setActiveMutators,
   type Mutator,
 } from "../src/mutators";
+import { freezeMinesInRadius } from "../src/mines";
 import { cancelIntoWallWind, clampToBounds } from "../src/physics";
 import type { World } from "../src/types";
 import golden from "./mutator-snapshot.json";
@@ -650,6 +655,67 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
   );
 
   clearActiveMutators();
+}
+
+// --- Aug 26 night feedback pass: lock the shipped tunings + pulse math.
+{
+  const flood = getMutatorById("the-flood")!;
+  check("THE FLOOD ambientRateScale is 1.8", flood.overrides.ambientRateScale === 1.8);
+  check("THE FLOOD formationIntervalScale is 4.5", flood.overrides.formationIntervalScale === 4.5);
+  check("THE FLOOD ambientSoftCapScale is 1.3", flood.overrides.ambientSoftCapScale === 1.3);
+  check("THE FLOOD clumpMaxScale is 2.2", flood.overrides.clumpMaxScale === 2.2);
+
+  const starfall = getMutatorById("starfall")!;
+  check("STARFALL pickupIntervalScale is 1.4", starfall.overrides.pickupIntervalScale === 1.4);
+  check("STARFALL rain opens faster than 3s", STARFALL_RAIN.intervalStart === 2.6);
+  check("STARFALL rain ramps in 1.2 min", STARFALL_RAIN.rampMinutes === 1.2);
+
+  const blackout = getMutatorById("blackout")!;
+  setActiveMutators([blackout]);
+  check("BLACKOUT pulse flag is on", mutatorBlackoutPulse() === true);
+  check("BLACKOUT pulse is dark at t=0", blackoutPulseAmount(0) === 0);
+  check("BLACKOUT pulse is dark at t=5.9", blackoutPulseAmount(5.9) === 0);
+  check("BLACKOUT first pulse peaks at t=6.2", Math.abs(blackoutPulseAmount(6.2) - 1) < 1e-9);
+  check(
+    "BLACKOUT telegraph mul drops during the pulse",
+    Math.abs(blackoutTelegraphMul(6.2) - BLACKOUT.pulseTelegraphOpacity) < 1e-9,
+  );
+  check("BLACKOUT telegraph mul is 1 outside the pulse", blackoutTelegraphMul(5.9) === 1);
+  clearActiveMutators();
+  check("BLACKOUT telegraph mul is 1 on other days", blackoutTelegraphMul(6.2) === 1);
+
+  const hunt = getMutatorById("hunting-party")!;
+  check("HUNTING PARTY grazePointsScale is 1.5", hunt.overrides.grazePointsScale === 1.5);
+  check(
+    "HUNTING PARTY early waves are [8,11]",
+    CREATURE_DAYS.hunter.waveIntervalEarly[0] === 8 &&
+      CREATURE_DAYS.hunter.waveIntervalEarly[1] === 11,
+  );
+  setActiveMutators([hunt]);
+  check("HUNTING PARTY graze scale getter is 1.5", mutatorGrazePointsScale() === 1.5);
+  clearActiveMutators();
+  check("ordinary-day graze scale is 1", mutatorGrazePointsScale() === 1);
+
+  const ice = createWorld(16, 10, true, 0, "classic", false);
+  ice.mines.push({
+    x: 1.2,
+    y: 0,
+    age: MINES.armTime + 0.1,
+    lifetime: 20,
+    seed: 0,
+    alive: true,
+    frozen: 0,
+  });
+  freezeMinesInRadius(ice, 0, 0, 9, 5);
+  check("cryo field freezes a nearby mine", ice.mines[0].frozen === 5);
+  ice.ship.x = 1.2;
+  ice.ship.y = 0;
+  ice.ship.vx = 0;
+  ice.ship.vy = 0;
+  tick(ice, input, 0);
+  check("ramming a frozen mine shatters it", ice.mines[0].alive === false);
+  check("frozen-mine shatter does not kill the ship", ice.phase === "playing");
+  check("frozen-mine shatter pays points", ice.score > 0);
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);
