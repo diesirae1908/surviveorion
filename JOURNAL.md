@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-27: player feedback #19 THE FLOOD identity LIVE
+
+- Lucas: "awesome push live". Merged `sam/feedback-aug27-flood` → main (`2ca07ef`,
+  `--no-ff`). Pushed `origin/main`.
+- Bundle `index-DXuWiPE6.js` → `index-H6gU6f7P.js`. HTTP 200. Live JS has
+  "Just the current" / "Formations are off" / floodSurge. Hard refresh.
+
 ## 2026-08-27: player feedback #19 THE FLOOD identity (branch `sam/feedback-aug27-flood`)
 
 - Admin #19 (Luciano, 2:41 PM PT): v3 slider pass still read as vanilla.
