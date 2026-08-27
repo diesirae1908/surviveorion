@@ -1,5 +1,13 @@
 # JOURNAL
 
+## 2026-08-26: Buffer token vault (outside git)
+
+- Lucas asked for a "git secret" so Cursor can use the Buffer token. GitHub
+  Actions secrets cannot be read back locally, so that is not the vault.
+- Canonical store: `~/.config/orion-social/buffer.env` (chmod 600, not in any
+  repo). Working copy: gitignored `social/.env`. Same token already in both.
+- `loadEnv()` now reads the vault first, then `.env`. No token in git.
+
 ## 2026-08-26: Buffer YouTube title metadata (branch `sam/buffer-youtube-title`)
 
 - `post-buffer.mjs`: `--youtube-title` wires `metadata.youtube.title` on YouTube

@@ -13,7 +13,10 @@ clips plus JSON sidecars from `orion-web`.
 ## Conventions
 
 - **Node 22** + **ffmpeg** (`brew install ffmpeg`). Plain JS, no framework. Small deps only; justify any addition.
-- **Secrets** only in `.env` and `auth/` (both gitignored). Never log tokens.
+- **Secrets** only in gitignored local files. Never log tokens. Never commit them.
+  Buffer token canonical vault: `~/.config/orion-social/buffer.env` (chmod 600).
+  Working copy: `social/.env` (gitignored). `loadEnv()` reads the vault first.
+  GitHub Actions secrets are write-only; they are not a local vault.
 - **Never post** without a human-approved file already in `out/approved/`. The pipeline never moves files into `out/approved/`; only Lucas does.
 - **Never push secrets** or commit inbox/out/fixture video blobs.
 - Every substantive change: dated entry in `JOURNAL.md` (newest first), committed with the work.
