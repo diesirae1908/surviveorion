@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: buffer-youtube-title LIVE
+
+- PM review passed (75/75 tests). Merged `sam/buffer-youtube-title` → main
+  (`9c6d383`, `--no-ff`). Pushed `origin/main`; Render auto-deployed
+  `surviveorion`.
+- Brief 502 mid-deploy (~30s after push); HTTP 200 thereafter. Live bundle
+  unchanged `index-BCMteHRV.js` (pipeline-only surface area for Buffer title
+  metadata; no client bundle flip observed).
+- `social/scripts/post-buffer.mjs`: `--youtube-title` / `youtubeTitle` sets
+  `CreatePostInput.metadata.youtube.title`.
+
 ## 2026-08-26: Daily Patrol midnight PT rollover (branch `sam/pt-midnight-daily`)
 
 - **What changed:** Daily Patrol day boundary moved from UTC midnight to
