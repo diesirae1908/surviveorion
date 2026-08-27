@@ -4,6 +4,25 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-27: player feedback #19 THE FLOOD identity (branch `sam/feedback-aug27-flood`)
+
+- Admin #19 (Luciano, 2:41 PM PT): v3 slider pass still read as vanilla.
+  "Not unique enough. REALLY needs to feel like a flood." Today's live Daily
+  is THE PIT; he was rehearsing Flood. Tomorrow PT (2026-08-28) is a Flood day.
+- Identity is now a directional current, not denser scatter. New `src/flood.ts`
+  (STARFALL-shaped): hashed heading (`orion-flood-<date>`), timed lane surges,
+  cyan inflow chevrons. Formations actually off (`formationsDisabled`). Ambient
+  trickle 0.45 with a 1-min escalate floor so the open is already moving.
+  Opening generic burst skipped; first wave lands inside ~1.5s.
+- Copy: "No formations. Just the current. It only runs one way." / "Formations
+  are off. Packs surge in from one edge in timed waves, lanes between them."
+- Snapshot untouched (144 dates). Not merged, not deployed (customer-facing
+  feel; Lucas plays first). Localhost `?mutator=the-flood`.
+- Verified: pass — `npx tsc --noEmit`, `npm run test:mutators` (snapshot
+  unchanged), `npm run test:no-em-dash`, `npx tsx scripts/sim-test.ts` (Flood
+  formations=0, surge script shared, opening 5 drones at t=3s, evasive-bot
+  18.9s vs 13.8s baseline, observer 1.5 kills/sec vs 20 ceiling).
+
 ## 2026-08-27: player feedback #13-#18 LIVE
 
 - Lucas: "push live". Merged `sam/feedback-aug26-night` → main (`5f411f2`,

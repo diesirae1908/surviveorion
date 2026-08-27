@@ -1,4 +1,4 @@
-import { MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./config";
+import { FLOOD_SURGE, MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./config";
 import { updateCreatureChoreography } from "./creatures";
 import { droneRadius, initSpawner, killDrone, updateAssemblies, updateDrones, updateSpawner } from "./enemies";
 import type { InputState } from "./input";
@@ -9,6 +9,7 @@ import { blastRadius, createPowersState, detonateShield, updatePowers } from "./
 import { registerGraze, updateScoring } from "./scoring";
 import { createShip, updateShip } from "./ship";
 import { updateStarfallRain } from "./starfall";
+import { updateFloodSurge } from "./flood";
 import { grazeClearance, trackClosestCall, trackTopGrazes } from "./highlights";
 import { sampleShipTrack } from "./clipSidecar";
 import type { World } from "./types";
@@ -63,6 +64,8 @@ export function createWorld(
     // timer is never consumed unless the mutator is active.
     meteorRainTimer: STARFALL_RAIN.intervalStart,
     meteorTelegraphs: [],
+    floodSurgeTimer: FLOOD_SURGE.intervalStart,
+    floodTelegraphs: [],
     assemblyTimer: 0, // set by initSpawner (schedule stream)
     crowdAssemblyTimer: 0,
     assemblies: [],
@@ -108,6 +111,7 @@ export function tick(world: World, input: InputState, dt: number): void {
   updateCreatureChoreography(world, dt);
   updateMines(world, dt);
   updateStarfallRain(world, dt);
+  updateFloodSurge(world, dt);
   updatePickups(world, dt);
   updatePowers(world, dt);
   updateScoring(world, dt);

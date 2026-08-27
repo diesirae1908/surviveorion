@@ -592,6 +592,31 @@ export const STARFALL_RAIN = {
   waveLifetime: 0.6,
 };
 
+/** THE FLOOD directional surge waves. Time-driven, hashed heading, fixed
+ * per-surge draw count (see flood.ts). Gated behind floodSurgeActive. */
+export const FLOOD_SURGE = {
+  intervalStart: 4.2,
+  intervalFloor: 2.4,
+  rampMinutes: 2,
+  intervalJitter: 0.12,
+  intervalHardFloor: 1.8,
+  lateStartMinutes: 4,
+  lateTightenPerMinute: 0.08,
+  laneGapUnits: 2.4,
+  laneWidthUnits: 1.4,
+  packSizeBase: 2,
+  packSizePerMinute: 0.4,
+  packSizeMax: 5,
+  laneCountBase: 2,
+  laneCountPerMinutes: 2,
+  laneCountMax: 4,
+  surgeSpeedScale: 1.2,
+  scriptSeconds: 2.2,
+  scriptWander: 0.6,
+  telegraphDuration: 0.5,
+  openingDelayRange: [0.6, 1.0] as const,
+};
+
 /** BLACKOUT lights-out pulse. Time-driven, no RNG. First pulse at 6s. */
 export const BLACKOUT = {
   firstPulseAt: 6.0,

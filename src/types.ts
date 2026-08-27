@@ -234,6 +234,17 @@ export interface MeteorTelegraph {
   radius: number; // impact/lethal radius, so the reticle can be sized to match
 }
 
+/** THE FLOOD only: a lane-anchor glow that pops a pack traveling along dir. */
+export interface FloodTelegraph {
+  x: number;
+  y: number;
+  timer: number;
+  duration: number;
+  dirX: number;
+  dirY: number;
+  packSize: number;
+}
+
 export interface PowersState {
   shieldActive: boolean; // persists until it absorbs a hit (banked extra life)
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
@@ -304,6 +315,7 @@ export type GameEvent =
   | { type: "assemblyBurst"; x: number; y: number; kind: AssemblyKind }
   | { type: "droneSpawn"; x: number; y: number }
   | { type: "ambientSpawn"; x: number; y: number }
+  | { type: "floodSurge"; x: number; y: number }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };
 
@@ -374,6 +386,10 @@ export interface World {
   meteorRainTimer: number;
   /** STARFALL only: pending impact reticles, counting down to their strike. */
   meteorTelegraphs: MeteorTelegraph[];
+  /** THE FLOOD only: countdown to the next surge telegraph (schedule stream). */
+  floodSurgeTimer: number;
+  /** THE FLOOD only: pending lane-anchor glows, counting down to their pack. */
+  floodTelegraphs: FloodTelegraph[];
   /** Countdown to the next drone-evolution event (schedule stream). */
   assemblyTimer: number;
   /** Cooldown for crowd-pressure evolutions (Math.random side, off-stream). */

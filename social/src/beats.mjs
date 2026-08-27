@@ -25,7 +25,7 @@ export const SUBLINE_HOOKS = {
   minefield: "mines. everywhere.",
   blackout: "warnings last half.",
   "red-alert": "everything comes faster.",
-  "the-flood": "packs with lanes.",
+  "the-flood": "packs surge one way.",
   "great-wall": "only walls hunt.",
   "year-of-the-serpent": "only trains hunt.",
   menagerie: "hunters take turns.",
