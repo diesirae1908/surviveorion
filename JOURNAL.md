@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: host 3 approved clips for Buffer
+
+- Copied (not moved) `orion_trailer.mp4`, `0826_heknew_916.mov`,
+  `0827_thepit_916.mov` to `public/social-drafts/`. Originals still in
+  `final_videoasset/`. Server MIME added for mp4/mov/webm so Buffer gets a
+  video Content-Type.
+- Live URLs after this deploy: `/social-drafts/<filename>`. Then
+  `calendar-to-buffer --dry=false` schedules the 3 Approved rows.
+
 ## 2026-08-26: gitignore local video folders (never delete)
 
 - Lucas recreated `final_videoasset/` (`orion_trailer.mp4`,

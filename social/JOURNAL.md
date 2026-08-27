@@ -1,5 +1,12 @@
 # JOURNAL
 
+## 2026-08-26: approved clips copied to public/social-drafts
+
+- Lucas: the 3 Approved rows are the go-ahead. Copied (not moved) into
+  `public/social-drafts/` so Buffer can fetch
+  `https://surviveorion.com/social-drafts/<file>`. Live schedule after the
+  URLs return 200.
+
 ## 2026-08-26: calendar.xlsx -> Buffer dry path
 
 - Lucas's `ORION_Publishing_Calendar.xlsx` (20 rows, 3 Approved+Linked) exported
