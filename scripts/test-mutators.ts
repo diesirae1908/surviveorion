@@ -33,6 +33,9 @@ import {
   mutatorViewScale,
   mutatorWindShiftWarning,
   mutatorWindVector,
+  mutatorFloodHeadingVector,
+  mutatorFloodSurgeActive,
+  mutatorFormationsDisabled,
   setActiveMutators,
   type Mutator,
 } from "../src/mutators";
@@ -355,7 +358,7 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
   const KIND: Record<string, MutatorKind> = {
     blackout: "override",
     "red-alert": "override",
-    "the-flood": "override",
+    "the-flood": "environmental",
     "great-wall": "override",
     "year-of-the-serpent": "override",
     menagerie: "creature",
@@ -660,10 +663,41 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
 // --- Aug 26 night feedback pass: lock the shipped tunings + pulse math.
 {
   const flood = getMutatorById("the-flood")!;
-  check("THE FLOOD ambientRateScale is 1.8", flood.overrides.ambientRateScale === 1.8);
-  check("THE FLOOD formationIntervalScale is 4.5", flood.overrides.formationIntervalScale === 4.5);
-  check("THE FLOOD ambientSoftCapScale is 1.3", flood.overrides.ambientSoftCapScale === 1.3);
-  check("THE FLOOD clumpMaxScale is 2.2", flood.overrides.clumpMaxScale === 2.2);
+  check("THE FLOOD formationsDisabled is true", flood.overrides.formationsDisabled === true);
+  check("THE FLOOD floodSurgeActive is true", flood.overrides.floodSurgeActive === true);
+  check("THE FLOOD ambientRateScale is 0.45", flood.overrides.ambientRateScale === 0.45);
+  check("THE FLOOD ambientMinutesFloor is 1.0", flood.overrides.ambientMinutesFloor === 1.0);
+
+  setRunSeed(42);
+  const floodStreamA = rand();
+  const floodSchedA = scheduleRand();
+  setRunSeed(42);
+  setActiveMutators([flood], "2026-08-28");
+  check("THE FLOOD surge flag is on", mutatorFloodSurgeActive() === true);
+  check("THE FLOOD formations are disabled", mutatorFormationsDisabled() === true);
+  const floodHeading = mutatorFloodHeadingVector();
+  const floodHeadingAgain = mutatorFloodHeadingVector();
+  const floodStreamB = rand();
+  const floodSchedB = scheduleRand();
+  check("THE FLOOD heading is a unit vector", !!floodHeading && Math.abs(Math.hypot(floodHeading.x, floodHeading.y) - 1) < 1e-9);
+  check(
+    "THE FLOOD heading is stable across calls",
+    !!floodHeading &&
+      !!floodHeadingAgain &&
+      floodHeading.x === floodHeadingAgain.x &&
+      floodHeading.y === floodHeadingAgain.y,
+  );
+  check("THE FLOOD heading does not consume seeded streams", floodStreamA === floodStreamB && floodSchedA === floodSchedB);
+  const expectedFlood =
+    ((hashString("orion-flood-2026-08-28") % 10007) / 10007) * Math.PI * 2;
+  if (floodHeading) {
+    const got = Math.atan2(floodHeading.y, floodHeading.x);
+    let d = Math.abs(got - expectedFlood) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    check("THE FLOOD heading matches orion-flood-2026-08-28", d < 1e-9);
+  }
+  clearActiveMutators();
+  check("THE FLOOD heading is null on other days", mutatorFloodHeadingVector() === null);
 
   const starfall = getMutatorById("starfall")!;
   check("STARFALL pickupIntervalScale is 1.4", starfall.overrides.pickupIntervalScale === 1.4);

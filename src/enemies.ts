@@ -1,4 +1,4 @@
-import { ASSEMBLY, DRONE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
+import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import {
   mutatorAmbientRateScale,
@@ -14,6 +14,9 @@ import {
   mutatorFormationWeights,
   mutatorForceAssemblyKind,
   mutatorAmbientSoftCapActive,
+  mutatorAmbientMinutesFloor,
+  mutatorFormationsDisabled,
+  mutatorFloodSurgeActive,
   mutatorLateAmbientRate,
   mutatorLateFormationIntervalScale,
   mutatorMenagerieActive,
@@ -291,8 +294,15 @@ export function initSpawner(world: World): void {
     return;
   }
 
-  scheduleNextFormation(world);
+  if (mutatorFormationsDisabled()) {
+    world.nextFormationDelay = 1e9;
+  } else {
+    scheduleNextFormation(world);
+  }
   world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
+  if (mutatorFloodSurgeActive()) {
+    world.floodSurgeTimer = scheduleRange(...FLOOD_SURGE.openingDelayRange);
+  }
   // Round 5 creature days: starting the countdown at 0 means the very first
   // choreographed event schedules on the first tick, so its own short
   // telegraph (0.4-1.5s, see CREATURE_DAYS) is the only opening delay, no
@@ -328,7 +338,9 @@ export function initSpawner(world: World): void {
   // opening burst scales with the day's ambient rate so a zero-ambient day
   // (same knob as the ongoing trickle below) truly opens with nothing but
   // the scripted patterns, not a free burst that ignores the override.
-  const burst = Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace) * mutatorAmbientRateScale());
+  const burst = mutatorFloodSurgeActive()
+    ? 0
+    : Math.round(SPAWNER.initialBurst * (1 - 0.5 * world.grace) * mutatorAmbientRateScale());
   // opening drones start at the far formation radius for a gentle ramp-in
   for (let i = 0; i < burst; i++) {
     const dir = randDir();
@@ -363,10 +375,13 @@ export function updateSpawner(world: World, dt: number): void {
 
   const minutes = difficultyMinutes(world);
   world.spawnAccumulator +=
-    escalate(minutes, SPAWNER.spawnsPerSecond) * graceSpawnScale(world) * mutatorAmbientRateScale() * dt;
+    escalate(Math.max(minutes, mutatorAmbientMinutesFloor()), SPAWNER.spawnsPerSecond) *
+    graceSpawnScale(world) *
+    mutatorAmbientRateScale() *
+    dt;
 
   updateTelegraphs(world, dt, minutes);
-  handleFormations(world, minutes, dt);
+  if (!mutatorFormationsDisabled()) handleFormations(world, minutes, dt);
 
   // Late-run stray-drone trickle on a zero-ambient formation day (GREAT WALL,
   // YEAR OF THE SERPENT (see mutators.ts lateFormationGrowth); zero on every
@@ -529,6 +544,29 @@ function spawnAmbient(world: World, minutes: number, count = 1): void {
     const r = SPAWNER.clumpRadius * (0.4 + 0.6 * rand());
     spawnAt(world, best.x + Math.cos(a) * r, best.y + Math.sin(a) * r, minutes, capOpts);
   }
+}
+
+/** THE FLOOD surge packs: spawn then ride scriptMode straight along the
+ * hashed current before releasing to homing (same release path walls use). */
+export function spawnFloodDrone(
+  world: World,
+  x: number,
+  y: number,
+  minutes: number,
+  dirX: number,
+  dirY: number,
+  speedScale: number,
+  scriptSeconds: number,
+  wander: number,
+): Drone | null {
+  const d = spawnAt(world, x, y, minutes, { speedScale });
+  if (!d) return null;
+  d.scriptMode = "straight";
+  d.scriptDirX = dirX;
+  d.scriptDirY = dirY;
+  d.scriptTimer = scriptSeconds;
+  d.scriptWander = wander;
+  return d;
 }
 
 // --- formations ---

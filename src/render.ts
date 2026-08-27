@@ -9,6 +9,7 @@ import {
   mutatorRedTint,
   mutatorWindShiftWarning,
   mutatorWindVector,
+  mutatorFloodHeadingVector,
 } from "./mutators";
 import { blastRadius } from "./powers";
 import type { Particles } from "./particles";
@@ -155,8 +156,10 @@ export class Renderer {
     this.drawStars(opts.uiTime);
     this.drawArenaBoundary(world);
     this.drawWindCurrent(world, opts.uiTime);
+    this.drawFloodCurrent(world, opts.uiTime);
     this.drawOffscreenThreats(world);
     this.drawSpawnTelegraphs(world, opts.uiTime);
+    this.drawFloodTelegraphs(world, opts.uiTime);
     this.drawMeteorTelegraphs(world, opts.uiTime);
     this.drawCreatureTelegraphs(world, opts.uiTime);
     this.drawTrail(world, opts.uiTime);
@@ -1146,6 +1149,56 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** THE FLOOD: cyan chevrons on the inflow edge, pointing along the current. */
+  private drawFloodCurrent(world: World, uiTime: number): void {
+    if (world.phase !== "playing") return;
+    const heading = mutatorFloodHeadingVector();
+    if (!heading) return;
+    const angle = Math.atan2(heading.y, heading.x);
+    const { ctx } = this;
+    const hw = world.viewW / 2;
+    const hh = world.viewH / 2;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = PALETTE.shield;
+    const inset = 0.4;
+    const count = 7;
+    // inflow edge is the opposite of travel
+    if (-heading.y > 0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(((i + 0.5) / count - 0.5) * (hw * 2 - 1.1), hh - inset, angle, 0.2);
+      }
+    }
+    if (-heading.y < -0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(((i + 0.5) / count - 0.5) * (hw * 2 - 1.1), -hh + inset, angle, 0.2);
+      }
+    }
+    if (-heading.x > 0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(hw - inset, ((i + 0.5) / count - 0.5) * (hh * 2 - 1.1), angle, 0.2);
+      }
+    }
+    if (-heading.x < -0.22) {
+      for (let i = 0; i < count; i++) {
+        this.drawWindChevron(-hw + inset, ((i + 0.5) / count - 0.5) * (hh * 2 - 1.1), angle, 0.2);
+      }
+    }
+    const drift = (uiTime * 1.1) % 1;
+    for (let j = 0; j < 3; j++) {
+      for (let i = 0; i < 4; i++) {
+        const gx = ((i + 0.5) / 4 - 0.5) * (hw * 2 - 1.6);
+        const gy = ((j + 0.5) / 3 - 0.5) * (hh * 2 - 1.6);
+        const x = gx + heading.x * drift * 1.2;
+        const y = gy + heading.y * drift * 1.2;
+        if (Math.abs(x) > hw - 0.35 || Math.abs(y) > hh - 0.35) continue;
+        this.drawWindChevron(x, y, angle, 0.12);
+      }
+    }
+    ctx.restore();
+  }
+
   private drawWindChevron(x: number, y: number, angle: number, size: number): void {
     const { ctx } = this;
     ctx.save();
@@ -1223,6 +1276,36 @@ export class Renderer {
       ctx.lineWidth = 0.045;
       ctx.beginPath();
       ctx.arc(t.x, t.y, 0.28 + (1 - progress) * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** THE FLOOD: lane-anchor glows where a surge pack is about to pop. */
+  private drawFloodTelegraphs(world: World, time: number): void {
+    if (world.floodTelegraphs.length === 0) return;
+    const { ctx } = this;
+    const blackoutMul = blackoutTelegraphMul(world.time);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const t of world.floodTelegraphs) {
+      const progress = 1 - t.timer / t.duration;
+      const pulse = 0.75 + 0.25 * Math.sin(time * 18 + t.x * 3);
+      const r = 0.3 + progress * 0.55;
+      ctx.globalAlpha = (0.22 + progress * 0.55) * pulse * blackoutMul;
+      const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, r);
+      g.addColorStop(0, "#9fe8ff");
+      g.addColorStop(0.5, PALETTE.shield);
+      g.addColorStop(1, "rgba(102,204,255,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = (0.5 * progress + 0.12) * blackoutMul;
+      ctx.strokeStyle = PALETTE.shield;
+      ctx.lineWidth = 0.045;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 0.32 + (1 - progress) * 0.6, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();

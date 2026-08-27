@@ -676,6 +676,8 @@ function muteAmbientPickups(world: World): void {
     mines: string[];
     meteors: string[];
     assemblies: string[];
+    surges: string[];
+    ambient: string[];
   }
 
   /** Same shape as the section-7 daily determinism recorder, but with a set
@@ -686,7 +688,7 @@ function muteAmbientPickups(world: World): void {
     setActiveMutators(mutators, date);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
-    const script: Script = { formations: [], powers: [], mines: [], meteors: [], assemblies: [] };
+    const script: Script = { formations: [], powers: [], mines: [], meteors: [], assemblies: [], surges: [], ambient: [] };
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -719,6 +721,12 @@ function muteAmbientPickups(world: World): void {
         if (e.type === "assembly") {
           script.assemblies.push(`${world.time.toFixed(2)}:${e.kind}@${e.x.toFixed(2)},${e.y.toFixed(2)}`);
         }
+        if (e.type === "floodSurge") {
+          script.surges.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        }
+        if (e.type === "ambientSpawn") {
+          script.ambient.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        }
       }
       world.events.length = 0;
       for (const m of world.mines) {
@@ -733,9 +741,9 @@ function muteAmbientPickups(world: World): void {
 
   // (a) same mutated day, two very different play styles -> identical script
   // (post launch-gate: MUTATORS_START_DATE is 2026-08-11, see section (g)
-  // below; picked a non-creature-day date since this check expects the
-  // normal formation cadence, not round 5's near-zero-formation choreography)
-  const dayA = new Date("2026-08-13T00:00:00Z"); // arbitrary UTC day, not a Sunday, THE FLOOD
+  // below; picked a non-creature, non-flood day since this check expects the
+  // normal formation cadence. 2026-08-13 is THE FLOOD, which now has none.)
+  const dayA = new Date("2026-08-14T00:00:00Z"); // SINGULARITY, not a Sunday
   const mutatorsA = getMutatorsForDate(dayA);
   const namesA = mutatorsA.map((m) => m.name).join("+");
   const a1 = recordMutated(mutatorsA, "ram", dayA);
@@ -1333,6 +1341,84 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     "getMutatorById resolves every pool id",
     MUTATOR_POOL.every((m) => getMutatorById(m.id)?.id === m.id),
   );
+}
+
+// --- 10b. THE FLOOD v4: formations gone, waves deterministic, opening flooded ---
+{
+  const flood = getMutatorById("the-flood")!;
+  const floodDate = new Date("2026-08-28T00:00:00Z");
+
+  const recordFlood = (style: "ram" | "drift"): { formations: string[]; surges: string[]; ambient: string[] } => {
+    setRunSeed(1234567);
+    setActiveMutators([flood], floodDate);
+    const world = createWorld(17.8, 10, false, 0, "classic", true);
+    const script = { formations: [] as string[], surges: [] as string[], ambient: [] as string[] };
+    let t = 0;
+    const steps = Math.round(180 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      t += FIXED_DT;
+      let drive = { x: 0, y: 0 };
+      if (style === "ram") {
+        world.powers.starshellTimer = 9999;
+      } else {
+        world.powers.shieldActive = true;
+        drive = { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
+      }
+      tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
+      for (const e of world.events) {
+        if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+        if (e.type === "floodSurge") script.surges.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        if (e.type === "ambientSpawn") script.ambient.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+      }
+      world.events.length = 0;
+    }
+    setRunSeed(null);
+    clearActiveMutators();
+    return script;
+  };
+
+  const ram = recordFlood("ram");
+  const drift = recordFlood("drift");
+  check("THE FLOOD formations are gone (3 min ram)", ram.formations.length === 0, `${ram.formations.length} formations`);
+  check("THE FLOOD formations are gone (3 min drift)", drift.formations.length === 0);
+  check(
+    "THE FLOOD surge script matches across play styles",
+    ram.surges.length > 0 && ram.surges.join("|") === drift.surges.join("|"),
+    `${ram.surges.length} surges`,
+  );
+  const ramAmbientTimes = ram.ambient.map((s) => s.split(":")[0]).join("|");
+  const driftAmbientTimes = drift.ambient.map((s) => s.split(":")[0]).join("|");
+  check(
+    "THE FLOOD ambient cadence matches across play styles",
+    ram.ambient.length > 0 && ramAmbientTimes === driftAmbientTimes,
+    `${ram.ambient.length} ambient`,
+  );
+
+  setRunSeed(1234567);
+  setActiveMutators([flood], floodDate);
+  const open = createWorld(17.8, 10, false, 0, "classic", true);
+  step(open, 3);
+  const opened = open.kills + open.drones.filter((d) => d.alive).length;
+  check(
+    "THE FLOOD opening is already flooded (t=3s)",
+    opened >= 4,
+    `${opened} drones spawned/alive`,
+  );
+  setRunSeed(null);
+  clearActiveMutators();
+
+  setRunSeed(1234567);
+  setActiveMutators([flood], floodDate);
+  const observer = createWorld(17.8, 10, false, 0, "classic", true);
+  step(observer, 60);
+  const kps = observer.kills / 60;
+  check(
+    "THE FLOOD invulnerable observer stays under the 20 kills/sec ceiling",
+    kps < 20,
+    `${kps.toFixed(2)} kills/sec (${observer.kills} kills)`,
+  );
+  setRunSeed(null);
+  clearActiveMutators();
 }
 
 // --- 11. late growth: no plateau-farming on the choreographed / zero-ambient days ---

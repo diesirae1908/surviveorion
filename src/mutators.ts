@@ -97,6 +97,13 @@ export interface MutatorOverrides {
   blackoutPulse?: boolean;
   /** STARFALL only: turns on the environmental meteor rain (see starfall.ts). */
   meteorRainActive?: boolean;
+  /** THE FLOOD only: skip handleFormations entirely for the day. */
+  formationsDisabled?: boolean;
+  /** THE FLOOD only: timed directional surge waves (see flood.ts). */
+  floodSurgeActive?: boolean;
+  /** Floor fed to the ambient escalate() clock so the opening is already
+   * dense. 0/undefined = real minutes. Does not move drone speed or scoring. */
+  ambientMinutesFloor?: number;
   /** Multiplies graze point pay for the day (1 = unchanged). */
   grazePointsScale?: number;
   /** Caps the run's very first formation delay (seconds), so a zero-ambient
@@ -266,19 +273,19 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "the-flood",
     name: "THE FLOOD",
-    briefing: "No formations. Just the river.",
-    subline: "Bigger packs, clearer lanes. The gaps will not wait.",
+    briefing: "No formations. Just the current. It only runs one way.",
+    subline: "Formations are off. Packs surge in from one edge in timed waves, lanes between them.",
     difficultyFactor: 0.95,
     tags: ["density"],
     availableFrom: MUTATORS_START_DATE,
-    // v3 (2026-08-26): v2 (1.3 / soft-cap 0.7) read as a normal day. Push
-    // the sliders: more current, bigger packs, formations near-absent, and
-    // let density actually build. pickupIntervalScale stays (not the identity).
+    // v4 (2026-08-27): v3 slider push still read as vanilla (#19). Formations
+    // actually off, opening already at the 1-min density clock, identity is
+    // the directional surge module (flood.ts). Ambient trickle fills gaps.
     overrides: {
-      ambientRateScale: 1.8,
-      formationIntervalScale: 4.5,
-      ambientSoftCapScale: 1.3,
-      clumpMaxScale: 2.2,
+      formationsDisabled: true,
+      floodSurgeActive: true,
+      ambientRateScale: 0.45,
+      ambientMinutesFloor: 1.0,
       pickupIntervalScale: 0.85,
     },
   },
@@ -740,6 +747,7 @@ export function combinedDifficultyFactor(mutators: Mutator[]): number {
 let active: Mutator[] = [];
 let activeWindDate: string | null = null;
 let activeWindStrength = 0;
+let activeFloodDate: string | null = null;
 
 const WIND_PERIOD_MIN = 20;
 const WIND_PERIOD_MAX = 28;
@@ -800,12 +808,12 @@ function windStateAt(dateStr: string, time: number): WindState {
 }
 
 /**
- * `date` is only used to derive SOLAR WIND's headings (see below); it does
- * NOT draw from the run-seeded rand()/scheduleRand() streams: each heading
- * is a pure hash of the UTC date string plus a segment index, the same
- * "deterministic from the date, no stream draw" trick the mutator selection
- * above already uses. That keeps the whole feature outside the seeded-draw-
- * count discipline entirely.
+ * `date` is used to derive SOLAR WIND headings and THE FLOOD's current
+ * heading. Neither draws from the run-seeded rand()/scheduleRand() streams:
+ * each heading is a pure hash of the patrol date string (wind also hashes a
+ * segment index). Same "deterministic from the date, no stream draw" trick
+ * mutator selection already uses. That keeps both features outside the
+ * seeded-draw-count discipline entirely.
  */
 export function setActiveMutators(mutators: Mutator[], patrolDateLabel: string | Date = new Date()): void {
   active = mutators;
@@ -821,12 +829,14 @@ export function setActiveMutators(mutators: Mutator[], patrolDateLabel: string |
     activeWindStrength = 0;
     activeWindDate = null;
   }
+  activeFloodDate = mutators.some((m) => m.overrides.floodSurgeActive) ? label : null;
 }
 
 export function clearActiveMutators(): void {
   active = [];
   activeWindStrength = 0;
   activeWindDate = null;
+  activeFloodDate = null;
 }
 
 export function getActiveMutators(): Mutator[] {
@@ -1081,4 +1091,28 @@ export function mutatorGrazePointsScale(): number {
 /** STARFALL only: whether the environmental meteor rain should be running. */
 export function mutatorMeteorRainActive(): boolean {
   return active.some((m) => m.overrides.meteorRainActive);
+}
+
+/** THE FLOOD only: skip the formation scheduler for the day. */
+export function mutatorFormationsDisabled(): boolean {
+  return firstOf((o) => o.formationsDisabled) === true;
+}
+
+/** THE FLOOD only: whether the directional surge waves should be running. */
+export function mutatorFloodSurgeActive(): boolean {
+  return active.some((m) => m.overrides.floodSurgeActive);
+}
+
+/** Floor on the ambient escalate() clock, in minutes (0 on ordinary days). */
+export function mutatorAmbientMinutesFloor(): number {
+  return firstOf((o) => o.ambientMinutesFloor) ?? 0;
+}
+
+/** Unit heading the flood current travels along, hashed from the patrol date.
+ * Null on every other day. Own key namespace (orion-flood-), cannot collide
+ * with SOLAR WIND. Fixed for the whole run, no segment shifting. */
+export function mutatorFloodHeadingVector(): { x: number; y: number } | null {
+  if (activeFloodDate === null || !mutatorFloodSurgeActive()) return null;
+  const angle = ((hashString(`orion-flood-${activeFloodDate}`) % 10007) / 10007) * Math.PI * 2;
+  return { x: Math.cos(angle), y: Math.sin(angle) };
 }
