@@ -5,3 +5,9 @@ server/orion.db*
 server/.env
 .env
 .env.local
+
+# Lucas's local video work. Never commit. Never delete.
+final_videoasset/
+Final_videoasset/
+Recordings_raw/
+Recordings raw/

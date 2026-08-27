@@ -95,6 +95,10 @@ Every substantive change gets:
 
 ## Guardrails
 
+- **Never delete Lucas's local video folders** (`final_videoasset/`,
+  `Recordings_raw/`, and the older `Final_videoasset/` / `Recordings raw/`
+  names). They are gitignored on purpose. If this checkout is dirty, isolate
+  with `git worktree add`. Do not `git clean`, do not `rm`, do not stash `-u`.
 - **Pushes deploy to production.** Public players are on the other end of
   `git push origin main`. Don't push half-done work; type-check and sim-test
   first.

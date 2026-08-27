@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: gitignore local video folders (never delete)
+
+- Lucas recreated `final_videoasset/` (`orion_trailer.mp4`,
+  `0826_heknew_916.mov`, `0827_thepit_916.mov`) and `Recordings_raw/`
+  (`orion_2026-08-27_day45_the-pit_235477.webm` + sidecar) after a dispatch
+  permanently deleted the earlier untracked copies.
+- Root `.gitignore` now covers both current names and the old
+  `Final_videoasset/` / `Recordings raw/` spellings. Guardrail added in
+  `AGENTS.md`. If the tree is dirty, isolate with a worktree. Never delete.
+
 ## 2026-08-26: PT-midnight Daily Patrol LIVE
 
 - Lucas: "push live" (Aug 26, ~9:17 PM PT). Merged `sam/pt-midnight-clerk-fix`
