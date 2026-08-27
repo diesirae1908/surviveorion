@@ -1,5 +1,12 @@
 # JOURNAL
 
+## 2026-08-26: trailer queued; remux HEVC .mov to H.264 for the other two
+
+- Live after HEAD fix: Launch Trailer created on IG/TT/YT (`scheduled` /
+  addToQueue). He Knew + THE PIT still "could not be read": `.mov` HEVC.
+- Hosted H.264 mp4 copies. `--only` skips the trailer so we do not
+  duplicate it. Originals not deleted.
+
 ## 2026-08-26: first live Buffer batch failed, then retry after HEAD fix
 
 - Lucas: the 3 Approved + Linked rows are the go-ahead.

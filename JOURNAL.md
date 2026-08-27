@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-26: Buffer took the trailer; .mov HEVC failed
+
+- After HEAD+Content-Length went live, trailer posted to IG/TT/YT (queue).
+  He Knew and THE PIT failed: Buffer cannot read `.mov` / HEVC.
+- Transcoded copies (not moves) to H.264 mp4 in `public/social-drafts/`.
+  Masters stay in `final_videoasset/`. Calendar still names the .mov;
+  the Buffer URL rewrites `.mov` → `.mp4`. Retry those two titles only.
+
 ## 2026-08-26: static HEAD + Buffer IG reel metadata
 
 - Live `calendar-to-buffer --dry=false` for the 3 Approved rows: Instagram

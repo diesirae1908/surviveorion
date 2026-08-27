@@ -22,13 +22,19 @@ const ASSET_DIRS = [
 ];
 
 function parseArgv(argv) {
-  const args = { dry: true, mediaBase: DEFAULT_MEDIA_BASE, calendar: path.join(REPO_ROOT, "calendar.json") };
+  const args = {
+    dry: true,
+    mediaBase: DEFAULT_MEDIA_BASE,
+    calendar: path.join(REPO_ROOT, "calendar.json"),
+    onlyTitles: [],
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--dry=false") args.dry = false;
     else if (a === "--dry") args.dry = true;
     else if (a === "--media-base" && argv[i + 1]) args.mediaBase = argv[++i];
     else if (a === "--calendar" && argv[i + 1]) args.calendar = argv[++i];
+    else if (a === "--only" && argv[i + 1]) args.onlyTitles.push(argv[++i]);
   }
   return args;
 }
@@ -47,9 +53,17 @@ export async function runCalendarToBuffer({
   dry = true,
   createPost = createBufferPost,
   now = new Date(),
+  onlyTitles = [],
 }) {
+  const filtered =
+    onlyTitles.length === 0
+      ? calendar
+      : {
+          ...calendar,
+          posts: (calendar.posts ?? []).filter((p) => onlyTitles.includes(p.title)),
+        };
   const config = loadBufferConfig(REPO_ROOT);
-  const jobs = bufferJobsForCalendar(calendar, {
+  const jobs = bufferJobsForCalendar(filtered, {
     mediaBase,
     channelIds: config.channels,
     now,
@@ -87,6 +101,7 @@ async function main() {
     calendar,
     mediaBase: args.mediaBase,
     dry: args.dry,
+    onlyTitles: args.onlyTitles,
   });
   const missing = results.filter((r) => !r.localAssetFound).map((r) => r.mediaUrl);
   if (args.dry) {

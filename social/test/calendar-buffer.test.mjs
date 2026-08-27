@@ -56,6 +56,18 @@ describe("calendar-buffer", () => {
     assert.equal(jobs[2].youtubeTitle, "ORION Trailer");
   });
 
+  it("rewrites .mov assets to a hosted .mp4 URL", () => {
+    const jobs = bufferJobsForPost(
+      { ...approved, asset: "0826_heknew_916.mov" },
+      {
+        mediaBase: "https://surviveorion.com/social-drafts",
+        channelIds: CHANNEL_IDS,
+        now: new Date("2026-08-26T22:00:00-07:00"),
+      },
+    );
+    assert.equal(jobs[0].mediaUrl, "https://surviveorion.com/social-drafts/0826_heknew_916.mp4");
+  });
+
   it("draft rows emit nothing", () => {
     const jobs = bufferJobsForPost({ ...approved, postStatus: "Draft" }, {
       mediaBase: "https://surviveorion.com/social-drafts",

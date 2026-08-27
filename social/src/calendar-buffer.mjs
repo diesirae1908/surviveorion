@@ -75,7 +75,8 @@ export function bufferJobsForPost(post, { mediaBase, channelIds, now = new Date(
   if (!/^https:\/\//.test(mediaBase)) {
     throw new Error(`mediaBase must be https, got ${mediaBase}`);
   }
-  const mediaUrl = `${mediaBase.replace(/\/$/, "")}/${encodeURIComponent(post.asset)}`;
+  const hostedAsset = String(post.asset).replace(/\.mov$/i, ".mp4");
+  const mediaUrl = `${mediaBase.replace(/\/$/, "")}/${encodeURIComponent(hostedAsset)}`;
   const { mode, dueAt } = scheduleForDate(post.date, now);
   const ig = joinCaption(post.igCaption, post.igTags);
   const tt = joinCaption(post.ttCaption, null);
