@@ -1,5 +1,13 @@
 # JOURNAL
 
+## 2026-08-28: Patrol rows synced to wave-2 mix
+
+- `npm run calendar:sync` rewrote TODAY'S PATROL from 2026-08-29 off the
+  live pool. Aug 29 GOLD DASH. Sundays: BAIT SHOT + YEAR OF THE SERPENT,
+  then MAGNETIC FIELD + CLOAK. Hooks are in-game briefings.
+- THE FLOOD Aug 28 stays Approved + Linked. GREAT WALL Buffer posts for
+  Aug 29 9am PT are now the wrong day. Not cancelled from here.
+
 ## 2026-08-27: THE FLOOD + GREAT WALL scheduled in Buffer
 
 - 6 posts created, all `scheduled`. THE FLOOD 9am PT Aug 28 (IG/TT/YT

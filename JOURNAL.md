@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Publishing calendar rewritten from the live wave-2 pool
+
+- TODAY'S PATROL rows from 2026-08-29 now match `getMutatorsForDateStr`.
+  Aug 29 is GOLD DASH, not GREAT WALL. Non-patrol formats untouched.
+  Aug 28 THE FLOOD stays Approved + Linked.
+- Sync path: `npm run calendar:sync` in `social/` (dumps live picks, writes
+  the xlsx, exports `calendar.json`). Re-run after any pool append.
+- Buffer: 3 GREAT WALL posts still scheduled 9:00 AM PT Aug 29. Calendar
+  no longer says to post them. Cancel needs Lucas.
+
 ## 2026-08-28: Wave 2 mutators + mutator-only powers + field guide
 
 - Appended 10 Daily Patrol mutators with `availableFrom` 2026-08-29 (PT
