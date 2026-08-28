@@ -1,5 +1,12 @@
 # JOURNAL
 
+## 2026-08-28: GREAT WALL Buffer posts moved to Sep 26
+
+- editPost on IG/TT/YT `6a9121e2efbc4adde7879dbe` /
+  `6a9121e3df4be5293ae33522` / `6a9121e4ae8294e483701a04`. dueAt now
+  2026-09-26T16:00:00.000Z (9am PT). Status still scheduled.
+- Calendar row added as Scheduled + Linked so we do not re-create.
+
 ## 2026-08-28: Patrol rows synced to wave-2 mix
 
 - `npm run calendar:sync` rewrote TODAY'S PATROL from 2026-08-29 off the

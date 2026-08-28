@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: GREAT WALL Buffer posts moved to Sep 26
+
+- Next GREAT WALL patrol is 2026-09-26. Edited the 3 scheduled Buffer
+  posts (IG/TT/YT) from Aug 29 9am PT to Sep 26 9am PT
+  (`2026-09-26T16:00:00.000Z`). Same clip. YT title now Day 75.
+- Calendar gained a Sep 26 GREAT WALL row, `Post status: Scheduled`, so
+  `calendar:buffer` will not duplicate them.
+
 ## 2026-08-28: Publishing calendar rewritten from the live wave-2 pool
 
 - TODAY'S PATROL rows from 2026-08-29 now match `getMutatorsForDateStr`.
