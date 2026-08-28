@@ -23,6 +23,7 @@ import {
   getMutatorsForDateFromPool,
   MUTATOR_POOL,
   MUTATORS_START_DATE,
+  WAVE2_AVAILABLE_FROM,
   mutatorAmbientRateScale,
   mutatorBlackoutPulse,
   mutatorFormationWeights,
@@ -41,6 +42,7 @@ import { freezeMinesInRadius } from "../src/mines";
 import { cancelIntoWallWind, clampToBounds } from "../src/physics";
 import type { World } from "../src/types";
 import golden from "./mutator-snapshot.json";
+import goldenWave2 from "./mutator-snapshot-wave2.json";
 
 const input: InputState = {
   turn: 0,
@@ -64,6 +66,7 @@ function addUtcDays(dateStr: string, days: number): string {
 
 const SNAPSHOT_END_DATE = "2026-12-31";
 const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
+const SNAPSHOT_WAVE2: Record<string, string> = goldenWave2 as Record<string, string>;
 
 // --- 1. Snapshot: every UTC date from MUTATORS_START_DATE through
 // SNAPSHOT_END_DATE must resolve to exactly the ids recorded in
@@ -81,7 +84,7 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
     const got = getMutatorsForDate(new Date(`${d}T00:00:00Z`))
       .map((m) => m.id)
       .join("+");
-    const want = SNAPSHOT[d];
+    const want = d < WAVE2_AVAILABLE_FROM ? SNAPSHOT[d] : SNAPSHOT_WAVE2[d];
     checked++;
     if (want === undefined) {
       mismatches++;
@@ -93,8 +96,8 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
     d = addUtcDays(d, 1);
   }
   check(
-    "snapshot: every date 2026-08-10..2026-12-31 matches the frozen fixture",
-    checked === Object.keys(SNAPSHOT).length && mismatches === 0,
+    "snapshot: dates before wave 2 match the frozen 22-pool fixture; later dates match wave 2",
+    mismatches === 0,
     mismatches > 0 ? `${mismatches}/${checked} mismatched, e.g. ${firstFewMismatches.join(" | ")}` : `${checked} dates`,
   );
 }
@@ -300,7 +303,7 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
     const got = getMutatorsForDateFromPool(new Date(`${d}T00:00:00Z`), fakePool)
       .map((m) => m.id)
       .join("+");
-    const want = SNAPSHOT[d];
+    const want = d < WAVE2_AVAILABLE_FROM ? SNAPSHOT[d] : SNAPSHOT_WAVE2[d];
     if (got !== want) {
       preMismatches++;
       if (firstFewPre.length < 5) firstFewPre.push(`${d}: got "${got}" want "${want}"`);
@@ -376,6 +379,16 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
     minefield: "override",
     "solar-wind": "environmental",
     "magnetic-field": "environmental",
+    "ram-raid": "override",
+    "gold-dash": "override",
+    "the-lighthouse": "environmental",
+    "graze-protocol": "override",
+    "razor-day": "override",
+    "thunder-day": "override",
+    "cloak-day": "override",
+    "bait-shot": "override",
+    "ion-day": "override",
+    "howlers-day": "override",
   };
 
   const missing = MUTATOR_POOL.filter((m) => KIND[m.id] === undefined).map((m) => m.id);

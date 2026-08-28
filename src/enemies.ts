@@ -1,4 +1,4 @@
-import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
+import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, POWERS, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import {
   mutatorAmbientRateScale,
@@ -88,6 +88,37 @@ function createDrone(
 export function droneRadius(d: Drone): number {
   // frozen drones grow an ice shell: bigger to see and easier to shatter
   return DRONE.radius * d.scale * (d.frozen > 0 ? DRONE.frozenScale : 1);
+}
+
+function nearestHostile(world: World, self: Drone): Drone | null {
+  let best: Drone | null = null;
+  let bestSq = Infinity;
+  for (const d of world.drones) {
+    if (!d.alive || d.allied || d === self) continue;
+    const dx = d.x - self.x;
+    const dy = d.y - self.y;
+    const sq = dx * dx + dy * dy;
+    if (sq < bestSq) {
+      bestSq = sq;
+      best = d;
+    }
+  }
+  return best;
+}
+
+function nearestFlare(world: World, d: Drone): { x: number; y: number } | null {
+  let best: { x: number; y: number } | null = null;
+  let bestSq = Infinity;
+  for (const f of world.powers.flares) {
+    const dx = f.x - d.x;
+    const dy = f.y - d.y;
+    const sq = dx * dx + dy * dy;
+    if (sq < bestSq && sq <= POWERS.flare.pullRadius * POWERS.flare.pullRadius) {
+      bestSq = sq;
+      best = f;
+    }
+  }
+  return best;
 }
 
 /** Loose homing drones — not marching a script, not conscripted to a shape. */
@@ -194,9 +225,41 @@ export function updateDrones(world: World, dt: number): void {
     }
 
     if (!scripted) {
+      if (d.slamTimer && d.slamTimer > 0) {
+        d.slamTimer -= dt;
+        d.vx = d.slamVx ?? 0;
+        d.vy = d.slamVy ?? 0;
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        continue;
+      }
+      if (world.powers.cloakTimer > 0) {
+        const ox = d.hoverX ?? d.x;
+        const oy = d.hoverY ?? d.y;
+        d.hoverX = ox;
+        d.hoverY = oy;
+        d.x = ox + Math.sin(world.time * 3.1 + d.jitterSeed) * POWERS.cloak.hoverAmp;
+        d.y = oy + Math.cos(world.time * 2.7 + d.jitterSeed * 1.7) * POWERS.cloak.hoverAmp;
+        d.vx = 0;
+        d.vy = 0;
+        continue;
+      }
       if (chase) {
-        const tx = ship.x - d.x;
-        const ty = ship.y - d.y;
+        let tx = ship.x - d.x;
+        let ty = ship.y - d.y;
+        if (d.allied) {
+          const prey = nearestHostile(world, d);
+          if (prey) {
+            tx = prey.x - d.x;
+            ty = prey.y - d.y;
+          }
+        } else {
+          const flare = nearestFlare(world, d);
+          if (flare) {
+            tx = flare.x - d.x;
+            ty = flare.y - d.y;
+          }
+        }
         const dist = Math.hypot(tx, ty);
         if (dist > 0.01) {
           hx = tx / dist;
@@ -252,7 +315,7 @@ export function killDrone(world: World, d: Drone, source?: KillSource): void {
   const wasFrozen = d.frozen > 0;
   let pointsScale = 1;
   let multiplierScale = 1;
-  if (source === "pulse") pointsScale *= SCORING.pulsePointsScale;
+  if (source === "pulse" || source === "thunder") pointsScale *= SCORING.pulsePointsScale;
   if (wasFrozen) {
     pointsScale *= SCORING.frozenPointsScale;
     multiplierScale *= SCORING.frozenMultiplierScale;
@@ -272,7 +335,7 @@ export function killDrone(world: World, d: Drone, source?: KillSource): void {
 
 export function killDronesInRadius(world: World, x: number, y: number, radius: number): void {
   for (const d of world.drones) {
-    if (!d.alive) continue;
+    if (!d.alive || d.allied) continue;
     const dx = d.x - x;
     const dy = d.y - y;
     const r = radius + droneRadius(d);

@@ -37,6 +37,7 @@ import {
   getMutatorById,
   getMutatorsForDate,
   getMutatorsForDateStr,
+  mutatorGrazePopups,
   mutatorViewScale,
   setActiveMutators,
   MUTATOR_POOL,
@@ -1291,9 +1292,11 @@ function drainEvents(w: World): void {
         audio.missileBlast();
         break;
       case "graze":
-        // near-miss payoff: a gold spark + tick, no number (keeps the view clean)
         particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
         audio.graze();
+        if (mutatorGrazePopups()) {
+          popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
+        }
         break;
       case "assembly": {
         // crowded drones just fused into a creature — name the threat
@@ -1353,6 +1356,38 @@ function drainEvents(w: World): void {
         break;
       case "ringWarning":
         audio.ringWarning();
+        break;
+      case "razorUp":
+        popups.spawn(world.ship.x, world.ship.y + 1.2, "RAZOR", PALETTE.razor, 0.5, 1.1);
+        audio.starshellUp();
+        break;
+      case "thunderFire":
+        audio.arcZap();
+        break;
+      case "cloakUp":
+        popups.spawn(world.ship.x, world.ship.y + 1.2, "CLOAK", PALETTE.cloak, 0.5, 1.1);
+        audio.shieldUp();
+        break;
+      case "cloakDown":
+        audio.shockwave();
+        break;
+      case "flareDrop":
+        particles.burst(e.x, e.y, [PALETTE.flare, PALETTE.gold], 16, 4, 0.5, 0.1);
+        audio.pickup();
+        break;
+      case "ionPulse":
+        audio.shockwave();
+        break;
+      case "howlersUp":
+        popups.spawn(world.ship.x, world.ship.y + 1.2, "HOWLERS", PALETTE.howlers, 0.5, 1.1);
+        audio.assemblyForm();
+        break;
+      case "lighthouseSpawn":
+        particles.burst(e.x, e.y, [PALETTE.gold, PALETTE.goldPale], 10, 3, 0.4, 0.08);
+        break;
+      case "lighthouseKill":
+        particles.burst(e.x, e.y, [PALETTE.gold, PALETTE.white], 18, 5, 0.55, 0.11);
+        audio.mineBoom();
         break;
       case "death":
         particles.burst(e.x, e.y, [PALETTE.gold, PALETTE.redBright, PALETTE.white], 60, 9, 1.2, 0.18);

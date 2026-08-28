@@ -42,7 +42,7 @@
   {
     "id": "hunting-party",
     "name": "HUNTING PARTY",
-    "subline": "Waves of hunters close in from different edges and converge, growing in size and frequency fast after the first wave. No ambient swarm, no ordinary formations: the hunt is the whole day. Power drops come a little slower than a usual Daily."
+    "subline": "Waves tighten after the first half minute. Threading a pack pays more than a usual graze. No ambient swarm, no ordinary formations: the hunt is the whole day."
   },
   {
     "id": "demolition-day",
@@ -67,7 +67,7 @@
   {
     "id": "cryo-winter",
     "name": "CRYO WINTER",
-    "subline": "Every pickup is a Cryo Field."
+    "subline": "Ice freezes drones and mines. Ram the frozen ones to shatter them."
   },
   {
     "id": "iron-barrage",
@@ -82,7 +82,7 @@
   {
     "id": "starfall",
     "name": "STARFALL",
-    "subline": "A constant meteor rain falls all run, each impact flashed by a ground reticle first. The only drop is Shield, a little more often."
+    "subline": "Meteor rain from the first seconds. Shield is the only drop, and it is late."
   },
   {
     "id": "the-pit",
@@ -102,11 +102,61 @@
   {
     "id": "solar-wind",
     "name": "SOLAR WIND",
-    "subline": "A constant crosswind pushes your ship and every drone the same way, all day."
+    "subline": "A crosswind pushes your ship and every drone. The heading changes every half minute, with a short warning before each flip."
   },
   {
     "id": "magnetic-field",
     "name": "MAGNETIC FIELD",
     "subline": "Pickups slowly drift toward your ship all day, on top of their normal wander."
+  },
+  {
+    "id": "ram-raid",
+    "name": "RAM RAID",
+    "subline": "Starshell is the only drop, and it is scarce. The shell lasts about two seconds. You are invincible while it is up."
+  },
+  {
+    "id": "gold-dash",
+    "name": "GOLD DASH",
+    "subline": "Every pickup is Afterburner. Charge, dash, then one second of invincible arrival."
+  },
+  {
+    "id": "the-lighthouse",
+    "name": "THE LIGHTHOUSE",
+    "subline": "A scanner appears at five seconds. The laser starts thin and grows fast. Destroy the body. The beam kills you, not the swarm. No naval mines today."
+  },
+  {
+    "id": "graze-protocol",
+    "name": "GRAZE PROTOCOL",
+    "subline": "Graze band is wider, pay is much higher, cooldown is shorter. Big gold numbers on every near-miss."
+  },
+  {
+    "id": "razor-day",
+    "name": "RAZOR",
+    "subline": "Every pickup is Razor. Two blades orbit you and carve anything they touch."
+  },
+  {
+    "id": "thunder-day",
+    "name": "THUNDER",
+    "subline": "Every pickup is Thunder. A lightning ray along your nose. Each kill sparks Arc hops. Ray kills pay double."
+  },
+  {
+    "id": "cloak-day",
+    "name": "CLOAK",
+    "subline": "Every pickup is Cloak. Drones hover, lost. Invisible bombs drop along your path and explode when you reappear."
+  },
+  {
+    "id": "bait-shot",
+    "name": "BAIT SHOT",
+    "subline": "Only Flares and Pulse Shot drop. The flare does not kill. It gathers a blob. Pulse is the shot."
+  },
+  {
+    "id": "ion-day",
+    "name": "ION",
+    "subline": "Every pickup is Ion. A forward shockwave pushes drones. The pushed ones live. What they slam dies."
+  },
+  {
+    "id": "howlers-day",
+    "name": "HOWLERS",
+    "subline": "Every pickup is Howlers. Nearby drones turn gold, ram hostiles without dying, then explode."
   }
 ]

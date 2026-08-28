@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>ORION Field Guide</title>
+    <meta name="theme-color" content="#0a0a12" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --void: #0a0a12;
+        --deep: #12121e;
+        --gold: #ffd700;
+        --alarm: #ff4455;
+        --bronze: #aa8844;
+        --star: #fff7e0;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        background: var(--void);
+        color: var(--star);
+        font-family: Rajdhani, sans-serif;
+      }
+      body { padding: 28px 20px 80px; max-width: 920px; margin: 0 auto; }
+      h1 {
+        font-size: 42px;
+        letter-spacing: 0.18em;
+        color: var(--gold);
+        margin: 0 0 6px;
+      }
+      .sub { color: var(--bronze); margin: 0 0 28px; font-size: 16px; }
+      .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+      a.btn, button.btn {
+        appearance: none;
+        border: 1px solid var(--gold);
+        background: transparent;
+        color: var(--gold);
+        font: 600 14px Rajdhani, sans-serif;
+        letter-spacing: 0.08em;
+        padding: 8px 14px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      a.btn:hover, button.btn:hover { background: #ffd70022; }
+      .card {
+        border: 1px solid #2a2430;
+        background: var(--deep);
+        padding: 16px 18px;
+        margin: 0 0 12px;
+      }
+      .card.upcoming { border-color: #5a3a20; }
+      .name { color: var(--alarm); font-size: 22px; letter-spacing: 0.12em; margin: 0 0 4px; }
+      .brief { margin: 0 0 6px; color: var(--star); }
+      .line { margin: 0 0 10px; color: var(--bronze); font-size: 15px; }
+      .meta { font-size: 13px; color: #8a7a55; margin: 0 0 10px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>FIELD GUIDE</h1>
+    <p class="sub">Always built from the live mutator pool. Fly links open a sandboxed rehearsal. They do not spend Daily attempts.</p>
+    <div class="toolbar">
+      <a class="btn" href="/">BACK TO SPACE</a>
+    </div>
+    <div id="app">Loading pool…</div>
+    <script type="module" src="/src/guideMain.ts"></script>
+  </body>
+</html>

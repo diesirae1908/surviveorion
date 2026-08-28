@@ -5,11 +5,13 @@ import { clamp01, lerp } from "./math";
 import {
   mutatorBlackoutPulse,
   mutatorRedTint,
+  mutatorStarshellDurationScale,
   mutatorWindShiftWarning,
   mutatorWindVector,
 } from "./mutators";
 import { blackoutOverlayAmount, blackoutTelegraphMul } from "./blackout";
 import { blastRadius } from "./powers";
+import { lighthouseBeamLength, lighthouseBeamWidth, lighthouseBodyRadius } from "./lighthouse";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
 import type { World } from "./types";
@@ -165,6 +167,10 @@ export class Renderer {
     this.drawArcBolts(world);
     this.drawPickups(world, opts.uiTime);
     this.drawMines(world, opts.uiTime);
+    this.drawLighthouses(world, opts.uiTime);
+    this.drawFlares(world, opts.uiTime);
+    this.drawThunderBolts(world);
+    this.drawRazor(world, opts.uiTime);
     this.drawMagnetField(world, opts.uiTime);
     this.drawProjectiles(world, opts.alpha);
     this.drawBullets(world, opts.alpha);
@@ -948,13 +954,13 @@ export class Renderer {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = fade * (0.4 + 0.25 * Math.sin(opts.uiTime * 24));
-      const gg = ctx.createRadialGradient(x, y, 0.15, x, y, 0.75);
-      gg.addColorStop(0, "rgba(255,217,160,0)");
-      gg.addColorStop(0.75, "rgba(255,102,51,0.4)");
-      gg.addColorStop(1, PALETTE.afterburner);
+      const gg = ctx.createRadialGradient(x, y, 0.15, x, y, 1.35);
+      gg.addColorStop(0, "rgba(255,217,160,0.55)");
+      gg.addColorStop(0.55, "rgba(255,102,51,0.55)");
+      gg.addColorStop(1, "rgba(255,102,51,0)");
       ctx.fillStyle = gg;
       ctx.beginPath();
-      ctx.arc(x, y, 0.75, 0, Math.PI * 2);
+      ctx.arc(x, y, 1.35, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = PALETTE.afterburner;
       ctx.lineWidth = 0.04;
@@ -1418,8 +1424,13 @@ export class Renderer {
         dg.addColorStop(0, "#e8f8ff");
         dg.addColorStop(1, "#4d88b8");
       } else {
-        dg.addColorStop(0, PALETTE.redBright);
-        dg.addColorStop(1, PALETTE.redDark);
+        if (d.allied) {
+          dg.addColorStop(0, PALETTE.goldPale);
+          dg.addColorStop(1, PALETTE.goldDark);
+        } else {
+          dg.addColorStop(0, PALETTE.redBright);
+          dg.addColorStop(1, PALETTE.redDark);
+        }
       }
       ctx.fillStyle = dg;
       ctx.fill();
@@ -1429,7 +1440,7 @@ export class Renderer {
 
       // core: warm glow normally, ice crystal when frozen
       ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = frozen && !thawFlicker ? "#dffaff" : "#ff8866";
+      ctx.fillStyle = frozen && !thawFlicker ? "#dffaff" : d.allied ? PALETTE.gold : "#ff8866";
       ctx.beginPath();
       ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2);
       ctx.fill();
@@ -1632,6 +1643,159 @@ export class Renderer {
         ctx.fill();
         break;
       }
+      case "razor":
+        ctx.rotate(-0.4);
+        ctx.moveTo(-size * 0.15, size);
+        ctx.lineTo(size * 0.15, size * 0.15);
+        ctx.lineTo(size * 0.08, -size);
+        ctx.lineTo(-size * 0.08, -size * 0.1);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case "thunder":
+        ctx.moveTo(-size * 0.15, size);
+        ctx.lineTo(size * 0.35, size * 0.1);
+        ctx.lineTo(size * 0.05, size * 0.1);
+        ctx.lineTo(size * 0.2, -size);
+        ctx.lineTo(-size * 0.35, -size * 0.05);
+        ctx.lineTo(-size * 0.02, -size * 0.05);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case "cloak":
+        ctx.arc(0, 0, size * 0.7, 0.4, Math.PI - 0.4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-size * 0.22, -size * 0.05, size * 0.12, 0, Math.PI * 2);
+        ctx.arc(size * 0.22, -size * 0.05, size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      case "flare":
+        ctx.moveTo(0, -size);
+        for (let i = 0; i < 8; i++) {
+          const a = -Math.PI / 2 + (Math.PI * 2 * i) / 8;
+          const rad = i % 2 === 0 ? size : size * 0.45;
+          ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+        }
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case "ion":
+        ctx.arc(0, 0, size * 0.35, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.15, -size * 0.7);
+        ctx.lineTo(size * 0.85, 0);
+        ctx.lineTo(-size * 0.15, size * 0.7);
+        ctx.stroke();
+        break;
+      case "howlers":
+        ctx.arc(-size * 0.25, 0, size * 0.42, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(size * 0.3, size * 0.1, size * 0.32, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+    }
+  }
+
+  private drawLighthouses(world: World, time: number): void {
+    const { ctx } = this;
+    for (const lh of world.lighthouses) {
+      if (!lh.alive) continue;
+      const len = lighthouseBeamLength(lh);
+      const width = lighthouseBeamWidth(lh);
+      const br = lighthouseBodyRadius();
+      ctx.save();
+      ctx.translate(lh.x, lh.y);
+      ctx.rotate(lh.angle);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = "rgba(255, 210, 80, 0.85)";
+      ctx.lineWidth = width;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(len, 0);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(lh.x, lh.y);
+      const pulse = 0.55 + 0.25 * Math.sin(time * 6 + lh.seed);
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(0, 0, br * 0.2, 0, 0, br * 2.2);
+      g.addColorStop(0, `rgba(255,220,120,${pulse})`);
+      g.addColorStop(1, "rgba(255,180,40,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, br * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "#2a1a10";
+      ctx.strokeStyle = PALETTE.gold;
+      ctx.lineWidth = 0.07;
+      ctx.beginPath();
+      ctx.arc(0, 0, br, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  private drawFlares(world: World, time: number): void {
+    const { ctx } = this;
+    for (const f of world.powers.flares) {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.globalCompositeOperation = "lighter";
+      const flicker = 0.55 + 0.35 * Math.sin(time * 18);
+      const g = ctx.createRadialGradient(0, 0, 0.05, 0, 0, 1.1);
+      g.addColorStop(0, `rgba(255,200,80,${flicker})`);
+      g.addColorStop(1, "rgba(255,80,20,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  private drawThunderBolts(world: World): void {
+    const { ctx } = this;
+    for (const b of world.powers.thunderBolts) {
+      const fade = 1 - b.elapsed / 0.18;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = `rgba(140,240,255,${fade})`;
+      ctx.lineWidth = POWERS.thunder.width;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(b.x1, b.y1);
+      ctx.lineTo(b.x2, b.y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  private drawRazor(world: World, time: number): void {
+    if (world.powers.razorTimer <= 0) return;
+    const { ctx } = this;
+    const cfg = POWERS.razor;
+    for (let i = 0; i < 2; i++) {
+      const a = time * cfg.spinRate + i * Math.PI;
+      const bx = world.ship.x + Math.cos(a) * cfg.orbitRadius;
+      const by = world.ship.y + Math.sin(a) * cfg.orbitRadius;
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.rotate(a + Math.PI / 2);
+      ctx.fillStyle = PALETTE.razor;
+      ctx.beginPath();
+      ctx.moveTo(0, -cfg.bladeRadius * 1.6);
+      ctx.lineTo(cfg.bladeRadius * 0.45, cfg.bladeRadius);
+      ctx.lineTo(-cfg.bladeRadius * 0.45, cfg.bladeRadius);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -2118,7 +2282,12 @@ export class Renderer {
     const p = world.powers;
     if (p.shieldActive) powers.push(["SHIELD", 1, 1, POWER_COLORS.shield]);
     if (p.starshellTimer > 0)
-      powers.push(["STARSHELL: RAM!", p.starshellTimer, POWERS.starshell.duration, POWER_COLORS.starshell]);
+      powers.push([
+        "STARSHELL: RAM!",
+        p.starshellTimer,
+        POWERS.starshell.duration * mutatorStarshellDurationScale(),
+        POWER_COLORS.starshell,
+      ]);
     if (p.magnetPending > 0 || world.pickups.some((pu) => pu.magnetized))
       powers.push(["MAGNET", 1, 1, POWER_COLORS.magnet]);
     if (p.afterburnerCharge > 0)
@@ -2139,6 +2308,12 @@ export class Renderer {
       ]);
     if (p.meteorTimer > 0)
       powers.push(["METEORS", p.meteorTimer, POWERS.meteors.duration, POWER_COLORS.meteors]);
+    if (p.razorTimer > 0)
+      powers.push(["RAZOR", p.razorTimer, POWERS.razor.duration, POWER_COLORS.razor]);
+    if (p.cloakTimer > 0)
+      powers.push(["CLOAK", p.cloakTimer, POWERS.cloak.duration, POWER_COLORS.cloak]);
+    if (p.afterburnerGrace > 0 && p.afterburnerDash <= 0)
+      powers.push(["DASH GRACE", p.afterburnerGrace, POWERS.afterburner.arrivalInvulnTime, POWER_COLORS.afterburner]);
 
     let py = this.cssH - pad - this.safe.bottom - powers.length * 24;
     ctx.textAlign = "left";

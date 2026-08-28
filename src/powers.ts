@@ -5,7 +5,8 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 // here would desync the shared spawn script between players. OVERCHARGE's
 // amplification is a plain config-value multiplier on top, so it's safe too.
 import { freezeMinesInRadius, isMineArmed, killMine, killMinesInRadius } from "./mines";
-import { mutatorPowerAmpScale } from "./mutators";
+import { killLighthousesInRadius } from "./lighthouse";
+import { mutatorPowerAmpScale, mutatorStarshellDurationScale } from "./mutators";
 import type { ArcChainState, Drone, Mine, Pickup, PowersState, World } from "./types";
 import { clamp01 } from "./math";
 
@@ -32,6 +33,12 @@ export function createPowersState(): PowersState {
     meteorTimer: 0,
     meteorCooldown: 0,
     vortices: [],
+    razorTimer: 0,
+    cloakTimer: 0,
+    cloakBombCooldown: 0,
+    cloakBombs: [],
+    flares: [],
+    thunderBolts: [],
   };
 }
 
@@ -78,6 +85,7 @@ function updateBlasts(world: World, dt: number): void {
     if (r > 0) {
       killDronesInRadius(world, b.x, b.y, r);
       killMinesInRadius(world, b.x, b.y, r);
+      killLighthousesInRadius(world, b.x, b.y, r);
     }
   }
 }
@@ -95,7 +103,7 @@ export function activatePower(world: World, power: PowerId): void {
       world.events.push({ type: "shieldUp" });
       break;
     case "starshell":
-      p.starshellTimer = POWERS.starshell.duration;
+      p.starshellTimer = POWERS.starshell.duration * mutatorStarshellDurationScale();
       world.events.push({ type: "starshellUp" });
       break;
     case "shockwave": {
@@ -195,6 +203,33 @@ export function activatePower(world: World, power: PowerId): void {
       });
       world.events.push({ type: "vortexOpen", x: world.ship.x, y: world.ship.y });
       world.shake = Math.max(world.shake, 0.15);
+      break;
+    case "razor":
+      p.razorTimer = POWERS.razor.duration * amp;
+      world.events.push({ type: "razorUp" });
+      break;
+    case "thunder":
+      fireThunder(world);
+      break;
+    case "cloak":
+      p.cloakTimer = POWERS.cloak.duration;
+      p.cloakBombCooldown = 0;
+      for (const d of world.drones) {
+        if (!d.alive) continue;
+        d.hoverX = d.x;
+        d.hoverY = d.y;
+      }
+      world.events.push({ type: "cloakUp" });
+      break;
+    case "flare":
+      p.flares.push({ x: world.ship.x, y: world.ship.y, timer: POWERS.flare.lifetime });
+      world.events.push({ type: "flareDrop", x: world.ship.x, y: world.ship.y });
+      break;
+    case "ion":
+      fireIon(world);
+      break;
+    case "howlers":
+      convertHowlers(world);
       break;
   }
 }
@@ -717,6 +752,7 @@ export function updatePowers(world: World, dt: number): void {
     }
     for (const t of p.trail) {
       killMinesInRadius(world, t.x, t.y, kr);
+      killLighthousesInRadius(world, t.x, t.y, kr);
     }
   }
 
@@ -765,6 +801,7 @@ export function updatePowers(world: World, dt: number): void {
     }
 
     killMinesInRadius(world, proj.x, proj.y, r);
+    killLighthousesInRadius(world, proj.x, proj.y, r);
 
     if (proj.elapsed >= POWERS.pulse.projectileLifetime) {
       p.projectiles.splice(i, 1);
@@ -778,6 +815,11 @@ export function updatePowers(world: World, dt: number): void {
   updateMeteors(world, dt);
   updateVortices(world, dt);
   updateBlasts(world, dt);
+  updateRazor(world, dt);
+  updateCloak(world, dt);
+  updateFlares(world, dt);
+  updateThunderBolts(world, dt);
+  updateHowlers(world, dt);
 
   // expanding ring visuals
   for (let i = p.waves.length - 1; i >= 0; i--) {
@@ -798,6 +840,7 @@ export function detonateShield(world: World): void {
     POWERS.shield.detonationRadius,
   );
   killMinesInRadius(world, world.ship.x, world.ship.y, POWERS.shield.detonationRadius);
+  killLighthousesInRadius(world, world.ship.x, world.ship.y, POWERS.shield.detonationRadius);
   p.waves.push({
     x: world.ship.x,
     y: world.ship.y,
@@ -829,3 +872,218 @@ function firePulse(world: World): void {
   world.events.push({ type: "pulseFire", x, y });
   world.shake = Math.max(world.shake, 0.15);
 }
+
+function pointToSegDist(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const seg = dx * dx + dy * dy;
+  if (seg <= 1e-8) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / seg;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
+}
+
+function burstArcFrom(world: World, x: number, y: number): void {
+  const p = world.powers;
+  const amp = mutatorPowerAmpScale();
+  const hitDrones = new Set<Drone>();
+  const hitMines = new Set<Mine>();
+  let cx = x;
+  let cy = y;
+  for (let hop = 0; hop < 5; hop++) {
+    const next = nearestEnemyInRadius(
+      world,
+      cx,
+      cy,
+      POWERS.arc.jumpRadius * amp,
+      hitDrones,
+      hitMines,
+    );
+    if (!next) break;
+    pushArcBolt(p, cx, cy, next.x, next.y);
+    if (isDroneTarget(next)) {
+      killDrone(world, next);
+      hitDrones.add(next);
+    } else {
+      killMine(world, next);
+      hitMines.add(next);
+    }
+    cx = next.x;
+    cy = next.y;
+    world.events.push({ type: "arcZap", x: cx, y: cy });
+  }
+}
+
+function fireThunder(world: World): void {
+  const s = world.ship;
+  const amp = mutatorPowerAmpScale();
+  const dirX = Math.cos(s.angle);
+  const dirY = Math.sin(s.angle);
+  const len = POWERS.thunder.length * amp;
+  const x2 = s.x + dirX * len;
+  const y2 = s.y + dirY * len;
+  const half = (POWERS.thunder.width * amp) / 2;
+  world.powers.thunderBolts.push({ x1: s.x, y1: s.y, x2, y2, elapsed: 0 });
+  world.events.push({ type: "thunderFire", x: s.x, y: s.y });
+  world.shake = Math.max(world.shake, 0.28);
+
+  for (const d of world.drones) {
+    if (!d.alive || d.allied) continue;
+    if (pointToSegDist(d.x, d.y, s.x, s.y, x2, y2) <= half + droneRadius(d)) {
+      killDrone(world, d, "thunder");
+      burstArcFrom(world, d.x, d.y);
+    }
+  }
+  killMinesInRadius(world, s.x + dirX * (len * 0.5), s.y + dirY * (len * 0.5), half + 1.2);
+  killLighthousesInRadius(world, s.x + dirX * (len * 0.5), s.y + dirY * (len * 0.5), half + 1.2);
+}
+
+function fireIon(world: World): void {
+  const s = world.ship;
+  const fx = Math.cos(s.angle);
+  const fy = Math.sin(s.angle);
+  const r = POWERS.ion.radius * mutatorPowerAmpScale();
+  for (const d of world.drones) {
+    if (!d.alive || d.allied) continue;
+    const dx = d.x - s.x;
+    const dy = d.y - s.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > r + droneRadius(d) || dist < 0.05) continue;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    if (nx * fx + ny * fy < POWERS.ion.coneDot) continue;
+    d.slamTimer = POWERS.ion.slamDuration;
+    d.slamVx = fx * POWERS.ion.slamSpeed;
+    d.slamVy = fy * POWERS.ion.slamSpeed;
+  }
+  world.events.push({ type: "ionPulse", x: s.x, y: s.y });
+  world.shake = Math.max(world.shake, 0.2);
+  world.powers.waves.push({
+    x: s.x + fx * 1.4,
+    y: s.y + fy * 1.4,
+    elapsed: 0,
+    lifetime: 0.35,
+    maxRadius: r * 0.55,
+    color: PALETTE.ion,
+  });
+}
+
+function convertHowlers(world: World): void {
+  const r = POWERS.howlers.radius * mutatorPowerAmpScale();
+  let n = 0;
+  for (const d of world.drones) {
+    if (!d.alive) continue;
+    const dx = d.x - world.ship.x;
+    const dy = d.y - world.ship.y;
+    if (dx * dx + dy * dy <= (r + droneRadius(d)) ** 2) {
+      d.allied = true;
+      d.alliedTimer = POWERS.howlers.duration;
+      n++;
+    }
+  }
+  if (n > 0) world.events.push({ type: "howlersUp" });
+}
+
+function updateRazor(world: World, dt: number): void {
+  const p = world.powers;
+  if (p.razorTimer <= 0) return;
+  p.razorTimer -= dt;
+  const cfg = POWERS.razor;
+  const amp = mutatorPowerAmpScale();
+  const orbit = cfg.orbitRadius * amp;
+  const br = cfg.bladeRadius * amp;
+  for (let i = 0; i < 2; i++) {
+    const a = world.time * cfg.spinRate + i * Math.PI;
+    const bx = world.ship.x + Math.cos(a) * orbit;
+    const by = world.ship.y + Math.sin(a) * orbit;
+    for (const d of world.drones) {
+      if (!d.alive || d.allied) continue;
+      const dx = d.x - bx;
+      const dy = d.y - by;
+      if (dx * dx + dy * dy <= (br + droneRadius(d)) ** 2) killDrone(world, d);
+    }
+    killMinesInRadius(world, bx, by, br);
+    killLighthousesInRadius(world, bx, by, br);
+  }
+}
+
+function explodeCloakBombs(world: World): void {
+  const p = world.powers;
+  const r = POWERS.cloak.bombRadius * mutatorPowerAmpScale();
+  for (const b of p.cloakBombs) {
+    killDronesInRadius(world, b.x, b.y, r);
+    killMinesInRadius(world, b.x, b.y, r);
+    killLighthousesInRadius(world, b.x, b.y, r);
+    p.waves.push({
+      x: b.x,
+      y: b.y,
+      elapsed: 0,
+      lifetime: 0.4,
+      maxRadius: r * 1.4,
+      color: PALETTE.cloak,
+    });
+  }
+  p.cloakBombs.length = 0;
+}
+
+function updateCloak(world: World, dt: number): void {
+  const p = world.powers;
+  if (p.cloakTimer <= 0) {
+    if (p.cloakBombs.length > 0) explodeCloakBombs(world);
+    return;
+  }
+  p.cloakTimer -= dt;
+  p.cloakBombCooldown -= dt;
+  if (p.cloakBombCooldown <= 0) {
+    p.cloakBombs.push({ x: world.ship.x, y: world.ship.y });
+    p.cloakBombCooldown = POWERS.cloak.bombInterval;
+  }
+  if (p.cloakTimer <= 0) {
+    explodeCloakBombs(world);
+    world.events.push({ type: "cloakDown" });
+  }
+}
+
+function updateFlares(world: World, dt: number): void {
+  const p = world.powers;
+  for (let i = p.flares.length - 1; i >= 0; i--) {
+    p.flares[i].timer -= dt;
+    if (p.flares[i].timer <= 0) p.flares.splice(i, 1);
+  }
+}
+
+function updateThunderBolts(world: World, dt: number): void {
+  const p = world.powers;
+  for (let i = p.thunderBolts.length - 1; i >= 0; i--) {
+    p.thunderBolts[i].elapsed += dt;
+    if (p.thunderBolts[i].elapsed >= 0.18) p.thunderBolts.splice(i, 1);
+  }
+}
+
+function updateHowlers(world: World, dt: number): void {
+  const r = POWERS.howlers.explodeRadius * mutatorPowerAmpScale();
+  for (const d of world.drones) {
+    if (!d.alive || !d.allied) continue;
+    d.alliedTimer = (d.alliedTimer ?? 0) - dt;
+    if (d.alliedTimer > 0) continue;
+    d.allied = false;
+    d.alive = false;
+    killDronesInRadius(world, d.x, d.y, r);
+    world.powers.waves.push({
+      x: d.x,
+      y: d.y,
+      elapsed: 0,
+      lifetime: 0.35,
+      maxRadius: r * 1.3,
+      color: PALETTE.howlers,
+    });
+  }
+}
+

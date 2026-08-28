@@ -1,5 +1,5 @@
 import { SCORING } from "./config";
-import { mutatorGrazePointsScale } from "./mutators";
+import { mutatorGrazeMultiplierScale, mutatorGrazePointsScale } from "./mutators";
 import type { World } from "./types";
 
 /**
@@ -53,7 +53,7 @@ export function registerGraze(world: World, x = 0, y = 0): number {
 
   world.multiplier = Math.min(
     SCORING.multiplierMax,
-    world.multiplier + SCORING.grazeMultiplier,
+    world.multiplier + SCORING.grazeMultiplier * mutatorGrazeMultiplierScale(),
   );
   world.maxMultiplier = Math.max(world.maxMultiplier, world.multiplier);
   world.multiplierDecayTimer = SCORING.multiplierDecayDelay;

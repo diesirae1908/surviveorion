@@ -106,6 +106,20 @@ export interface MutatorOverrides {
   ambientMinutesFloor?: number;
   /** Multiplies graze point pay for the day (1 = unchanged). */
   grazePointsScale?: number;
+  /** Multiplies SCORING.grazeBand (near-miss width). */
+  grazeBandScale?: number;
+  /** Multiplies SCORING.grazeCooldown. */
+  grazeCooldownScale?: number;
+  /** Multiplies SCORING.grazeMultiplier. */
+  grazeMultiplierScale?: number;
+  /** GRAZE PROTOCOL only: float the point number. */
+  grazePopups?: boolean;
+  /** RAM RAID: multiplies Starshell duration (Classic stays 6s). */
+  starshellDurationScale?: number;
+  /** THE LIGHTHOUSE: scanners instead of mines. */
+  lighthouseActive?: boolean;
+  /** Skip naval-mine spawns (LIGHTHOUSE day). */
+  minesDisabled?: boolean;
   /** Caps the run's very first formation delay (seconds), so a zero-ambient
    * formation day (GREAT WALL, YEAR OF THE SERPENT) doesn't open on an
    * empty screen waiting for it. Only ever tightens the delay (Math.min),
@@ -177,10 +191,25 @@ function monoPowerWeights(target: PowerId): Record<PowerId, number> {
     autocannon: 0,
     meteors: 0,
     vortex: 0,
+    razor: 0,
+    thunder: 0,
+    cloak: 0,
+    flare: 0,
+    ion: 0,
+    howlers: 0,
   };
   zeroed[target] = 20;
   return zeroed;
 }
+
+function dualPowerWeights(a: PowerId, b: PowerId): Record<PowerId, number> {
+  const w = monoPowerWeights(a);
+  w[b] = 20;
+  return w;
+}
+
+/** First PT patrol date the wave-2 ten join the eligible pool. */
+export const WAVE2_AVAILABLE_FROM = "2026-08-29";
 
 /**
  * Shared pickup-drop slowdown for the choreography days (2026-08-12 mid-ramp
@@ -612,6 +641,116 @@ export const MUTATOR_POOL: Mutator[] = [
     availableFrom: MUTATORS_START_DATE,
     overrides: { pickupMagnetStrength: 1.4 },
   },
+  {
+    id: "ram-raid",
+    name: "RAM RAID",
+    briefing: "The shell is short. Spend it, then dodge naked.",
+    subline: "Starshell is the only drop, and it is scarce. The shell lasts about two seconds. You are invincible while it is up.",
+    difficultyFactor: 0.85,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: {
+      powerWeights: monoPowerWeights("starshell"),
+      pickupIntervalScale: 1.4,
+      starshellDurationScale: 0.4,
+    },
+  },
+  {
+    id: "gold-dash",
+    name: "GOLD DASH",
+    briefing: "Commit the line. The landing is yours.",
+    subline: "Every pickup is Afterburner. Charge, dash, then one second of invincible arrival.",
+    difficultyFactor: 0.9,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { extraPowerIds: ["afterburner"], powerWeights: monoPowerWeights("afterburner") },
+  },
+  {
+    id: "the-lighthouse",
+    name: "THE LIGHTHOUSE",
+    briefing: "Kill the scanners. The beam grows.",
+    subline: "A scanner appears at five seconds. The laser starts thin and grows fast. Destroy the body. The beam kills you, not the swarm. No naval mines today.",
+    difficultyFactor: 1.05,
+    tags: ["mines"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { lighthouseActive: true, minesDisabled: true },
+  },
+  {
+    id: "graze-protocol",
+    name: "GRAZE PROTOCOL",
+    briefing: "Thread them. The number is the score.",
+    subline: "Graze band is wider, pay is much higher, cooldown is shorter. Big gold numbers on every near-miss.",
+    difficultyFactor: 0.8,
+    tags: ["scoring"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: {
+      grazePointsScale: 8,
+      grazeBandScale: 2,
+      grazeCooldownScale: 0.45,
+      grazeMultiplierScale: 3,
+      grazePopups: true,
+    },
+  },
+  {
+    id: "razor-day",
+    name: "RAZOR",
+    briefing: "Draw the blade. Stay in the whirl.",
+    subline: "Every pickup is Razor. Two blades orbit you and carve anything they touch.",
+    difficultyFactor: 0.9,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { extraPowerIds: ["razor"], powerWeights: monoPowerWeights("razor") },
+  },
+  {
+    id: "thunder-day",
+    name: "THUNDER",
+    briefing: "Aim the ray. Let it hop.",
+    subline: "Every pickup is Thunder. A lightning ray along your nose. Each kill sparks Arc hops. Ray kills pay double.",
+    difficultyFactor: 0.85,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { extraPowerIds: ["thunder"], powerWeights: monoPowerWeights("thunder") },
+  },
+  {
+    id: "cloak-day",
+    name: "CLOAK",
+    briefing: "They lose the lock. You seed the dark.",
+    subline: "Every pickup is Cloak. Drones hover, lost. Invisible bombs drop along your path and explode when you reappear.",
+    difficultyFactor: 0.9,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { extraPowerIds: ["cloak"], powerWeights: monoPowerWeights("cloak") },
+  },
+  {
+    id: "bait-shot",
+    name: "BAIT SHOT",
+    briefing: "Pack them, then punch the blob.",
+    subline: "Only Flares and Pulse Shot drop. The flare does not kill. It gathers a blob. Pulse is the shot.",
+    difficultyFactor: 0.85,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { extraPowerIds: ["flare"], powerWeights: dualPowerWeights("flare", "pulse") },
+  },
+  {
+    id: "ion-day",
+    name: "ION",
+    briefing: "Shove the line. Let them break each other.",
+    subline: "Every pickup is Ion. A forward shockwave pushes drones. The pushed ones live. What they slam dies.",
+    difficultyFactor: 0.9,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { extraPowerIds: ["ion"], powerWeights: monoPowerWeights("ion") },
+  },
+  {
+    id: "howlers-day",
+    name: "HOWLERS",
+    briefing: "Paint them gold. Let the pack hunt.",
+    subline: "Every pickup is Howlers. Nearby drones turn gold, ram hostiles without dying, then explode.",
+    difficultyFactor: 0.85,
+    tags: ["monopower"],
+    availableFrom: WAVE2_AVAILABLE_FROM,
+    overrides: { extraPowerIds: ["howlers"], powerWeights: monoPowerWeights("howlers") },
+  },
 ];
 
 const MUTATOR_BY_ID = new Map(MUTATOR_POOL.map((m) => [m.id, m] as const));
@@ -730,6 +869,22 @@ export function getMutatorsForDateFromPool(date: Date, pool: Mutator[]): Mutator
 
 export function getMutatorById(id: string): Mutator | undefined {
   return MUTATOR_BY_ID.get(id);
+}
+
+/** Next patrol dates a mutator is assigned, from `fromDate` inclusive. */
+export function nextDatesForMutator(
+  id: string,
+  fromDate: string,
+  count: number,
+  until = "2027-12-31",
+): string[] {
+  const out: string[] = [];
+  let d = fromDate;
+  while (d <= until && out.length < count) {
+    if (getMutatorsForDateStr(d).some((m) => m.id === id)) out.push(d);
+    d = addCivilDays(d, 1);
+  }
+  return out;
 }
 
 export function combinedDifficultyFactor(mutators: Mutator[]): number {
@@ -1057,6 +1212,34 @@ export function mutatorBlackoutPulse(): boolean {
 /** Multiplies graze point pay (1 on ordinary days). */
 export function mutatorGrazePointsScale(): number {
   return scaleOf((o) => o.grazePointsScale);
+}
+
+export function mutatorGrazeBandScale(): number {
+  return scaleOf((o) => o.grazeBandScale);
+}
+
+export function mutatorGrazeCooldownScale(): number {
+  return scaleOf((o) => o.grazeCooldownScale);
+}
+
+export function mutatorGrazeMultiplierScale(): number {
+  return scaleOf((o) => o.grazeMultiplierScale);
+}
+
+export function mutatorGrazePopups(): boolean {
+  return firstOf((o) => o.grazePopups) === true;
+}
+
+export function mutatorStarshellDurationScale(): number {
+  return scaleOf((o) => o.starshellDurationScale);
+}
+
+export function mutatorLighthouseActive(): boolean {
+  return active.some((m) => m.overrides.lighthouseActive);
+}
+
+export function mutatorMinesDisabled(): boolean {
+  return firstOf((o) => o.minesDisabled) === true;
 }
 
 /** STARFALL only: whether the environmental meteor rain should be running. */

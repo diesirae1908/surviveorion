@@ -1,7 +1,7 @@
 import { MINES, SCORING } from "./config";
 import { randRange, scheduleRange } from "./math";
 import { killDronesInRadius } from "./enemies";
-import { mutatorMineIntervalScale } from "./mutators";
+import { mutatorMineIntervalScale, mutatorMinesDisabled } from "./mutators";
 import { registerKill } from "./scoring";
 import type { Mine, World } from "./types";
 
@@ -24,6 +24,7 @@ export function updateMines(world: World, dt: number): void {
     world.phase === "playing" &&
     !world.sandbox &&
     !world.training &&
+    !mutatorMinesDisabled() &&
     world.time >= MINES.startAfterSeconds
   ) {
     world.mineTimer -= dt;
