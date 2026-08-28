@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Share result includes a real surviveorion.com link
+
+- Share-result paste (clipboard on desktop, native sheet on phones) already
+  ended with the bare domain `surviveorion.com`. Many apps never make that
+  a tap target. Last line is now `https://surviveorion.com`, and
+  `navigator.share` also gets that URL so the sheet can attach a link.
+- Not pushed. Customer-facing share text; wait for Lucas before `main`.
+
 ## 2026-08-27: THE FLOOD + GREAT WALL in Buffer (~10:51 PM PT)
 
 - Lucas added `0827_theflood_916.mov` and `0827_greatwall_916.mov` to

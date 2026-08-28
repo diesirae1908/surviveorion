@@ -44,7 +44,7 @@ export interface ShareStats {
   preview?: boolean;
 }
 
-export const SHARE_URL = "surviveorion.com";
+export const SHARE_URL = "https://surviveorion.com";
 
 export function buildShareText(s: ShareStats): string {
   const mins = Math.floor(s.time / 60);
@@ -78,7 +78,7 @@ export type ShareOutcome = "shared" | "copied" | "failed";
 export async function shareText(text: string, preferNative: boolean): Promise<ShareOutcome> {
   if (preferNative && typeof navigator.share === "function") {
     try {
-      await navigator.share({ text });
+      await navigator.share({ text, url: SHARE_URL });
       return "shared";
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return "shared";
