@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-27: BLACKOUT true-black LIVE
+
+- Lucas: "I like it!!!! push live :)". Pushed `a1ba639` (and `e88a2e7`) to
+  `origin/main`. Bundle `index-BZNa6gyX.js` → `index-DkD0r7nG.js`. HTTP 200.
+  Live JS has "Stay in the pocket" / "Some of those are fakes". Hard refresh.
+
 ## 2026-08-27: BLACKOUT true-black + fake flickers + growing dark (local)
 
 - Lucas: overlay still leaked the arena; wanted a complete blackout outside
