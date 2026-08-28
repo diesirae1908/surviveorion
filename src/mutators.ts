@@ -34,7 +34,7 @@
 
 import type { AssemblyKind } from "./types";
 import { hashString } from "./math";
-import { BLACKOUT, SPAWNER, type FormationKind, type PowerId } from "./config";
+import { SPAWNER, type FormationKind, type PowerId } from "./config";
 
 export interface MutatorOverrides {
   /** Multiplies the ambient spawn accumulation rate (spawns/sec). */
@@ -93,7 +93,7 @@ export interface MutatorOverrides {
   pickupMagnetStrength?: number;
   /** Cosmetic only: renderer shows a subtle red vignette (RED ALERT). */
   redTint?: boolean;
-  /** BLACKOUT only: time-driven lights-out pulse (vignette + dim telegraphs). */
+  /** BLACKOUT only: flicker then a real lights-out with a ship lantern (see blackout.ts). */
   blackoutPulse?: boolean;
   /** STARFALL only: turns on the environmental meteor rain (see starfall.ts). */
   meteorRainActive?: boolean;
@@ -241,15 +241,14 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "blackout",
     name: "BLACKOUT",
-    briefing: "The grid flickers. When the lights cut, dodge blind.",
-    subline: "Spawn warnings stay short. Every few seconds the lights die and the warnings nearly vanish.",
+    briefing: "The grid flickers. Then it goes dark. Stay in the pocket.",
+    subline: "A short flicker, then a real blackout for a couple of seconds, except a small circle of light around the ship. Outages land every 5 to 15 seconds. Spawn warnings stay short.",
     difficultyFactor: 1.1,
     tags: ["visibility"],
     availableFrom: MUTATORS_START_DATE,
-    // v3 (2026-08-26): skip-the-card pilots could not tell this day from a
-    // normal one. Keep the short-warning retune (ratio=0 was too lethal) and
-    // add a deterministic lights-out pulse so the identity is visible in the
-    // first 10 seconds. No extra seeded draws: pulse is a function of time.
+    // v4 (2026-08-27 night): v3 0.5s dim vignette read as a flicker that
+    // did nothing. Identity is now a scheduled outage: flicker, then a real
+    // lights-out with a lantern around the ship (blackout.ts). Gaps 5-15s.
     overrides: { telegraphDurationScale: 0.36, blackoutPulse: true },
   },
   {
@@ -1050,33 +1049,9 @@ export function mutatorRedTint(): boolean {
   return firstOf((o) => o.redTint) ?? false;
 }
 
-/** BLACKOUT only: lights-out pulse overlay + telegraph dim. */
+/** BLACKOUT only: flicker + lights-out overlay with a ship lantern. */
 export function mutatorBlackoutPulse(): boolean {
   return firstOf((o) => o.blackoutPulse) ?? false;
-}
-
-/**
- * 0..1 vignette strength at run-seconds `time`. First pulse at 6s, then
- * every pulseIntervalSeconds, 0.5s window with short fades. Pure function
- * of time: no RNG, same for every pilot.
- */
-export function blackoutPulseAmount(time: number): number {
-  const { firstPulseAt, pulseIntervalSeconds, pulseDurationSeconds, pulseFadeSeconds } =
-    BLACKOUT;
-  if (time < firstPulseAt) return 0;
-  const cycle = time % pulseIntervalSeconds;
-  if (cycle >= pulseDurationSeconds) return 0;
-  if (cycle < pulseFadeSeconds) return cycle / pulseFadeSeconds;
-  const fadeOut = pulseDurationSeconds - cycle;
-  if (fadeOut < pulseFadeSeconds) return fadeOut / pulseFadeSeconds;
-  return 1;
-}
-
-/** Multiplier on telegraph alpha during a BLACKOUT pulse (1 outside the window). */
-export function blackoutTelegraphMul(time: number): number {
-  if (!mutatorBlackoutPulse()) return 1;
-  const a = blackoutPulseAmount(time);
-  return 1 + (BLACKOUT.pulseTelegraphOpacity - 1) * a;
 }
 
 /** Multiplies graze point pay (1 on ordinary days). */

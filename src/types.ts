@@ -316,6 +316,7 @@ export type GameEvent =
   | { type: "droneSpawn"; x: number; y: number }
   | { type: "ambientSpawn"; x: number; y: number }
   | { type: "floodSurge"; x: number; y: number }
+  | { type: "lightsOut"; phase: "flicker" | "dark" }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };
 
@@ -390,6 +391,10 @@ export interface World {
   floodSurgeTimer: number;
   /** Unused on the metronome Flood (kept so World stays stable). */
   floodTelegraphs: FloodTelegraph[];
+  /** BLACKOUT only: idle / flicker / dark. Harmless on other days. */
+  blackoutPhase: "idle" | "flicker" | "dark";
+  /** BLACKOUT only: remaining time in the current phase (schedule stream). */
+  blackoutTimer: number;
   /** Countdown to the next drone-evolution event (schedule stream). */
   assemblyTimer: number;
   /** Cooldown for crowd-pressure evolutions (Math.random side, off-stream). */

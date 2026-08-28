@@ -10,13 +10,12 @@
  * do not "fix" the test to match the new numbers, figure out why a day
  * that should be untouched moved.
  */
+import { blackoutOverlayAmount, blackoutTelegraphMul } from "../src/blackout";
 import { BLACKOUT, CREATURE_DAYS, FLOOD_SURGE, MINES, POWERS, SHIP, STARFALL_RAIN } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import { hashString, rand, scheduleRand, setRunSeed } from "../src/math";
 import {
-  blackoutPulseAmount,
-  blackoutTelegraphMul,
   clearActiveMutators,
   getActiveMutators,
   getMutatorById,
@@ -355,7 +354,7 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
 {
   type MutatorKind = "override" | "creature" | "environmental";
   const KIND: Record<string, MutatorKind> = {
-    blackout: "override",
+    blackout: "environmental",
     "red-alert": "override",
     "the-flood": "environmental",
     "great-wall": "override",
@@ -690,16 +689,55 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
   const blackout = getMutatorById("blackout")!;
   setActiveMutators([blackout]);
   check("BLACKOUT pulse flag is on", mutatorBlackoutPulse() === true);
-  check("BLACKOUT pulse is dark at t=0", blackoutPulseAmount(0) === 0);
-  check("BLACKOUT pulse is dark at t=5.9", blackoutPulseAmount(5.9) === 0);
-  check("BLACKOUT first pulse peaks at t=6.2", Math.abs(blackoutPulseAmount(6.2) - 1) < 1e-9);
+  check("BLACKOUT gap is 5-15s", BLACKOUT.gapRange[0] === 5 && BLACKOUT.gapRange[1] === 15);
+  check("BLACKOUT dark lasts 1-2s", BLACKOUT.darkRange[0] >= 1 && BLACKOUT.darkRange[1] <= 2);
+  setRunSeed(42);
+  const blackoutWorld = createWorld(17.8, 10, false, 0, "classic", true);
+  check("BLACKOUT opens idle", blackoutWorld.blackoutPhase === "idle" && blackoutOverlayAmount(blackoutWorld) === 0);
+  check("BLACKOUT telegraph mul is 1 while idle", blackoutTelegraphMul(blackoutWorld) === 1);
+  let sawFlicker = false;
+  let sawDark = false;
+  for (let i = 0; i < 20 * 60; i++) {
+    blackoutWorld.powers.starshellTimer = 9999;
+    tick(blackoutWorld, input, 1 / 60);
+    if (blackoutWorld.blackoutPhase === "flicker") sawFlicker = true;
+    if (blackoutWorld.blackoutPhase === "dark") sawDark = true;
+  }
+  check("BLACKOUT flickers within 20s", sawFlicker);
+  check("BLACKOUT goes dark within 20s", sawDark);
   check(
-    "BLACKOUT telegraph mul drops during the pulse",
-    Math.abs(blackoutTelegraphMul(6.2) - BLACKOUT.pulseTelegraphOpacity) < 1e-9,
+    "BLACKOUT telegraph mul drops during the outage",
+    blackoutWorld.blackoutPhase === "dark"
+      ? Math.abs(blackoutTelegraphMul(blackoutWorld) - BLACKOUT.telegraphOpacity) < 1e-9
+      : blackoutTelegraphMul(blackoutWorld) <= 1,
   );
-  check("BLACKOUT telegraph mul is 1 outside the pulse", blackoutTelegraphMul(5.9) === 1);
+  const scriptOf = (world: World): string[] => {
+    const script: string[] = [];
+    for (let i = 0; i < 45 * 60; i++) {
+      world.powers.starshellTimer = 9999;
+      tick(world, input, 1 / 60);
+      for (const e of world.events) {
+        if (e.type === "lightsOut") script.push(`${world.time.toFixed(2)}:${e.phase}`);
+      }
+      world.events.length = 0;
+    }
+    return script;
+  };
+  setRunSeed(42);
+  const blackoutA = createWorld(17.8, 10, false, 0, "classic", true);
+  const scriptA = scriptOf(blackoutA);
+  setRunSeed(42);
+  const blackoutB = createWorld(17.8, 10, false, 0, "classic", true);
+  const scriptB = scriptOf(blackoutB);
+  check(
+    "BLACKOUT outage script matches across two seeded worlds",
+    scriptA.length > 0 && scriptA.join("|") === scriptB.join("|"),
+    `${scriptA.length} outages`,
+  );
   clearActiveMutators();
-  check("BLACKOUT telegraph mul is 1 on other days", blackoutTelegraphMul(6.2) === 1);
+  const plain = createWorld(17.8, 10, false, 0, "classic", true);
+  check("BLACKOUT overlay is off on other days", blackoutOverlayAmount(plain) === 0);
+  check("BLACKOUT telegraph mul is 1 on other days", blackoutTelegraphMul(plain) === 1);
 
   const hunt = getMutatorById("hunting-party")!;
   check("HUNTING PARTY grazePointsScale is 1.5", hunt.overrides.grazePointsScale === 1.5);

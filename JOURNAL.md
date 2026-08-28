@@ -4,6 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-27: BLACKOUT real lights-out (local, not live)
+
+- Lucas: the 0.5s dim vignette "really doesnt do anything". Wants flicker,
+  then an actual blackout except a small pocket around the ship, 1-2s,
+  every 5-15s.
+- New `src/blackout.ts` (STARFALL-shaped). Flicker 0.4s, then dark 1.2-2.0s
+  with a lantern (`lanternRadius` 1.85) around the ship. Next gap is
+  `scheduleRange(5, 15)`. First outage in 3.5-5.5s. Snapshot untouched.
+- Copy: "The grid flickers. Then it goes dark. Stay in the pocket."
+- Not pushed. Localhost `?mutator=blackout`.
+
+## 2026-08-27: THE FLOOD metronome LIVE
+
+- Lucas: "the flood is great now :) push it live". Pushed `f885172` to
+  `origin/main`. Bundle `index-H6gU6f7P.js` → `index-BZNa6gyX.js`. HTTP 200.
+  Live JS has "They just keep popping in". Hard refresh.
+
 ## 2026-08-27: THE FLOOD metronome (branch `sam/flood-metronome`)
 
 - Lucas: directional surge waves "not good". Wants constant flooding: enemies

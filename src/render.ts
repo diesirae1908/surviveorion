@@ -3,13 +3,12 @@ import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
 import {
-  blackoutPulseAmount,
-  blackoutTelegraphMul,
   mutatorBlackoutPulse,
   mutatorRedTint,
   mutatorWindShiftWarning,
   mutatorWindVector,
 } from "./mutators";
+import { blackoutOverlayAmount, blackoutTelegraphMul } from "./blackout";
 import { blastRadius } from "./powers";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
@@ -183,7 +182,7 @@ export class Renderer {
       this.drawRedAlertVignette(opts.uiTime);
     }
     if (world.daily && world.phase === "playing" && mutatorBlackoutPulse()) {
-      this.drawBlackoutVignette(world.time);
+      this.drawBlackoutVignette(world);
     }
     if (opts.showHud) this.drawHud(world, opts);
     if (opts.touch?.active) this.drawTouchOverlay(opts.touch);
@@ -217,23 +216,33 @@ export class Renderer {
     ctx.fillRect(0, 0, W, H);
   }
 
-  /** BLACKOUT: blue-black lights-out pulse, distinct from RED ALERT. */
-  private drawBlackoutVignette(runTime: number): void {
-    const amount = blackoutPulseAmount(runTime);
+  /** BLACKOUT: flicker, then a real lights-out with a lantern around the ship. */
+  private drawBlackoutVignette(world: World): void {
+    const amount = blackoutOverlayAmount(world);
     if (amount <= 0) return;
     const { ctx } = this;
     const W = this.cssW;
     const H = this.cssH;
-    const opacity = BLACKOUT.pulseVignetteOpacity * amount;
-    const grad = ctx.createRadialGradient(
-      W / 2,
-      H / 2,
-      Math.min(W, H) * 0.22,
-      W / 2,
-      H / 2,
-      Math.max(W, H) * 0.78,
-    );
-    grad.addColorStop(0, `rgba(4, 8, 20, ${(opacity * 0.45).toFixed(3)})`);
+    const opacity = BLACKOUT.overlayOpacity * amount;
+
+    if (world.blackoutPhase !== "dark") {
+      ctx.fillStyle = `rgba(2, 4, 12, ${opacity.toFixed(3)})`;
+      ctx.fillRect(0, 0, W, H);
+      return;
+    }
+
+    const unit = H / world.viewH;
+    const sx = W / 2 + world.ship.x * unit;
+    const sy = H / 2 - world.ship.y * unit;
+    const inner = BLACKOUT.lanternRadius * unit;
+    const outer = (BLACKOUT.lanternRadius + BLACKOUT.lanternFeather) * unit;
+    const maxR = Math.hypot(W, H);
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, maxR);
+    const innerT = Math.min(0.98, inner / maxR);
+    const outerT = Math.min(0.995, outer / maxR);
+    grad.addColorStop(0, "rgba(2, 4, 12, 0)");
+    grad.addColorStop(innerT, "rgba(2, 4, 12, 0)");
+    grad.addColorStop(outerT, `rgba(2, 4, 12, ${opacity.toFixed(3)})`);
     grad.addColorStop(1, `rgba(2, 4, 12, ${opacity.toFixed(3)})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
@@ -1198,7 +1207,7 @@ export class Renderer {
   private drawSpawnTelegraphs(world: World, time: number): void {
     if (world.spawnTelegraphs.length === 0) return;
     const { ctx } = this;
-    const blackoutMul = blackoutTelegraphMul(world.time);
+    const blackoutMul = blackoutTelegraphMul(world);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const t of world.spawnTelegraphs) {
@@ -1232,7 +1241,7 @@ export class Renderer {
   private drawMeteorTelegraphs(world: World, time: number): void {
     if (world.meteorTelegraphs.length === 0) return;
     const { ctx } = this;
-    const blackoutMul = blackoutTelegraphMul(world.time);
+    const blackoutMul = blackoutTelegraphMul(world);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const t of world.meteorTelegraphs) {
@@ -1286,7 +1295,7 @@ export class Renderer {
   private drawCreatureTelegraphs(world: World, time: number): void {
     if (world.creatureSpawnQueue.length === 0) return;
     const { ctx } = this;
-    const blackoutMul = blackoutTelegraphMul(world.time);
+    const blackoutMul = blackoutTelegraphMul(world);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const q of world.creatureSpawnQueue) {

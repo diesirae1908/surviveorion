@@ -678,6 +678,7 @@ function muteAmbientPickups(world: World): void {
     assemblies: string[];
     surges: string[];
     ambient: string[];
+    blackouts: string[];
   }
 
   /** Same shape as the section-7 daily determinism recorder, but with a set
@@ -688,7 +689,7 @@ function muteAmbientPickups(world: World): void {
     setActiveMutators(mutators, date);
     const scale = mutatorViewScale();
     const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
-    const script: Script = { formations: [], powers: [], mines: [], meteors: [], assemblies: [], surges: [], ambient: [] };
+    const script: Script = { formations: [], powers: [], mines: [], meteors: [], assemblies: [], surges: [], ambient: [], blackouts: [] };
     let t = 0;
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
@@ -723,6 +724,9 @@ function muteAmbientPickups(world: World): void {
         }
         if (e.type === "floodSurge") {
           script.surges.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        }
+        if (e.type === "lightsOut") {
+          script.blackouts.push(`${world.time.toFixed(2)}:${e.phase}`);
         }
         if (e.type === "ambientSpawn") {
           script.ambient.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
@@ -1425,6 +1429,54 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
   );
   setRunSeed(null);
   clearActiveMutators();
+}
+
+// --- 10c. BLACKOUT v4: flicker then a real lights-out, script shared ---
+{
+  const blackout = getMutatorById("blackout")!;
+  const blackoutDate = new Date("2026-08-11T00:00:00Z");
+
+  const recordBlackout = (style: "ram" | "drift"): string[] => {
+    setRunSeed(1234567);
+    setActiveMutators([blackout], blackoutDate);
+    const world = createWorld(17.8, 10, false, 0, "classic", true);
+    const script: string[] = [];
+    let t = 0;
+    const steps = Math.round(90 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      t += FIXED_DT;
+      let drive = { x: 0, y: 0 };
+      if (style === "ram") {
+        world.powers.starshellTimer = 9999;
+      } else {
+        world.powers.shieldActive = true;
+        drive = { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
+      }
+      tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
+      for (const e of world.events) {
+        if (e.type === "lightsOut") script.push(`${world.time.toFixed(2)}:${e.phase}`);
+      }
+      world.events.length = 0;
+    }
+    setRunSeed(null);
+    clearActiveMutators();
+    return script;
+  };
+
+  const ram = recordBlackout("ram");
+  const drift = recordBlackout("drift");
+  check(
+    "BLACKOUT outage script matches across play styles",
+    ram.length > 0 && ram.join("|") === drift.join("|"),
+    `${ram.length} outages`,
+  );
+  const firstT = ram[0] ? Number(ram[0].split(":")[0]) : 99;
+  check("BLACKOUT first flicker lands inside 8s", firstT < 8, `t=${firstT.toFixed(2)}`);
+  check(
+    "BLACKOUT script includes flicker and dark",
+    ram.some((s) => s.endsWith(":flicker")) && ram.some((s) => s.endsWith(":dark")),
+    ram.slice(0, 4).join(", "),
+  );
 }
 
 // --- 11. late growth: no plateau-farming on the choreographed / zero-ambient days ---

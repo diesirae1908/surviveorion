@@ -1,4 +1,5 @@
 import { FLOOD_SURGE, MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./config";
+import { initBlackout, updateBlackout } from "./blackout";
 import { updateCreatureChoreography } from "./creatures";
 import { droneRadius, initSpawner, killDrone, updateAssemblies, updateDrones, updateSpawner } from "./enemies";
 import type { InputState } from "./input";
@@ -66,6 +67,8 @@ export function createWorld(
     meteorTelegraphs: [],
     floodSurgeTimer: FLOOD_SURGE.openingDelay,
     floodTelegraphs: [],
+    blackoutPhase: "idle",
+    blackoutTimer: 0,
     assemblyTimer: 0, // set by initSpawner (schedule stream)
     crowdAssemblyTimer: 0,
     assemblies: [],
@@ -85,6 +88,7 @@ export function createWorld(
   if (!sandbox) {
     initSpawner(world);
     initPickups(world);
+    initBlackout(world);
   }
   return world;
 }
@@ -112,6 +116,7 @@ export function tick(world: World, input: InputState, dt: number): void {
   updateMines(world, dt);
   updateStarfallRain(world, dt);
   updateFloodSurge(world, dt);
+  updateBlackout(world, dt);
   updatePickups(world, dt);
   updatePowers(world, dt);
   updateScoring(world, dt);

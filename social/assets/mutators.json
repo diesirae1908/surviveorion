@@ -2,7 +2,7 @@
   {
     "id": "blackout",
     "name": "BLACKOUT",
-    "subline": "On-screen spawn warnings are much shorter (0.5s instead of 1.4s). Everything else is normal."
+    "subline": "A short flicker, then a real blackout for a couple of seconds, except a small circle of light around the ship. Outages land every 5 to 15 seconds. Spawn warnings stay short."
   },
   {
     "id": "red-alert",

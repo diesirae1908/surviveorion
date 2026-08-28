@@ -604,14 +604,18 @@ export const FLOOD_SURGE = {
   openingDelay: 0.12,
 };
 
-/** BLACKOUT lights-out pulse. Time-driven, no RNG. First pulse at 6s. */
+/** BLACKOUT outages. Flicker, then a real lights-out with a lantern around
+ * the ship. Gaps 5-15s ride the schedule stream (see blackout.ts). */
 export const BLACKOUT = {
-  firstPulseAt: 6.0,
-  pulseIntervalSeconds: 6.0,
-  pulseDurationSeconds: 0.5,
-  pulseFadeSeconds: 0.15,
-  pulseVignetteOpacity: 0.65,
-  pulseTelegraphOpacity: 0.15,
+  firstDelayRange: [3.5, 5.5] as const,
+  gapRange: [5.0, 15.0] as const,
+  darkRange: [1.2, 2.0] as const,
+  flickerSeconds: 0.4,
+  flickerHz: 16,
+  lanternRadius: 1.85, // world units of clear pocket around the ship
+  lanternFeather: 0.55,
+  overlayOpacity: 0.97,
+  telegraphOpacity: 0.08,
 };
 
 // Competitive scoring: skilled play compounds. The multiplier climbs fast on
