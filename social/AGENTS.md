@@ -41,5 +41,5 @@ clips plus JSON sidecars from `orion-web`.
 - `npm run post` Phase D/E over `out/approved/` only.
 - `node scripts/post-buffer.mjs` Buffer GraphQL path (default `--dry`; see `.env.example`).
 - `npm run calendar:sync` rewrites TODAY'S PATROL rows from the live `MUTATOR_POOL` (from 2026-08-29 on) into `ORION_Publishing_Calendar.xlsx` and `calendar.json`. Hooks come from in-game briefings. Does not touch already-shipped pre-wave-2 rows. Re-run after any pool append.
-- `npm run calendar:buffer` reads `calendar.json` (from `ORION_Publishing_Calendar.xlsx`) and dry-runs Buffer for Approved+Linked rows. Live post is `--dry=false` and needs Lucas. Clips must already be at `--media-base` (default `https://surviveorion.com/social-drafts`).
+- `npm run calendar:buffer` reads `calendar.json` (from `ORION_Publishing_Calendar.xlsx`) and dry-runs Buffer for Approved+Linked rows. `Scheduled` means already in Buffer: do not recreate. Live post is `--dry=false` and needs Lucas. Clips must already be at `--media-base` (default `https://surviveorion.com/social-drafts`).
 - `npm run extract-mutators` refresh `assets/mutators.json` from a local orion-web checkout.
