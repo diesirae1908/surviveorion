@@ -1,6 +1,6 @@
 {
   "source": "ORION_Publishing_Calendar.xlsx",
-  "exportedAt": "2026-08-26T22:22:00-07:00",
+  "exportedAt": "2026-08-27T22:50:00-07:00",
   "posts": [
     {
       "date": "2026-08-26",
@@ -77,15 +77,15 @@
       "title": "THE FLOOD",
       "hook": "the swarm never stops.",
       "sundayDouble": false,
-      "asset": "0828_patrol_theflood_916.mov",
-      "assetStatus": "Not linked yet",
-      "postStatus": "Draft",
+      "asset": "0827_theflood_916.mov",
+      "assetStatus": "Linked",
+      "postStatus": "Approved",
       "igCaption": "Today every pilot flies THE FLOOD: the swarm never stops. Three attempts. Free, in your browser.",
       "igTags": "#dailychallenge #indiegame #browsergame #arcadegame",
       "ttCaption": "today every pilot flies the flood: the swarm never stops. three attempts. free, in your browser.",
       "ttNote": null,
       "ytTitle": "THE FLOOD DAY: Today's ORION Patrol (Day 46)",
-      "ytDescription": "Today's shared seed: THE FLOOD. Formations almost never happen. Ambient density is up, but arrives in clearer packs with lanes between them. Every pilot flies the same run. Three attempts, free in your browser.\n\nPlay now: https://surviveorion.com\n\n#dailychallenge #indiegame #browsergame #arcadegame #Shorts"
+      "ytDescription": "Today's shared seed: THE FLOOD. No formations. A constant beat from the edges that speeds up the whole run. Every pilot flies the same run. Three attempts, free in your browser.\n\nPlay now: https://surviveorion.com\n\n#dailychallenge #indiegame #browsergame #arcadegame #Shorts"
     },
     {
       "date": "2026-08-29",
@@ -111,9 +111,9 @@
       "title": "GREAT WALL",
       "hook": "nothing but walls today.",
       "sundayDouble": false,
-      "asset": "0829_patrol_greatwall_916.mov",
-      "assetStatus": "Not linked yet",
-      "postStatus": "Draft",
+      "asset": "0827_greatwall_916.mov",
+      "assetStatus": "Linked",
+      "postStatus": "Approved",
       "igCaption": "Today every pilot flies GREAT WALL: nothing but walls today. Three attempts. Free, in your browser.",
       "igTags": "#dailychallenge #indiegame #browsergame #arcadegame",
       "ttCaption": "today every pilot flies great wall: nothing but walls today. three attempts. free, in your browser.",

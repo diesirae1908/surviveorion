@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-08-27: THE FLOOD + GREAT WALL ready to schedule
+
+- Lucas: two more videos in `final_videoasset/` for Buffer buffer.
+  Aug 28 THE FLOOD + Aug 29 GREAT WALL Approved+Linked. Hosted H.264
+  copies at `public/social-drafts/0827_theflood_916.mp4` and
+  `0827_greatwall_916.mp4`. Masters not deleted.
+- Dry-run: 6 jobs, customScheduled 9am PT Aug 28 / Aug 29. Live post
+  after the URLs return HEAD 200. `--only` so the Aug 26 posts are not
+  duplicated.
+
 ## 2026-08-26: 9 Buffer posts created for the 3 Approved rows
 
 - Trailer + He Knew queued. THE PIT customScheduled 9am PT Aug 27.
