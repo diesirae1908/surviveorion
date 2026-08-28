@@ -36,6 +36,16 @@ export interface Drone {
   followTarget?: Drone | null; // previous segment in a train
   /** Seconds until this drone can pay another graze reward. */
   grazeTimer?: number;
+  /** HOWLERS: fighting for the ship. Harmless to the ship. */
+  allied?: boolean;
+  alliedTimer?: number;
+  /** ION: remaining slam time. Overlapping a non-slammed drone kills it. */
+  slamTimer?: number;
+  slamVx?: number;
+  slamVy?: number;
+  /** CLOAK hover anchor (set when cloak starts). */
+  hoverX?: number;
+  hoverY?: number;
   /** Speed multiplier while scripted (e.g. bomb shrapnel flies fast). */
   scriptSpeedScale?: number;
   /** Assembly this drone is conscripted into (null/undefined = free). */
@@ -245,6 +255,34 @@ export interface FloodTelegraph {
   packSize: number;
 }
 
+export interface CloakBomb {
+  x: number;
+  y: number;
+}
+
+export interface FlareDecoy {
+  x: number;
+  y: number;
+  timer: number;
+}
+
+export interface ThunderBolt {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  elapsed: number;
+}
+
+export interface Lighthouse {
+  x: number;
+  y: number;
+  age: number;
+  angle: number;
+  alive: boolean;
+  seed: number;
+}
+
 export interface PowersState {
   shieldActive: boolean; // persists until it absorbs a hit (banked extra life)
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
@@ -268,12 +306,18 @@ export interface PowersState {
   meteorTimer: number; // >0 => storm active
   meteorCooldown: number; // time until the next strike
   vortices: Vortex[];
+  razorTimer: number;
+  cloakTimer: number;
+  cloakBombCooldown: number;
+  cloakBombs: CloakBomb[];
+  flares: FlareDecoy[];
+  thunderBolts: ThunderBolt[];
 }
 
 export type RunPhase = "playing" | "dying" | "dead";
 
 /** What killed a drone, when it matters for scoring/visuals. */
-export type KillSource = "pulse";
+export type KillSource = "pulse" | "thunder";
 
 /** One-frame gameplay events, drained by main for audio/particles/shake. */
 export type GameEvent =
@@ -319,6 +363,15 @@ export type GameEvent =
   | { type: "lightsOut"; phase: "flicker" | "fake" }
   | { type: "lightsOut"; phase: "dark"; duration: number }
   | { type: "ringWarning" }
+  | { type: "razorUp" }
+  | { type: "thunderFire"; x: number; y: number }
+  | { type: "cloakUp" }
+  | { type: "cloakDown" }
+  | { type: "flareDrop"; x: number; y: number }
+  | { type: "ionPulse"; x: number; y: number }
+  | { type: "howlersUp" }
+  | { type: "lighthouseSpawn"; x: number; y: number }
+  | { type: "lighthouseKill"; x: number; y: number; points: number }
   | { type: "death"; x: number; y: number };
 
 export interface World {
@@ -355,6 +408,8 @@ export interface World {
   ship: Ship;
   drones: Drone[];
   mines: Mine[];
+  lighthouses: Lighthouse[];
+  lighthouseTimer: number;
   pickups: Pickup[];
   spawnTelegraphs: SpawnTelegraph[];
   powers: PowersState;

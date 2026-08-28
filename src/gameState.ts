@@ -1,4 +1,4 @@
-import { FLOOD_SURGE, MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./config";
+import { FLOOD_SURGE, LIGHTHOUSE, MINES, POWERS, SCORING, SHIP, STARFALL_RAIN, type GameMode } from "./config";
 import { initBlackout, updateBlackout } from "./blackout";
 import { updateCreatureChoreography } from "./creatures";
 import { droneRadius, initSpawner, killDrone, updateAssemblies, updateDrones, updateSpawner } from "./enemies";
@@ -10,6 +10,17 @@ import { blastRadius, createPowersState, detonateShield, updatePowers } from "./
 import { registerGraze, updateScoring } from "./scoring";
 import { createShip, updateShip } from "./ship";
 import { updateStarfallRain } from "./starfall";
+import {
+  distToBeam,
+  killLighthouse,
+  lighthouseBeamWidth,
+  lighthouseBodyRadius,
+  updateLighthouses,
+} from "./lighthouse";
+import {
+  mutatorGrazeBandScale,
+  mutatorGrazeCooldownScale,
+} from "./mutators";
 import { updateFloodSurge } from "./flood";
 import { grazeClearance, trackClosestCall, trackTopGrazes } from "./highlights";
 import { sampleShipTrack } from "./clipSidecar";
@@ -40,6 +51,8 @@ export function createWorld(
     ship: createShip(),
     drones: [],
     mines: [],
+    lighthouses: [],
+    lighthouseTimer: LIGHTHOUSE.firstAt,
     pickups: [],
     spawnTelegraphs: [],
     powers: createPowersState(),
@@ -116,6 +129,7 @@ export function tick(world: World, input: InputState, dt: number): void {
   updateAssemblies(world, dt);
   updateCreatureChoreography(world, dt);
   updateMines(world, dt);
+  updateLighthouses(world, dt);
   updateStarfallRain(world, dt);
   updateFloodSurge(world, dt);
   updateBlackout(world, dt);
@@ -124,6 +138,9 @@ export function tick(world: World, input: InputState, dt: number): void {
   updateScoring(world, dt);
   handleShipDroneCollisions(world);
   handleShipMineCollisions(world);
+  handleShipLighthouseCollisions(world);
+  handleSlamCollisions(world);
+  handleHowlerRams(world);
   handleShipBlastCollisions(world);
   handleGrazes(world);
   if (world.phase === "playing") {
@@ -144,7 +161,7 @@ function handleShipDroneCollisions(world: World): void {
     world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
 
   for (const d of world.drones) {
-    if (!d.alive) continue;
+    if (!d.alive || d.allied) continue;
     if (!circlesOverlap(s.x, s.y, shipR, d.x, d.y, droneRadius(d))) continue;
 
     // starshell: invulnerable ram-kill shell — everything you touch dies
@@ -248,6 +265,66 @@ function handleShipMineCollisions(world: World): void {
   }
 }
 
+function handleShipLighthouseCollisions(world: World): void {
+  if (world.phase !== "playing") return;
+  const s = world.ship;
+  const invuln =
+    world.powers.starshellTimer > 0 ||
+    world.powers.afterburnerDash > 0 ||
+    world.powers.afterburnerGrace > 0 ||
+    world.powers.vortices.length > 0;
+  const shipR =
+    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
+
+  for (const lh of world.lighthouses) {
+    if (!lh.alive) continue;
+    const bodyHit = circlesOverlap(s.x, s.y, shipR, lh.x, lh.y, lighthouseBodyRadius());
+    const beamHit = distToBeam(lh, s.x, s.y) <= lighthouseBeamWidth(lh) / 2 + SHIP.radius;
+    if (!bodyHit && !beamHit) continue;
+    if (invuln || world.powers.shieldActive) {
+      killLighthouse(world, lh);
+      if (world.powers.shieldActive && !invuln) detonateShield(world);
+      continue;
+    }
+    const dx = s.x - lh.x;
+    const dy = s.y - lh.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    s.vx += (dx / dist) * SHIP.deathKnockback;
+    s.vy += (dy / dist) * SHIP.deathKnockback;
+    world.phase = "dying";
+    world.deathTimer = 0;
+    world.shake = Math.max(world.shake, 0.7);
+    world.events.push({ type: "death", x: s.x, y: s.y });
+    return;
+  }
+}
+
+function handleSlamCollisions(world: World): void {
+  if (world.phase !== "playing") return;
+  const slammed = world.drones.filter((d) => d.alive && (d.slamTimer ?? 0) > 0);
+  if (slammed.length === 0) return;
+  for (const s of slammed) {
+    const sr = droneRadius(s);
+    for (const t of world.drones) {
+      if (!t.alive || t === s || t.allied || (t.slamTimer ?? 0) > 0) continue;
+      if (circlesOverlap(s.x, s.y, sr, t.x, t.y, droneRadius(t))) killDrone(world, t);
+    }
+  }
+}
+
+function handleHowlerRams(world: World): void {
+  if (world.phase !== "playing") return;
+  const pack = world.drones.filter((d) => d.alive && d.allied);
+  if (pack.length === 0) return;
+  for (const a of pack) {
+    const ar = droneRadius(a);
+    for (const t of world.drones) {
+      if (!t.alive || t.allied) continue;
+      if (circlesOverlap(a.x, a.y, ar, t.x, t.y, droneRadius(t))) killDrone(world, t);
+    }
+  }
+}
+
 /**
  * STARFALL only: a meteor crater flagged `lethalToShip` costs the run same
  * as a drone hit, unless a banked shield absorbs it. Every other blast
@@ -312,17 +389,18 @@ function handleGrazes(world: World): void {
 
   const s = world.ship;
   for (const d of world.drones) {
-    if (!d.alive || d.frozen > 0) continue;
+    if (!d.alive || d.frozen > 0 || d.allied) continue;
     if ((d.grazeTimer ?? 0) > 0) continue;
+    const band = SCORING.grazeBand * mutatorGrazeBandScale();
     const contact = SHIP.radius + droneRadius(d);
-    const outer = contact + SCORING.grazeBand;
+    const outer = contact + band;
     const dx = d.x - s.x;
     const dy = d.y - s.y;
     const sq = dx * dx + dy * dy;
     if (sq <= outer * outer && sq > contact * contact) {
-      d.grazeTimer = SCORING.grazeCooldown;
+      d.grazeTimer = SCORING.grazeCooldown * mutatorGrazeCooldownScale();
       registerGraze(world, d.x, d.y);
-      const clearance = grazeClearance(Math.sqrt(sq), contact, SCORING.grazeBand);
+      const clearance = grazeClearance(Math.sqrt(sq), contact, band);
       const candidate = {
         time: world.time,
         x: d.x,

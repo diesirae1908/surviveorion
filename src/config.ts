@@ -697,7 +697,13 @@ export type PowerId =
   | "arc"
   | "autocannon"
   | "meteors"
-  | "vortex";
+  | "vortex"
+  | "razor"
+  | "thunder"
+  | "cloak"
+  | "flare"
+  | "ion"
+  | "howlers";
 
 export const POWERS = {
   // The shield has no timer: it stays on the ship until it absorbs a hit
@@ -806,6 +812,58 @@ export const POWERS = {
     absorbRadius: 0.7, // drones this close to the core are eaten immediately
     killRadius: 3,
   },
+  // Mutator-only: two orbiting blades. Not a Starshell bubble.
+  razor: {
+    duration: 5,
+    orbitRadius: 2.15,
+    bladeRadius: 0.42,
+    spinRate: 3.4,
+  },
+  // Mutator-only: aimed lightning ray. Beam kills pay Pulse 2x; hops are normal.
+  thunder: {
+    width: 0.38,
+    length: 16,
+  },
+  // Mutator-only: drones hover lost; invisible bombs pop when you reappear.
+  cloak: {
+    duration: 5,
+    bombInterval: 0.28,
+    bombRadius: 1.65,
+    hoverAmp: 0.16,
+  },
+  // Mutator-only: decoy. Drones home to it. Does not kill.
+  flare: {
+    lifetime: 4.2,
+    pullRadius: 22,
+  },
+  // Mutator-only: forward shove. Pushed drones live; what they slam dies.
+  ion: {
+    radius: 5.5,
+    coneDot: 0.45,
+    slamSpeed: 11,
+    slamDuration: 1.1,
+  },
+  // Mutator-only: nearby drones go gold, ram hostiles, then pop.
+  howlers: {
+    radius: 6.5,
+    duration: 4.2,
+    explodeRadius: 1.35,
+  },
+};
+
+/** THE LIGHTHOUSE scanners. First one at firstAt so the day reads immediately. */
+export const LIGHTHOUSE = {
+  firstAt: 5,
+  intervalRange: [12, 18] as const,
+  maxActive: 2,
+  growTime: 0.85,
+  bodyRadius: 0.4,
+  beamWidthFrom: 0.035,
+  beamWidthTo: 0.22,
+  beamLengthFrom: 1.1,
+  beamLengthTo: 13.5,
+  spinRate: 0.72,
+  destroyRadius: 1.55,
 };
 
 export const ALL_POWER_IDS: PowerId[] = [
@@ -821,6 +879,12 @@ export const ALL_POWER_IDS: PowerId[] = [
   "autocannon",
   "meteors",
   "vortex",
+  "razor",
+  "thunder",
+  "cloak",
+  "flare",
+  "ion",
+  "howlers",
 ];
 
 // Benched for now (code stays intact so they're easy to bring back):
@@ -828,9 +892,20 @@ export const ALL_POWER_IDS: PowerId[] = [
 // dash felt too risky to pick up (magnet took its slot).
 export const BENCHED_POWER_IDS: PowerId[] = ["afterburner", "vortex"];
 
+/** Engine-complete, Classic/Iron Rain/Training never drop these. Daily only
+ * via mutator extraPowerIds (same hook as Vortex on SINGULARITY). */
+export const MUTATOR_ONLY_POWER_IDS: PowerId[] = [
+  "razor",
+  "thunder",
+  "cloak",
+  "flare",
+  "ion",
+  "howlers",
+];
+
 /** Powers that can actually drop (and that the codex shows). */
 export const SPAWNABLE_POWER_IDS: PowerId[] = ALL_POWER_IDS.filter(
-  (id) => !BENCHED_POWER_IDS.includes(id),
+  (id) => !BENCHED_POWER_IDS.includes(id) && !MUTATOR_ONLY_POWER_IDS.includes(id),
 );
 
 // Relative spawn frequency, in the intended pecking order: pulse first
@@ -849,6 +924,12 @@ export const POWER_SPAWN_WEIGHTS: Record<PowerId, number> = {
   meteors: 1,
   afterburner: 1, // benched (see BENCHED_POWER_IDS)
   vortex: 1, // benched
+  razor: 1,
+  thunder: 1,
+  cloak: 1,
+  flare: 1,
+  ion: 1,
+  howlers: 1,
 };
 
 // Powers gated to the late game: they only enter the pickup pool after this
@@ -878,6 +959,12 @@ export const PALETTE = {
   autocannon: "#e8e8f8",
   meteors: "#ffce55",
   vortex: "#8877ff",
+  razor: "#e8c36a",
+  thunder: "#8cf0ff",
+  cloak: "#c8c8d8",
+  flare: "#ff8844",
+  ion: "#66ddff",
+  howlers: "#ffd24d",
 };
 
 export const POWER_COLORS: Record<PowerId, string> = {
@@ -893,6 +980,12 @@ export const POWER_COLORS: Record<PowerId, string> = {
   autocannon: PALETTE.autocannon,
   meteors: PALETTE.meteors,
   vortex: PALETTE.vortex,
+  razor: PALETTE.razor,
+  thunder: PALETTE.thunder,
+  cloak: PALETTE.cloak,
+  flare: PALETTE.flare,
+  ion: PALETTE.ion,
+  howlers: PALETTE.howlers,
 };
 
 export const POWER_NAMES: Record<PowerId, string> = {
@@ -908,6 +1001,12 @@ export const POWER_NAMES: Record<PowerId, string> = {
   autocannon: "Autocannon",
   meteors: "Meteor Storm",
   vortex: "Vortex",
+  razor: "Razor",
+  thunder: "Thunder",
+  cloak: "Cloak",
+  flare: "Flare",
+  ion: "Ion",
+  howlers: "Howlers",
 };
 
 // One-line action hints: shown under the name on pickup and in the menu
@@ -925,4 +1024,10 @@ export const POWER_HINTS: Record<PowerId, string> = {
   autocannon: "turret auto-fires at the nearest drone",
   meteors: "explosions rain on drone packs",
   vortex: "drags drones in, you're untouchable",
+  razor: "orbiting blades, carve the swarm",
+  thunder: "lightning ray, hops from each kill",
+  cloak: "they lose you, bombs drop, then boom",
+  flare: "decoy. they chase it, it does not kill",
+  ion: "shove the front line, slams kill",
+  howlers: "gold allies hunt, then pop",
 };

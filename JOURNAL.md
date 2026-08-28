@@ -4,6 +4,20 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Wave 2 mutators + mutator-only powers + field guide
+
+- Appended 10 Daily Patrol mutators with `availableFrom` 2026-08-29 (PT
+  midnight mix-in). Aug 10 through Aug 28 snapshot unchanged. Six new
+  powers (RAZOR, THUNDER, CLOAK, FLARE, ION, HOWLERS) are engine-complete
+  and stay off Classic / Iron Rain / Training via `MUTATOR_ONLY_POWER_IDS`.
+- Days: RAM RAID, GOLD DASH, THE LIGHTHOUSE, GRAZE PROTOCOL, RAZOR,
+  THUNDER, CLOAK, BAIT SHOT, ION, HOWLERS. Lighthouse is a growing
+  scanner (first at 5s). Graze Protocol prints big gold numbers.
+- Unlisted `/guide.html` reads `MUTATOR_POOL` live. Fly links use
+  `?mutator=` + `?rehearsal=director`.
+- Tests: `test:mutators` ALL PASS (split snapshot), `sim-test` ALL
+  CHECKS PASSED, `tsc --noEmit` clean.
+
 ## 2026-08-28: Share result includes a real surviveorion.com link
 
 - Share-result paste (clipboard on desktop, native sheet on phones) already

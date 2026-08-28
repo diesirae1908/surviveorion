@@ -164,6 +164,12 @@ first, then:
 - **Tripwire:** if the mutator needs a new seeded `rand()`/`scheduleRand()`
   draw that ordinary days don't make, stop and ask (see PM model above):
   that is exactly the class of change that can desync Daily Patrol.
+- **Mutator-only powers** (`MUTATOR_ONLY_POWER_IDS` in config.ts): live in the
+  engine, never enter Classic / Iron Rain / Training / the Powers codex.
+  A day that needs one sets `extraPowerIds` (same hook as Vortex on
+  SINGULARITY). Afterburner stays benched in the base pool.
+- **Field guide:** unlisted `/guide.html`, built from `MUTATOR_POOL` so it
+  cannot go stale. Fly links use `?mutator=` + `?rehearsal=director`.
 
 ## Gameplay tuning facts
 
