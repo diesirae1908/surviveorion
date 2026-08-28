@@ -4,18 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-27: THE FLOOD + GREAT WALL hosted for Buffer
+## 2026-08-27: THE FLOOD + GREAT WALL in Buffer (~10:51 PM PT)
 
 - Lucas added `0827_theflood_916.mov` and `0827_greatwall_916.mov` to
-  `final_videoasset/` as buffer for Fri/Sat patrol posts. Masters left
-  there. HEVC .mov remuxed (copy, not move) to H.264 mp4 in
-  `public/social-drafts/`.
-- Calendar: Aug 28 THE FLOOD and Aug 29 GREAT WALL marked Approved+Linked
-  to those filenames. Flood YT description updated to the live metronome
-  identity. Sep 7 Flood row stays Draft. Trailer/He Knew/THE PIT already
-  posted, not re-queued.
-- After this deploy: Buffer `--only THE FLOOD --only GREAT WALL --dry=false`
-  schedules 6 posts at 9am PT on those dates.
+  `final_videoasset/` as buffer. Masters left there. HEVC remuxed (copy)
+  to H.264 in `public/social-drafts/`. Hosted `6ae9ed9`, Render
+  `dep-da8i30ou01pc73f572s0` live. HEAD 200 + Content-Length.
+- 6 Buffer posts, all `scheduled`. THE FLOOD 9:00 AM PT Aug 28:
+  IG `6a9121e0df4be5293ae334d8` / TT `6a9121e0ae8294e4837019e0` /
+  YT `6a9121e1b12b8efbe7375b7c`. GREAT WALL 9:00 AM PT Aug 29:
+  IG `6a9121e2efbc4adde7879dbe` / TT `6a9121e3df4be5293ae33522` /
+  YT `6a9121e4ae8294e483701a04`. `--only` so trailer/He Knew/THE PIT
+  were not duplicated. Sep 7 Flood row stays Draft.
 
 ## 2026-08-27: BLACKOUT true-black LIVE
 
