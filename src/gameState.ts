@@ -64,7 +64,7 @@ export function createWorld(
     // timer is never consumed unless the mutator is active.
     meteorRainTimer: STARFALL_RAIN.intervalStart,
     meteorTelegraphs: [],
-    floodSurgeTimer: FLOOD_SURGE.intervalStart,
+    floodSurgeTimer: FLOOD_SURGE.openingDelay,
     floodTelegraphs: [],
     assemblyTimer: 0, // set by initSpawner (schedule stream)
     crowdAssemblyTimer: 0,

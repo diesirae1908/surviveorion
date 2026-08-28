@@ -4,6 +4,21 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-27: THE FLOOD metronome (branch `sam/flood-metronome`)
+
+- Lucas: directional surge waves "not good". Wants constant flooding: enemies
+  popping on a regular beat, rate increasing the whole run. He will fly it
+  and tune.
+- `flood.ts` is now a metronome. One edge pop per beat, no jitter, no
+  telegraph, no directional current. Interval = start / (1 + k * minutes),
+  floored. Classic ambient off so the beat is the only spawn. Formations
+  still off.
+- Tune in `FLOOD_SURGE` (`src/config.ts`): `intervalStart` 0.32 (~3/s open),
+  `tightenPerMinute` 0.38, `intervalHardFloor` 0.10 (10/s cap).
+- Copy: "No formations. They just keep popping in." / "A constant beat from
+  the edges. The beat speeds up the whole run."
+- Snapshot untouched. Not merged, not deployed. Localhost `?mutator=the-flood`.
+
 ## 2026-08-27: player feedback #19 THE FLOOD identity LIVE
 
 - Lucas: "awesome push live". Merged `sam/feedback-aug27-flood` → main (`2ca07ef`,

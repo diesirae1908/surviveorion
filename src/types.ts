@@ -234,7 +234,7 @@ export interface MeteorTelegraph {
   radius: number; // impact/lethal radius, so the reticle can be sized to match
 }
 
-/** THE FLOOD only: a lane-anchor glow that pops a pack traveling along dir. */
+/** Unused on the metronome Flood (World still carries the array). */
 export interface FloodTelegraph {
   x: number;
   y: number;
@@ -386,9 +386,9 @@ export interface World {
   meteorRainTimer: number;
   /** STARFALL only: pending impact reticles, counting down to their strike. */
   meteorTelegraphs: MeteorTelegraph[];
-  /** THE FLOOD only: countdown to the next surge telegraph (schedule stream). */
+  /** THE FLOOD only: countdown to the next metronome pop. */
   floodSurgeTimer: number;
-  /** THE FLOOD only: pending lane-anchor glows, counting down to their pack. */
+  /** Unused on the metronome Flood (kept so World stays stable). */
   floodTelegraphs: FloodTelegraph[];
   /** Countdown to the next drone-evolution event (schedule stream). */
   assemblyTimer: number;

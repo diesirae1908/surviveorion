@@ -592,29 +592,16 @@ export const STARFALL_RAIN = {
   waveLifetime: 0.6,
 };
 
-/** THE FLOOD directional surge waves. Time-driven, hashed heading, fixed
- * per-surge draw count (see flood.ts). Gated behind floodSurgeActive. */
+/** THE FLOOD metronome. Time-driven, no jitter. Tune these three first.
+ * intervalStart 0.32 -> ~3 pops/sec at t=0
+ * tightenPerMinute 0.38 -> ~4.3/s at 1 min, ~5.5/s at 2, ~8/s at 4
+ * intervalHardFloor 0.10 -> never faster than 10/s
+ * Gated behind floodSurgeActive (see flood.ts). */
 export const FLOOD_SURGE = {
-  intervalStart: 4.2,
-  intervalFloor: 2.4,
-  rampMinutes: 2,
-  intervalJitter: 0.12,
-  intervalHardFloor: 1.8,
-  lateStartMinutes: 4,
-  lateTightenPerMinute: 0.08,
-  laneGapUnits: 2.4,
-  laneWidthUnits: 1.4,
-  packSizeBase: 2,
-  packSizePerMinute: 0.4,
-  packSizeMax: 5,
-  laneCountBase: 2,
-  laneCountPerMinutes: 2,
-  laneCountMax: 4,
-  surgeSpeedScale: 1.2,
-  scriptSeconds: 2.2,
-  scriptWander: 0.6,
-  telegraphDuration: 0.5,
-  openingDelayRange: [0.6, 1.0] as const,
+  intervalStart: 0.32,
+  tightenPerMinute: 0.38,
+  intervalHardFloor: 0.1,
+  openingDelay: 0.12,
 };
 
 /** BLACKOUT lights-out pulse. Time-driven, no RNG. First pulse at 6s. */

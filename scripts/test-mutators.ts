@@ -10,7 +10,7 @@
  * do not "fix" the test to match the new numbers, figure out why a day
  * that should be untouched moved.
  */
-import { BLACKOUT, CREATURE_DAYS, MINES, POWERS, SHIP, STARFALL_RAIN } from "../src/config";
+import { BLACKOUT, CREATURE_DAYS, FLOOD_SURGE, MINES, POWERS, SHIP, STARFALL_RAIN } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import { hashString, rand, scheduleRand, setRunSeed } from "../src/math";
@@ -33,7 +33,6 @@ import {
   mutatorViewScale,
   mutatorWindShiftWarning,
   mutatorWindVector,
-  mutatorFloodHeadingVector,
   mutatorFloodSurgeActive,
   mutatorFormationsDisabled,
   setActiveMutators,
@@ -665,8 +664,10 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
   const flood = getMutatorById("the-flood")!;
   check("THE FLOOD formationsDisabled is true", flood.overrides.formationsDisabled === true);
   check("THE FLOOD floodSurgeActive is true", flood.overrides.floodSurgeActive === true);
-  check("THE FLOOD ambientRateScale is 0.45", flood.overrides.ambientRateScale === 0.45);
-  check("THE FLOOD ambientMinutesFloor is 1.0", flood.overrides.ambientMinutesFloor === 1.0);
+  check("THE FLOOD ambientRateScale is 0", flood.overrides.ambientRateScale === 0);
+  check("THE FLOOD has no ambientMinutesFloor", flood.overrides.ambientMinutesFloor === undefined);
+  check("THE FLOOD pop interval starts under 0.4s", FLOOD_SURGE.intervalStart <= 0.4);
+  check("THE FLOOD pop rate tightens over time", FLOOD_SURGE.tightenPerMinute > 0);
 
   setRunSeed(42);
   const floodStreamA = rand();
@@ -675,29 +676,11 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
   setActiveMutators([flood], "2026-08-28");
   check("THE FLOOD surge flag is on", mutatorFloodSurgeActive() === true);
   check("THE FLOOD formations are disabled", mutatorFormationsDisabled() === true);
-  const floodHeading = mutatorFloodHeadingVector();
-  const floodHeadingAgain = mutatorFloodHeadingVector();
   const floodStreamB = rand();
   const floodSchedB = scheduleRand();
-  check("THE FLOOD heading is a unit vector", !!floodHeading && Math.abs(Math.hypot(floodHeading.x, floodHeading.y) - 1) < 1e-9);
-  check(
-    "THE FLOOD heading is stable across calls",
-    !!floodHeading &&
-      !!floodHeadingAgain &&
-      floodHeading.x === floodHeadingAgain.x &&
-      floodHeading.y === floodHeadingAgain.y,
-  );
-  check("THE FLOOD heading does not consume seeded streams", floodStreamA === floodStreamB && floodSchedA === floodSchedB);
-  const expectedFlood =
-    ((hashString("orion-flood-2026-08-28") % 10007) / 10007) * Math.PI * 2;
-  if (floodHeading) {
-    const got = Math.atan2(floodHeading.y, floodHeading.x);
-    let d = Math.abs(got - expectedFlood) % (Math.PI * 2);
-    if (d > Math.PI) d = Math.PI * 2 - d;
-    check("THE FLOOD heading matches orion-flood-2026-08-28", d < 1e-9);
-  }
+  check("THE FLOOD flag does not consume seeded streams", floodStreamA === floodStreamB && floodSchedA === floodSchedB);
   clearActiveMutators();
-  check("THE FLOOD heading is null on other days", mutatorFloodHeadingVector() === null);
+  check("THE FLOOD surge flag is off on other days", mutatorFloodSurgeActive() === false);
 
   const starfall = getMutatorById("starfall")!;
   check("STARFALL pickupIntervalScale is 1.4", starfall.overrides.pickupIntervalScale === 1.4);

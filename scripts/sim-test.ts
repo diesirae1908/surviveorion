@@ -1308,7 +1308,7 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     `${blackout?.median.toFixed(1)}s vs baseline ${baselineMedian.toFixed(1)}s`,
   );
   check(
-    "evasive bot: THE FLOOD is navigable (a current, not instant death)",
+    "evasive bot: THE FLOOD is navigable (a flood, not instant death)",
     !!flood && flood.median >= bar,
     `${flood?.median.toFixed(1)}s vs baseline ${baselineMedian.toFixed(1)}s`,
   );
@@ -1343,7 +1343,7 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
   );
 }
 
-// --- 10b. THE FLOOD v4: formations gone, waves deterministic, opening flooded ---
+// --- 10b. THE FLOOD v5: formations gone, metronome pops, opening flooded ---
 {
   const flood = getMutatorById("the-flood")!;
   const floodDate = new Date("2026-08-28T00:00:00Z");
@@ -1382,16 +1382,22 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
   check("THE FLOOD formations are gone (3 min ram)", ram.formations.length === 0, `${ram.formations.length} formations`);
   check("THE FLOOD formations are gone (3 min drift)", drift.formations.length === 0);
   check(
-    "THE FLOOD surge script matches across play styles",
+    "THE FLOOD pop script matches across play styles",
     ram.surges.length > 0 && ram.surges.join("|") === drift.surges.join("|"),
-    `${ram.surges.length} surges`,
+    `${ram.surges.length} pops`,
   );
-  const ramAmbientTimes = ram.ambient.map((s) => s.split(":")[0]).join("|");
-  const driftAmbientTimes = drift.ambient.map((s) => s.split(":")[0]).join("|");
   check(
-    "THE FLOOD ambient cadence matches across play styles",
-    ram.ambient.length > 0 && ramAmbientTimes === driftAmbientTimes,
-    `${ram.ambient.length} ambient`,
+    "THE FLOOD classic ambient is off",
+    ram.ambient.length === 0 && drift.ambient.length === 0,
+    `${ram.ambient.length}/${drift.ambient.length} ambient`,
+  );
+  const popTime = (s: string) => Number(s.split(":")[0]);
+  const earlyPops = ram.surges.filter((s) => popTime(s) < 60).length;
+  const latePops = ram.surges.filter((s) => popTime(s) >= 120).length;
+  check(
+    "THE FLOOD pop rate is higher late than early",
+    latePops > earlyPops,
+    `early=${earlyPops} late=${latePops}`,
   );
 
   setRunSeed(1234567);

@@ -301,7 +301,7 @@ export function initSpawner(world: World): void {
   }
   world.assemblyTimer = scheduleRange(...ASSEMBLY.intervalRange);
   if (mutatorFloodSurgeActive()) {
-    world.floodSurgeTimer = scheduleRange(...FLOOD_SURGE.openingDelayRange);
+    world.floodSurgeTimer = FLOOD_SURGE.openingDelay;
   }
   // Round 5 creature days: starting the countdown at 0 means the very first
   // choreographed event schedules on the first tick, so its own short
@@ -546,27 +546,12 @@ function spawnAmbient(world: World, minutes: number, count = 1): void {
   }
 }
 
-/** THE FLOOD surge packs: spawn then ride scriptMode straight along the
- * hashed current before releasing to homing (same release path walls use). */
-export function spawnFloodDrone(
-  world: World,
-  x: number,
-  y: number,
-  minutes: number,
-  dirX: number,
-  dirY: number,
-  speedScale: number,
-  scriptSeconds: number,
-  wander: number,
-): Drone | null {
-  const d = spawnAt(world, x, y, minutes, { speedScale });
-  if (!d) return null;
-  d.scriptMode = "straight";
-  d.scriptDirX = dirX;
-  d.scriptDirY = dirY;
-  d.scriptTimer = scriptSeconds;
-  d.scriptWander = wander;
-  return d;
+/** THE FLOOD metronome pop: one drone from a random edge. Always consumes
+ * the same draws (edge + spawnAt jitter) even if the field is already full. */
+export function spawnFloodPop(world: World, minutes: number): { x: number; y: number } {
+  const p = randomEdgePoint(world, SPAWNER.edgeMargin);
+  spawnAt(world, p.x, p.y, minutes);
+  return p;
 }
 
 // --- formations ---
