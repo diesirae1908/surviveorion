@@ -241,14 +241,14 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "blackout",
     name: "BLACKOUT",
-    briefing: "The grid flickers. Then it goes dark. Stay in the pocket.",
-    subline: "A short flicker, then a real blackout for a couple of seconds, except a small circle of light around the ship. Outages land every 5 to 15 seconds. Spawn warnings stay short.",
+    briefing: "The grid flickers. Some of those are fakes. Then it goes dark. Stay in the pocket.",
+    subline: "Some flickers are fakes. The real ones go fully dark except a small pocket of light around the ship. Outages get longer the deeper you fly. Spawn warnings stay short.",
     difficultyFactor: 1.1,
     tags: ["visibility"],
     availableFrom: MUTATORS_START_DATE,
-    // v4 (2026-08-27 night): v3 0.5s dim vignette read as a flicker that
-    // did nothing. Identity is now a scheduled outage: flicker, then a real
-    // lights-out with a lantern around the ship (blackout.ts). Gaps 5-15s.
+    // v5 (2026-08-27 night): v4 still leaked the arena through a 97% overlay.
+    // Now fully black outside a feathered lantern, fake flickers mixed in,
+    // and dark length grows with run time (blackout.ts). Gaps 5-15s.
     overrides: { telegraphDurationScale: 0.36, blackoutPulse: true },
   },
   {

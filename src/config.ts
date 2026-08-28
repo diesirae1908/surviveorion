@@ -605,16 +605,22 @@ export const FLOOD_SURGE = {
 };
 
 /** BLACKOUT outages. Flicker, then a real lights-out with a lantern around
- * the ship. Gaps 5-15s ride the schedule stream (see blackout.ts). */
+ * the ship. Some flickers are fakes. Dark length grows with run time.
+ * Gaps 5-15s ride the schedule stream (see blackout.ts). */
 export const BLACKOUT = {
   firstDelayRange: [3.5, 5.5] as const,
   gapRange: [5.0, 15.0] as const,
-  darkRange: [1.2, 2.0] as const,
+  darkOpen: [1.2, 2.0] as const, // t=0
+  darkAt90: [3.0, 4.0] as const, // 1:30
+  darkAt180: [6.0, 7.0] as const, // 3:00
+  darkCap: [10.0, 12.0] as const,
   flickerSeconds: 0.4,
   flickerHz: 16,
+  /** Chance a flicker becomes a real outage (first flicker is always real). */
+  realChance: 0.55,
   lanternRadius: 1.85, // world units of clear pocket around the ship
-  lanternFeather: 0.55,
-  overlayOpacity: 0.97,
+  lanternFeather: 0.85, // fade on the pocket rim; outside this is fully black
+  overlayOpacity: 1,
   telegraphOpacity: 0.08,
 };
 

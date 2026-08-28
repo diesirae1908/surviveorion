@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-27: BLACKOUT true-black + fake flickers + growing dark (local)
+
+- Lucas: overlay still leaked the arena; wanted a complete blackout outside
+  the pocket, fake flickers that don't go dark, and outages that get longer
+  (3-4s at 1:30, 6-7s at 3:00).
+- Overlay is now opaque black (`overlayOpacity` 1) with a radial lantern
+  that is fully black past the feather. Fake flickers ride the same
+  schedule draws as real ones (`realChance` 0.55; first is always real).
+  Dark length is a pure function of minutes. Snapshot untouched.
+- Not pushed. Localhost `?mutator=blackout`.
+
 ## 2026-08-27: BLACKOUT real lights-out (local, not live)
 
 - Lucas: the 0.5s dim vignette "really doesnt do anything". Wants flicker,

@@ -2,7 +2,7 @@
   {
     "id": "blackout",
     "name": "BLACKOUT",
-    "subline": "A short flicker, then a real blackout for a couple of seconds, except a small circle of light around the ship. Outages land every 5 to 15 seconds. Spawn warnings stay short."
+    "subline": "Some flickers are fakes. The real ones go fully dark except a small pocket of light around the ship. Outages get longer the deeper you fly. Spawn warnings stay short."
   },
   {
     "id": "red-alert",

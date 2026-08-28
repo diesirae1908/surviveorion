@@ -216,7 +216,8 @@ export class Renderer {
     ctx.fillRect(0, 0, W, H);
   }
 
-  /** BLACKOUT: flicker, then a real lights-out with a lantern around the ship. */
+  /** BLACKOUT: flicker, then a true lights-out with a lantern around the ship.
+   * Outside the feathered pocket the overlay is fully opaque black. */
   private drawBlackoutVignette(world: World): void {
     const amount = blackoutOverlayAmount(world);
     if (amount <= 0) return;
@@ -226,7 +227,7 @@ export class Renderer {
     const opacity = BLACKOUT.overlayOpacity * amount;
 
     if (world.blackoutPhase !== "dark") {
-      ctx.fillStyle = `rgba(2, 4, 12, ${opacity.toFixed(3)})`;
+      ctx.fillStyle = `rgba(0, 0, 0, ${opacity.toFixed(3)})`;
       ctx.fillRect(0, 0, W, H);
       return;
     }
@@ -234,16 +235,13 @@ export class Renderer {
     const unit = H / world.viewH;
     const sx = W / 2 + world.ship.x * unit;
     const sy = H / 2 - world.ship.y * unit;
-    const inner = BLACKOUT.lanternRadius * unit;
-    const outer = (BLACKOUT.lanternRadius + BLACKOUT.lanternFeather) * unit;
-    const maxR = Math.hypot(W, H);
-    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, maxR);
-    const innerT = Math.min(0.98, inner / maxR);
-    const outerT = Math.min(0.995, outer / maxR);
-    grad.addColorStop(0, "rgba(2, 4, 12, 0)");
-    grad.addColorStop(innerT, "rgba(2, 4, 12, 0)");
-    grad.addColorStop(outerT, `rgba(2, 4, 12, ${opacity.toFixed(3)})`);
-    grad.addColorStop(1, `rgba(2, 4, 12, ${opacity.toFixed(3)})`);
+    const inner = Math.max(1, BLACKOUT.lanternRadius * unit);
+    const outer = Math.max(inner + 1, (BLACKOUT.lanternRadius + BLACKOUT.lanternFeather) * unit);
+    // Inside the starting circle is clear; outside the ending circle is
+    // fully opaque (Canvas paints the end color past r1).
+    const grad = ctx.createRadialGradient(sx, sy, inner, sx, sy, outer);
+    grad.addColorStop(0, "rgba(0, 0, 0, 0)");
+    grad.addColorStop(1, `rgba(0, 0, 0, ${opacity.toFixed(3)})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
   }

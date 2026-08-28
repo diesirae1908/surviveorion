@@ -10,7 +10,7 @@
  * do not "fix" the test to match the new numbers, figure out why a day
  * that should be untouched moved.
  */
-import { blackoutOverlayAmount, blackoutTelegraphMul } from "../src/blackout";
+import { blackoutDarkRange, blackoutOverlayAmount, blackoutTelegraphMul } from "../src/blackout";
 import { BLACKOUT, CREATURE_DAYS, FLOOD_SURGE, MINES, POWERS, SHIP, STARFALL_RAIN } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
@@ -690,7 +690,23 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
   setActiveMutators([blackout]);
   check("BLACKOUT pulse flag is on", mutatorBlackoutPulse() === true);
   check("BLACKOUT gap is 5-15s", BLACKOUT.gapRange[0] === 5 && BLACKOUT.gapRange[1] === 15);
-  check("BLACKOUT dark lasts 1-2s", BLACKOUT.darkRange[0] >= 1 && BLACKOUT.darkRange[1] <= 2);
+  check("BLACKOUT overlay is fully opaque", BLACKOUT.overlayOpacity === 1);
+  check(
+    "BLACKOUT opening dark is 1-2s",
+    BLACKOUT.darkOpen[0] === 1.2 && BLACKOUT.darkOpen[1] === 2.0,
+  );
+  const dark90 = blackoutDarkRange(1.5);
+  check(
+    "BLACKOUT dark at 1:30 is 3-4s",
+    Math.abs(dark90[0] - 3) < 1e-9 && Math.abs(dark90[1] - 4) < 1e-9,
+    `${dark90[0]}-${dark90[1]}`,
+  );
+  const dark180 = blackoutDarkRange(3);
+  check(
+    "BLACKOUT dark at 3:00 is 6-7s",
+    Math.abs(dark180[0] - 6) < 1e-9 && Math.abs(dark180[1] - 7) < 1e-9,
+    `${dark180[0]}-${dark180[1]}`,
+  );
   setRunSeed(42);
   const blackoutWorld = createWorld(17.8, 10, false, 0, "classic", true);
   check("BLACKOUT opens idle", blackoutWorld.blackoutPhase === "idle" && blackoutOverlayAmount(blackoutWorld) === 0);
@@ -717,7 +733,13 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
       world.powers.starshellTimer = 9999;
       tick(world, input, 1 / 60);
       for (const e of world.events) {
-        if (e.type === "lightsOut") script.push(`${world.time.toFixed(2)}:${e.phase}`);
+        if (e.type === "lightsOut") {
+          script.push(
+            e.phase === "dark"
+              ? `${world.time.toFixed(2)}:dark:${e.duration.toFixed(2)}`
+              : `${world.time.toFixed(2)}:${e.phase}`,
+          );
+        }
       }
       world.events.length = 0;
     }
@@ -733,6 +755,11 @@ const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
     "BLACKOUT outage script matches across two seeded worlds",
     scriptA.length > 0 && scriptA.join("|") === scriptB.join("|"),
     `${scriptA.length} outages`,
+  );
+  check(
+    "BLACKOUT script mixes fake flickers with real outages",
+    scriptA.some((s) => s.endsWith(":fake")) && scriptA.some((s) => s.includes(":dark:")),
+    scriptA.slice(0, 8).join(", "),
   );
   clearActiveMutators();
   const plain = createWorld(17.8, 10, false, 0, "classic", true);

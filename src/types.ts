@@ -316,7 +316,8 @@ export type GameEvent =
   | { type: "droneSpawn"; x: number; y: number }
   | { type: "ambientSpawn"; x: number; y: number }
   | { type: "floodSurge"; x: number; y: number }
-  | { type: "lightsOut"; phase: "flicker" | "dark" }
+  | { type: "lightsOut"; phase: "flicker" | "fake" }
+  | { type: "lightsOut"; phase: "dark"; duration: number }
   | { type: "ringWarning" }
   | { type: "death"; x: number; y: number };
 
@@ -395,6 +396,10 @@ export interface World {
   blackoutPhase: "idle" | "flicker" | "dark";
   /** BLACKOUT only: remaining time in the current phase (schedule stream). */
   blackoutTimer: number;
+  /** BLACKOUT only: gap to apply when the current dark ends (already drawn). */
+  blackoutNextGap: number;
+  /** BLACKOUT only: first flicker is always a real outage. */
+  blackoutHadReal: boolean;
   /** Countdown to the next drone-evolution event (schedule stream). */
   assemblyTimer: number;
   /** Cooldown for crowd-pressure evolutions (Math.random side, off-stream). */

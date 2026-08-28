@@ -69,6 +69,8 @@ export function createWorld(
     floodTelegraphs: [],
     blackoutPhase: "idle",
     blackoutTimer: 0,
+    blackoutNextGap: 0,
+    blackoutHadReal: false,
     assemblyTimer: 0, // set by initSpawner (schedule stream)
     crowdAssemblyTimer: 0,
     assemblies: [],

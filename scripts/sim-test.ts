@@ -726,7 +726,11 @@ function muteAmbientPickups(world: World): void {
           script.surges.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
         }
         if (e.type === "lightsOut") {
-          script.blackouts.push(`${world.time.toFixed(2)}:${e.phase}`);
+          script.blackouts.push(
+            e.phase === "dark"
+              ? `${world.time.toFixed(2)}:dark:${e.duration.toFixed(2)}`
+              : `${world.time.toFixed(2)}:${e.phase}`,
+          );
         }
         if (e.type === "ambientSpawn") {
           script.ambient.push(`${world.time.toFixed(2)}:${e.x.toFixed(2)},${e.y.toFixed(2)}`);
@@ -1442,7 +1446,7 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     const world = createWorld(17.8, 10, false, 0, "classic", true);
     const script: string[] = [];
     let t = 0;
-    const steps = Math.round(90 / FIXED_DT);
+    const steps = Math.round(200 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
       t += FIXED_DT;
       let drive = { x: 0, y: 0 };
@@ -1454,7 +1458,13 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
       }
       tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
       for (const e of world.events) {
-        if (e.type === "lightsOut") script.push(`${world.time.toFixed(2)}:${e.phase}`);
+        if (e.type === "lightsOut") {
+          script.push(
+            e.phase === "dark"
+              ? `${world.time.toFixed(2)}:dark:${e.duration.toFixed(2)}`
+              : `${world.time.toFixed(2)}:${e.phase}`,
+          );
+        }
       }
       world.events.length = 0;
     }
@@ -1474,8 +1484,31 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
   check("BLACKOUT first flicker lands inside 8s", firstT < 8, `t=${firstT.toFixed(2)}`);
   check(
     "BLACKOUT script includes flicker and dark",
-    ram.some((s) => s.endsWith(":flicker")) && ram.some((s) => s.endsWith(":dark")),
+    ram.some((s) => s.endsWith(":flicker")) && ram.some((s) => s.includes(":dark:")),
     ram.slice(0, 4).join(", "),
+  );
+  check(
+    "BLACKOUT script includes fake flickers",
+    ram.some((s) => s.endsWith(":fake")),
+    ram.filter((s) => s.endsWith(":fake")).length + " fakes",
+  );
+  const parseDark = (s: string): { t: number; dur: number } | null => {
+    const parts = s.split(":");
+    if (parts[1] !== "dark") return null;
+    return { t: Number(parts[0]), dur: Number(parts[2]) };
+  };
+  const darks = ram.map(parseDark).filter((d): d is { t: number; dur: number } => d !== null);
+  const earlyDark = darks.find((d) => d.t < 30);
+  const lateDark = [...darks].reverse().find((d) => d.t > 170);
+  check(
+    "BLACKOUT opening dark stays in the 1-2s band",
+    !!earlyDark && earlyDark.dur >= 1.15 && earlyDark.dur <= 2.05,
+    earlyDark ? `t=${earlyDark.t.toFixed(2)} dur=${earlyDark.dur.toFixed(2)}` : "no early dark",
+  );
+  check(
+    "BLACKOUT late dark has grown to 6s+",
+    !!lateDark && lateDark.dur >= 5.5,
+    lateDark ? `t=${lateDark.t.toFixed(2)} dur=${lateDark.dur.toFixed(2)}` : "no late dark",
   );
 }
 
