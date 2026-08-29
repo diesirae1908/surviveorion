@@ -27,8 +27,6 @@ import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
 import {
   buildClipSidecar,
   clipSidecarBasename,
-  isDesktopChrome,
-  isIosWebKit,
   type ClipSidecar,
   type ClipSidecarPower,
 } from "./clipSidecar";
@@ -317,8 +315,6 @@ let lastClipCapped = false;
 /** Sidecar snapshotted at game-over so a later save cannot read a reset world. */
 let lastClipSidecar: ClipSidecar | null = null;
 let lastClipBasename: string | null = null;
-/** Object URL for the iOS/WebKit Save JSON <a download>; revoked on the next run. */
-let lastClipJsonUrl: string | null = null;
 /** Power pickups this run (world.time), snapshotted into the sidecar. */
 let clipPowerLog: ClipSidecarPower[] = [];
 /** Share card for the daily run that just ended (rank fills in on submit). */
@@ -526,12 +522,6 @@ const ui = new Ui(settings, {
   onSaveClip: () => {
     if (!lastClipBlob || !lastClipBasename) return false;
     downloadClip(lastClipBlob, `${lastClipBasename}.${clipExtension(lastClipBlob)}`);
-    // iOS/iPadOS WebKit often swallows a second programmatic download in the
-    // same click. Video only here; those clients get a visible Save JSON link.
-    if (!isIosWebKit() && lastClipSidecar) {
-      const jsonBlob = new Blob([JSON.stringify(lastClipSidecar)], { type: "application/json" });
-      downloadClip(jsonBlob, `${lastClipBasename}.json`);
-    }
     return true;
   },
   onSendToInbox: async () => {
@@ -619,6 +609,7 @@ function showMenu(): void {
   ui.showMenu(bestScore, isTouchDevice(), {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
     pendingFriends: api.pendingFriends,
+    clipInbox: api.clipInbox,
   });
   fillDailyHint();
 }
@@ -958,11 +949,8 @@ function startRun(): void {
   lastClipSidecar = null;
   lastClipBasename = null;
   clipPowerLog = [];
-  if (lastClipJsonUrl) {
-    URL.revokeObjectURL(lastClipJsonUrl);
-    lastClipJsonUrl = null;
-  }
-  activeRecording = settings.recordRuns && !runIsTraining ? startRecording(canvas) : null;
+  activeRecording =
+    settings.recordRuns && api.clipInbox && !runIsTraining ? startRecording(canvas) : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
 }
@@ -1059,10 +1047,6 @@ function snapshotClipSidecar(): void {
   };
   lastClipSidecar = buildClipSidecar(input);
   lastClipBasename = clipSidecarBasename(input);
-  if (lastClipJsonUrl) URL.revokeObjectURL(lastClipJsonUrl);
-  lastClipJsonUrl = URL.createObjectURL(
-    new Blob([JSON.stringify(lastClipSidecar)], { type: "application/json" }),
-  );
 }
 
 /** Death: start the crimson veil; the game-over screen fades in mid-veil. */
@@ -1180,16 +1164,7 @@ function showGameOverUi(): void {
     closestCallLabel: closestCallLabel(world.closestCall),
     clipReady: lastClipBlob !== null,
     clipCapped: lastClipCapped,
-    clipJsonHref:
-      lastClipBlob && (isIosWebKit() || isDesktopChrome()) && lastClipJsonUrl
-        ? lastClipJsonUrl
-        : undefined,
-    clipJsonFilename:
-      lastClipBlob && (isIosWebKit() || isDesktopChrome()) && lastClipBasename
-        ? `${lastClipBasename}.json`
-        : undefined,
-    clipJsonChromeHint: lastClipBlob && isDesktopChrome() ? true : undefined,
-    clipInbox: api.clipInbox && lastClipBlob !== null,
+    clipInbox: api.clipInbox,
   });
   submitRun();
 }

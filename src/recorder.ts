@@ -1,8 +1,8 @@
 // Opt-in local game recording for Lucas's Orion social content. Fully
 // client-side: canvas.captureStream() + MediaRecorder produce a Blob that's
-// only ever offered as a download (an <a download> click on an object URL)
-// and revoked right after, never uploaded, never persisted anywhere, so
-// there's no storage cost and nothing leaves the browser. Degrades cleanly:
+// offered as a download (an <a download> click on an object URL) and revoked
+// right after. The only upload path is Lucas-only POST /api/clip-inbox
+// (signed-in allowlist). Other pilots never start a recorder. Degrades cleanly:
 // recordingSupported() gates every call site, and any runtime failure
 // (unsupported codec, permission quirk, mid-run exception) resolves to
 // "no clip" instead of throwing into the game loop.
@@ -113,12 +113,8 @@ export function recordingSupported(): boolean {
 
 /**
  * One plain sentence for why recording isn't offered here, or null when it
- * is. Shown as a disabled Settings row instead of just hiding the control
- * (see ui.ts showSettings): a player who goes looking for "record my run"
- * and finds nothing at all can't tell a missing feature from a bug, and
- * Safari/iPhone (no WebM, and on older versions no MediaRecorder at all)
- * is common enough in Orion's install base to name explicitly rather than
- * a generic "not supported".
+ * is. Shown as a disabled Settings row for the allowlisted account (see
+ * ui.ts showSettings). Other pilots never see recording UI at all.
  */
 export function recordingUnavailableReason(): string {
   return "Clip recording isn't available in this browser. Common on Safari and older phones, works on most desktop and Android browsers.";

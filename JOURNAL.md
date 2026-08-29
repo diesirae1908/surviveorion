@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Record / Save clip are luciux-only; no JSON download
+
+- Crew Rehearsal and POST /api/clip-inbox were already allowlist-gated, but
+  Record runs and Save clip still showed for every pilot. Those UI paths and
+  the recorder start now require the same `clipInbox` flag
+  (`CLIP_INBOX_CALLSIGN=luciux` on Render). Save JSON is gone: the sidecar
+  only travels with Send to inbox. Other accounts never get the pair.
+
 ## 2026-08-28: Crew Rehearsal picker is allowlist-only
 
 - The future-day dropdown was also unlocking from a leftover

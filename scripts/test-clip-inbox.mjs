@@ -63,7 +63,20 @@ check("reject mismatched id", inbox.resolveInboxFile("nope", `${basename}.webm`)
 
 check("stranger cannot upload", inbox.clipInboxAllowed({ callsign: "Pilot", google_sub: "x" }) === false);
 check("callsign allowlist", inbox.clipInboxAllowed({ callsign: "Lucas" }) === true);
+check("callsign allowlist is case-insensitive", inbox.clipInboxAllowed({ callsign: "LUCAS" }) === true);
 check("google_sub allowlist", inbox.clipInboxAllowed({ callsign: "Other", google_sub: "google-sub-lucas" }) === true);
+{
+  const prevSub = process.env.CLIP_INBOX_GOOGLE_SUB;
+  const prevSign = process.env.CLIP_INBOX_CALLSIGN;
+  process.env.CLIP_INBOX_GOOGLE_SUB = "";
+  process.env.CLIP_INBOX_CALLSIGN = "luciux";
+  check("luciux matches LUCIUX", inbox.clipInboxAllowed({ callsign: "LUCIUX" }) === true);
+  check("other callsign stays out", inbox.clipInboxAllowed({ callsign: "Haribro" }) === false);
+  process.env.CLIP_INBOX_CALLSIGN = "";
+  check("empty allowlist is fail-closed", inbox.clipInboxAllowed({ callsign: "LUCIUX", google_sub: "anyone" }) === false);
+  process.env.CLIP_INBOX_GOOGLE_SUB = prevSub;
+  process.env.CLIP_INBOX_CALLSIGN = prevSign;
+}
 check("wrong secret rejected", inbox.inboxSecretOk("nope") === false);
 check("right secret accepted", inbox.inboxSecretOk("test-secret-32-chars-long-ok-ok") === true);
 

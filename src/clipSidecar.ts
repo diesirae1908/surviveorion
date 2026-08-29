@@ -1,8 +1,7 @@
 // Local clip sidecar: a JSON file that ships next to a downloaded run
 // recording so Lucas can caption / cut social clips without re-watching.
-// Same privacy stance as the clip itself (recorder.ts): built entirely from
-// in-memory run data, offered as a download, never uploaded, never persisted,
-// no callsign or user id.
+// Built entirely from in-memory run data. No callsign or user id. Offered as
+// a local download, and (Lucas-only) POSTed with the video to /api/clip-inbox.
 //
 // Recording buffers / bitrate / duration stay in recorder.ts and are not
 // touched from here. This module only names files and shapes metadata.
@@ -171,8 +170,7 @@ export function isIosWebKit(
 
 /**
  * Desktop Chrome / Chromium (not iOS WebKit, not Android, not Edge or Opera).
- * These hosts often silently drop a second programmatic download in one click;
- * pair with a visible Save JSON link and the Automatic downloads hint.
+ * Kept for tests; the dual-download Save JSON path is retired.
  */
 export function isDesktopChrome(
   nav?: Pick<Navigator, "userAgent" | "maxTouchPoints"> | { userAgent: string; maxTouchPoints: number },

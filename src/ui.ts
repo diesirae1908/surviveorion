@@ -75,6 +75,8 @@ export interface MenuCommunity {
   callsign: string | null | undefined;
   /** Incoming friend requests — shows a dot on the Wingmates button. */
   pendingFriends?: number;
+  /** Lucas-only: Record runs / Save clip / Send to inbox. Same allowlist as the inbox. */
+  clipInbox?: boolean;
 }
 
 export interface GameOverStats {
@@ -114,12 +116,7 @@ export interface GameOverStats {
   clipReady?: boolean;
   /** That clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
   clipCapped?: boolean;
-  /** iOS/WebKit and desktop Chrome fallback: object URL for a visible Save JSON <a download>. */
-  clipJsonHref?: string;
-  clipJsonFilename?: string;
-  /** Desktop Chrome: second programmatic download may be blocked; show settings hint. */
-  clipJsonChromeHint?: boolean;
-  /** Lucas-only inbox upload (hidden unless /api/me.clipInbox). */
+  /** Lucas-only: Record / Save clip / Send to inbox (GET /api/me.clipInbox). */
   clipInbox?: boolean;
 }
 
@@ -611,20 +608,6 @@ export class Ui {
   }
 
   /**
-   * Second-gesture JSON download for iOS/WebKit (and any host that cannot
-   * fire two programmatic downloads from one click). Real <a download>, not
-   * a button that clicks a hidden link.
-   */
-  private saveJsonLink(href: string, filename: string): HTMLAnchorElement {
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = filename;
-    a.textContent = "Save JSON";
-    a.className = "share-btn";
-    return a;
-  }
-
-  /**
    * Daily lobby briefing card: today's mutator(s) (name + flavor briefing +
    * a plain-language subline stating what mechanically changed, 2 on UTC
    * Sundays) and today's medal score thresholds, shown before launch.
@@ -949,6 +932,7 @@ export class Ui {
       this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
         callsign: info.callsign,
         pendingFriends: info.pendingFriends,
+        clipInbox: info.creator,
       }),
     );
     screen.appendChild(gear);
@@ -1315,30 +1299,29 @@ export class Ui {
       ),
     );
 
-    // opt-in local recording. When it can't work here, show a disabled row
-    // that says why instead of a toggle that silently produces no clip, or
-    // silently vanishing (a dead control is worse than no control, but a
-    // hidden one still leaves a player wondering where it went).
-    if (recordingSupported()) {
-      screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
-      screen.appendChild(
-        this.el(
-          "div",
-          "field-hint center",
-          "Saves a local clip of each run for you to download. Stays on this device: " +
-            "nothing is uploaded, nothing is stored on our end, unless you tap Send to inbox. A quick toggle also " +
-            "shows up on the game-over screen after a run.",
-        ),
-      );
-    } else {
-      const row = this.el("div", "toggles", "");
-      const dead = document.createElement("button");
-      dead.textContent = "Record runs: unavailable";
-      dead.disabled = true;
-      dead.classList.add("off");
-      row.appendChild(dead);
-      screen.appendChild(row);
-      screen.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
+    // Recording is Lucas-only (same allowlist as Send to inbox). Other
+    // pilots never see the toggle or a clip download.
+    if (community?.clipInbox) {
+      if (recordingSupported()) {
+        screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
+        screen.appendChild(
+          this.el(
+            "div",
+            "field-hint center",
+            "Saves a local clip of each run. Send to inbox posts the webm and JSON pair for Grok. " +
+              "A quick toggle also shows up on the game-over screen after a run.",
+          ),
+        );
+      } else {
+        const row = this.el("div", "toggles", "");
+        const dead = document.createElement("button");
+        dead.textContent = "Record runs: unavailable";
+        dead.disabled = true;
+        dead.classList.add("off");
+        row.appendChild(dead);
+        screen.appendChild(row);
+        screen.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
+      }
     }
 
     const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
@@ -1840,38 +1823,24 @@ export class Ui {
     if (stats.showShare) {
       screen.appendChild(this.shareButton());
     }
-    if (stats.clipReady) {
-      const clipRow = this.el("div", "clip-save-row", "");
-      clipRow.appendChild(this.saveClipButton());
-      if (stats.clipInbox) clipRow.appendChild(this.sendInboxButton());
-      if (stats.clipJsonHref && stats.clipJsonFilename) {
-        clipRow.appendChild(this.saveJsonLink(stats.clipJsonHref, stats.clipJsonFilename));
+    if (stats.clipInbox) {
+      if (stats.clipReady) {
+        const clipRow = this.el("div", "clip-save-row", "");
+        clipRow.appendChild(this.saveClipButton());
+        clipRow.appendChild(this.sendInboxButton());
+        screen.appendChild(clipRow);
+        if (stats.clipCapped) {
+          screen.appendChild(
+            this.el(
+              "div",
+              "field-hint center",
+              `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
+            ),
+          );
+        }
+      } else if (recordingSupported()) {
+        screen.appendChild(this.recordNextRunControl());
       }
-      screen.appendChild(clipRow);
-      if (stats.clipJsonChromeHint) {
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            "JSON missing? Chrome blocks the second file. Allow Automatic downloads for this site " +
-              "(chrome://settings/content/automaticDownloads), then Save clip again. Or click Save JSON.",
-          ),
-        );
-      }
-      if (stats.clipCapped) {
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
-          ),
-        );
-      }
-    } else if (recordingSupported()) {
-      // no clip from THIS run (recording was off) — the fix for "recording
-      // is not findable" is putting the toggle right where a player is
-      // already looking after a run, not leaving it buried in Settings.
-      screen.appendChild(this.recordNextRunControl());
     }
 
     // DETAILS: everything that isn't the hero/highlight/medal/board —

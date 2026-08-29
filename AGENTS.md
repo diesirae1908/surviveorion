@@ -59,9 +59,10 @@ Lucas-only clip inbox (Grok cutter, no Drive OAuth): signed-in allowlist
 `/data` disk at `/data/clip-inbox`. Grok lists pending at
 `GET /clip-inbox/<CLIP_INBOX_SECRET>/` and marks done with
 `POST /clip-inbox/<CLIP_INBOX_SECRET>/consumed` `{id}`. Consume never deletes.
-The same allowlist unlocks a Crew Rehearsal date picker on the daily lobby
-(next 14 patrols, sandboxed like `?day=`). Other players never see that
-picker. A leftover `?rehearsal=director` browser flag does not count.
+The same allowlist unlocks Crew Rehearsal, Record runs, and Save clip.
+The JSON sidecar is not a download; it only travels with Send to inbox.
+Other players never see those controls. A leftover
+`?rehearsal=director` browser flag does not count.
 
 ## Brand
 

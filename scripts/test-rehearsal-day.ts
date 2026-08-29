@@ -61,6 +61,18 @@ check("localhost still unlocks URL preview without allowlist", previewGateOpen(t
 check("lobby picker is allowlist only, even on localhost", !lobbyPickerVisible(false));
 check("lobby picker shows for the allowlisted account", lobbyPickerVisible(true));
 
+function clipSaveUiVisible(clipInbox: boolean): boolean {
+  return clipInbox;
+}
+function startRecordingAllowed(clipInbox: boolean, recordRuns: boolean, training: boolean): boolean {
+  return clipInbox && recordRuns && !training;
+}
+check("luciux sees Save clip and Send to inbox", clipSaveUiVisible(true));
+check("other pilots do not see Save clip", !clipSaveUiVisible(false));
+check("leftover recordRuns does not record for a stranger", !startRecordingAllowed(false, true, false));
+check("luciux with Record on starts a clip", startRecordingAllowed(true, true, false));
+check("training never records", !startRecordingAllowed(true, true, true));
+
 // Seed path is the same function the client uses at run start for a rehearsed day.
 {
   const d = "2026-09-20";
