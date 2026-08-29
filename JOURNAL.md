@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Host Ditch the Can + Dead Fart social finals
+
+- Two new CapCut finals hosted at `/social-drafts/` with faststart.
+  Calendar slots Sep 1 and Sep 2. Game runtime untouched.
+
 ## 2026-08-29: iPhone Save clip is Photos MP4, not a weird download
 
 - Safari 18.4+ started advertising WebM, so Save clip dumped a .webm into

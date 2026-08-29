@@ -5,8 +5,12 @@
 - New finals: `0828_ditchthecan_916.mp4` (Bored? Ditch the can, play Orion)
   and `0828_deadfartsound_916.mp4` (death + fart + screaming monkey).
 - Captions follow the on-video hook for Ditch the Can. Dead Fart is the
-  fart-on-death gag. Faststart remux. Calendar: Sep 1 Ditch the Can,
-  Sep 2 Dead Fart. `--only` those titles.
+  fart-on-death gag. Faststart remux. 6 Buffer posts scheduled.
+  Ditch the Can Sep 1 9am PT: IG/TT/YT `6a928f65e959557ce5587b6a` /
+  `6a928f66aad1969d9e09ad0a` / `6a928f67e959557ce5587b8e`.
+  Dead Fart Sep 2 9am PT: `6a928f68463a5d78ec65dee1` /
+  `6a928f69946f458537415371` / `6a928f6a463a5d78ec65df12`.
+  Calendar rows now Scheduled.
 
 ## 2026-08-29: Dropped empty Aug 28 WASTED calendar row
 
