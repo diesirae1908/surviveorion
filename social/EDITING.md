@@ -11,8 +11,9 @@ percent, and the last frame loops into the first. Raw gameplay with meme energy 
 
 ## The five laws (every video, every format)
 
-1. **Full-bleed or nothing.** The 9:16 frame is 100 percent gameplay. Crop a moving window out
-   of the source; never letterbox, never pad. Small gameplay in a big empty frame is death.
+1. **Full playfield, black bars.** Every gameplay frame shows the entire source playfield,
+   scaled to fit 1080x1920, padded with true black. Never crop the field. Never zoompan
+   into a 9:16 window.
 2. **Cold open on the peak.** The first 0.5 to 1 second is the most intense moment of the clip
    (the graze, the death, the chaos), punched in, with the beat-1 hook text already on screen.
    Then a 2-frame flash "rewind" and the story starts. Never open on context.
@@ -30,21 +31,16 @@ SPACE DUST 6-9s · CLOSE CALL 8-11s · THE BOARD 9-12s · TODAY'S PATROL 10-14s.
 patrol cut is retired. Under 12s is the loop-rate sweet spot; if a beat sheet does not fit,
 cut gameplay, not beats.
 
-## The crop engine (the big change)
+## Framing (locked 2026-08-28)
 
-Render a 9:16 window that follows the action:
+Show the entire playfield. Scale to fit 1080x1920 with
+`force_original_aspect_ratio=decrease`, then pad with true black:
 
-- **v2.0 (now, no game change):** for CLOSE CALL cuts, anchor the window on the graze's
-  `x,y` from the sidecar (it is already there), converted from world to pixel space, with a
-  slow 6 percent-per-second push-in. For other cuts, anchor arena-center with the same push-in.
-  Clamp the window inside the frame; ease anchor changes over 400ms (no snaps).
-- **v2.1 (after the game-side track dispatch):** the sidecar gains `track: [[t,x,y], ...]` at
-  2 Hz plus `arena:{w,h}` and `view:{w,h}`. The window follows the smoothed track (critically
-  damped spring, max pan speed capped so it glides rather than chases). This makes every cut
-  follow the ship.
-- Implementation: precompute the window path per output frame in plan code (pure, testable),
-  emit it as an ffmpeg `sendcmd` script driving `crop` x/y (or `zoompan` for push-ins).
-  Punch zooms and shake are offsets added onto the same path.
+`scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black`
+
+The old full-bleed crop / Void-pad-then-zoompan path is retired. Do not punch a 9:16
+window into the source. `crop.mjs` still exists for tests; golden and batch use
+`presets.mjs` + `preset-runner.mjs` letterbox only.
 
 ## The caption engine
 
@@ -123,7 +119,7 @@ with a hard pause frame (0.5s freeze) between them.
 ## Acceptance for v2
 
 Re-render the day43 goldens (THE BOARD, TODAY'S PATROL) plus one synthetic CLOSE CALL from
-the fixture set. Checklist per video: full-bleed at every frame; hook text readable within
+the fixture set. Checklist per video: full playfield with black bars at every gameplay frame; hook text readable within
 0.5s; no static stretch over 2.5s; ramp + punch on the payoff; ends frozen with CTA; duration
 inside the cap; captions inside safe zones; `npm test` still green (crop-path and beat-sheet
 math are pure functions with tests).

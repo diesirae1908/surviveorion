@@ -37,41 +37,23 @@ export function isDay43Fixture(basename) {
 }
 
 /**
- * Pad source to 9:16 Void, then zoompan 1080x1920.
- * day43 2904x1656 -> 2904x5164, y offset 1754, y center 2582.
+ * Full playfield in 1080x1920: scale to fit, pad with true black.
+ * Replaces voidPadSpec (Void pad then zoompan crop). Lucas lock 2026-08-28.
+ */
+export const LETTERBOX_VF =
+  "scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black";
+
+/**
+ * Validate source dims and return the locked letterbox filter.
  * @param {number} width
  * @param {number} height
  * @param {string} basename
  */
-export function voidPadSpec(width, height, basename) {
+export function letterboxFilter(width, height, basename) {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width < 16 || height < 16) {
     throw new Error(`Cannot map source dims for "${basename}": ${width}x${height}`);
   }
-  const padW = Math.round(width);
-  const padH = Math.ceil((padW * 16) / 9 / 2) * 2;
-  if (height > padH) {
-    throw new Error(
-      `Cannot map source dims for "${basename}": ${width}x${height} is taller than 9:16 Void pad ${padW}x${padH}`
-    );
-  }
-  const padY = Math.round((padH - height) / 2);
-  return {
-    padW,
-    padH,
-    padX: 0,
-    padY,
-    yCenter: Math.round(padH / 2),
-    filter: `pad=${padW}:${padH}:0:${padY}:color=#0a0a12`,
-  };
-}
-
-/**
- * Scale locked day43 x-pan values when width != 2904.
- * @param {number} x
- * @param {number} width
- */
-export function scalePanX(x, width) {
-  return x * (width / 2904);
+  return LETTERBOX_VF;
 }
 
 /**
@@ -223,18 +205,18 @@ export async function requirePresetInputs(format, record) {
     await requireAsset(ASSETS.sfxBraam, basename, "braam");
     await requireAsset(defaultBoardMusic(), basename, "music bed");
     wastedSourceTimes(record.probe.duration, basename);
-    voidPadSpec(record.probe.width, record.probe.height, basename);
+    letterboxFilter(record.probe.width, record.probe.height, basename);
   } else if (format === "PATROL") {
     await requireAsset(PRESETS.tagPatrol, basename, "tag-patrol.png");
     patrolSourceTimes(record.probe.duration, basename);
-    voidPadSpec(record.probe.width, record.probe.height, basename);
+    letterboxFilter(record.probe.width, record.probe.height, basename);
   } else if (format === "NEW_BEST") {
     assertNewBestEligible(record.sidecar, basename);
     await requireAsset(ASSETS.celebrationFunk, basename, "celebration-funk.wav");
     await requireAsset(PRESETS.newBestBoardTemplate, basename, "NEW BEST board template");
     await requireAsset(PRESETS.newBestBoardFont, basename, "Rajdhani-Bold.ttf");
     newBestSourceTimes(record.probe.duration, basename);
-    voidPadSpec(record.probe.width, record.probe.height, basename);
+    letterboxFilter(record.probe.width, record.probe.height, basename);
   } else {
     throw new Error(`Unknown locked preset "${format}" for "${basename}"`);
   }

@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Social clips letterbox full playfield
+
+- Pipeline now shows the entire playfield in 1080x1920 with true black bars.
+  Void pad + zoompan crop is retired. Helper: `LETTERBOX_VF` / `letterboxFilter` in `social/src/presets.mjs`.
+- Tests updated in `social/test/presets.test.mjs` and `social/test/edit-dry.test.mjs`.
+- No post, no `social/out/approved/`, no `src/` game runtime.
+
 ## 2026-08-28: GREAT WALL Buffer posts moved to Sep 26
 
 - Next GREAT WALL patrol is 2026-09-26. Edited the 3 scheduled Buffer
