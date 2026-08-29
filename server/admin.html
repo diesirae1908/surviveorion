@@ -98,18 +98,26 @@
   .report-body > h3 { margin: 20px 0 10px; font-size: 13px; font-weight: 650; }
   .report-body > h3:first-child { margin-top: 0; }
   .metrics {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
     gap: 12px; margin-bottom: 16px;
   }
   .metric {
     border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
     background: #fafbfb;
   }
+  .metric-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .metric .v {
     font-size: 22px; font-weight: 650; letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
   }
   .metric .k { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .metric .delta {
+    font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .metric .delta.up { color: var(--green); }
+  .metric .delta.down { color: var(--red); }
+  .metric .delta.flat { color: var(--sub); }
+  .metric .delta.new { color: var(--green); }
   .row2 {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 16px; margin-top: 8px;
@@ -201,7 +209,29 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 const fmt = (n, d = 0) => n == null ? "-" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 const secs = (s) => s == null ? "-" : s >= 60 ? Math.floor(s / 60) + "m " + Math.round(s % 60) + "s" : Math.round(s) + "s";
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const stat = (k, v) => '<div class="metric"><div class="v">' + v + '</div><div class="k">' + k + "</div></div>";
+const stat = (k, v, delta) =>
+  '<div class="metric"><div class="metric-top"><div class="v">' + v + "</div>" +
+  (delta || "") + '</div><div class="k">' + k + "</div></div>";
+
+function deltaHtml(curr, prev, prevDate, formatPrev) {
+  if (prev == null || prevDate == null) return "";
+  const title = (formatPrev ? formatPrev(prev) : fmt(prev)) + " on " + prettyDate(prevDate);
+  let kind = "flat";
+  let text = "0%";
+  if (prev === 0 && curr === 0) {
+    text = "n/a";
+  } else if (prev === 0) {
+    kind = "new";
+    text = "New";
+  } else {
+    const pct = ((curr - prev) / prev) * 100;
+    const rounded = Math.abs(pct) >= 10 ? Math.round(pct) : Math.round(pct * 10) / 10;
+    if (pct > 0.05) { kind = "up"; text = "+" + rounded + "%"; }
+    else if (pct < -0.05) { kind = "down"; text = rounded + "%"; }
+    else { text = "0%"; }
+  }
+  return '<div class="delta ' + kind + '" title="' + esc(title) + '">' + text + "</div>";
+}
 const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : "";
 const BLUE = "#2c6ecb", RED = "#d72c0d", GREEN = "#008060", AMBER = "#b98900", GRAY = "#8c9196";
 
@@ -275,21 +305,31 @@ function renderDay(day) {
   if (!body) return;
   if (!day) { body.innerHTML = "<p class='err'>No data for that date.</p>"; return; }
   const board = day.board ?? { realPilots: 0, fillerBots: 0, entries: [] };
+  const prev = day.previous ?? null;
+  const prevDate = prev ? prev.date : null;
+  const vs = (curr, prevVal) => deltaHtml(curr, prevVal, prevDate);
   const title = document.getElementById("day-title");
   if (title) title.textContent = prettyDate(day.date);
+  const compareNote = prev
+    ? " Percentages are vs " + prettyDate(prev.date) +
+      (day.date === TODAY
+        ? " (today is still counting, so this is a partial day against a full previous day)."
+        : ".")
+    : "";
   body.innerHTML =
     '<div class="note">Visits are page loads. Runs are finished games (up to 3 attempts per signed-in pilot, plus anonymous play). ' +
       "The public leaderboard lists <strong>" + fmt(board.realPilots) + " real scores</strong> and <strong>" +
-      fmt(board.fillerBots) + " filler bots</strong>. Fillers are not visits and are not stored as runs.</div>" +
+      fmt(board.fillerBots) + " filler bots</strong>. Fillers are not visits and are not stored as runs." +
+      compareNote + "</div>" +
     '<div class="metrics">' +
-      stat("Visitors", fmt(day.traffic.uniques)) +
-      stat("Visits", fmt(day.traffic.visits)) +
-      stat("New pilots", fmt(day.users.new)) +
-      stat("Runs", fmt(day.runs.total)) +
-      stat("Signed-in players", fmt(day.runs.signedInPlayers)) +
-      stat("Anonymous runs", fmt(day.runs.anonymous)) +
-      stat("Real scores", fmt(board.realPilots)) +
-      stat("Filler scores", fmt(board.fillerBots)) +
+      stat("Visitors", fmt(day.traffic.uniques), vs(day.traffic.uniques, prev && prev.traffic.uniques)) +
+      stat("Visits", fmt(day.traffic.visits), vs(day.traffic.visits, prev && prev.traffic.visits)) +
+      stat("New pilots", fmt(day.users.new), vs(day.users.new, prev && prev.users.new)) +
+      stat("Runs", fmt(day.runs.total), vs(day.runs.total, prev && prev.runs.total)) +
+      stat("Signed-in players", fmt(day.runs.signedInPlayers), vs(day.runs.signedInPlayers, prev && prev.runs.signedInPlayers)) +
+      stat("Anonymous runs", fmt(day.runs.anonymous), vs(day.runs.anonymous, prev && prev.runs.anonymous)) +
+      stat("Real scores", fmt(board.realPilots), vs(board.realPilots, prev && prev.board.realPilots)) +
+      stat("Filler scores", fmt(board.fillerBots), vs(board.fillerBots, prev && prev.board.fillerBots)) +
     "</div>" +
     '<div class="row2">' +
       '<div class="panel"><h3>Countries</h3>' +
@@ -315,13 +355,18 @@ function renderDay(day) {
     "</div>" +
     '<div class="row2">' +
       '<div class="panel"><h3>Game length</h3><div class="metrics">' +
-        stat("Average", secs(day.gameLength.avg)) + stat("Median", secs(day.gameLength.median)) + stat("Longest", secs(day.gameLength.max)) +
+        stat("Average", secs(day.gameLength.avg), deltaHtml(day.gameLength.avg, prev && prev.gameLength.avg, prevDate, secs)) +
+        stat("Median", secs(day.gameLength.median), deltaHtml(day.gameLength.median, prev && prev.gameLength.median, prevDate, secs)) +
+        stat("Longest", secs(day.gameLength.max), deltaHtml(day.gameLength.max, prev && prev.gameLength.max, prevDate, secs)) +
       "</div></div>" +
       '<div class="panel"><h3>Score</h3><div class="metrics">' +
-        stat("Average", fmt(day.score.avg)) + stat("Median", fmt(day.score.median)) + stat("Best", fmt(day.score.max)) +
+        stat("Average", fmt(day.score.avg), vs(day.score.avg, prev && prev.score.avg)) +
+        stat("Median", fmt(day.score.median), vs(day.score.median, prev && prev.score.median)) +
+        stat("Best", fmt(day.score.max), vs(day.score.max, prev && prev.score.max)) +
       "</div></div>" +
       '<div class="panel"><h3>Combat</h3><div class="metrics">' +
-        stat("Avg kills", fmt(day.combat.avgKills, 1)) + stat("Best multiplier", "x" + fmt(day.combat.bestMultiplier, 1)) +
+        stat("Avg kills", fmt(day.combat.avgKills, 1), vs(day.combat.avgKills, prev && prev.combat.avgKills)) +
+        stat("Best multiplier", "x" + fmt(day.combat.bestMultiplier, 1), vs(day.combat.bestMultiplier, prev && prev.combat.bestMultiplier)) +
       "</div></div>" +
     "</div>" +
     '<div class="panel" style="margin-top:16px"><h3>Public daily board</h3>' +
