@@ -566,6 +566,7 @@ const ui = new Ui(settings, {
       applyCreatorAccess(api.clipInbox);
       showMenu();
     }),
+  onPilot: (callsign) => community.showPilot(callsign, showMenu),
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
   onRebind: (action, code) => {
@@ -617,6 +618,9 @@ function showMenu(): void {
       previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
       creator: creatorAccess || REHEARSAL_DIRECTOR || PREVIEW_ALLOWED_HOST,
       upcomingDays: creatorAccess || REHEARSAL_DIRECTOR || PREVIEW_ALLOWED_HOST ? upcomingPatrols(14) : undefined,
+      callsign: api.user?.callsign,
+      country: api.user?.country,
+      pendingFriends: api.pendingFriends,
     });
     fillDailyHint();
     fillDailyBoard();
@@ -676,6 +680,7 @@ function fillDailyBoard(): void {
         score: e.best,
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
+        virtual: !!e.virtual,
       }));
       const inTopTen = entries.slice(0, 10).some((e) => e.isMe);
       const pinned =

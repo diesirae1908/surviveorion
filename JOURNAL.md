@@ -4,6 +4,19 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Daily lobby profile + wingmates (branch `sam/clip-inbox`)
+
+- Daily lobby hid identity after the Reddit launch, so even a signed-in
+  pilot could not find their callsign, country, or friends. The same
+  fullgame screens now open from a lobby profile chip (Sign in, or
+  callsign + flag). TODAY'S BOARD rows open a public pilot record with
+  Add / Accept / Decline. Own profile has Wingmates (mutual accept) and
+  Sign out. Settings shows Pilot profile when signed in.
+- Reuses existing `/api/me`, `/api/friends/*`, `PATCH /api/me` country.
+  Daily ghost rows stay on the board but are not clickable (`virtual` on
+  the public combined board, userId still stripped). No new endpoints.
+  Not merged.
+
 ## 2026-08-28: Lucas-only clip inbox + future-day rehearsal (branch `sam/clip-inbox`)
 
 - Phone workflow without Drive OAuth: allowlisted Google account

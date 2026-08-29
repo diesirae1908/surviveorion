@@ -196,10 +196,14 @@ const publicUser = (u) => ({ callsign: u.callsign, country: u.country });
  * publicUser(): the account owner needs to see their own real callsign.
  */
 const sanitizeEntry = (e) => (e ? { ...e, callsign: sanitizeCallsignForDisplay(e.callsign) } : e);
-/** Drop server-only merge metadata before any leaderboard row reaches a client. */
+/** Drop server-only merge metadata before any leaderboard row reaches a client.
+ * `virtual` stays on Daily Patrol ghost rows so the lobby can skip a profile
+ * click (those callsigns are not accounts). userId never leaves the server. */
 const publicBoardEntry = (e) => {
-  const { virtual: _v, userId: _u, ...rest } = e;
-  return sanitizeEntry(rest);
+  const { virtual, userId: _u, ...rest } = e;
+  const out = sanitizeEntry(rest);
+  if (virtual) out.virtual = true;
+  return out;
 };
 const sanitizeEntries = (list) => list.map(publicBoardEntry);
 

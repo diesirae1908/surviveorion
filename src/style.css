@@ -348,8 +348,11 @@ button.launch {
 
 .pilot-badge {
   min-width: 0;
+  max-width: min(420px, 88vw);
   display: flex;
   align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 10px 26px;
   font-size: 13px;
@@ -360,6 +363,10 @@ button.launch {
 }
 
 .pilot-badge b {
+  overflow: hidden;
+  max-width: 14em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--orion-flare);
   font-weight: bold;
 }

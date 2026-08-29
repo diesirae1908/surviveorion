@@ -34,6 +34,8 @@ export interface LeaderboardResponse {
 export interface DailyCombinedEntry extends LeaderboardEntry {
   /** Device the pilot's best run today was played on. */
   mode: BoardMode;
+  /** Daily Patrol ghost score: not a real account. */
+  virtual?: boolean;
 }
 
 export interface DailyCombinedResponse {

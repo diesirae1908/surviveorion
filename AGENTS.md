@@ -310,9 +310,10 @@ first, then:
   (`FULL_GAME`/`DAILY_ONLY` in main.ts; `?fullgame=1` works anywhere, same
   build/deploy — the server SPA-fallbacks unknown paths to index.html). The
   daily side boots straight to a minimal Daily Patrol lobby — Launch /
-  Training Ground / How to play / Powers / Leaderboard plus a Feedback
+  Training Ground / How to play / Powers, today's board, a profile chip
+  (sign in / callsign, country, wingmates) plus a Feedback
   footer link (the /fullgame door is unlisted — URL only — since the public
-  Reddit launch; no cinematic, no sign-in on the lobby; players get on
+  Reddit launch; no cinematic; unsigned players can still get on
   the board via the game-over guest pseudo prompt), caps dailies at 3
   attempts per Pacific day (`orion.dailyAttempts` in save.ts client-side, and
   the server independently rejects a 4th daily score per account per patrol day —

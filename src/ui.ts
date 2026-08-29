@@ -66,6 +66,8 @@ export interface UiCallbacks {
   onRehearseDay: (date: string | null) => void;
   /** Daily-lobby/settings Google/password sign-in (needed for crew inbox). */
   onCrewSignIn: () => void;
+  /** Open a public pilot record (daily board rows, with wingmate actions). */
+  onPilot: (callsign: string) => void;
 }
 
 export interface MenuCommunity {
@@ -205,6 +207,10 @@ export interface DailyLobbyInfo {
   /** Lucas-only: show the next-patrol picker and treat picks as sandboxed rehearsal. */
   creator?: boolean;
   upcomingDays?: Array<{ date: string; names: string }>;
+  /** Signed-in callsign when the community server is up. */
+  callsign?: string;
+  country?: string;
+  pendingFriends?: number;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -216,6 +222,8 @@ export interface DailyBoardRow {
   mode: BoardMode;
   /** Highlight this row gold — it's the viewer's own placement. */
   isMe: boolean;
+  /** Daily Patrol ghost: not a real account, no profile to open. */
+  virtual?: boolean;
 }
 
 /**
@@ -682,6 +690,30 @@ export class Ui {
     return wrap;
   }
 
+  /** Daily lobby identity: signed-out Sign in, or the viewer's callsign. */
+  private lobbyPilotBadge(info: DailyLobbyInfo): HTMLElement {
+    const badge = document.createElement("button");
+    badge.className = "pilot-badge";
+    badge.type = "button";
+    if (info.callsign) {
+      const flag = info.country ? `${countryFlag(info.country)} ` : "";
+      const name = escapeHtml(sanitizeCallsignForDisplay(info.callsign));
+      badge.innerHTML =
+        `<span class="wing">✦</span> ${flag}<b>${name}</b> <span class="sub">pilot profile</span>`;
+      badge.title = "Pilot profile";
+      if ((info.pendingFriends ?? 0) > 0) {
+        badge.appendChild(this.el("span", "notif-dot", ""));
+      }
+      badge.addEventListener("click", () => this.cb.onProfile());
+    } else {
+      badge.innerHTML =
+        `<span class="wing">✦</span> Sign in <span class="sub">save your score, find wingmates</span>`;
+      badge.title = "Sign in";
+      badge.addEventListener("click", () => this.cb.onCrewSignIn());
+    }
+    return badge;
+  }
+
   showMenu(bestScore: number, touchDevice: boolean, community?: MenuCommunity): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -762,7 +794,7 @@ export class Ui {
     gear.title = "Settings";
     gear.innerHTML = "&#9881;";
     gear.addEventListener("click", () =>
-      this.showSettings(touchDevice, () => this.showMenu(bestScore, touchDevice, community)),
+      this.showSettings(touchDevice, () => this.showMenu(bestScore, touchDevice, community), community),
     );
     screen.appendChild(gear);
 
@@ -770,9 +802,10 @@ export class Ui {
   }
 
   /**
-   * Daily-only site lobby, kept deliberately spare: Launch, Training Ground,
-   * How to play, Powers, Leaderboard. No accounts here — players who want on
-   * the board enter a pseudo on the game-over screen (guest signup).
+   * Daily-only site lobby: Launch, Training Ground, How to play, Powers,
+   * today's board. A profile chip opens sign-in or the pilot record
+   * (country, wingmates). Unsigned players can still join the board via
+   * the game-over guest prompt.
    */
   showDailyLobby(info: DailyLobbyInfo): void {
     this.clear();
@@ -782,6 +815,7 @@ export class Ui {
     screen.appendChild(this.wordmarkTitle());
     screen.appendChild(this.el("div", "subtitle", "Daily Patrol"));
     screen.appendChild(this.el("div", "divider", ""));
+    if (info.online) screen.appendChild(this.lobbyPilotBadge(info));
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
     const calendarLink = this.el("button", "link-btn calendar-link", "See previous patrols");
@@ -912,7 +946,10 @@ export class Ui {
     gear.title = "Settings";
     gear.innerHTML = "&#9881;";
     gear.addEventListener("click", () =>
-      this.showSettings(info.touchDevice, () => this.showDailyLobby(info)),
+      this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
+        callsign: info.callsign,
+        pendingFriends: info.pendingFriends,
+      }),
     );
     screen.appendChild(gear);
 
@@ -1225,7 +1262,7 @@ export class Ui {
   }
 
   /** Settings screen: audio/shake toggles + flight manual. */
-  showSettings(touchDevice: boolean, onBack: () => void): void {
+  showSettings(touchDevice: boolean, onBack: () => void, community?: MenuCommunity): void {
     this.clear();
     this.pauseBtn.style.display = "none";
 
@@ -1234,12 +1271,25 @@ export class Ui {
     screen.appendChild(this.el("div", "heading gold small", "SETTINGS"));
     screen.appendChild(this.el("div", "divider", ""));
 
-    const signIn = this.el("button", "link-btn", "Sign in");
-    signIn.addEventListener("click", () => this.cb.onCrewSignIn());
-    screen.appendChild(signIn);
-    screen.appendChild(
-      this.el("div", "field-hint center", "Optional. Needed to save a score to the board from a new device."),
-    );
+    if (community?.callsign) {
+      const profile = this.el(
+        "button",
+        "link-btn",
+        `Pilot profile · ${escapeHtml(sanitizeCallsignForDisplay(community.callsign))}`,
+      );
+      profile.addEventListener("click", () => this.cb.onProfile());
+      screen.appendChild(profile);
+      screen.appendChild(
+        this.el("div", "field-hint center", "Country, wingmates, and sign out live here."),
+      );
+    } else {
+      const signIn = this.el("button", "link-btn", "Sign in");
+      signIn.addEventListener("click", () => this.cb.onCrewSignIn());
+      screen.appendChild(signIn);
+      screen.appendChild(
+        this.el("div", "field-hint center", "Optional. Needed to save a score to the board from a new device."),
+      );
+    }
 
     screen.appendChild(this.toggleRow([
       ["sound", "Sound"],
@@ -1392,7 +1442,7 @@ export class Ui {
     );
 
     const feedback = this.button("Send feedback", false, () =>
-      this.showFeedback(() => this.showSettings(touchDevice, onBack)),
+      this.showFeedback(() => this.showSettings(touchDevice, onBack, community)),
     );
     feedback.classList.add("small-btn");
     screen.appendChild(feedback);
@@ -2112,15 +2162,23 @@ export class Ui {
   }
 
   private dailyBoardRow(row: DailyBoardRow, pinned: boolean): HTMLElement {
-    return this.el(
+    const clickable = !row.virtual;
+    const el = this.el(
       "div",
-      `board-row${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
+      `board-row${clickable ? " link" : ""}${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
       `<span class="rank">${row.rank}</span>` +
         `<span class="flag" title="${countryName(row.country)}">${row.country ? countryFlag(row.country) : "·"}</span>` +
         `<span class="name">${escapeHtml(row.callsign)}</span>` +
         `<span class="device" title="${DEVICE_LABEL[row.mode]}">${DEVICE_TAG[row.mode]}</span>` +
         `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
     );
+    if (clickable) {
+      el.addEventListener("click", () => {
+        if (row.isMe) this.cb.onProfile();
+        else this.cb.onPilot(row.callsign);
+      });
+    }
+    return el;
   }
 
   /** Celebrate freshly earned badges on the game-over screen. */

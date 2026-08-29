@@ -426,6 +426,10 @@ export class CommunityUi {
       }),
     );
 
+    const wingmates = this.button("Wingmates", false, () => this.showFriends());
+    if (this.api.pendingFriends > 0) wingmates.appendChild(this.el("span", "notif-dot"));
+    body.appendChild(wingmates);
+
     // guest / Google accounts: offer a password so the callsign works anywhere
     if (!this.api.hasPassword) {
       const panel = this.el("div", "panel");
@@ -600,8 +604,14 @@ export class CommunityUi {
 
   /** Add friend / accept / cancel / unfriend button for a viewed pilot. */
   private friendAction(p: PlayerProfile, error: HTMLElement, rerender: () => void): HTMLElement | null {
-    if (!this.api.signedIn || p.friendship === null) return null;
     const wrap = this.el("div", "friend-action");
+    if (!this.api.signedIn) {
+      wrap.appendChild(
+        this.button("Sign in to add as wingmate", true, () => this.showAuth(rerender)),
+      );
+      return wrap;
+    }
+    if (p.friendship === null) return null;
     const act = (fn: () => Promise<unknown>): void => {
       void this.guard(error, async () => {
         await fn();
@@ -623,13 +633,19 @@ export class CommunityUi {
         wrap.appendChild(cancel);
         break;
       }
-      case "incoming":
+      case "incoming": {
         wrap.appendChild(
           this.button("✦ Accept wingmate request", true, () =>
             act(() => this.api.acceptFriend(p.callsign)),
           ),
         );
+        const decline = this.button("Decline", false, () =>
+          act(() => this.api.removeFriend(p.callsign)),
+        );
+        decline.classList.add("small-btn");
+        wrap.appendChild(decline);
         break;
+      }
       case "friends": {
         wrap.appendChild(this.el("div", "field-hint center", "✦ Your wingmate"));
         const remove = this.button("Remove wingmate", false, () =>

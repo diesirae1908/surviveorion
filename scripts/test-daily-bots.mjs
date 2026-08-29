@@ -75,7 +75,8 @@ const endDayA = dayStartA + 86_399_000;
 // --- public wire shape: no bot userId leaks (matches publicBoardEntry in index.mjs) ---
 {
   const toPublic = (e) => {
-    const { virtual: _v, userId: _u, ...rest } = e;
+    const { userId: _u, ...rest } = e;
+    if (rest.virtual) rest.virtual = true;
     return rest;
   };
   const board = dailyLeaderboardCombinedWithBots({ dailyDate: DATE_A, limit: 50, nowMs: endDayA }).map(toPublic);
@@ -85,6 +86,10 @@ const endDayA = dayStartA + 86_399_000;
   check(
     "public board rows omit userId",
     board.every((e) => !("userId" in e)),
+  );
+  check(
+    "ghost rows keep virtual:true so the lobby can skip a profile click",
+    board.some((e) => e.virtual === true),
   );
 }
 
