@@ -1,5 +1,17 @@
 # JOURNAL
 
+## 2026-08-28: 4 new finals linked, Nature's Call slot added
+
+- Lucas dropped `0828_GOLDDASH_916.mp4`, `0828_ratemydodge_916.mp4`,
+  `0828_spacedust_916.mov` in `final_videoasset/`. Naturecall was still in
+  Downloads; copied (not moved) to `0828_naturecall_916.mp4`.
+- Linked GOLD DASH + Rate this dodge on Aug 29. New POV row Nature's Call
+  on Aug 30 (no prior slot). SPACE DUST on Aug 31. GOLD DASH copy updated
+  to the live briefing (Stop, point, burn the line).
+- HEVC spacedust remuxed to H.264. Hosted all four mp4s in
+  `public/social-drafts/`. Masters left in place. Buffer `--only` those
+  four titles so earlier Approved rows are not duplicated.
+
 ## 2026-08-28: Letterbox full playfield, black bars
 
 - Locked look: entire source playfield scaled to fit 1080x1920, padded with true black.

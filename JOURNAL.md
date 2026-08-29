@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Host 4 new social finals + Nature's Call calendar slot
+
+- GOLD DASH, Rate this dodge, Space Dust, Nature's Call hosted at
+  `/social-drafts/` for Buffer. Calendar: Aug 29 GOLD DASH + Rate this
+  dodge, Aug 30 Nature's Call (new POV slot), Aug 31 Space Dust.
+- Naturecall was in Downloads, copied into `final_videoasset/` (not moved).
+  Spacedust HEVC remuxed to H.264. Game runtime untouched.
+
 ## 2026-08-28: GOLD DASH stop-aim-ram, always one orb
 
 - Lucas: dash was hard to aim and the field filled too fast. Pickup now
