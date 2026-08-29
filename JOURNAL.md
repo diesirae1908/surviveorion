@@ -19,6 +19,9 @@ why, commit hash, follow-ups), committed together with the work. See
 - Flare still does not kill. Pulse is still the shot.
 - Sim-test 3e covers train gather, parked bomb, no crowd fuse.
   `test:mutators` snapshot untouched.
+- LIVE `38309ea`. Render back ~10:35 AM PT after a 502 during rebuild.
+  Bundle `main-Cff0FvXQ.js` / `mutators-BRECQUcI.js` (was
+  `main-C80AS654.js` / `mutators-yFR-vVlo.js`).
 
 ## 2026-08-29: Rewrote Ditch the Can + Dead Fart Buffer copy
 
