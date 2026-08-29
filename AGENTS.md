@@ -372,5 +372,8 @@ first, then:
   hashed IP, country via cf-ipcountry or locale guess, referrer hostname,
   daily/fullgame, touch/desktop → `visits` table). `/admin` on the community
   server is the traffic + stats + feedback dashboard (Bearer `ORION_ADMIN_KEY`
-  only — no `?key=` param); crash reports arrive via `/api/feedback` with a
-  `[crash]` prefix and show up there too.
+  only, no `?key=` param), served from `server/admin.html`. The date picker
+  only scopes the Selected day report; All time / rolling sits below and
+  ignores it. The public daily board on that report splits real scores from
+  filler bots (virtual, not visits, not runs). Crash reports arrive via
+  `/api/feedback` with a `[crash]` prefix and show up there too.
