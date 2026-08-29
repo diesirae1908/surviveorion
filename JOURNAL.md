@@ -9,7 +9,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - POST /api/clip-inbox now accepts Bearer ORION_ADMIN_KEY (same as /admin)
   so morning local webm+json pairs can land on /data/clip-inbox without
   a luciux game session. Still allowlist-shaped (CLIP_INBOX_CALLSIGN).
-  Player upload path unchanged.
+  Player upload path unchanged. Commit `a5c5fa0`.
 - test:clip-inbox covers day46 the-flood basename. No player-facing copy.
 
 ## 2026-08-28: ION charges like Pulse, then fires an aimed cone
