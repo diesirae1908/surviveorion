@@ -222,6 +222,35 @@ function adminDayBoard(dailyDate) {
   };
 }
 
+/** Shift a YYYY-MM-DD calendar date by N days (UTC date math; PT labels are already dates). */
+function shiftYmd(dateStr, days) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Slim previous-day snapshot so the dashboard can show % vs the prior PT day. */
+function adminPreviousDay(dateStr) {
+  const prev = store.adminStatsForDay(shiftYmd(dateStr, -1));
+  if (!prev) return null;
+  const board = adminDayBoard(prev.date);
+  return {
+    date: prev.date,
+    traffic: { uniques: prev.traffic.uniques, visits: prev.traffic.visits },
+    users: { new: prev.users.new },
+    runs: {
+      total: prev.runs.total,
+      signedInPlayers: prev.runs.signedInPlayers,
+      anonymous: prev.runs.anonymous,
+    },
+    board: { realPilots: board.realPilots, fillerBots: board.fillerBots },
+    gameLength: { avg: prev.gameLength.avg, median: prev.gameLength.median, max: prev.gameLength.max },
+    score: { avg: prev.score.avg, median: prev.score.median, max: prev.score.max },
+    combat: { avgKills: prev.combat.avgKills, bestMultiplier: prev.combat.bestMultiplier },
+  };
+}
+
 /**
  * Auto-naming for Google/Clerk signups: the display name comes from a
  * third-party profile, not typed by hand, so there's no error slot to bounce
@@ -783,7 +812,10 @@ const routes = {
     // else here is the existing all-time / rolling dashboard, unchanged.
     const day = store.adminStatsForDay(dateParam || undefined);
     if (dateParam && !day) return json(res, 400, { error: "invalid date" });
-    if (day) day.board = adminDayBoard(day.date);
+    if (day) {
+      day.board = adminDayBoard(day.date);
+      day.previous = adminPreviousDay(day.date);
+    }
     json(res, 200, { ...store.adminStats(), day });
   },
 

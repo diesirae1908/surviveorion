@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Admin analytics vs previous day
+
+- Lucas wanted % up/down on the selected-day cards. Each card now compares
+  to the previous Pacific day (green up, red down, New from zero). Hover
+  shows yesterday's number. Today notes it is still a partial day.
+- Branch `feat/admin-period-compare`. Not on main. Goes to `dev` for QA.
+- Admin-only, no player-facing change.
+
 ## 2026-08-29: Discovery overlay on scheduled Buffer posts
 
 - 15/15 scheduled IG/TT/YT Buffer posts updated. Live/sent posts cannot be
