@@ -12,14 +12,14 @@ why, commit hash, follow-ups), committed together with the work. See
   `POST /api/clip-inbox` (multipart webm+json). Grok fetches
   `GET /clip-inbox/<secret>/`; consume moves pending → consumed, never
   deletes. Disk: existing Render `/data` (`orion-data`, 1GB) at
-  `/data/clip-inbox`.
+  `/data/clip-inbox`. Commit `3671450`.
 - Sidecar now includes `deathTime`, `powers[]`, and `events[]` (mutator /
   power / death timestamps) so the cutter can label CLOSE CALL / SPACE DUST
   / THE BOARD / TODAY'S PATROL. Rehearsal runs stamp the future date on the
   filename. Canvas recording is still the full playfield.
-- Tests: `test:clip-inbox`, sidecar extras, rehearsal allowlist table.
-  Render env still needs `CLIP_INBOX_SECRET` + allowlist before this is
-  useful in prod.
+- Tests: `test:clip-inbox` PASS, sidecar extras PASS, `sim-test` ALL CHECKS
+  PASSED. Render env still needs `CLIP_INBOX_SECRET` + allowlist before this
+  is useful in prod. Not merged.
 
 ## 2026-08-28: GREAT WALL Buffer posts moved to Sep 26
 
