@@ -455,17 +455,12 @@ export class CommunityUi {
       body.appendChild(panel);
     }
 
-    // service record + badge collection (locked ones show how to earn them)
+    // Career numbers are benched: monetization slot. Badges stay.
     const record = this.el("div", "panel");
     body.appendChild(record);
     void this.guard(error, async () => {
       const p = await this.api.playerProfile(user.callsign);
-      record.appendChild(this.statsRow(p));
-      const iron = this.ironRainRow(p);
-      if (iron) record.appendChild(iron);
-      const graph = this.historyGraph(p);
-      if (graph) record.appendChild(graph);
-      record.appendChild(this.badgeGrid(p.badges, true, p));
+      this.appendCareer(record, p, true);
     });
 
     body.appendChild(
@@ -495,14 +490,36 @@ export class CommunityUi {
       );
       const action = this.friendAction(p, error, () => this.showPilot(callsign, onBack));
       if (action) body.appendChild(action);
-      body.appendChild(this.statsRow(p));
-      const iron = this.ironRainRow(p);
-      if (iron) body.appendChild(iron);
-      const graph = this.historyGraph(p);
-      if (graph) body.appendChild(graph);
-      body.appendChild(this.badgeGrid(p.badges, false));
+      this.appendCareer(body, p, false);
     });
     this.backRow(screen);
+  }
+
+  /** Flip when paid analytics ships. false = reserved locked square. */
+  private static readonly ANALYTICS_LIVE = false;
+
+  /** Career stats + badges, or the locked analytics tile + badges. */
+  private appendCareer(host: HTMLElement, p: PlayerProfile, showLockedBadges: boolean): void {
+    if (CommunityUi.ANALYTICS_LIVE) {
+      host.appendChild(this.statsRow(p));
+      const iron = this.ironRainRow(p);
+      if (iron) host.appendChild(iron);
+      const graph = this.historyGraph(p);
+      if (graph) host.appendChild(graph);
+    } else {
+      host.appendChild(this.analyticsLockedTile());
+    }
+    host.appendChild(this.badgeGrid(p.badges, showLockedBadges, showLockedBadges ? p : undefined));
+  }
+
+  /** Reserved square where career stats / sparkline will return (paid analytics). */
+  private analyticsLockedTile(): HTMLElement {
+    const tile = this.el("div", "analytics-lock");
+    tile.appendChild(this.el("div", "manual-title", "ANALYTICS"));
+    tile.appendChild(this.el("div", "analytics-lock-icon", "🔒"));
+    tile.appendChild(this.el("div", "analytics-lock-state", "LOCKED"));
+    tile.appendChild(this.el("div", "field-hint center", "WIP"));
+    return tile;
   }
 
   /** Iron Rain bests/ranks — only rendered once the pilot has flown it. */
