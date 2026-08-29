@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Admin compare uses same clock time for today
+
+- Lucas caught it: the first ship compared a partial today to a full
+  previous day. Today now clips yesterday to the same elapsed time since
+  midnight PT. Finished days stay full vs full. Note says "through 3:15 PM PT".
+- Board filler counts are still the current generated board (not stored
+  historically), so those two cards skip a same-time %.
+
 ## 2026-08-29: Admin analytics vs previous day LIVE
 
 - Lucas: push on main. `bb12338` on surviveorion `main`. Render

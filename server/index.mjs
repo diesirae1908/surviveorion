@@ -230,13 +230,42 @@ function shiftYmd(dateStr, days) {
   return dt.toISOString().slice(0, 10);
 }
 
-/** Slim previous-day snapshot so the dashboard can show % vs the prior PT day. */
-function adminPreviousDay(dateStr) {
-  const prev = store.adminStatsForDay(shiftYmd(dateStr, -1));
+function formatPtClock(ms) {
+  return new Date(ms).toLocaleTimeString("en-US", {
+    timeZone: "America/Vancouver",
+    hour: "numeric",
+    minute: "2-digit",
+  }) + " PT";
+}
+
+/** Slim previous-day snapshot so the dashboard can show % vs the prior PT day.
+ * When `sameTimeUntilMs` is set (viewing today), the previous window is clipped
+ * to the same elapsed time since midnight PT. Finished days stay full vs full. */
+function adminPreviousDay(dateStr, { sameTimeUntilMs } = {}) {
+  const prevDate = shiftYmd(dateStr, -1);
+  let untilMs;
+  let sameTime = false;
+  let throughLabel = null;
+  if (sameTimeUntilMs != null) {
+    const todayBounds = store.ptDateBounds(dateStr);
+    const prevBounds = store.ptDateBounds(prevDate);
+    if (todayBounds && prevBounds) {
+      const elapsed = Math.min(
+        Math.max(0, sameTimeUntilMs - todayBounds.start),
+        todayBounds.end - todayBounds.start,
+      );
+      untilMs = prevBounds.start + elapsed;
+      sameTime = true;
+      throughLabel = formatPtClock(untilMs);
+    }
+  }
+  const prev = store.adminStatsForDay(prevDate, { untilMs });
   if (!prev) return null;
   const board = adminDayBoard(prev.date);
   return {
     date: prev.date,
+    sameTime,
+    throughLabel,
     traffic: { uniques: prev.traffic.uniques, visits: prev.traffic.visits },
     users: { new: prev.users.new },
     runs: {
@@ -244,7 +273,9 @@ function adminPreviousDay(dateStr) {
       signedInPlayers: prev.runs.signedInPlayers,
       anonymous: prev.runs.anonymous,
     },
-    board: { realPilots: board.realPilots, fillerBots: board.fillerBots },
+    board: sameTime
+      ? { realPilots: prev.runs.signedInPlayers, fillerBots: null }
+      : { realPilots: board.realPilots, fillerBots: board.fillerBots },
     gameLength: { avg: prev.gameLength.avg, median: prev.gameLength.median, max: prev.gameLength.max },
     score: { avg: prev.score.avg, median: prev.score.median, max: prev.score.max },
     combat: { avgKills: prev.combat.avgKills, bestMultiplier: prev.combat.bestMultiplier },
@@ -814,7 +845,10 @@ const routes = {
     if (dateParam && !day) return json(res, 400, { error: "invalid date" });
     if (day) {
       day.board = adminDayBoard(day.date);
-      day.previous = adminPreviousDay(day.date);
+      const todayDate = store.ptDateBounds().dateStr;
+      day.previous = adminPreviousDay(day.date, {
+        sameTimeUntilMs: day.date === todayDate ? Date.now() : undefined,
+      });
     }
     json(res, 200, { ...store.adminStats(), day });
   },

@@ -788,7 +788,7 @@ function ptMidnightEpoch(now = Date.now()) {
  * admin dashboard's date selector. `dateStr` is "YYYY-MM-DD"; omitted means
  * today (PT). Returns null on a malformed string so the caller can 400.
  */
-function ptDateBounds(dateStr) {
+export function ptDateBounds(dateStr) {
   const day = 24 * 3600 * 1000;
   if (!dateStr) {
     const start = ptMidnightEpoch();
@@ -1016,10 +1016,15 @@ export function adminStats() {
  * runs/traffic slices of adminStats() above but scoped to that single day
  * instead of all-time / rolling windows. Returns null on a bad date string.
  */
-export function adminStatsForDay(dateStr) {
+export function adminStatsForDay(dateStr, { untilMs } = {}) {
   const bounds = ptDateBounds(dateStr);
   if (!bounds) return null;
-  const { start, end, dateStr: date } = bounds;
+  const { start, dateStr: date } = bounds;
+  let { end } = bounds;
+  if (untilMs != null) {
+    const until = Number(untilMs);
+    if (Number.isFinite(until)) end = Math.min(end, Math.max(start, until));
+  }
 
   const visits = db
     .prepare(
