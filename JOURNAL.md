@@ -14,6 +14,8 @@ why, commit hash, follow-ups), committed together with the work. See
 - Copy + hint updated. Difficulty 0.9 -> 0.85. Aug 29 UTC is GOLD DASH.
 - Sim-test: stop/turn/ram/dash + hold-one + formation script stays synced
   if you collect. `test:mutators` snapshot untouched.
+- LIVE `0006051`. Render `dep-da97dvnlk1mc73fsoli0` ~11:08 PM PT. Bundle
+  `main-DtjiQeq0.js` (was `main-BvksxERv.js`).
 
 ## 2026-08-28: ION charge ram LIVE
 
