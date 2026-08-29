@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Dropped empty Aug 28 WASTED calendar row
+
+- Lucas: WASTED = SPACE DUST. Removed the unlinked draft row only.
+  No files deleted. Buffer unchanged.
+
 ## 2026-08-28: Host 4 new social finals + Nature's Call calendar slot
 
 - GOLD DASH, Rate this dodge, Space Dust, Nature's Call hosted at

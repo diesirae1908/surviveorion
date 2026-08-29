@@ -1,5 +1,11 @@
 # JOURNAL
 
+## 2026-08-29: Dropped empty Aug 28 WASTED calendar row
+
+- Lucas: WASTED is the same format as SPACE DUST. Removed the unlinked
+  Aug 28 "WASTED classic" draft row from the xlsx + calendar.json.
+  No video files touched. Buffer unchanged.
+
 ## 2026-08-28: 4 new finals linked, Nature's Call slot added
 
 - Lucas dropped `0828_GOLDDASH_916.mp4`, `0828_ratemydodge_916.mp4`,
