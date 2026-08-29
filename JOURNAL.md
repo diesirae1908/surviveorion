@@ -15,8 +15,8 @@ why, commit hash, follow-ups), committed together with the work. See
   Hosted URL + optional poster cover. Default DB
   `464e297722b648c58cd3f9a4e98e561a`. Override `NOTION_CLIPS_DATABASE_ID`.
 - Tests: `test:clip-inbox` (cut upload/fetch/list) + `test:notion-clips`.
-  Not on main yet. Needs Render `NOTION_TOKEN` and the integration shared
-  on the Clips database. Nothing auto-posts to Buffer.
+  Commit `3642ddd`. Not on main yet. Needs Render `NOTION_TOKEN` and the
+  integration shared on the Clips database. Nothing auto-posts to Buffer.
 
 ## 2026-08-28: Admin can backfill clip-inbox pairs
 
