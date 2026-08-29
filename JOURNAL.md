@@ -16,6 +16,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Sim-test: charge ram. `test:mutators` snapshot untouched (weights/copy
   only). Social calendar captions for ION day are stale; re-run
   `npm run calendar:sync` if those posts have not gone out yet.
+- Commit `d319787`. Not on main.
 
 ## 2026-08-28: Grok cutter cuts land in Notion Clips
 
