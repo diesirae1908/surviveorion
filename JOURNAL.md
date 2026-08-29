@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Daily filler names vary format and origin
+
+- Public daily board fillers were all two-word Title Case sci-fi names
+  with a random flag, which made the Filler column obvious next to real
+  pilots (Trip, Jarsco, Luciano, L33x, bellend, Haribro).
+- `server/dailyBots.mjs` now uses a mixed pool: first names, lowercase
+  handles, one-word callsigns, a few two-word leftovers, a few digit
+  handles. Country is bound to the name (Kenji stays JP).
+- Tests cover format mix, uniqueness, live-name collision, and country
+  pairing. Not merged, not deployed (customer-facing board).
+
 ## 2026-08-28: Crew Rehearsal picker is allowlist-only
 
 - The future-day dropdown was also unlocking from a leftover
