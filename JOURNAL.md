@@ -4,13 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-29: Admin analytics vs previous day
+## 2026-08-29: Admin analytics vs previous day LIVE
 
-- Lucas wanted % up/down on the selected-day cards. Each card now compares
-  to the previous Pacific day (green up, red down, New from zero). Hover
-  shows yesterday's number. Today notes it is still a partial day.
-- Branch `feat/admin-period-compare` (`bb12338`). Not on main. QA on `dev`.
-- Admin-only, no player-facing change.
+- Lucas: push on main. `bb12338` on surviveorion `main`. Render
+  `dep-da9l9l49v7es73doclj0` live ~2:55 PM PT. Server-only, bundle unchanged.
+- Selected-day cards compare to the previous Pacific day (green up, red down,
+  New from zero). Hover shows yesterday's number. Today notes it is still a
+  partial day. Live Aug 29 vs 28: Visitors 14 (-18%), Visits 15 (-57%),
+  Runs 19 (-24%), Anonymous +100%.
+- QA-only preview-host commit stayed on `dev`. Admin-only, no player-facing
+  change.
 
 ## 2026-08-29: Staging host can preview mutators
 
