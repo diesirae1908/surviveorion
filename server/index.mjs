@@ -238,9 +238,12 @@ function formatPtClock(ms) {
   }) + " PT";
 }
 
+const COMPARE_SNAP_MS = 15 * 60 * 1000;
+
 /** Slim previous-day snapshot so the dashboard can show % vs the prior PT day.
  * When `sameTimeUntilMs` is set (viewing today), the previous window is clipped
- * to the same elapsed time since midnight PT. Finished days stay full vs full. */
+ * to the last completed 15-minute mark since midnight PT. Finished days stay
+ * full vs full. */
 function adminPreviousDay(dateStr, { sameTimeUntilMs } = {}) {
   const prevDate = shiftYmd(dateStr, -1);
   let untilMs;
@@ -254,7 +257,8 @@ function adminPreviousDay(dateStr, { sameTimeUntilMs } = {}) {
         Math.max(0, sameTimeUntilMs - todayBounds.start),
         todayBounds.end - todayBounds.start,
       );
-      untilMs = prevBounds.start + elapsed;
+      const snapped = Math.floor(elapsed / COMPARE_SNAP_MS) * COMPARE_SNAP_MS;
+      untilMs = prevBounds.start + snapped;
       sameTime = true;
       throughLabel = formatPtClock(untilMs);
     }
