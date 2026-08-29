@@ -1,5 +1,12 @@
 # JOURNAL
 
+## 2026-08-29: Rewrote Ditch the Can + Dead Fart captions
+
+- Lucas: do not restate the on-video hook. Dead Fart was too blunt.
+  Ditch the Can now riffs the bathroom-can bit. Dead Fart uses the
+  Chandler line plus "You don't say Ray." editPost on the same 6 IDs
+  (assets re-sent so Buffer kept the video). Dates unchanged.
+
 ## 2026-08-29: Ditch the Can + Dead Fart hosted for Buffer
 
 - New finals: `0828_ditchthecan_916.mp4` (Bored? Ditch the can, play Orion)

@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Rewrote Ditch the Can + Dead Fart Buffer copy
+
+- Same 6 scheduled posts, new captions. No video files touched.
+
 ## 2026-08-29: Melting-pot filler callsigns LIVE
 
 - Pushed `c19d433` to surviveorion `main`. Render `dep-da99a7jl550s739pprg0`
