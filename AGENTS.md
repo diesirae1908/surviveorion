@@ -53,6 +53,15 @@ npx tsx scripts/sim-test.ts   # headless playtest: runs the real game loop,
 without human-approved files in `social/out/approved/`. Run tests with
 `cd social && npm test`.
 
+Lucas-only clip inbox (Grok cutter, no Drive OAuth): signed-in allowlist
+(`CLIP_INBOX_GOOGLE_SUB` / `CLIP_INBOX_CALLSIGN` on Render) POSTs the
+`webm`+`.json` pair to `POST /api/clip-inbox`. Bytes live on the existing
+`/data` disk at `/data/clip-inbox`. Grok lists pending at
+`GET /clip-inbox/<CLIP_INBOX_SECRET>/` and marks done with
+`POST /clip-inbox/<CLIP_INBOX_SECRET>/consumed` `{id}`. Consume never deletes.
+The same allowlist unlocks a Crew Rehearsal date picker on the daily lobby
+(next 14 patrols, sandboxed like `?day=`). Other players never see either UI.
+
 ## Brand
 
 `brand/` is the ORION brand kit (v1.0, 2026-08-24). It is the source of truth

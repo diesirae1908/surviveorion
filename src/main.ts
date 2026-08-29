@@ -30,6 +30,7 @@ import {
   isDesktopChrome,
   isIosWebKit,
   type ClipSidecar,
+  type ClipSidecarPower,
 } from "./clipSidecar";
 import {
   clearActiveMutators,
@@ -167,7 +168,6 @@ if (rehearsalParam === "director") {
     /* private browsing */
   }
 }
-const PREVIEW_ALLOWED = PREVIEW_ALLOWED_HOST || REHEARSAL_DIRECTOR;
 
 function parsePreviewDayParam(): Date | null {
   const raw = new URLSearchParams(location.search).get("day");
@@ -177,18 +177,78 @@ function parsePreviewDayParam(): Date | null {
   return d;
 }
 
-const PREVIEW_DAY = PREVIEW_ALLOWED ? parsePreviewDayParam() : null;
-const PREVIEW_MUTATORS: Mutator[] = PREVIEW_ALLOWED
-  ? (new URLSearchParams(location.search)
+function parsePreviewMutators(): Mutator[] {
+  return (
+    new URLSearchParams(location.search)
       .get("mutator")
       ?.split(",")
       .map((id) => getMutatorById(id.trim()))
       .filter((m): m is Mutator => !!m)
-      .slice(0, 2) ?? [])
-  : [];
-const PREVIEW_ACTIVE = PREVIEW_ALLOWED && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null);
-/** Rehearsal date string for preview UI/console (null = today's real patrol). */
-const PREVIEW_REHEARSAL_DATE = PREVIEW_DAY?.toISOString().slice(0, 10) ?? null;
+      .slice(0, 2) ?? []
+  );
+}
+
+/** Set after GET /api/me when this Google account is allowlisted. */
+let creatorAccess = false;
+let PREVIEW_DAY: Date | null = null;
+let PREVIEW_MUTATORS: Mutator[] = [];
+let PREVIEW_ACTIVE = false;
+let PREVIEW_REHEARSAL_DATE: string | null = null;
+
+function previewGateOpen(): boolean {
+  return PREVIEW_ALLOWED_HOST || REHEARSAL_DIRECTOR || creatorAccess;
+}
+
+function syncPreview(): void {
+  const allowed = previewGateOpen();
+  if (allowed && PREVIEW_DAY === null && PREVIEW_MUTATORS.length === 0) {
+    PREVIEW_DAY = parsePreviewDayParam();
+    PREVIEW_MUTATORS = parsePreviewMutators();
+  }
+  if (!allowed) {
+    PREVIEW_DAY = null;
+    PREVIEW_MUTATORS = [];
+  }
+  PREVIEW_REHEARSAL_DATE = PREVIEW_DAY?.toISOString().slice(0, 10) ?? null;
+  PREVIEW_ACTIVE = allowed && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null);
+}
+
+syncPreview();
+
+function addIsoDays(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+function upcomingPatrols(n = 14): Array<{ date: string; names: string }> {
+  const today = patrolDateStr();
+  const out: Array<{ date: string; names: string }> = [];
+  for (let i = 0; i < n; i++) {
+    const date = addIsoDays(today, i);
+    const muts = getMutatorsForDateStr(date);
+    out.push({ date, names: muts.map((m) => m.name).join(" + ") || "CLASSIC" });
+  }
+  return out;
+}
+
+function applyCreatorAccess(on: boolean): void {
+  creatorAccess = on;
+  syncPreview();
+}
+
+function setRehearsalDay(dateStr: string | null): void {
+  if (!previewGateOpen()) return;
+  if (!dateStr) {
+    PREVIEW_DAY = null;
+    PREVIEW_MUTATORS = [];
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const d = new Date(`${dateStr}T00:00:00.000Z`);
+    PREVIEW_DAY = Number.isNaN(d.getTime()) ? null : d;
+    PREVIEW_MUTATORS = [];
+  }
+  syncPreview();
+  if (state === "menu") showMenu();
+}
 
 if (PREVIEW_ACTIVE) {
   const bits = [
@@ -271,6 +331,8 @@ let lastClipSidecar: ClipSidecar | null = null;
 let lastClipBasename: string | null = null;
 /** Object URL for the iOS/WebKit Save JSON <a download>; revoked on the next run. */
 let lastClipJsonUrl: string | null = null;
+/** Power pickups this run (world.time), snapshotted into the sidecar. */
+let clipPowerLog: ClipSidecarPower[] = [];
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -484,6 +546,26 @@ const ui = new Ui(settings, {
     }
     return true;
   },
+  onSendToInbox: async () => {
+    if (!lastClipBlob || !lastClipSidecar || !lastClipBasename) return false;
+    try {
+      await api.uploadClipInbox(
+        lastClipBlob,
+        lastClipSidecar,
+        lastClipBasename,
+        clipExtension(lastClipBlob),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  onRehearseDay: (date) => setRehearsalDay(date),
+  onCrewSignIn: () =>
+    community.showAuth(() => {
+      applyCreatorAccess(api.clipInbox);
+      showMenu();
+    }),
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
   onRebind: (action, code) => {
@@ -510,7 +592,9 @@ const community = new CommunityUi(
   document.getElementById("ui")!,
   api,
   showMenu,
-  () => {}, // menu re-reads auth state every time it renders
+  () => {
+    applyCreatorAccess(api.clipInbox);
+  },
 );
 
 function showMenu(): void {
@@ -531,6 +615,8 @@ function showMenu(): void {
       medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
       preview: PREVIEW_ACTIVE,
       previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
+      creator: creatorAccess || REHEARSAL_DIRECTOR || PREVIEW_ALLOWED_HOST,
+      upcomingDays: creatorAccess || REHEARSAL_DIRECTOR || PREVIEW_ALLOWED_HOST ? upcomingPatrols(14) : undefined,
     });
     fillDailyHint();
     fillDailyBoard();
@@ -878,6 +964,7 @@ function startRun(): void {
   lastClipCapped = false;
   lastClipSidecar = null;
   lastClipBasename = null;
+  clipPowerLog = [];
   if (lastClipJsonUrl) {
     URL.revokeObjectURL(lastClipJsonUrl);
     lastClipJsonUrl = null;
@@ -974,6 +1061,8 @@ function snapshotClipSidecar(): void {
     mutators,
     daily: runIsDaily,
     gameMode: runGameMode,
+    powers: clipPowerLog.slice(),
+    now: PREVIEW_ACTIVE ? previewDailyDate() : undefined,
   };
   lastClipSidecar = buildClipSidecar(input);
   lastClipBasename = clipSidecarBasename(input);
@@ -1107,6 +1196,7 @@ function showGameOverUi(): void {
         ? `${lastClipBasename}.json`
         : undefined,
     clipJsonChromeHint: lastClipBlob && isDesktopChrome() ? true : undefined,
+    clipInbox: api.clipInbox && lastClipBlob !== null,
   });
   submitRun();
 }
@@ -1245,6 +1335,7 @@ function drainEvents(w: World): void {
         // the hint line lingers longer so new pilots learn what they grabbed
         popups.spawn(e.x, e.y - 0.55, POWER_HINTS[e.power], POWER_COLORS[e.power], 0.22, 1.7);
         audio.pickup();
+        clipPowerLog.push({ id: e.power, name: POWER_NAMES[e.power], time: world.time });
         break;
       case "shieldUp":
         audio.shieldUp();
@@ -1594,6 +1685,7 @@ window.addEventListener("pointerdown", () => {
 // Re-render the menu once the community server responds (session restore,
 // server availability) so the community buttons appear/disappear correctly.
 void api.init().then(() => {
+  applyCreatorAccess(api.clipInbox);
   if (state === "menu") showMenu();
 });
 

@@ -4,6 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Lucas-only clip inbox + future-day rehearsal (branch `sam/clip-inbox`)
+
+- Phone workflow without Drive OAuth: allowlisted Google account
+  (`CLIP_INBOX_GOOGLE_SUB` / `CLIP_INBOX_CALLSIGN`) sees Crew Rehearsal
+  (next 14 patrols, sandboxed) and Send to inbox on game-over. Upload is
+  `POST /api/clip-inbox` (multipart webm+json). Grok fetches
+  `GET /clip-inbox/<secret>/`; consume moves pending → consumed, never
+  deletes. Disk: existing Render `/data` (`orion-data`, 1GB) at
+  `/data/clip-inbox`.
+- Sidecar now includes `deathTime`, `powers[]`, and `events[]` (mutator /
+  power / death timestamps) so the cutter can label CLOSE CALL / SPACE DUST
+  / THE BOARD / TODAY'S PATROL. Rehearsal runs stamp the future date on the
+  filename. Canvas recording is still the full playfield.
+- Tests: `test:clip-inbox`, sidecar extras, rehearsal allowlist table.
+  Render env still needs `CLIP_INBOX_SECRET` + allowlist before this is
+  useful in prod.
+
 ## 2026-08-28: GREAT WALL Buffer posts moved to Sep 26
 
 - Next GREAT WALL patrol is 2026-09-26. Edited the 3 scheduled Buffer

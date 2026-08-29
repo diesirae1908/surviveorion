@@ -47,6 +47,13 @@ check("?rehearsal=off locks even with stored director", !rehearsalDirectorActive
 check("no param reads stored director flag", rehearsalDirectorActive(null, "director"));
 check("no param without storage stays locked", !rehearsalDirectorActive(null, null));
 
+function creatorOrDirector(clipInbox: boolean, director: boolean, localhost: boolean): boolean {
+  return clipInbox || director || localhost;
+}
+check("Lucas allowlist unlocks future days without rehearsal URL", creatorOrDirector(true, false, false));
+check("random pilot stays locked on production", !creatorOrDirector(false, false, false));
+check("localhost still unlocks without allowlist", creatorOrDirector(false, false, true));
+
 // Seed path is the same function the client uses at run start for a rehearsed day.
 {
   const d = "2026-09-20";

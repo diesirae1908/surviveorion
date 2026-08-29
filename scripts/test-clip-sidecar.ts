@@ -47,8 +47,8 @@ if (!blackout || !giants) {
   process.exit(1);
 }
 
-const now = new Date(Date.UTC(2026, 7, 24)); // 2026-08-24
-const sunday = new Date(Date.UTC(2026, 7, 23)); // 2026-08-23, a Sunday
+const now = new Date(Date.UTC(2026, 7, 24, 12, 0, 0)); // 2026-08-24 noon UTC = still Aug 24 PT
+const sunday = new Date(Date.UTC(2026, 7, 23, 12, 0, 0)); // 2026-08-23 Sunday in PT too
 
 const closest = { time: 84.2, x: 3, y: 4, clearance: 0.1 };
 const grazeA = { time: 10, x: 1, y: 2, clearance: 0.4 };
@@ -110,6 +110,9 @@ checkJson("mutatorIds", payload.mutatorIds, ["blackout", "giants"]);
 checkJson("mutatorNames", payload.mutatorNames, [blackout.name, giants.name]);
 check("score is floored", payload.score, 125000);
 check("survivalTime is world.time", payload.survivalTime, 91.5);
+check("deathTime aliases survivalTime", payload.deathTime, 91.5);
+check("powers default empty", payload.powers.length, 0);
+check("events start with mutator then death", payload.events[0]?.type === "mutator" && payload.events[payload.events.length - 1]?.type === "death" ? 1 : 0, 1);
 checkJson("closestCall keeps x/y", payload.closestCall, closest);
 
 const grazes = payload.topGrazes as Array<Record<string, unknown>>;
@@ -132,6 +135,16 @@ fullgame.track[0][1] = 99;
 fullgame.arena.w = 1;
 check("buildClipSidecar freezes track", fullPayload.track[0][1], 0);
 check("buildClipSidecar freezes arena", fullPayload.arena.w, 20);
+
+const powered = buildClipSidecar({
+  ...dailySunday,
+  powers: [{ id: "pulse", name: "Pulse Shot", time: 8.5 }],
+});
+check("power event at pickup time", powered.powers[0]?.time, 8.5);
+checkJson("events include power then death", powered.events.slice(1), [
+  { type: "power", time: 8.5, id: "pulse", name: "Pulse Shot" },
+  { type: "death", time: 91.5, score: 125000 },
+]);
 
 const emptyPayload = buildClipSidecar(emptyDaily);
 check("medal is null when no mutators", emptyPayload.medal, null);

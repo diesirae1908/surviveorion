@@ -5,6 +5,7 @@ server/orion.db*
 server/.env
 .env
 .env.local
+server/clip-inbox-data/
 
 # Lucas's local video work. Never commit. Never delete.
 final_videoasset/

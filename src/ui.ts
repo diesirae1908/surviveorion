@@ -60,6 +60,12 @@ export interface UiCallbacks {
   onFeedback: (message: string, email: string) => Promise<void>;
   /** Save the just-finished run's local clip (see recorder.ts); false = nothing to save. */
   onSaveClip: () => boolean;
+  /** Lucas-only: POST the clip pair to surviveorion's inbox. */
+  onSendToInbox: () => Promise<boolean>;
+  /** Rehearse a future patrol date (YYYY-MM-DD), or null to return to live today. */
+  onRehearseDay: (date: string | null) => void;
+  /** Daily-lobby/settings Google/password sign-in (needed for crew inbox). */
+  onCrewSignIn: () => void;
 }
 
 export interface MenuCommunity {
@@ -111,6 +117,8 @@ export interface GameOverStats {
   clipJsonFilename?: string;
   /** Desktop Chrome: second programmatic download may be blocked; show settings hint. */
   clipJsonChromeHint?: boolean;
+  /** Lucas-only inbox upload (hidden unless /api/me.clipInbox). */
+  clipInbox?: boolean;
 }
 
 /**
@@ -194,6 +202,9 @@ export interface DailyLobbyInfo {
   preview?: boolean;
   /** Rehearsed UTC date when ?day= is active (shown on the preview badge). */
   previewDate?: string;
+  /** Lucas-only: show the next-patrol picker and treat picks as sandboxed rehearsal. */
+  creator?: boolean;
+  upcomingDays?: Array<{ date: string; names: string }>;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -575,6 +586,22 @@ export class Ui {
     return btn;
   }
 
+  private sendInboxButton(): HTMLButtonElement {
+    const btn = this.button("Send to inbox", false, () => {
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+      void this.cb.onSendToInbox().then((ok) => {
+        btn.textContent = ok ? "Sent!" : "Couldn't send";
+        setTimeout(() => {
+          btn.textContent = "Send to inbox";
+          btn.disabled = false;
+        }, 1800);
+      });
+    });
+    btn.classList.add("share-btn");
+    return btn;
+  }
+
   /**
    * Second-gesture JSON download for iOS/WebKit (and any host that cannot
    * fire two programmatic downloads from one click). Real <a download>, not
@@ -626,6 +653,33 @@ export class Ui {
       ),
     );
     return card;
+  }
+
+  /** Lucas-only: pick a future patrol to record before it goes live. */
+  private rehearsalDayPicker(info: DailyLobbyInfo): HTMLElement {
+    const wrap = this.el("div", "creator-days", "");
+    wrap.appendChild(this.el("div", "creator-days-label", "CREW REHEARSAL"));
+    const select = document.createElement("select");
+    select.className = "creator-day-select";
+    const live = document.createElement("option");
+    live.value = "";
+    live.textContent = "Live today";
+    select.appendChild(live);
+    for (const day of info.upcomingDays ?? []) {
+      const opt = document.createElement("option");
+      opt.value = day.date;
+      opt.textContent = `${day.date} · ${day.names}`;
+      select.appendChild(opt);
+    }
+    select.value = info.previewDate ?? "";
+    select.addEventListener("change", () => {
+      this.cb.onRehearseDay(select.value || null);
+    });
+    wrap.appendChild(select);
+    wrap.appendChild(
+      this.el("div", "field-hint center", "Unlimited, not scored. Same mutators pilots will get that day."),
+    );
+    return wrap;
   }
 
   showMenu(bestScore: number, touchDevice: boolean, community?: MenuCommunity): void {
@@ -740,6 +794,10 @@ export class Ui {
       screen.appendChild(
         this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview, info.previewDate),
       );
+    }
+
+    if (info.creator && info.upcomingDays && info.upcomingDays.length > 0) {
+      screen.appendChild(this.rehearsalDayPicker(info));
     }
 
     // attempt pips: one per daily try, spent ones dimmed. A preview run
@@ -1176,6 +1234,13 @@ export class Ui {
     screen.appendChild(this.el("div", "heading gold small", "SETTINGS"));
     screen.appendChild(this.el("div", "divider", ""));
 
+    const signIn = this.el("button", "link-btn", "Sign in");
+    signIn.addEventListener("click", () => this.cb.onCrewSignIn());
+    screen.appendChild(signIn);
+    screen.appendChild(
+      this.el("div", "field-hint center", "Optional. Needed to save a score to the board from a new device."),
+    );
+
     screen.appendChild(this.toggleRow([
       ["sound", "Sound"],
       ["music", "Music"],
@@ -1211,7 +1276,7 @@ export class Ui {
           "div",
           "field-hint center",
           "Saves a local clip of each run for you to download. Stays on this device: " +
-            "nothing is uploaded, nothing is stored on our end. A quick toggle also " +
+            "nothing is uploaded, nothing is stored on our end, unless you tap Send to inbox. A quick toggle also " +
             "shows up on the game-over screen after a run.",
         ),
       );
@@ -1728,6 +1793,7 @@ export class Ui {
     if (stats.clipReady) {
       const clipRow = this.el("div", "clip-save-row", "");
       clipRow.appendChild(this.saveClipButton());
+      if (stats.clipInbox) clipRow.appendChild(this.sendInboxButton());
       if (stats.clipJsonHref && stats.clipJsonFilename) {
         clipRow.appendChild(this.saveJsonLink(stats.clipJsonHref, stats.clipJsonFilename));
       }

@@ -155,6 +155,8 @@ export class Api {
   joinedAt: number | null = null;
   /** False for guest accounts until they set one from the profile screen. */
   hasPassword = true;
+  /** Lucas-only clip inbox + future-day rehearsal. Set from GET /api/me. */
+  clipInbox = false;
   /** false once a request fails to reach the server at all. */
   online = true;
 
@@ -206,11 +208,13 @@ export class Api {
           pendingFriends?: number;
           hasPassword?: boolean;
           joinedAt?: number;
+          clipInbox?: boolean;
         }>("GET", "/api/me");
         this.user = me.user;
         this.pendingFriends = me.pendingFriends ?? 0;
         this.hasPassword = me.hasPassword ?? true;
         this.joinedAt = me.joinedAt ?? null;
+        this.clipInbox = !!me.clipInbox;
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;
@@ -228,6 +232,7 @@ export class Api {
     });
     this.setSession(r.token, r.user);
     this.hasPassword = true;
+    await this.refreshClipInbox();
   }
 
   async login(callsign: string, password: string): Promise<void> {
@@ -237,6 +242,7 @@ export class Api {
     });
     this.setSession(r.token, r.user);
     this.hasPassword = true;
+    await this.refreshClipInbox();
   }
 
   /**
@@ -260,6 +266,7 @@ export class Api {
     this.setSession(r.token, r.user);
     if (r.guestSecret) localStorage.setItem(GUEST_SECRET_KEY, r.guestSecret);
     this.hasPassword = false;
+    await this.refreshClipInbox();
     return !!r.existing;
   }
 
@@ -271,6 +278,7 @@ export class Api {
     );
     this.setSession(r.token, r.user);
     this.hasPassword = false; // Google accounts sign in via Google, no password
+    await this.refreshClipInbox();
     return r.isNew;
   }
 
@@ -282,7 +290,44 @@ export class Api {
     }
     this.token = null;
     this.user = null;
+    this.clipInbox = false;
     localStorage.removeItem(TOKEN_KEY);
+  }
+
+  async refreshClipInbox(): Promise<void> {
+    if (!this.token) {
+      this.clipInbox = false;
+      return;
+    }
+    try {
+      const me = await this.request<{ clipInbox?: boolean }>("GET", "/api/me");
+      this.clipInbox = !!me.clipInbox;
+    } catch {
+      this.clipInbox = false;
+    }
+  }
+
+  async uploadClipInbox(video: Blob, sidecar: object, basename: string, ext: string): Promise<void> {
+    const fd = new FormData();
+    fd.append("basename", basename);
+    fd.append(
+      "sidecar",
+      new Blob([JSON.stringify(sidecar)], { type: "application/json" }),
+      `${basename}.json`,
+    );
+    fd.append("video", video, `${basename}.${ext}`);
+    const headers: Record<string, string> = {};
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    let res: Response;
+    try {
+      res = await fetch("/api/clip-inbox", { method: "POST", headers, body: fd });
+      this.online = true;
+    } catch {
+      this.online = false;
+      throw new ApiError("can't reach the community server", 0);
+    }
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) throw new ApiError(data.error ?? `request failed (${res.status})`, res.status);
   }
 
   async updateProfile(patch: {

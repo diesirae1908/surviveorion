@@ -14,6 +14,17 @@ import type { Mutator } from "./mutators";
 import { patrolDayString } from "./save";
 import { dailyNumber } from "./share";
 
+export interface ClipSidecarPower {
+  id: string;
+  name: string;
+  time: number;
+}
+
+export type ClipSidecarEvent =
+  | { type: "mutator"; time: number; ids: string[]; names: string[] }
+  | { type: "power"; time: number; id: string; name: string }
+  | { type: "death"; time: number; score: number };
+
 export interface ClipSidecarGraze {
   time: number;
   clearance: number;
@@ -33,8 +44,12 @@ export interface ClipSidecar {
   score: number;
   medal: MedalTier | null;
   survivalTime: number;
+  /** Same as survivalTime: world.time at death, named for cutters. */
+  deathTime: number;
   closestCall: ClosestCall | null;
   topGrazes: ClipSidecarGraze[];
+  powers: ClipSidecarPower[];
+  events: ClipSidecarEvent[];
   track: ClipSidecarTrackSample[];
   arena: { w: number; h: number };
   view: { w: number; h: number };
@@ -52,7 +67,9 @@ export interface ClipSidecarInput {
   /** Daily Patrol (including preview). Fullgame Classic/Iron Rain are false. */
   daily: boolean;
   gameMode: GameMode;
-  /** Override "now" for tests; production leaves this unset. */
+  /** Power pickups this run, in world.time order. */
+  powers?: ClipSidecarPower[];
+  /** Override "now" for tests / rehearsal dates; production today leaves this unset. */
   now?: Date;
 }
 
@@ -88,15 +105,28 @@ export function sidecarMedal(score: number, mutators: Mutator[]): MedalTier | nu
 }
 
 export function buildClipSidecar(input: ClipSidecarInput): ClipSidecar {
+  const score = Math.floor(input.score);
+  const mutatorIds = input.mutators.map((m) => m.id);
+  const mutatorNames = input.mutators.map((m) => m.name);
+  const powers = (input.powers ?? []).map((p) => ({ id: p.id, name: p.name, time: p.time }));
+  const events: ClipSidecarEvent[] = [];
+  if (mutatorIds.length > 0) {
+    events.push({ type: "mutator", time: 0, ids: mutatorIds.slice(), names: mutatorNames.slice() });
+  }
+  for (const p of powers) events.push({ type: "power", time: p.time, id: p.id, name: p.name });
+  events.push({ type: "death", time: input.survivalTime, score });
   return {
     day: dailyNumber(input.now),
-    mutatorIds: input.mutators.map((m) => m.id),
-    mutatorNames: input.mutators.map((m) => m.name),
-    score: Math.floor(input.score),
+    mutatorIds,
+    mutatorNames,
+    score,
     medal: sidecarMedal(input.score, input.mutators),
     survivalTime: input.survivalTime,
+    deathTime: input.survivalTime,
     closestCall: input.closestCall ? copyCall(input.closestCall) : null,
     topGrazes: input.topGrazes.map((g) => ({ time: g.time, clearance: g.clearance })),
+    powers,
+    events,
     track: input.track.map((p) => [p[0], p[1], p[2]] as ClipSidecarTrackSample),
     arena: { w: input.arena.w, h: input.arena.h },
     view: { w: input.view.w, h: input.view.h },

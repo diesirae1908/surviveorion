@@ -6,6 +6,10 @@
 //   GOOGLE_CLIENT_ID=... node ...    # enable "Sign in with Google"
 //   CLERK_PUBLISHABLE_KEY=pk_... CLERK_SECRET_KEY=sk_...   # enable Clerk sign-in
 //   ORION_ADMIN_KEY=...              # unlock /admin dashboard + /api/admin/*
+//   CLIP_INBOX_SECRET=...            # Grok fetch URL /clip-inbox/<secret>/
+//   CLIP_INBOX_GOOGLE_SUB=...        # Lucas-only upload + future-day rehearsal
+//   CLIP_INBOX_CALLSIGN=...          # optional callsign allowlist fallback
+//   CLIP_INBOX_DIR=...               # override disk path (default /data/clip-inbox)
 //
 // Environment can also come from server/.env (KEY=value lines, not committed).
 
@@ -28,6 +32,7 @@ import {
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
+import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload } from "./clip-inbox.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -401,6 +406,7 @@ const routes = {
       // patrol history calendar: bounds how far back "missed" can honestly
       // apply for this account (see src/dailyHistory.ts).
       joinedAt: user.created_at,
+      clipInbox: clipInboxAllowed(user),
     });
   },
 
@@ -701,6 +707,14 @@ const routes = {
   "GET /api/friends/activity": (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
     json(res, 200, { activity: sanitizeEntries(store.friendActivity(user.id, 20)) });
+  },
+
+  "POST /api/clip-inbox": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!rateLimit(`clip-inbox:${user.id}`, 8)) {
+      return json(res, 429, { error: "too many uploads, try again in a minute" });
+    }
+    return handleClipInboxUpload(req, res, user);
   },
 
   // Player feedback (works signed-in or anonymous; email is optional so we
@@ -1192,6 +1206,7 @@ const server = http.createServer(async (req, res) => {
     }
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);
+    if (await handleClipInboxPublic(req, res, url)) return;
     if (!url.pathname.startsWith("/api/") && SERVE_DIST && isStaticMethod(req.method)) {
       return serveStatic(req, res, url.pathname, DIST);
     }
