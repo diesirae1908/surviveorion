@@ -146,7 +146,10 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * (matches the one-or-two-per-day rule); if nothing valid survives, this
  * falls back to today's real mutator(s).
  */
-const PREVIEW_ALLOWED_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const PREVIEW_ALLOWED_HOST =
+  location.hostname === "localhost" ||
+  location.hostname === "127.0.0.1" ||
+  location.hostname === "surviveorion-dev.onrender.com";
 try {
   localStorage.removeItem("orion.rehearsal");
 } catch {

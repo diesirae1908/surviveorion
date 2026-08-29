@@ -25,6 +25,11 @@ from `main`**. `git push origin main` IS a production deploy to a public game
 with real players — Render rebuilds in ~2 minutes. Verify a deploy by checking
 that the JS bundle hash served at surviveorion.com changed.
 
+**QA / staging:** long-lived remote `dev` auto-deploys to Render `surviveorion-dev`
+(`https://surviveorion-dev.onrender.com`, own `/data` disk). Promote `dev` → `main`
+only when the build is good. `?mutator=` / `?day=` preview is allowed on the
+staging host (and localhost), not on surviveorion.com.
+
 ## Working conventions
 
 ```bash
