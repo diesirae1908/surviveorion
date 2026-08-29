@@ -4,7 +4,7 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-## 2026-08-28: Daily lobby profile + wingmates (branch `sam/clip-inbox`)
+## 2026-08-28: Daily lobby profile + wingmates
 
 - Daily lobby hid identity after the Reddit launch, so even a signed-in
   pilot could not find their callsign, country, or friends. The same
@@ -14,9 +14,10 @@ why, commit hash, follow-ups), committed together with the work. See
   Sign out. Settings shows Pilot profile when signed in.
 - Reuses existing `/api/me`, `/api/friends/*`, `PATCH /api/me` country.
   Daily ghost rows stay on the board but are not clickable (`virtual` on
-  the public combined board, userId still stripped). No new endpoints.
+  the public combined board, userId still stripped). Live on `main`
+  `bfe22eb` (profile chip `673acca`).
 
-## 2026-08-28: Lucas-only clip inbox + future-day rehearsal (branch `sam/clip-inbox`)
+## 2026-08-28: Lucas-only clip inbox + future-day rehearsal
 
 - Phone workflow without Drive OAuth: allowlisted Google account
   (`CLIP_INBOX_GOOGLE_SUB` / `CLIP_INBOX_CALLSIGN`) sees Crew Rehearsal
@@ -24,14 +25,14 @@ why, commit hash, follow-ups), committed together with the work. See
   `POST /api/clip-inbox` (multipart webm+json). Grok fetches
   `GET /clip-inbox/<secret>/`; consume moves pending → consumed, never
   deletes. Disk: existing Render `/data` (`orion-data`, 1GB) at
-  `/data/clip-inbox`. Commit `3671450`.
+  `/data/clip-inbox`. Inbox module `3671450`. Live on `main` `bfe22eb`.
 - Sidecar now includes `deathTime`, `powers[]`, and `events[]` (mutator /
   power / death timestamps) so the cutter can label CLOSE CALL / SPACE DUST
   / THE BOARD / TODAY'S PATROL. Rehearsal runs stamp the future date on the
   filename. Canvas recording is still the full playfield.
 - Tests: `test:clip-inbox` PASS, sidecar extras PASS, `sim-test` ALL CHECKS
-  PASSED. Render env still needs `CLIP_INBOX_SECRET` + allowlist before this
-  is useful in prod.
+  PASSED. Render env still needs `CLIP_INBOX_SECRET` + allowlist before the
+  inbox/rehearsal picker is useful in prod.
 
 ## 2026-08-28: Social clips letterbox full playfield
 
