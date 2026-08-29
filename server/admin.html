@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Analytics · Orion</title>
+<style>
+  :root {
+    --bg: #f1f1f1;
+    --surface: #ffffff;
+    --text: #202223;
+    --sub: #6d7175;
+    --line: #e1e3e5;
+    --line-strong: #c9cccf;
+    --blue: #2c6ecb;
+    --blue-soft: #b4d4fb;
+    --green: #008060;
+    --green-bg: #cdfee1;
+    --amber: #b98900;
+    --amber-bg: #ffea8a;
+    --red: #d72c0d;
+    --shadow: 0 1px 0 rgba(22, 29, 37, 0.05);
+    --radius: 12px;
+    --focus: 0 0 0 2px #fff, 0 0 0 4px #2c6ecb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  button, input, select { font: inherit; }
+  ::selection { background: #b4d4fb; color: #202223; }
+  :focus-visible { outline: none; box-shadow: var(--focus); }
+  .topbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 16px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.02em; }
+  .topbar .sub { color: var(--sub); }
+  .shell { max-width: 1180px; margin: 0 auto; padding: 20px 28px 64px; }
+  .gate-card {
+    max-width: 420px; margin: 48px auto 0;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px;
+  }
+  .gate-card p { margin: 0 0 16px; color: var(--sub); }
+  .gate-row { display: flex; gap: 8px; }
+  input[type="password"], input[type="date"] {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    color: var(--text); border-radius: 8px; padding: 8px 12px;
+  }
+  input[type="password"] { flex: 1; }
+  input[type="date"] { width: 160px; color-scheme: light; }
+  .btn {
+    background: #1a1a1a; color: #fff; border: 0; border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; font-weight: 550;
+  }
+  .btn:hover { background: #333; }
+  .btn:disabled { background: #c9cccf; color: #fff; cursor: default; }
+  .btn-secondary {
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--line-strong);
+  }
+  .btn-secondary:hover { background: #f6f6f7; }
+  .btn-secondary:disabled { background: #f6f6f7; color: #8c9196; }
+  .err { color: var(--red); margin-top: 10px; }
+  .muted { color: var(--sub); }
+  .report {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    margin: 0 0 20px; overflow: hidden;
+    scroll-margin-top: 80px;
+  }
+  .report-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; padding: 18px 20px 14px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+  }
+  .report-head h2 {
+    margin: 0 0 4px; font-size: 16px; font-weight: 650; letter-spacing: -0.01em;
+  }
+  .report-head p { margin: 0; color: var(--sub); max-width: 52ch; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 550; border-radius: 999px;
+    padding: 4px 10px; margin-top: 8px;
+  }
+  .pill-live { background: var(--green-bg); color: var(--green); }
+  .pill-fixed { background: #e4e5e7; color: #5c5f62; }
+  .daynav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .report-body { padding: 16px 20px 20px; }
+  .report-body > h3 { margin: 20px 0 10px; font-size: 13px; font-weight: 650; }
+  .report-body > h3:first-child { margin-top: 0; }
+  .metrics {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px; margin-bottom: 16px;
+  }
+  .metric {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    background: #fafbfb;
+  }
+  .metric .v {
+    font-size: 22px; font-weight: 650; letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .metric .k { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .row2 {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px; margin-top: 8px;
+  }
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+    background: #fafbfb;
+  }
+  .panel h3 {
+    margin: 0 0 10px; font-size: 13px; font-weight: 650;
+  }
+  .note {
+    background: #f6f6f7; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; color: var(--sub); margin-bottom: 16px;
+  }
+  .note strong { color: var(--text); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th {
+    border-bottom: 1px solid var(--line); padding: 8px 10px;
+    text-align: left; vertical-align: top; font-variant-numeric: tabular-nums;
+  }
+  th { color: var(--sub); font-size: 12px; font-weight: 550; }
+  pre { white-space: pre-wrap; margin: 0; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .hbar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .hbar-label {
+    width: 150px; flex: none; text-align: right; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hbar-track { flex: 1; background: #f1f1f1; border-radius: 4px; height: 16px; overflow: hidden; }
+  .hbar-fill { height: 100%; background: var(--blue); border-radius: 4px; }
+  .hbar-val { width: 96px; flex: none; font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .colchart { display: flex; align-items: stretch; gap: 4px; height: 150px; margin-top: 6px; }
+  .colwrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .colval { font-size: 10px; color: var(--sub); text-align: center; height: 16px; }
+  .colstack { flex: 1; position: relative; background: #f6f6f7; border-radius: 4px 4px 0 0; }
+  .colstack .b, .colstack .a { position: absolute; bottom: 0; left: 18%; width: 64%; border-radius: 3px 3px 0 0; }
+  .colstack .b { background: var(--blue-soft); }
+  .colstack .a { background: var(--blue); }
+  .collabel { font-size: 10px; color: var(--sub); text-align: center; padding-top: 4px; white-space: nowrap; overflow: hidden; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--sub); margin: 8px 0 2px; }
+  .chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .split { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: #f1f1f1; }
+  .split div { min-width: 2px; }
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 550;
+    border-radius: 999px; padding: 2px 8px;
+  }
+  .tag-real { background: var(--green-bg); color: var(--green); }
+  .tag-fill { background: var(--amber-bg); color: #5c4e00; }
+  .board-wrap { overflow-x: auto; }
+  @media (max-width: 720px) {
+    .topbar, .shell { padding-left: 16px; padding-right: 16px; }
+    .hbar-label { width: 96px; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<!--
+THESIS: Two labeled reports so a date change cannot be mistaken for all-time. Refuses the old gold-on-void Mission Control chrome.
+OWN-WORLD: Shopify Polaris analytics: light gray canvas, white cards, system sans, blue charts, black primary buttons.
+STORY: Lucas picks a Pacific day, reads that day's traffic and the public board (real vs filler), then scrolls to numbers that never follow the picker.
+FIRST VIEWPORT: White Analytics header, then a Selected day card that owns the date control.
+FORM: Canon Shopify Analytics, standing exit from the Orion admin theme.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+-->
+<header class="topbar">
+  <div>
+    <h1>Analytics</h1>
+    <div class="sub">Orion admin · surviveorion.com</div>
+  </div>
+</header>
+<div class="shell">
+<div id="gate">
+  <div class="gate-card">
+    <p>Enter the admin key to load analytics.</p>
+    <div class="gate-row">
+      <input id="key" type="password" placeholder="Admin key" autofocus>
+      <button class="btn" onclick="go()">Open</button>
+    </div>
+    <div id="gate-err" class="err"></div>
+  </div>
+</div>
+<div id="dash" style="display:none"></div>
+</div>
+<script>
+const fmt = (n, d = 0) => n == null ? "-" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
+const secs = (s) => s == null ? "-" : s >= 60 ? Math.floor(s / 60) + "m " + Math.round(s % 60) + "s" : Math.round(s) + "s";
+const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const stat = (k, v) => '<div class="metric"><div class="v">' + v + '</div><div class="k">' + k + "</div></div>";
+const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : "";
+const BLUE = "#2c6ecb", RED = "#d72c0d", GREEN = "#008060", AMBER = "#b98900", GRAY = "#8c9196";
+
+function prettyDate(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  });
+}
+
+function hbars(rows, empty) {
+  if (!rows.length) return '<div class="muted">' + empty + "</div>";
+  const max = Math.max.apply(null, rows.map((r) => r.value).concat([1]));
+  return rows.map((r) =>
+    '<div class="hbar-row"><div class="hbar-label">' + r.label + "</div>" +
+    '<div class="hbar-track"><div class="hbar-fill" style="width:' + Math.max(1.5, (r.value / max) * 100).toFixed(1) + '%"></div></div>' +
+    '<div class="hbar-val">' + r.val + "</div></div>",
+  ).join("");
+}
+
+function colchart(days, aName, bName) {
+  if (!days.length) return '<div class="muted">nothing yet</div>';
+  const max = Math.max.apply(null, days.map((d) => Math.max(d.a, d.b)).concat([1]));
+  const cols = days.map((d) => {
+    const title = esc(d.day + ": " + fmt(d.b) + " " + bName + ", " + fmt(d.a) + " " + aName);
+    return '<div class="colwrap" title="' + title + '">' +
+      '<div class="colval">' + (d.b || "") + "</div>" +
+      '<div class="colstack">' +
+        '<div class="b" style="height:' + ((d.b / max) * 100).toFixed(1) + '%"></div>' +
+        '<div class="a" style="height:' + ((d.a / max) * 100).toFixed(1) + '%"></div>' +
+      "</div>" +
+      '<div class="collabel">' + d.day.slice(5).replace("-", "/") + "</div>" +
+    "</div>";
+  }).join("");
+  return '<div class="legend"><span><span class="chip" style="background:' + BLUE + '"></span>' +
+    aName + '</span><span><span class="chip" style="background:' + "#b4d4fb" + '"></span>' + bName + "</span></div>" +
+    '<div class="colchart">' + cols + "</div>";
+}
+
+function splitBar(parts) {
+  const COLORS = [BLUE, RED, GREEN, AMBER, GRAY];
+  parts = parts.filter((p) => p.value > 0);
+  if (!parts.length) return '<div class="muted">nothing yet</div>';
+  const total = parts.reduce((s, p) => s + p.value, 0);
+  return '<div class="split">' +
+    parts.map((p, i) => '<div style="width:' + ((p.value / total) * 100).toFixed(1) + "%;background:" +
+      COLORS[i % COLORS.length] + '" title="' + esc(p.label) + ": " + fmt(p.value) + '"></div>').join("") +
+    "</div><div class='legend'>" +
+    parts.map((p, i) => '<span><span class="chip" style="background:' + COLORS[i % COLORS.length] + '"></span>' +
+      esc(p.label) + " · " + fmt(p.value) + " (" + Math.round((p.value / total) * 100) + "%)</span>").join("") +
+    "</div>";
+}
+
+function renderBoard(board) {
+  if (!board || !board.entries || !board.entries.length) {
+    return '<div class="muted">No scores on the public board for this day.</div>';
+  }
+  const rows = board.entries.map((e, i) => {
+    const kind = e.virtual
+      ? '<span class="tag tag-fill">Filler</span>'
+      : '<span class="tag tag-real">Real</span>';
+    return "<tr><td>" + (i + 1) + "</td><td>" + flag(e.country) + " " + esc(e.callsign) +
+      "</td><td>" + fmt(e.best) + "</td><td>" + kind + "</td></tr>";
+  }).join("");
+  return '<div class="board-wrap"><table><tr><th>#</th><th>Pilot</th><th>Best</th><th>Kind</th></tr>' +
+    rows + "</table></div>";
+}
+
+function renderDay(day) {
+  const body = document.getElementById("day-body");
+  if (!body) return;
+  if (!day) { body.innerHTML = "<p class='err'>No data for that date.</p>"; return; }
+  const board = day.board ?? { realPilots: 0, fillerBots: 0, entries: [] };
+  const title = document.getElementById("day-title");
+  if (title) title.textContent = prettyDate(day.date);
+  body.innerHTML =
+    '<div class="note">Visits are page loads. Runs are finished games (up to 3 attempts per signed-in pilot, plus anonymous play). ' +
+      "The public leaderboard lists <strong>" + fmt(board.realPilots) + " real scores</strong> and <strong>" +
+      fmt(board.fillerBots) + " filler bots</strong>. Fillers are not visits and are not stored as runs.</div>" +
+    '<div class="metrics">' +
+      stat("Visitors", fmt(day.traffic.uniques)) +
+      stat("Visits", fmt(day.traffic.visits)) +
+      stat("New pilots", fmt(day.users.new)) +
+      stat("Runs", fmt(day.runs.total)) +
+      stat("Signed-in players", fmt(day.runs.signedInPlayers)) +
+      stat("Anonymous runs", fmt(day.runs.anonymous)) +
+      stat("Real scores", fmt(board.realPilots)) +
+      stat("Filler scores", fmt(board.fillerBots)) +
+    "</div>" +
+    '<div class="row2">' +
+      '<div class="panel"><h3>Countries</h3>' +
+        hbars(day.traffic.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "no traffic that day") +
+      "</div>" +
+      '<div class="panel"><h3>Referrers</h3>' +
+        hbars(day.traffic.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "no referrers that day") +
+      "</div>" +
+      '<div class="panel"><h3>Site face</h3>' +
+        splitBar(day.traffic.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
+      "</div>" +
+      '<div class="panel"><h3>Devices</h3>' +
+        splitBar(day.traffic.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
+      "</div>" +
+    "</div>" +
+    '<div class="row2">' +
+      '<div class="panel"><h3>Boards</h3>' +
+        splitBar(day.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
+      "</div>" +
+      '<div class="panel"><h3>Game modes</h3>' +
+        splitBar(day.runs.gameModeSplit.map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
+      "</div>" +
+    "</div>" +
+    '<div class="row2">' +
+      '<div class="panel"><h3>Game length</h3><div class="metrics">' +
+        stat("Average", secs(day.gameLength.avg)) + stat("Median", secs(day.gameLength.median)) + stat("Longest", secs(day.gameLength.max)) +
+      "</div></div>" +
+      '<div class="panel"><h3>Score</h3><div class="metrics">' +
+        stat("Average", fmt(day.score.avg)) + stat("Median", fmt(day.score.median)) + stat("Best", fmt(day.score.max)) +
+      "</div></div>" +
+      '<div class="panel"><h3>Combat</h3><div class="metrics">' +
+        stat("Avg kills", fmt(day.combat.avgKills, 1)) + stat("Best multiplier", "x" + fmt(day.combat.bestMultiplier, 1)) +
+      "</div></div>" +
+    "</div>" +
+    '<div class="panel" style="margin-top:16px"><h3>Public daily board</h3>' +
+      renderBoard(board) +
+    "</div>";
+}
+
+let ADMIN_AUTH = null;
+let TODAY = null;
+let currentDay = null;
+
+function shiftDate(dateStr, days) {
+  const [y, m, dd] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, dd));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+function setDayControls(dateStr) {
+  currentDay = dateStr;
+  document.getElementById("day-date").value = dateStr;
+  document.getElementById("day-next").disabled = dateStr >= TODAY;
+}
+
+async function loadDay(dateStr) {
+  const res = await fetch("/api/admin/stats?date=" + dateStr, ADMIN_AUTH);
+  const s = await res.json();
+  if (!res.ok || !s.day) {
+    document.getElementById("day-body").innerHTML = "<p class='err'>" + esc(s.error ?? "no data") + "</p>";
+    return;
+  }
+  renderDay(s.day);
+  setDayControls(s.day.date);
+}
+
+function navDay(delta) { loadDay(shiftDate(currentDay, delta)); }
+function jumpToday() { loadDay(TODAY); }
+
+async function go() {
+  const key = document.getElementById("key").value.trim();
+  const auth = { headers: { Authorization: "Bearer " + key } };
+  const sRes = await fetch("/api/admin/stats", auth);
+  if (!sRes.ok) { document.getElementById("gate-err").textContent = "Wrong key (or ORION_ADMIN_KEY unset)."; return; }
+  const s = await sRes.json();
+  const fb = (await (await fetch("/api/admin/feedback", auth)).json()).feedback ?? [];
+  localStorage.setItem("orion.adminKey", key);
+  document.getElementById("gate").style.display = "none";
+  document.getElementById("gate").hidden = true;
+  const d = document.getElementById("dash");
+  d.style.display = "";
+  const t = s.traffic ?? null;
+  ADMIN_AUTH = auth;
+  TODAY = s.day ? s.day.date : null;
+  d.innerHTML =
+    '<section class="report">' +
+      '<div class="report-head">' +
+        "<div>" +
+          "<h2>Selected day</h2>" +
+          '<p>These numbers follow the date control. Days are Pacific Time (PT).</p>' +
+          '<div class="pill pill-live" id="day-title">' + (TODAY ? prettyDate(TODAY) : "Today") + "</div>" +
+        "</div>" +
+        '<div class="daynav">' +
+          "<button class='btn btn-secondary' onclick='navDay(-1)'>Previous</button>" +
+          "<input id='day-date' type='date' max='" + esc(TODAY) + "'>" +
+          "<button class='btn btn-secondary' id='day-next' onclick='navDay(1)'>Next</button>" +
+          "<button class='btn' onclick='jumpToday()'>Today</button>" +
+        "</div>" +
+      "</div>" +
+      '<div class="report-body" id="day-body"></div>' +
+    "</section>" +
+    '<section class="report">' +
+      '<div class="report-head">' +
+        "<div>" +
+          "<h2>All time and rolling</h2>" +
+          "<p>This block ignores the date above. Today and week counters are still Pacific Time. Weeks are rolling 7 days.</p>" +
+          '<div class="pill pill-fixed">Does not change with the date picker</div>' +
+        "</div>" +
+      "</div>" +
+      '<div class="report-body">' +
+    (t ? (
+    "<h3>Traffic</h3><div class='metrics'>" +
+      stat("Visitors today", fmt(t.today.uniques)) +
+      stat("Visits today", fmt(t.today.visits)) +
+      stat("Visitors (7 days)", fmt(t.week.uniques)) +
+      stat("Visits (7 days)", fmt(t.week.visits)) +
+      stat("Visitors all-time", fmt(t.total.uniques)) +
+      stat("Visits all-time", fmt(t.total.visits)) +
+    "</div>" +
+    "<h3>Visits per day (last 14)</h3>" +
+      colchart(t.perDay.slice().reverse().map((v) => ({ day: v.day, a: v.uniques, b: v.visits })), "visitors", "visits") +
+    '<div class="row2">' +
+      '<div class="panel"><h3>Countries (14d)</h3>' +
+        hbars(t.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "nothing yet") +
+      "</div>" +
+      '<div class="panel"><h3>Referrers (14d)</h3>' +
+        hbars(t.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "direct visits only so far") +
+      "</div>" +
+      '<div class="panel"><h3>Site face (14d)</h3>' +
+        splitBar(t.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
+      "</div>" +
+      '<div class="panel"><h3>Devices (14d)</h3>' +
+        splitBar(t.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
+      "</div>" +
+    "</div>"
+    ) : "") +
+    "<h3>Pilots</h3><div class='metrics'>" +
+      stat("Registered pilots", fmt(s.users.total)) +
+      stat("New this week", fmt(s.users.newThisWeek)) +
+      stat("New today", fmt(s.users.newToday)) +
+      stat("Returning (>1 run)", fmt(s.users.returningPlayers)) +
+    "</div>" +
+    "<h3>Runs</h3><div class='metrics'>" +
+      stat("Total runs", fmt(s.runs.total)) +
+      stat("Anonymous runs", fmt(s.runs.anonymous)) +
+      stat("Signed-in players", fmt(s.runs.signedInPlayers)) +
+    "</div>" +
+    "<h3>Runs per day (last 14)</h3>" +
+      colchart(s.runs.perDay.slice().reverse().map((r) => ({ day: r.day, a: r.players, b: r.runs })), "signed-in players", "runs") +
+    '<div class="row2">' +
+      '<div class="panel"><h3>Boards</h3>' +
+        splitBar(s.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
+      "</div>" +
+      '<div class="panel"><h3>Game modes</h3>' +
+        splitBar((s.runs.gameModeSplit ?? []).map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
+      "</div>" +
+    "</div>" +
+    '<div class="row2">' +
+      '<div class="panel"><h3>Game length</h3><div class="metrics">' +
+        stat("Average", secs(s.gameLength.avg)) +
+        stat("Median", secs(s.gameLength.median)) +
+        stat("Longest", secs(s.gameLength.max)) +
+      "</div><h3>Distribution</h3>" +
+        hbars(Object.entries(s.gameLength.buckets).map(([k, v]) => ({ label: esc(k), value: v, val: fmt(v) + " runs" })), "nothing yet") +
+      "</div>" +
+      '<div class="panel"><h3>Score</h3><div class="metrics">' +
+        stat("Average", fmt(s.score.avg)) + stat("Median", fmt(s.score.median)) +
+        stat("p90", fmt(s.score.p90)) + stat("p99", fmt(s.score.p99)) +
+        stat("Best", fmt(s.score.max)) +
+      "</div>" +
+      "<h3>Combat</h3><div class='metrics'>" +
+        stat("Avg kills / run", fmt(s.combat.avgKills, 1)) +
+        stat("Kills / minute", fmt(s.combat.killsPerMinute, 1)) +
+        stat("Avg peak multiplier", "x" + fmt(s.combat.avgMaxMultiplier, 1)) +
+        stat("Best multiplier", "x" + fmt(s.combat.bestMultiplier, 1)) +
+      "</div></div>" +
+    "</div>" +
+    "<h3>Community</h3><div class='metrics'>" +
+      stat("Feedback reports", fmt(s.community.feedback)) +
+      stat("With email", fmt(s.community.feedbackWithEmail)) +
+      stat("Arenas", fmt(s.community.arenas)) +
+      stat("Badges awarded", fmt(s.community.badgesAwarded)) +
+    "</div>" +
+    "<h3>Badge holders</h3>" +
+      hbars(s.community.badgeCounts.map((b) => ({ label: esc(b.badge), value: b.holders, val: fmt(b.holders) + " pilots" })), "no badges earned yet") +
+    "<h3>Recent feedback</h3><table><tr><th>When</th><th>Pilot</th><th>Email</th><th>Message</th></tr>" +
+      fb.map((f) => "<tr><td class='muted'>" + new Date(f.createdAt).toLocaleString() + "</td><td>" +
+        esc(f.callsign ?? "anon") + "</td><td>" + esc(f.email ?? "") + "</td><td><pre>" +
+        esc(f.message) + "</pre><span class='muted'>" + esc(f.context) + "</span></td></tr>").join("") +
+    "</table></div></section>";
+  document.getElementById("day-date").addEventListener("change", (e) => loadDay(e.target.value));
+  if (s.day) { renderDay(s.day); setDayControls(s.day.date); }
+}
+const saved = localStorage.getItem("orion.adminKey");
+if (saved) { document.getElementById("key").value = saved; go(); }
+document.getElementById("key").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+</script>
+</body>
+</html>
