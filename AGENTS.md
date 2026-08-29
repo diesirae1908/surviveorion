@@ -65,6 +65,15 @@ The JSON sidecar is not a download; it only travels with Send to inbox.
 Other players never see those controls. A leftover
 `?rehearsal=director` browser flag does not count.
 
+Grok uploads finished cuts (not the raw inbox pair) to
+`POST /clip-inbox/<CLIP_INBOX_SECRET>/cuts` (multipart `video` plus optional
+`name`, `format`, `mutator`, `sourceId`, `patrolDate`, `notes`, `poster`).
+Cuts live at `/data/clip-inbox/cuts/<id>/` and are served unlisted at
+`GET /clip-cuts/<id>/cut.mp4` (unguessable id, not the inbox secret).
+If `NOTION_TOKEN` is set, the server creates a Clips row (Kind `Cut`) with
+the hosted URL. Share the Notion integration on the Clips database.
+Nothing auto-posts to Buffer.
+
 ## Brand
 
 `brand/` is the ORION brand kit (v1.0, 2026-08-24). It is the source of truth

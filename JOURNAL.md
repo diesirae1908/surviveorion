@@ -4,6 +4,20 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Grok cutter cuts land in Notion Clips
+
+- Grok POSTs finished cuts to `POST /clip-inbox/<secret>/cuts` (multipart
+  `video`, optional name/format/mutator/sourceId/patrolDate/notes/poster).
+- Bytes stay on `/data/clip-inbox/cuts/<id>/`. Never deleted. Served
+  unlisted at `GET /clip-cuts/<id>/cut.mp4` (unguessable id, not the inbox
+  secret). No public index.
+- If `NOTION_TOKEN` is set, fail-soft create of a Clips row Kind `Cut` with
+  Hosted URL + optional poster cover. Default DB
+  `464e297722b648c58cd3f9a4e98e561a`. Override `NOTION_CLIPS_DATABASE_ID`.
+- Tests: `test:clip-inbox` (cut upload/fetch/list) + `test:notion-clips`.
+  Not on main yet. Needs Render `NOTION_TOKEN` and the integration shared
+  on the Clips database. Nothing auto-posts to Buffer.
+
 ## 2026-08-28: Admin can backfill clip-inbox pairs
 
 - POST /api/clip-inbox now accepts Bearer ORION_ADMIN_KEY (same as /admin)

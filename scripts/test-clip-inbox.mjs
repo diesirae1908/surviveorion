@@ -100,6 +100,7 @@ check("second consume fails", inbox.consumeClip(basename) === false);
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   if (await inbox.handleClipInboxPublic(req, res, url)) return;
+  if (await inbox.handleClipCutsPublic(req, res, url)) return;
   if (req.method === "POST" && url.pathname === "/api/clip-inbox") {
     return inbox.handleClipInboxUpload(req, res, { callsign: "Lucas", google_sub: "google-sub-lucas" });
   }
@@ -144,6 +145,37 @@ check("index empty after consume", listedAfter.pending?.length === 0);
 
 const still = await fetch(`${origin}/clip-inbox/${secret}/file/${basename2}.webm`);
 check("consumed video still fetchable", still.status === 200);
+
+const cutBytes = Buffer.from("x".repeat(64));
+const cutFd = new FormData();
+cutFd.append("name", "THE PIT freeze");
+cutFd.append("format", "CLOSE CALL");
+cutFd.append("mutator", "THE PIT");
+cutFd.append("sourceId", basename2);
+cutFd.append("notes", "graze at 12s");
+cutFd.append("video", new Blob([cutBytes], { type: "video/mp4" }), "cut.mp4");
+const cutUp = await fetch(`${origin}/clip-inbox/${secret}/cuts`, { method: "POST", body: cutFd });
+const cutJson = await cutUp.json();
+check("cut upload 200", cutUp.status === 200, JSON.stringify(cutJson));
+check("cut returns id", typeof cutJson.id === "string" && cutJson.id.length === 32);
+check("cut hosted url is unlisted", typeof cutJson.videoUrl === "string" && cutJson.videoUrl.includes(`/clip-cuts/${cutJson.id}/cut.mp4`));
+check("cut hosted url hides inbox secret", !String(cutJson.videoUrl).includes(secret));
+check("cut notion skipped without token", cutJson.notionSkipped === true);
+
+const cutGet = await fetch(cutJson.videoUrl);
+check("unlisted cut fetch 200", cutGet.status === 200 && Buffer.from(await cutGet.arrayBuffer()).equals(cutBytes));
+check("cut cors", cutGet.headers.get("access-control-allow-origin") === "*");
+
+const listedCuts = await (await fetch(`${origin}/clip-inbox/${secret}/cuts`)).json();
+check("secret lists cuts", listedCuts.cuts?.length === 1 && listedCuts.cuts[0].id === cutJson.id);
+
+const cutIndex = await fetch(`${origin}/clip-cuts/`);
+check("cuts have no public index", cutIndex.status === 404);
+
+const wrongFd = new FormData();
+wrongFd.append("video", new Blob([cutBytes], { type: "video/mp4" }), "cut.mp4");
+const wrongCut = await fetch(`${origin}/clip-inbox/wrong-secret/cuts`, { method: "POST", body: wrongFd });
+check("wrong secret cannot upload cuts", wrongCut.status === 404);
 
 const strangerServer = http.createServer(async (req, res) => {
   await inbox.handleClipInboxUpload(req, res, { callsign: "Stranger", google_sub: "nope" });

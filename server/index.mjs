@@ -10,6 +10,8 @@
 //   CLIP_INBOX_GOOGLE_SUB=...        # Lucas-only upload + future-day rehearsal
 //   CLIP_INBOX_CALLSIGN=...          # optional callsign allowlist fallback
 //   CLIP_INBOX_DIR=...               # override disk path (default /data/clip-inbox)
+//   NOTION_TOKEN=...                 # optional: Grok cuts + (later) feedback -> Notion
+//   NOTION_CLIPS_DATABASE_ID=...     # optional override; default is Praetor Lab Clips
 //
 // Environment can also come from server/.env (KEY=value lines, not committed).
 
@@ -32,7 +34,7 @@ import {
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
-import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload } from "./clip-inbox.mjs";
+import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload, handleClipCutsPublic } from "./clip-inbox.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -916,6 +918,7 @@ const server = http.createServer(async (req, res) => {
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);
     if (await handleClipInboxPublic(req, res, url)) return;
+    if (await handleClipCutsPublic(req, res, url)) return;
     if (!url.pathname.startsWith("/api/") && SERVE_DIST && isStaticMethod(req.method)) {
       return serveStatic(req, res, url.pathname, DIST);
     }
