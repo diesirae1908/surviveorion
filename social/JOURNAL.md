@@ -1,5 +1,10 @@
 # JOURNAL
 
+## 2026-08-29: Ditch the Can is second person
+
+- Lucas: "Caught yourself..." not "myself." IG + TT editPost on the
+  same IDs. Video kept. YouTube body unchanged.
+
 ## 2026-08-29: Rewrote Ditch the Can + Dead Fart captions
 
 - Lucas: do not restate the on-video hook. Dead Fart was too blunt.
