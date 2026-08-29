@@ -44,6 +44,7 @@ const sidecar = {
   view: { w: 1280, h: 720 },
 };
 const basename = "orion_2026-08-29_day48_gold-dash_12000";
+const morningBasename = "orion_2026-08-28_day46_the-flood_32282";
 const video = Buffer.from("webm-fake-bytes-not-a-real-file");
 
 const meta = inbox.savePair({
@@ -53,6 +54,16 @@ const meta = inbox.savePair({
   ext: "webm",
 });
 check("savePair writes pending meta", meta.id === basename && meta.consumed === false);
+{
+  const morning = inbox.savePair({
+    basename: morningBasename,
+    sidecarJson: JSON.stringify(sidecar),
+    video,
+    ext: "webm",
+  });
+  check("day46 the-flood basename is valid", morning.id === morningBasename);
+  check("consume morning fixture", inbox.consumeClip(morningBasename) === true);
+}
 check("pending lists the pair", inbox.listPending().length === 1);
 check("pending id matches", inbox.listPending()[0].id === basename);
 

@@ -727,6 +727,14 @@ const routes = {
   },
 
   "POST /api/clip-inbox": async (req, res, user) => {
+    // Operator backfill: same Bearer as /admin, not a player session.
+    if (isAdmin(req)) {
+      if (!rateLimit("clip-inbox:admin", 8)) {
+        return json(res, 429, { error: "too many uploads, try again in a minute" });
+      }
+      const callsign = process.env.CLIP_INBOX_CALLSIGN || "luciux";
+      return handleClipInboxUpload(req, res, { callsign });
+    }
     if (!user) return json(res, 401, { error: "not signed in" });
     if (!rateLimit(`clip-inbox:${user.id}`, 8)) {
       return json(res, 429, { error: "too many uploads, try again in a minute" });

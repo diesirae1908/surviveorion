@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Admin can backfill clip-inbox pairs
+
+- POST /api/clip-inbox now accepts Bearer ORION_ADMIN_KEY (same as /admin)
+  so morning local webm+json pairs can land on /data/clip-inbox without
+  a luciux game session. Still allowlist-shaped (CLIP_INBOX_CALLSIGN).
+  Player upload path unchanged.
+- test:clip-inbox covers day46 the-flood basename. No player-facing copy.
+
 ## 2026-08-28: ION charges like Pulse, then fires an aimed cone
 
 - Pickup no longer shoves instantly. Ion now charges (~0.8s, same pattern

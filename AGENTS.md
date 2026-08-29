@@ -55,8 +55,9 @@ without human-approved files in `social/out/approved/`. Run tests with
 
 Lucas-only clip inbox (Grok cutter, no Drive OAuth): signed-in allowlist
 (`CLIP_INBOX_GOOGLE_SUB` / `CLIP_INBOX_CALLSIGN` on Render) POSTs the
-`webm`+`.json` pair to `POST /api/clip-inbox`. Bytes live on the existing
-`/data` disk at `/data/clip-inbox`. Grok lists pending at
+`webm`+`.json` pair to `POST /api/clip-inbox`. Operator backfill uses the same
+path with Bearer `ORION_ADMIN_KEY` (no player session). Bytes live on the
+existing `/data` disk at `/data/clip-inbox`. Grok lists pending at
 `GET /clip-inbox/<CLIP_INBOX_SECRET>/` and marks done with
 `POST /clip-inbox/<CLIP_INBOX_SECRET>/consumed` `{id}`. Consume never deletes.
 The same allowlist unlocks Crew Rehearsal, Record runs, and Save clip.
