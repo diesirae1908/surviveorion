@@ -11,6 +11,27 @@ why, commit hash, follow-ups), committed together with the work. See
   the recorder start now require the same `clipInbox` flag
   (`CLIP_INBOX_CALLSIGN=luciux` on Render). Save JSON is gone: the sidecar
   only travels with Send to inbox. Other accounts never get the pair.
+  Commit `4b44eab`.
+
+## 2026-08-28: Mixed filler names LIVE
+
+- Pushed `c82e42d` to `main`. Render `dep-da93ch710e5c73apo96g` live.
+  Server-only change, bundle still `main-BOf4OLSR.js`.
+- Live `GET /api/leaderboard/daily?mode=all&limit=20`: Niko (FI), Jonas
+  (SE), keel (NZ), tess (GB), Patchwork (CA). Meteor Courier / Kestrel
+  Wing gone. Real pilots (Trip, Jarsco, Luciano, L33x, bellend, Haribro)
+  unchanged.
+
+## 2026-08-28: Daily filler names vary format and origin
+
+- Public daily board fillers were all two-word Title Case sci-fi names
+  with a random flag, which made the Filler column obvious next to real
+  pilots (Trip, Jarsco, Luciano, L33x, bellend, Haribro).
+- `server/dailyBots.mjs` now uses a mixed pool: first names, lowercase
+  handles, one-word callsigns, a few two-word leftovers, a few digit
+  handles. Country is bound to the name (Kenji stays JP).
+- Tests cover format mix, uniqueness, live-name collision, and country
+  pairing. Not merged, not deployed (customer-facing board).
 
 ## 2026-08-28: Crew Rehearsal picker is allowlist-only
 
@@ -20,6 +41,13 @@ why, commit hash, follow-ups), committed together with the work. See
   `/api/me` only. Production `?day=` / `?mutator=` also require that
   allowlist. Localhost URL preview stays for tuning. Stale
   `orion.rehearsal` is cleared on boot.
+
+## 2026-08-28: Admin analytics revamp live
+
+- Pushed `1057fc3` to `main`. Render `dep-da9361v10e5c73apkfj0` live.
+- `/admin` is the Shopify-style report. Selected day vs all-time. Public
+  board split real vs filler. Verified live HTML + `day.board` (6 real,
+  17 fillers on 2026-08-28 PT).
 
 ## 2026-08-28: Admin analytics Shopify-style revamp (branch `sam/admin-analytics`)
 

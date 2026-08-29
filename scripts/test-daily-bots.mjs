@@ -6,6 +6,7 @@ process.env.ORION_DB = ":memory:";
 
 const {
   DAILY_BOT_CALLSIGNS,
+  DAILY_BOT_PILOTS,
   dailyBotCount,
   allDailyBotsForDate,
   visibleDailyBots,
@@ -38,6 +39,31 @@ const endDayA = dayStartA + 86_399_000;
   check("every bot callsign passes the nickname blocklist", blocked === 0, `blocked=${blocked}`);
   check("bot pool does not overlap blocked-name pseudonyms", overlap === 0, `overlap=${overlap}`);
   check("bot pool has ~60 names", DAILY_BOT_CALLSIGNS.length >= 55 && DAILY_BOT_CALLSIGNS.length <= 65);
+
+  const CALLSIGN_RE = /^[A-Za-z0-9_\- ]{3,20}$/;
+  const shapeFail = DAILY_BOT_CALLSIGNS.filter((n) => !CALLSIGN_RE.test(n));
+  check("every bot callsign matches CALLSIGN_RE", shapeFail.length === 0, shapeFail.slice(0, 3).join(","));
+
+  const folded = DAILY_BOT_CALLSIGNS.map((n) => n.toLowerCase());
+  check("bot callsigns are unique ignoring case", new Set(folded).size === folded.length);
+
+  const live = new Set(["trip", "jarsco", "luciano", "l33x", "bellend", "haribro"]);
+  const liveHit = folded.filter((n) => live.has(n));
+  check("bot pool does not reuse live real callsigns", liveHit.length === 0, liveHit.join(","));
+
+  const twoWordTitle = DAILY_BOT_CALLSIGNS.filter((n) => /^[A-Z][a-z]+ [A-Z][a-z]+$/.test(n));
+  const oneWord = DAILY_BOT_CALLSIGNS.filter((n) => !n.includes(" "));
+  const lower = DAILY_BOT_CALLSIGNS.filter((n) => n === n.toLowerCase());
+  const withDigit = DAILY_BOT_CALLSIGNS.filter((n) => /\d/.test(n));
+  check("two-word Title Case is a minority", twoWordTitle.length <= DAILY_BOT_CALLSIGNS.length * 0.4, String(twoWordTitle.length));
+  check("pool has plenty of one-word names", oneWord.length >= 20, String(oneWord.length));
+  check("pool has lowercase handles", lower.length >= 8, String(lower.length));
+  check("pool has a few digit handles", withDigit.length >= 3 && withDigit.length <= 8, String(withDigit.length));
+
+  check("pilot list matches callsign export", DAILY_BOT_PILOTS.length === DAILY_BOT_CALLSIGNS.length);
+  const countries = new Set(DAILY_BOT_PILOTS.map((p) => p.country));
+  check("each pilot has an ISO country", DAILY_BOT_PILOTS.every((p) => /^[A-Z]{2}$/.test(p.country)));
+  check("pool spans many countries", countries.size >= 18, String(countries.size));
 }
 
 // --- count 20–40 ---
@@ -55,6 +81,10 @@ const endDayA = dayStartA + 86_399_000;
   check("same date yields identical bot set", a1.join("|") === a2.join("|"));
   const b1 = allDailyBotsForDate(DATE_B).map((b) => `${b.callsign}:${b.best}`);
   check("adjacent dates produce different bot sets", a1.join("|") !== b1.join("|"));
+
+  const byName = new Map(DAILY_BOT_PILOTS.map((p) => [p.callsign, p.country]));
+  const mismatched = allDailyBotsForDate(DATE_A).filter((b) => byName.get(b.callsign) !== b.country);
+  check("bot country follows the name, not a random flag", mismatched.length === 0, mismatched[0]?.callsign ?? "");
 }
 
 // --- time gating: early patrol morning < evening ---
