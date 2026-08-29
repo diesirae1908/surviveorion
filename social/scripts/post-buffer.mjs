@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { tiktokBufferMetadata, youtubeBufferMetadata } from "../src/discovery.mjs";
 import { loadEnv } from "../src/env.mjs";
 import { REPO_ROOT } from "../src/paths.mjs";
 
@@ -42,9 +43,21 @@ const CREATE_POST_MUTATION = `mutation CreatePost($input: CreatePostInput!) {
  * @param {BufferMode} opts.mode
  * @param {string} [opts.dueAt]
  * @param {string} [opts.youtubeTitle] YouTube video title (distinct from post body text).
+ * @param {object} [opts.youtubeMetadata] Buffer YoutubePostMetadataInput override.
+ * @param {object} [opts.tiktokMetadata] Buffer TikTokPostMetadataInput override.
  * @param {Record<string, string>} opts.channelIds
  */
-export function buildCreatePostVariables({ channel, text, mediaUrl, mode, dueAt, youtubeTitle, channelIds }) {
+export function buildCreatePostVariables({
+  channel,
+  text,
+  mediaUrl,
+  mode,
+  dueAt,
+  youtubeTitle,
+  youtubeMetadata,
+  tiktokMetadata,
+  channelIds,
+}) {
   const channelId = channelIds[channel];
   if (!channelId) {
     throw new Error(`unknown channel: ${channel}`);
@@ -77,11 +90,13 @@ export function buildCreatePostVariables({ channel, text, mediaUrl, mode, dueAt,
   if (channel === "instagram") {
     metadata.instagram = { type: "reel", shouldShareToFeed: true };
   }
+  if (channel === "tiktok") {
+    metadata.tiktok = tiktokMetadata || tiktokBufferMetadata();
+  }
   if (channel === "youtube") {
-    metadata.youtube = {
-      title: youtubeTitle || text.slice(0, 100),
-      categoryId: "20",
-    };
+    metadata.youtube =
+      youtubeMetadata ||
+      youtubeBufferMetadata({ title: youtubeTitle || text.slice(0, 100) });
   }
   if (Object.keys(metadata).length) {
     input.metadata = metadata;
@@ -118,6 +133,8 @@ export function loadBufferConfig(repoRoot = REPO_ROOT) {
  *   text: string,
  *   mediaUrl?: string,
  *   youtubeTitle?: string,
+ *   youtubeMetadata?: object,
+ *   tiktokMetadata?: object,
  *   mode: BufferMode,
  *   dueAt?: string,
  *   dry?: boolean,
@@ -135,6 +152,8 @@ export async function createBufferPost({
   text,
   mediaUrl,
   youtubeTitle,
+  youtubeMetadata,
+  tiktokMetadata,
   mode,
   dueAt,
   dry = true,
@@ -149,6 +168,8 @@ export async function createBufferPost({
     text,
     mediaUrl,
     youtubeTitle,
+    youtubeMetadata,
+    tiktokMetadata,
     mode,
     dueAt,
     channelIds: config.channels,

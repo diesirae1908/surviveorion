@@ -39,12 +39,14 @@ def patrol_cells(pick: dict) -> dict:
         "Three attempts. Free, in your browser."
     )
     tt = ig.lower()
-    yt_title = f"{title_names} DAY: Today's ORION Patrol (Day {pick['dayNumber']})"
+    tags = "#dailychallenge #indiegame #browsergame #arcadegame"
+    yt_title = f"{title_names} day | daily dodge game (ORION Day {pick['dayNumber']})"
     yt_desc = (
         f"Today's shared seed: {title_names}. {subline} "
         "Every pilot flies the same run. Three attempts, free in your browser.\n\n"
+        "ORION is a daily dodge game. Same swarm as every other pilot today.\n\n"
         "Play now: https://surviveorion.com\n\n"
-        "#dailychallenge #indiegame #browsergame #arcadegame #Shorts"
+        f"{tags} #Shorts"
     )
     return {
         "Date": pick["date"],
@@ -57,7 +59,7 @@ def patrol_cells(pick: dict) -> dict:
         "Asset status": "Not linked yet",
         "Post status": "Draft",
         "Instagram caption": ig,
-        "Instagram tags": "#dailychallenge #indiegame #browsergame #arcadegame",
+        "Instagram tags": tags,
         "TikTok caption": tt,
         "TikTok note": None,
         "YouTube title": yt_title,

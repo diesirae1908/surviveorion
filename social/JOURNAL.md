@@ -1,5 +1,16 @@
 # JOURNAL
 
+## 2026-08-29: Discovery process on IG / TikTok / YouTube
+
+- New channels get ~0 impressions until Search can categorize the clip. Added
+  `src/discovery.mjs` + `DISCOVERY.md`. Searchable YouTube titles, keyword line
+  on IG/TT, `#Shorts` + surviveorion.com on every YT description, pinned-comment
+  file, Buffer `madeForKids: false` / Gaming / not-AI, Data API same plus `en`.
+- Bug: calendar-buffer dropped TikTok hashtags (`joinCaption(tt, null)`). TikTok
+  now inherits `ttTags` or `igTags`.
+- Existing scheduled Buffer posts are unchanged (public). New Approved+Linked
+  rows pick this up. Nothing posted this session.
+
 ## 2026-08-29: Ditch the Can is second person
 
 - Lucas: "Caught yourself..." not "myself." IG + TT editPost on the

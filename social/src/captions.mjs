@@ -5,6 +5,14 @@
 
 import { readFileSync } from "node:fs";
 
+import {
+  FIRST_COMMENT,
+  assertDiscovery,
+  ensureCaptionKeywords,
+  ensureYoutubeDescription,
+  firstComment,
+  searchableTitle,
+} from "./discovery.mjs";
 import { ASSETS } from "./paths.mjs";
 
 const EM_DASH = "\u2014";
@@ -201,44 +209,48 @@ export function platformCaptions(format, sidecar, extras = {}) {
   if (format === "WASTED") {
     tiktok = `Day ${sidecar.day} ${mutator}: flying too close to the stars. Same seed as everyone else. Link in bio.\n\n${tagLine}`;
     instagram = tiktok;
-    youtubeTitle = `Day ${sidecar.day} WASTED · ${mutator}`;
-    youtubeDescription = `Day ${sidecar.day} ${mutator}. He flew too close to the stars.\nSame seed as everyone else. Three attempts. Free in your browser.\n\n${tagLine}\n\nsurviveorion.com`;
+    youtubeTitle = searchableTitle(format, sidecar);
+    youtubeDescription = `Day ${sidecar.day} ${mutator}. He flew too close to the stars.\nSame seed as everyone else. Three attempts. Free in your browser.`;
   } else if (format === "NEW_BEST") {
     tiktok = `${score} on Day ${sidecar.day}. New best. Same seed as everyone else. That is the whole point.\n\n${tagLine}`;
     instagram = tiktok;
-    youtubeTitle = `${score} · Day ${sidecar.day} NEW BEST`;
-    youtubeDescription = `${score} on Day ${sidecar.day}. New best. Same seed as everyone else. That is the whole point.\nFree in your browser.\n\n${tagLine}\n\nsurviveorion.com`;
+    youtubeTitle = searchableTitle(format, sidecar);
+    youtubeDescription = `${score} on Day ${sidecar.day}. New best. Same seed as everyone else. That is the whole point.\nFree in your browser.`;
     suggestedSound = extras.suggestedSound ?? "Celebration";
   } else if (format === "PATROL" || format === "TODAYS_PATROL") {
     const brief = subline ? `${subline} ` : "";
     tiktok = `Today every pilot on earth flies ${mutator}: ${brief}Three attempts. Free, in your browser.\n\n${tagLine}`;
     instagram = tiktok;
-    youtubeTitle = `Day ${sidecar.day} ${mutator} · today's patrol`;
-    youtubeDescription = `Today every pilot on earth flies ${mutator}: ${brief}Three attempts. Free, in your browser.\n\n${tagLine}\n\nsurviveorion.com`;
+    youtubeTitle = searchableTitle(format, sidecar);
+    youtubeDescription = `Today every pilot on earth flies ${mutator}: ${brief}Three attempts. Free, in your browser.`;
   } else if (format === "THE_BOARD") {
     tiktok = `${score} on Day ${sidecar.day}. Same seed as everyone else. That is the whole point.\n\n${tagLine}`;
     instagram = tiktok;
-    youtubeTitle = `${score} · Day ${sidecar.day}`;
-    youtubeDescription = `${score} on Day ${sidecar.day}. Same seed as everyone else. That is the whole point.\n\n${tagLine}\n\nsurviveorion.com`;
+    youtubeTitle = searchableTitle(format, sidecar);
+    youtubeDescription = `${score} on Day ${sidecar.day}. Same seed as everyone else. That is the whole point.`;
   } else if (format === "CLOSE_CALL") {
     tiktok = `Day ${sidecar.day}, ${mutator}. Could you dodge it? Link in bio.\n\n${tagLine}`;
     instagram = tiktok;
-    youtubeTitle = `Day ${sidecar.day} close call · ${mutator}`;
-    youtubeDescription = `Day ${sidecar.day} ${mutator}. Could you dodge it?\n\n${tagLine}\n\nsurviveorion.com`;
+    youtubeTitle = searchableTitle(format, sidecar);
+    youtubeDescription = `Day ${sidecar.day} ${mutator}. Could you dodge it?`;
   } else if (format === "SPACE_DUST") {
     tiktok = `Day ${sidecar.day} attempt: ${Math.round(sidecar.survivalTime)}s. The daily patrol is undefeated.\n\n${tagLine}`;
     instagram = tiktok;
-    youtubeTitle = `Day ${sidecar.day} space dust`;
-    youtubeDescription = `Day ${sidecar.day} attempt: ${Math.round(sidecar.survivalTime)}s. The daily patrol is undefeated.\n\n${tagLine}\n\nsurviveorion.com`;
+    youtubeTitle = searchableTitle(format, sidecar);
+    youtubeDescription = `Day ${sidecar.day} attempt: ${Math.round(sidecar.survivalTime)}s. The daily patrol is undefeated.`;
   } else {
     throw new Error(`Unknown format for platform captions: ${format}`);
   }
 
+  tiktok = ensureCaptionKeywords(tiktok);
+  instagram = ensureCaptionKeywords(instagram);
+  youtubeDescription = ensureYoutubeDescription(youtubeDescription, { tags });
   const youtubeBody = `${youtubeTitle}\n\n${youtubeDescription}`;
   assertCaptionVoice(tiktok, `${format} tiktok`);
   assertCaptionVoice(instagram, `${format} instagram`);
   assertCaptionVoice(youtubeTitle, `${format} youtube title`);
   assertCaptionVoice(youtubeDescription, `${format} youtube description`);
+  assertDiscovery(youtubeDescription, { youtube: true, label: `${format} youtube description` });
   if (!youtubeDescription.trimEnd().endsWith("surviveorion.com")) {
     throw new Error(`${format} YouTube description must end with surviveorion.com`);
   }
@@ -250,6 +262,7 @@ export function platformCaptions(format, sidecar, extras = {}) {
     youtubeTitle,
     youtubeDescription,
     tags,
+    firstComment: firstComment(),
     suggestedSound,
   };
 }
@@ -266,7 +279,10 @@ export function tiktokManualManifest(captions) {
     "Caption:",
     captions.tiktok,
     "",
-    "Steps: open TikTok -> + -> upload video.mp4 -> paste caption -> attach the suggested sound if any -> post.",
+    "Pin this comment (link in comments survives when the bio link is hidden):",
+    captions.firstComment || FIRST_COMMENT,
+    "",
+    "Steps: open TikTok -> + -> upload video.mp4 -> paste caption -> attach the suggested sound if any -> post -> pin the first comment.",
   ].join("\n");
   assertCaptionVoice(text, "tiktok manual");
   return text;

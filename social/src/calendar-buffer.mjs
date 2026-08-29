@@ -3,6 +3,17 @@
  * Does not post. Does not delete. Hosting the clip is the caller's job.
  */
 
+import {
+  ensureCaptionKeywords,
+  ensureSearchableTitle,
+  ensureYoutubeDescription,
+  firstComment,
+  hashtagsIn,
+  tiktokBufferMetadata,
+  uniqueHashtags,
+  youtubeBufferMetadata,
+} from "./discovery.mjs";
+
 const EM_DASH = /\u2014|\u2013/;
 
 /**
@@ -78,21 +89,29 @@ export function bufferJobsForPost(post, { mediaBase, channelIds, now = new Date(
   const hostedAsset = String(post.asset).replace(/\.mov$/i, ".mp4");
   const mediaUrl = `${mediaBase.replace(/\/$/, "")}/${encodeURIComponent(hostedAsset)}`;
   const { mode, dueAt } = scheduleForDate(post.date, now);
-  const ig = joinCaption(post.igCaption, post.igTags);
-  const tt = joinCaption(post.ttCaption, null);
-  const yt = String(post.ytDescription ?? "").trim();
-  if (EM_DASH.test(yt) || EM_DASH.test(String(post.ytTitle ?? ""))) {
+  const ig = ensureCaptionKeywords(joinCaption(post.igCaption, post.igTags));
+  const ttTags = post.ttTags || post.igTags;
+  const tt = ensureCaptionKeywords(joinCaption(post.ttCaption, ttTags));
+  const youtubeTitle = ensureSearchableTitle(String(post.ytTitle ?? "").trim());
+  const ytTags = uniqueHashtags([
+    ...hashtagsIn(String(post.ytDescription ?? "")),
+    ...hashtagsIn(String(post.igTags ?? "")),
+  ]);
+  const yt = ensureYoutubeDescription(String(post.ytDescription ?? "").trim(), { tags: ytTags });
+  if (EM_DASH.test(yt) || EM_DASH.test(youtubeTitle)) {
     throw new Error(`YouTube copy contains an em/en dash: ${post.title}`);
   }
 
   const base = { mediaUrl, mode, dueAt, channelIds };
   return [
     { channel: "instagram", text: ig, ...base },
-    { channel: "tiktok", text: tt, ...base },
+    { channel: "tiktok", text: tt, tiktokMetadata: tiktokBufferMetadata(), ...base },
     {
       channel: "youtube",
       text: yt,
-      youtubeTitle: String(post.ytTitle ?? "").trim(),
+      youtubeTitle,
+      youtubeMetadata: youtubeBufferMetadata({ title: youtubeTitle }),
+      firstComment: firstComment(),
       ...base,
     },
   ];

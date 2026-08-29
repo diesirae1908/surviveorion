@@ -63,6 +63,10 @@ describe("captions", () => {
         assert.ok((text.match(/!/g) || []).length <= 1, `${format} has more than one !`);
       }
       assert.ok(caps.youtubeDescription.trimEnd().endsWith("surviveorion.com"));
+      assert.match(caps.youtubeTitle, /daily dodge game/);
+      assert.match(caps.youtubeDescription, /#Shorts/);
+      assert.match(caps.tiktok, /dodge|browser/i);
+      assert.match(caps.firstComment, /surviveorion.com/);
     }
   });
 

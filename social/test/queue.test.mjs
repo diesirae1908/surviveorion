@@ -34,6 +34,7 @@ describe("pending queue", () => {
     ]);
     assert.match(md, /^# Pending review/m);
     assert.match(md, /pipeline never does this/);
+    assert.match(md, /comment.first.txt/);
     assert.match(md, /2026-08-25_WASTED_1/);
     assert.match(md, /WASTED/);
     assert.match(md, /tiktok, instagram, youtube/);
@@ -65,6 +66,8 @@ describe("pending queue", () => {
       assert.equal(meta.idea, 1);
       await readFile(path.join(dest, "thumbnail.jpg"));
       await readFile(path.join(dest, "tiktok.manual.txt"));
+      const pin = await readFile(path.join(dest, "comment.first.txt"), "utf8");
+      assert.match(pin, /surviveorion.com/);
       const review = await regenerateReview(pendingDir);
       assert.match(review, /2026-08-25_WASTED_1/);
       assert.match(review, /out\/approved/);

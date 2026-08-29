@@ -7,6 +7,7 @@ import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { platformCaptions, tiktokManualManifest } from "./captions.mjs";
+import { firstComment } from "./discovery.mjs";
 import { IDEA_BY_FORMAT } from "./presets.mjs";
 import { PENDING_DIR, outRoots } from "./paths.mjs";
 import { envPrivacy, loadEnv } from "./env.mjs";
@@ -50,6 +51,8 @@ export function buildReviewMarkdown(items) {
     "# Pending review",
     "",
     "Move a folder into `out/approved/` to allow posting. The pipeline never does this.",
+    "",
+    "After publish: pin `comment.first.txt` on IG, TikTok, and YouTube.",
     "",
   ];
   if (!items.length) {
@@ -124,6 +127,7 @@ export async function enqueuePending(opts) {
   await writeFile(path.join(dest, "caption.tiktok.txt"), captions.tiktok);
   await writeFile(path.join(dest, "caption.instagram.txt"), captions.instagram);
   await writeFile(path.join(dest, "caption.youtube.txt"), captions.youtube);
+  await writeFile(path.join(dest, "comment.first.txt"), captions.firstComment || firstComment());
   await writeFile(path.join(dest, "tiktok.manual.txt"), tiktokManualManifest(captions));
   if (platforms.includes("youtube")) {
     if (!opts.thumbnailPath) {

@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Social discovery process (IG / TikTok / YouTube)
+
+- Branch `sam/social-discovery`. Searchable titles, TikTok hashtags restored,
+  `#Shorts` + madeForKids false, pinned-comment file. Nothing posted.
+
 ## 2026-08-29: Flare pulls trains and shapes, keeps the pile
 
 - Aug 30 is BAIT SHOT + YEAR OF THE SERPENT. Flare only homed loose

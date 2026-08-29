@@ -125,9 +125,10 @@ synthetic CLOSE CALL from `test/fixtures` into `out/golden/`. The pipeline never
 
 - `captions.mjs`: the templates in `brand/SOCIAL.md` "Caption templates", filled from the
   sidecar. Per platform variants (tiktok.txt, instagram.txt, youtube.txt: YT gets title +
-  description, description always ends with surviveorion.com). Tag bank rotation is
-  deterministic on `day` so reruns are stable. Voice rules enforced in code: reject captions
-  containing an em dash or more than one `!` (test covers this).
+  description). Discovery rules in `discovery.mjs` / `DISCOVERY.md`: searchable title,
+  keyword first-line on IG/TT, YouTube description ends with surviveorion.com and includes
+  `#Shorts`, pinned-comment file. Tag bank rotation is deterministic on `day`. Voice rules
+  enforced in code: reject captions containing an em dash or more than one `!`.
 - `thumbnail.mjs` (YouTube items only): poster frame = the frame at the cut's most
   interesting moment (CLOSE CALL: graze frame; others: midpoint). Composite under the
   1280x720 thumbnail template with `{{TITLE_LINE1/2}}`/`{{TAG}}` from a per-format title
@@ -142,11 +143,11 @@ synthetic CLOSE CALL from `test/fixtures` into `out/golden/`. The pipeline never
 Runs only over `out/approved/`. Each success moves the item to `out/posted/` and appends the
 platform post id to its `meta.json`; each failure leaves the item in place and prints why.
 
-- **YouTube** (`post-youtube.mjs`): `googleapis` videos.insert
-  (snippet.title/description/tags, status.privacyStatus from meta, default public;
-  categoryId 20 Gaming), then thumbnails.set. Uploads cost 1600 quota units of the 10k/day
-  default: max 6/day, which is more than the cadence needs. `#Shorts` not required; vertical
-  short videos are classified automatically.
+- **YouTube** (`post-youtube.mjs`): `googleapis` videos.insert via `youtubeInsertBody`
+  (Gaming category 20, English, `selfDeclaredMadeForKids: false`, searchable tags,
+  `#Shorts` in the description). Then thumbnails.set. Vertical + under 3 minutes is what
+  classifies a Short; `#Shorts` still belongs in the description so search and the Shorts
+  shelf can find it. Quota: 1600 units per upload, max 6/day.
 - **Instagram** (`post-instagram.mjs`): Graph API Reels: create media container
   (`media_type=REELS`) with resumable upload (`upload_type=resumable`, bytes via
   rupload.facebook.com), poll status_code until FINISHED, then `media_publish`. If resumable

@@ -40,6 +40,7 @@ describe("post-buffer", () => {
     });
     assert.equal(input.mode, "addToQueue");
     assert.equal(input.channelId, CHANNEL_IDS.tiktok);
+    assert.deepEqual(input.metadata.tiktok, { isAiGenerated: false });
   });
 
   it("builds customScheduled input with dueAt", () => {
@@ -101,9 +102,11 @@ describe("post-buffer", () => {
       mode: "shareNow",
       channelIds: CHANNEL_IDS,
     });
-    assert.deepEqual(input.metadata, {
-      youtube: { title: "Title Here", categoryId: "20" },
-    });
+    assert.equal(input.metadata.youtube.title, "Title Here");
+    assert.equal(input.metadata.youtube.categoryId, "20");
+    assert.equal(input.metadata.youtube.madeForKids, false);
+    assert.equal(input.metadata.youtube.license, "youtube");
+    assert.equal(input.metadata.youtube.isAiGenerated, false);
     assert.equal(input.text, "description body");
   });
 
@@ -114,9 +117,8 @@ describe("post-buffer", () => {
       mode: "shareNow",
       channelIds: CHANNEL_IDS,
     });
-    assert.deepEqual(withoutTitle.input.metadata, {
-      youtube: { title: "description only", categoryId: "20" },
-    });
+    assert.equal(withoutTitle.input.metadata.youtube.title, "description only");
+    assert.equal(withoutTitle.input.metadata.youtube.madeForKids, false);
 
     const tiktok = buildCreatePostVariables({
       channel: "tiktok",
@@ -125,7 +127,8 @@ describe("post-buffer", () => {
       mode: "shareNow",
       channelIds: CHANNEL_IDS,
     });
-    assert.equal(tiktok.input.metadata, undefined);
+    assert.equal(tiktok.input.metadata.tiktok.isAiGenerated, false);
+    assert.equal(tiktok.input.metadata.youtube, undefined);
   });
 
   it("dry run prints request shape without calling fetch", async () => {

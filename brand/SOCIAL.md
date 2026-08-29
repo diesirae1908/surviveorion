@@ -126,6 +126,11 @@ Posting backends, honestly assessed (2026):
   attempts. Free, in your browser.`
 - Tag bank: #arcadegame #indiegame #browsergame #dailychallenge #dodge #gamingmemes
   #satisfying #closecall plus per-video mutator tag. Rotate, never all at once.
+- Discovery (locked in `social/src/discovery.mjs`): every caption names the game as a
+  daily dodge / browser game; YouTube titles carry that search phrase; YouTube descriptions
+  include `#Shorts` and end with surviveorion.com; TikTok gets the same hashtags as IG
+  (do not drop them); Buffer YouTube metadata sets `madeForKids: false`. Pin the first
+  comment from `comment.first.txt` on every post.
 - Hard rules from the voice guide apply: no em dashes, one exclamation mark max, pilots not
   players, and never buy or bot engagement.
 

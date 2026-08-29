@@ -77,6 +77,8 @@ export async function runCalendarToBuffer({
         text: job.text,
         mediaUrl: job.mediaUrl,
         youtubeTitle: job.youtubeTitle,
+        youtubeMetadata: job.youtubeMetadata,
+        tiktokMetadata: job.tiktokMetadata,
         mode: job.mode,
         dueAt: job.dueAt,
         dry,

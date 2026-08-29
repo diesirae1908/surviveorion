@@ -6,6 +6,7 @@ import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { youtubeInsertBody } from "./discovery.mjs";
 import { REPO_ROOT } from "./paths.mjs";
 import { envPrivacy, loadEnv } from "./env.mjs";
 
@@ -78,15 +79,12 @@ export async function postYoutube(opts) {
 
   const insert = await youtube.videos.insert({
     part: ["snippet", "status"],
-    requestBody: {
-      snippet: {
-        title: opts.captions.youtubeTitle,
-        description: opts.captions.youtubeDescription,
-        tags: opts.captions.tags.map((t) => t.replace(/^#/, "")),
-        categoryId: "20",
-      },
-      status: { privacyStatus: privacy },
-    },
+    requestBody: youtubeInsertBody({
+      title: opts.captions.youtubeTitle,
+      description: opts.captions.youtubeDescription,
+      tags: opts.captions.tags,
+      privacy,
+    }),
     media: { body: createReadStream(videoPath) },
   });
 

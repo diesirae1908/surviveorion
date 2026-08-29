@@ -5,7 +5,8 @@ clips plus JSON sidecars from `orion-web`.
 
 ## Context
 
-- **Strategy and voice**: `~/Documents/games/orion-web/brand/SOCIAL.md` (formats, captions, sounds).
+- **Strategy and voice**: `brand/SOCIAL.md` (formats, captions, sounds).
+- **Discovery**: `DISCOVERY.md` plus `src/discovery.mjs` (search titles, tags, #Shorts, madeForKids).
 - **Spec**: `SPEC.md` in this repo (phases, contracts, acceptance).
 - **PM**: Sam (`~/Documents/Sam`). Dispatch via Task with repo path and phase stop conditions.
 - **Game sidecar contract**: `orion-web` `src/clipSidecar.ts`; filename + JSON are external contracts.

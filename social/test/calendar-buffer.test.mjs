@@ -53,7 +53,13 @@ describe("calendar-buffer", () => {
     assert.equal(jobs[0].text, "hello swarm\n\n#indiegame");
     assert.equal(jobs[0].mediaUrl, "https://surviveorion.com/social-drafts/orion_trailer.mp4");
     assert.equal(jobs[0].mode, "addToQueue");
+    assert.match(jobs[1].text, /#indiegame/);
+    assert.equal(jobs[1].tiktokMetadata.isAiGenerated, false);
     assert.equal(jobs[2].youtubeTitle, "ORION Trailer");
+    assert.equal(jobs[2].youtubeMetadata.madeForKids, false);
+    assert.equal(jobs[2].youtubeMetadata.categoryId, "20");
+    assert.match(jobs[2].text, /#Shorts/);
+    assert.match(jobs[2].firstComment, /surviveorion.com/);
   });
 
   it("rewrites .mov assets to a hosted .mp4 URL", () => {
