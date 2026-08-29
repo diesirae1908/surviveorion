@@ -4,13 +4,19 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Melting-pot filler callsigns LIVE
+
+- Pushed `c19d433` to surviveorion `main`. Render `dep-da99a7jl550s739pprg0`
+  live ~1:16 AM PT. Server-only, bundle unchanged.
+- Lucas: mix everything. First Aug 29 PT name (Finhc) lands ~2:21 AM PT.
+
 ## 2026-08-29: Melting-pot filler callsigns
 
 - Lucas: not one generator. Mix everything discussed: first names, typos,
   ALL CAPS, lowercase, digits, Dofus mashes, two-word sci-fi, nonsense
   real-word pairs. Shuffled quota per patrol day so no style dominates.
 - Same 20–40 / time-gate / blocklist / live-name skip. Seed
-  `orion-daily-bots-mix-`.
+  `orion-daily-bots-mix-`. LIVE `c19d433`.
 
 ## 2026-08-29: Host Ditch the Can + Dead Fart social finals
 
