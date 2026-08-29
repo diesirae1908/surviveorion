@@ -13,6 +13,13 @@ why, commit hash, follow-ups), committed together with the work. See
   allowlist. Localhost URL preview stays for tuning. Stale
   `orion.rehearsal` is cleared on boot.
 
+## 2026-08-28: Admin analytics revamp live
+
+- Pushed `1057fc3` to `main`. Render `dep-da9361v10e5c73apkfj0` live.
+- `/admin` is the Shopify-style report. Selected day vs all-time. Public
+  board split real vs filler. Verified live HTML + `day.board` (6 real,
+  17 fillers on 2026-08-28 PT).
+
 ## 2026-08-28: Admin analytics Shopify-style revamp (branch `sam/admin-analytics`)
 
 - `/admin` dropped the gold-on-void Mission Control chrome. Light analytics
