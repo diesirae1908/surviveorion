@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: ION charge ram LIVE
+
+- Pushed `fac1b93` (`d319787`) to surviveorion `main`. Render
+  `dep-da977c710e5c73as24hg` live ~10:53 PM PT. Bundle `main-BvksxERv.js`
+  (was `main-DJI6xiG-.js`), mutators `mutators-IiLoD6d9.js`. Charge ram +
+  ~1-in-5 shields is on surviveorion.com. First ION patrol day Aug 31.
+
 ## 2026-08-28: ION charge rams; a few shields drop
 
 - Lucas: ION is super fun but a bit too hard. While the cone is charging,
@@ -16,7 +23,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Sim-test: charge ram. `test:mutators` snapshot untouched (weights/copy
   only). Social calendar captions for ION day are stale; re-run
   `npm run calendar:sync` if those posts have not gone out yet.
-- Commit `d319787`. Not on main.
+- Commit `d319787`. Live via `fac1b93`.
 
 ## 2026-08-28: Grok cutter cuts land in Notion Clips
 
