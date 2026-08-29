@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: iPhone Save clip is Photos MP4, not a weird download
+
+- Safari 18.4+ started advertising WebM, so Save clip dumped a .webm into
+  Files. Photos and CapCut will not treat that as a camera-roll video.
+- iOS now records H.264 MP4 and Save clip opens the native share sheet
+  (Save Video). Desktop / Android download path unchanged (WebM first).
+- Tests: `test:recorder` (preferMp4 order + share-sheet mocks).
+  Lucas-only. Not player-facing.
+
 ## 2026-08-29: Dropped empty Aug 28 WASTED calendar row
 
 - Lucas: WASTED = SPACE DUST. Removed the unlinked draft row only.

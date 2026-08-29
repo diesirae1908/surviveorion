@@ -61,7 +61,10 @@ existing `/data` disk at `/data/clip-inbox`. Grok lists pending at
 `GET /clip-inbox/<CLIP_INBOX_SECRET>/` and marks done with
 `POST /clip-inbox/<CLIP_INBOX_SECRET>/consumed` `{id}`. Consume never deletes.
 The same allowlist unlocks Crew Rehearsal, Record runs, and Save clip.
-The JSON sidecar is not a download; it only travels with Send to inbox.
+On iPhone / iPad, Record encodes H.264 MP4 and Save clip opens the share
+sheet (Save Video lands it in Photos for CapCut). Desktop still downloads
+WebM to the browser Downloads folder. The JSON sidecar is not a download;
+it only travels with Send to inbox.
 Other players never see those controls. A leftover
 `?rehearsal=director` browser flag does not count.
 

@@ -55,41 +55,38 @@ const CAPTURE_FPS = 24;
  */
 export const BITRATE_BPS = 800_000;
 
-// WebM first where it works (desktop Chrome/Firefox, Android Chrome, Safari
-// 18.4+): smaller files at the same visual quality for a flat-shaded 2D
-// canvas. The video/mp4 entries are the fallback that actually matters for
-// iOS: Safari 14.5-18.3 (the vast majority of iPhones as of this writing)
-// implements MediaRecorder + canvas.captureStream() correctly but has NEVER
-// supported WebM, so isTypeSupported() rejects every webm candidate above
-// and, without an mp4 candidate in this list, pickMimeType() used to return
-// undefined there — not "recording is unsupported" (recordingSupported()
-// only checked API existence, not codec support), but a silent "the toggle
-// is on, MediaRecorder starts with no explicit codec, and whether a usable
-// clip comes out depends on that browser's undocumented default". Two mp4
-// candidates, most-specific first, since Safari's isTypeSupported is
-// stricter about the parameterized string than the bare mime type on some
-// versions.
-export const PREFERRED_MIME_TYPES = [
+// Desktop / Android: WebM first (smaller at the same visual quality for a
+// flat-shaded 2D canvas). iPhone / iPad: MP4 first. Safari 18.4+ now
+// reports WebM as supported, and picking it produces a .webm Files download
+// that Photos and CapCut will not treat as a normal camera-roll video.
+// Older Safari (14.5-18.3) never supported WebM at all; without an mp4
+// candidate, pickMimeType() used to return undefined and MediaRecorder
+// started with an undocumented default. Two mp4 candidates, most-specific
+// first: Safari's isTypeSupported is stricter about the parameterized
+// string than the bare mime type on some versions.
+export const WEBM_MIME_TYPES = [
   "video/webm;codecs=vp9",
   "video/webm;codecs=vp8",
   "video/webm",
-  "video/mp4;codecs=avc1",
-  "video/mp4",
 ];
+
+export const MP4_MIME_TYPES = ["video/mp4;codecs=avc1", "video/mp4"];
+
+export const PREFERRED_MIME_TYPES = [...WEBM_MIME_TYPES, ...MP4_MIME_TYPES];
 
 interface CaptureCanvas extends HTMLCanvasElement {
   captureStream(frameRate?: number): MediaStream;
 }
 
 /** First mime type this MediaRecorder implementation can actually produce,
- * or undefined if none of PREFERRED_MIME_TYPES are supported. Exported for
- * scripts/test-recorder.ts, which mocks MediaRecorder.isTypeSupported to
- * verify the WebM-before-MP4 preference order without a real browser. */
-export function pickMimeType(): string | undefined {
+ * or undefined if none of the candidates are supported. `preferMp4` flips
+ * the order (iOS Photos / CapCut). Exported for scripts/test-recorder.ts. */
+export function pickMimeType(preferMp4 = false): string | undefined {
   if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
     return undefined;
   }
-  return PREFERRED_MIME_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+  const list = preferMp4 ? [...MP4_MIME_TYPES, ...WEBM_MIME_TYPES] : PREFERRED_MIME_TYPES;
+  return list.find((t) => MediaRecorder.isTypeSupported(t));
 }
 
 /**
@@ -139,11 +136,14 @@ export interface RecordingHandle {
  * or on an unsupported GPU path) — callers should treat null as "just don't
  * offer a clip this run", never as an error to surface to the player.
  */
-export function startRecording(canvas: HTMLCanvasElement): RecordingHandle | null {
+export function startRecording(
+  canvas: HTMLCanvasElement,
+  opts?: { preferMp4?: boolean },
+): RecordingHandle | null {
   if (!recordingSupported()) return null;
   try {
     const stream = (canvas as CaptureCanvas).captureStream(CAPTURE_FPS);
-    const mimeType = pickMimeType();
+    const mimeType = pickMimeType(opts?.preferMp4 === true);
     let recorder: MediaRecorder;
     try {
       recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: BITRATE_BPS });
@@ -224,6 +224,51 @@ export function downloadClip(blob: Blob, filename: string): void {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+export type SaveClipOutcome = "shared" | "downloaded" | "failed";
+
+/**
+ * iOS share sheet with the clip as a File. Photos shows Save Video for
+ * MP4/H.264. User cancel (AbortError) still counts as handled: they saw
+ * the sheet. False = share is unavailable or rejected; caller should
+ * fall back to downloadClip.
+ */
+export async function shareClipFile(blob: Blob, filename: string): Promise<boolean> {
+  if (typeof navigator === "undefined" || typeof File === "undefined") return false;
+  if (typeof navigator.share !== "function") return false;
+  const type = blob.type.includes("webm") ? blob.type : "video/mp4";
+  const file = new File([blob], filename, { type });
+  const payload = { files: [file] };
+  try {
+    if (typeof navigator.canShare === "function" && !navigator.canShare(payload)) return false;
+    await navigator.share(payload);
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return true;
+    return false;
+  }
+}
+
+/**
+ * iPhone / iPad: native share sheet (Save Video → Photos). Everywhere
+ * else: the existing <a download> into the browser Downloads folder.
+ */
+export async function saveClipToDevice(
+  blob: Blob,
+  filename: string,
+  opts: { ios: boolean },
+): Promise<SaveClipOutcome> {
+  if (opts.ios) {
+    const shared = await shareClipFile(blob, filename);
+    if (shared) return "shared";
+  }
+  try {
+    downloadClip(blob, filename);
+    return "downloaded";
+  } catch {
+    return "failed";
+  }
 }
 
 /** File extension matching the mime type actually used, for the download name. */

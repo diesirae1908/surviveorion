@@ -27,6 +27,7 @@ import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
 import {
   buildClipSidecar,
   clipSidecarBasename,
+  isIosWebKit,
   type ClipSidecar,
   type ClipSidecarPower,
 } from "./clipSidecar";
@@ -45,7 +46,7 @@ import {
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
-import { clipExtension, downloadClip, startRecording, type RecordingHandle } from "./recorder";
+import { clipExtension, saveClipToDevice, startRecording, type RecordingHandle } from "./recorder";
 import {
   loadBestScore,
   loadBestTime,
@@ -519,10 +520,11 @@ const ui = new Ui(settings, {
   onFeedback: async (message, email) => {
     await api.sendFeedback(message, email);
   },
-  onSaveClip: () => {
+  onSaveClip: async () => {
     if (!lastClipBlob || !lastClipBasename) return false;
-    downloadClip(lastClipBlob, `${lastClipBasename}.${clipExtension(lastClipBlob)}`);
-    return true;
+    const filename = `${lastClipBasename}.${clipExtension(lastClipBlob)}`;
+    const outcome = await saveClipToDevice(lastClipBlob, filename, { ios: isIosWebKit() });
+    return outcome !== "failed";
   },
   onSendToInbox: async () => {
     if (!lastClipBlob || !lastClipSidecar || !lastClipBasename) return false;
@@ -950,7 +952,9 @@ function startRun(): void {
   lastClipBasename = null;
   clipPowerLog = [];
   activeRecording =
-    settings.recordRuns && api.clipInbox && !runIsTraining ? startRecording(canvas) : null;
+    settings.recordRuns && api.clipInbox && !runIsTraining
+      ? startRecording(canvas, { preferMp4: isIosWebKit() })
+      : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
 }

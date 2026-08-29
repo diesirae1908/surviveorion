@@ -13,6 +13,8 @@ import {
   pickMimeType,
   recordingSupported,
   recordingUnavailableReason,
+  saveClipToDevice,
+  shareClipFile,
   PREFERRED_MIME_TYPES,
   RECORDING_MAX_SECONDS,
   BITRATE_BPS,
@@ -58,11 +60,9 @@ if (reason.length === 0 || reason.length > 200) {
 }
 
 // pickMimeType: mocks MediaRecorder.isTypeSupported (no real browser
-// needed) to verify the preference order — WebM first where a browser
-// supports it, MP4 as the fallback that makes iOS Safari (no WebM, ever)
-// actually produce a clip instead of silently getting an untyped
-// MediaRecorder and hoping for the best (2026-08-18 fix, see the
-// PREFERRED_MIME_TYPES comment in recorder.ts).
+// needed) to verify the preference order. Desktop stays WebM first.
+// iOS passes preferMp4 so Safari 18.4+ (which now supports both) encodes
+// H.264 MP4 that Photos / CapCut will open, instead of a .webm dump.
 function withMockMediaRecorder(supported: string[], run: () => void): void {
   const prev = (globalThis as { MediaRecorder?: unknown }).MediaRecorder;
   (globalThis as { MediaRecorder?: unknown }).MediaRecorder = {
@@ -91,6 +91,19 @@ withMockMediaRecorder(["video/mp4"], () => {
   check("falls back to bare video/mp4 when only the generic type is supported", pickMimeType(), "video/mp4");
 });
 
+withMockMediaRecorder(["video/webm;codecs=vp9", "video/mp4;codecs=avc1", "video/mp4"], () => {
+  check(
+    "iOS preferMp4 picks avc1 even when WebM is also supported (Safari 18.4+)",
+    pickMimeType(true),
+    "video/mp4;codecs=avc1",
+  );
+  check("desktop still prefers WebM when preferMp4 is off", pickMimeType(false), "video/webm;codecs=vp9");
+});
+
+withMockMediaRecorder(["video/webm;codecs=vp8"], () => {
+  check("iOS preferMp4 falls back to WebM when no MP4 candidate exists", pickMimeType(true), "video/webm;codecs=vp8");
+});
+
 withMockMediaRecorder([], () => {
   check("returns undefined when nothing in the list is supported", pickMimeType(), undefined);
 });
@@ -100,6 +113,79 @@ check(
   PREFERRED_MIME_TYPES.findIndex((t) => t.includes("mp4")) >
     PREFERRED_MIME_TYPES.map((t) => t.includes("webm")).lastIndexOf(true),
   true,
+);
+
+// shareClipFile / saveClipToDevice: mock navigator.share so we can prove
+// iOS takes the share-sheet path without a real Safari, and that a
+// cancelled sheet still counts as handled (same contract as share.ts).
+const clipBlob = new Blob([new Uint8Array([0, 1, 2, 3])], { type: "video/mp4" });
+
+async function withMockShare(
+  impl: { share: (data: ShareData) => Promise<void>; canShare?: (data: ShareData) => boolean },
+  run: () => Promise<void>,
+): Promise<void> {
+  const nav = globalThis.navigator as Navigator | undefined;
+  const prevShare = nav?.share;
+  const prevCanShare = nav?.canShare;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      ...(nav ?? {}),
+      share: impl.share,
+      canShare: impl.canShare ?? (() => true),
+    },
+  });
+  try {
+    await run();
+  } finally {
+    if (nav) {
+      Object.defineProperty(globalThis, "navigator", { configurable: true, value: nav });
+      if (prevShare) (nav as Navigator & { share: typeof prevShare }).share = prevShare;
+      if (prevCanShare) (nav as Navigator & { canShare: typeof prevCanShare }).canShare = prevCanShare;
+    }
+  }
+}
+
+await withMockShare(
+  {
+    share: async (data) => {
+      check("share payload has one file", Array.isArray(data.files) && data.files.length === 1, true);
+      const file = data.files?.[0];
+      check("shared file is named .mp4", file?.name.endsWith(".mp4") === true, true);
+      check("shared file type is video/mp4", file?.type === "video/mp4", true);
+    },
+  },
+  async () => {
+    check("shareClipFile returns true when share resolves", await shareClipFile(clipBlob, "orion_test.mp4"), true);
+    check(
+      "saveClipToDevice on iOS reports shared",
+      await saveClipToDevice(clipBlob, "orion_test.mp4", { ios: true }),
+      "shared",
+    );
+  },
+);
+
+await withMockShare(
+  {
+    share: async () => {
+      throw new DOMException("Share canceled", "AbortError");
+    },
+  },
+  async () => {
+    check("shareClipFile treats AbortError as handled", await shareClipFile(clipBlob, "orion_test.mp4"), true);
+  },
+);
+
+await withMockShare(
+  {
+    canShare: () => false,
+    share: async () => {
+      throw new Error("share should not be called when canShare is false");
+    },
+  },
+  async () => {
+    check("shareClipFile returns false when canShare rejects the file", await shareClipFile(clipBlob, "orion_test.mp4"), false);
+  },
 );
 
 // Sanity on the duration cap: a round, known value (not accidentally

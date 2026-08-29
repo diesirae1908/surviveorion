@@ -59,7 +59,7 @@ export interface UiCallbacks {
   /** Submit player feedback (email optional); rejects with a message on failure. */
   onFeedback: (message: string, email: string) => Promise<void>;
   /** Save the just-finished run's local clip (see recorder.ts); false = nothing to save. */
-  onSaveClip: () => boolean;
+  onSaveClip: () => Promise<boolean>;
   /** Lucas-only: POST the clip pair to surviveorion's inbox. */
   onSendToInbox: () => Promise<boolean>;
   /** Rehearse a future patrol date (YYYY-MM-DD), or null to return to live today. */
@@ -580,12 +580,14 @@ export class Ui {
   private saveClipButton(): HTMLButtonElement {
     const btn = this.button("Save clip", false, () => {
       btn.disabled = true;
-      const outcome = this.cb.onSaveClip();
-      btn.textContent = outcome ? "Saved!" : "Couldn't save clip";
-      setTimeout(() => {
-        btn.textContent = "Save clip";
-        btn.disabled = false;
-      }, 1600);
+      btn.textContent = "Saving...";
+      void this.cb.onSaveClip().then((outcome) => {
+        btn.textContent = outcome ? "Saved!" : "Couldn't save clip";
+        setTimeout(() => {
+          btn.textContent = "Save clip";
+          btn.disabled = false;
+        }, 1600);
+      });
     });
     btn.classList.add("share-btn");
     return btn;
