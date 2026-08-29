@@ -287,6 +287,7 @@ export interface PowersState {
   shieldActive: boolean; // persists until it absorbs a hit (banked extra life)
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
   pulseTimer: number; // >0 => pulse charging
+  ionTimer: number; // >0 => ion charging; cone follows ship facing
   /** Armed magnet grabs waiting for a pickup to spawn (board was empty). */
   magnetPending: number;
   afterburnerCharge: number; // >0 => charging up the dash
@@ -368,6 +369,7 @@ export type GameEvent =
   | { type: "cloakUp" }
   | { type: "cloakDown" }
   | { type: "flareDrop"; x: number; y: number }
+  | { type: "ionCharge" }
   | { type: "ionPulse"; x: number; y: number }
   | { type: "howlersUp" }
   | { type: "lighthouseSpawn"; x: number; y: number }

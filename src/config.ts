@@ -836,8 +836,10 @@ export const POWERS = {
     lifetime: 4.2,
     pullRadius: 22,
   },
-  // Mutator-only: forward shove. Pushed drones live; what they slam dies.
+  // Mutator-only: Pulse-style charge, then a directed cone shove. Pushed
+  // drones live and fly the aim axis; what they slam dies.
   ion: {
+    chargeTime: 0.8,
     radius: 5.5,
     coneDot: 0.45,
     slamSpeed: 11,
@@ -1028,6 +1030,6 @@ export const POWER_HINTS: Record<PowerId, string> = {
   thunder: "lightning ray, hops from each kill",
   cloak: "they lose you, bombs drop, then boom",
   flare: "decoy. they chase it, it does not kill",
-  ion: "shove the front line, slams kill",
+  ion: "charge, aim the cone, slams kill",
   howlers: "gold allies hunt, then pop",
 };

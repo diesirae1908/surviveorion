@@ -1375,7 +1375,11 @@ function drainEvents(w: World): void {
         particles.burst(e.x, e.y, [PALETTE.flare, PALETTE.gold], 16, 4, 0.5, 0.1);
         audio.pickup();
         break;
+      case "ionCharge":
+        audio.pulseCharge(POWERS.ion.chargeTime);
+        break;
       case "ionPulse":
+        particles.burst(e.x, e.y, [PALETTE.ion, PALETTE.white], 14, 5, 0.5, 0.1);
         audio.shockwave();
         break;
       case "howlersUp":

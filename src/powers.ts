@@ -15,6 +15,7 @@ export function createPowersState(): PowersState {
     shieldActive: false,
     starshellTimer: 0,
     pulseTimer: 0,
+    ionTimer: 0,
     magnetPending: 0,
     afterburnerCharge: 0,
     afterburnerDash: 0,
@@ -226,7 +227,8 @@ export function activatePower(world: World, power: PowerId): void {
       world.events.push({ type: "flareDrop", x: world.ship.x, y: world.ship.y });
       break;
     case "ion":
-      fireIon(world);
+      p.ionTimer = POWERS.ion.chargeTime;
+      world.events.push({ type: "ionCharge" });
       break;
     case "howlers":
       convertHowlers(world);
@@ -764,6 +766,14 @@ export function updatePowers(world: World, dt: number): void {
     }
   }
 
+  // ion: charge while the cone tracks the ship, then shove along that aim
+  if (p.ionTimer > 0) {
+    p.ionTimer -= dt;
+    if (p.ionTimer <= 0 && world.phase === "playing") {
+      fireIon(world);
+    }
+  }
+
   // projectiles: fly straight, kill each drone once, expire
   for (let i = p.projectiles.length - 1; i >= 0; i--) {
     const proj = p.projectiles[i];
@@ -946,6 +956,9 @@ function fireThunder(world: World): void {
 }
 
 function fireIon(world: World): void {
+  // Slam axis is ship facing at fire time, after the Pulse-style charge
+  // so the pilot can steer the cone. Every shoved drone flies that axis
+  // (bowling), not radially away.
   const s = world.ship;
   const fx = Math.cos(s.angle);
   const fy = Math.sin(s.angle);

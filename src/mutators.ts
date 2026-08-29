@@ -734,8 +734,8 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "ion-day",
     name: "ION",
-    briefing: "Shove the line. Let them break each other.",
-    subline: "Every pickup is Ion. A forward shockwave pushes drones. The pushed ones live. What they slam dies.",
+    briefing: "Charge, aim the cone, let them break each other.",
+    subline: "Every pickup is Ion. It charges like Pulse. Steer the cone, then drones in it fly that way. The pushed ones live. What they slam dies.",
     difficultyFactor: 0.9,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,

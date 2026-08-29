@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: ION charges like Pulse, then fires an aimed cone
+
+- Pickup no longer shoves instantly. Ion now charges (~0.8s, same pattern
+  as Pulse) while a cone tracks the ship, then bowls drones along that
+  facing. The shove is still bowling (pushed drones live; what they slam
+  dies); you just get a beat to point it.
+- Charge preview: full-size cone, slam-axis line, drones in the cone
+  ringed cyan. Slammed drones glow ion-blue while they fly.
+- ION mutator copy and `POWER_HINTS.ion` updated. Still mutator-only.
+- Sim-test: charge-then-aim (turn during charge, only the new heading
+  slams). `test:mutators` snapshot untouched (copy-only on the pool entry).
+
 ## 2026-08-28: Social clips letterbox full playfield
 
 - Pipeline now shows the entire playfield in 1080x1920 with true black bars.

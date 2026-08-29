@@ -4,6 +4,7 @@ import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
 import {
   mutatorBlackoutPulse,
+  mutatorPowerAmpScale,
   mutatorRedTint,
   mutatorStarshellDurationScale,
   mutatorWindShiftWarning,
@@ -929,6 +930,11 @@ export class Renderer {
 
     ctx.restore();
 
+    // ion charge: aimed cone in world space so you can steer the shove
+    if (world.powers.ionTimer > 0) {
+      this.drawIonChargeCone(x, y, angle, world.powers.ionTimer, opts.uiTime);
+    }
+
     // afterburner charge: swelling orange glow before the dash fires
     if (world.powers.afterburnerCharge > 0) {
       const progress = 1 - world.powers.afterburnerCharge / POWERS.afterburner.chargeTime;
@@ -1082,6 +1088,61 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  /** Charge preview: full-size cone that tracks facing so the shove can be aimed. */
+  private drawIonChargeCone(
+    x: number,
+    y: number,
+    angle: number,
+    timer: number,
+    uiTime: number,
+  ): void {
+    const { ctx } = this;
+    const progress = 1 - timer / POWERS.ion.chargeTime;
+    const radius = POWERS.ion.radius * mutatorPowerAmpScale();
+    const half = Math.acos(POWERS.ion.coneDot);
+    const a0 = angle - half;
+    const a1 = angle + half;
+    const pulse = 0.55 + 0.45 * Math.sin(uiTime * 14);
+    const alpha = (0.18 + 0.28 * progress) * pulse;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, radius, a0, a1);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(102, 221, 255, ${alpha})`;
+    ctx.fill();
+
+    ctx.strokeStyle = PALETTE.ion;
+    ctx.globalAlpha = 0.35 + 0.5 * progress;
+    ctx.lineWidth = 0.06;
+    ctx.stroke();
+
+    // slam axis: the line slammed drones will fly
+    const fx = Math.cos(angle);
+    const fy = Math.sin(angle);
+    ctx.lineWidth = 0.08;
+    ctx.globalAlpha = 0.45 + 0.5 * progress;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + fx * radius, y + fy * radius);
+    ctx.stroke();
+
+    const nose = 0.35 + progress * 0.55;
+    const ng = ctx.createRadialGradient(x, y, 0, x, y, nose);
+    ng.addColorStop(0, "#e8fbff");
+    ng.addColorStop(1, "rgba(102,221,255,0)");
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = ng;
+    ctx.beginPath();
+    ctx.arc(x, y, nose, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
   }
 
   /** SOLAR WIND: gold current marks. Rim chevrons sit on the downwind edge
@@ -1367,8 +1428,42 @@ export class Renderer {
       // thawing drones flicker during their last second of freeze
       const thawFlicker = frozen && d.frozen < 1 && Math.sin(d.frozen * 30) > 0;
 
+      const slamming = (d.slamTimer ?? 0) > 0;
+
       ctx.save();
       ctx.translate(x, y);
+
+      if (slamming) {
+        ctx.globalCompositeOperation = "lighter";
+        const sg = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 2.1);
+        sg.addColorStop(0, PALETTE.ion);
+        sg.addColorStop(1, "rgba(102,221,255,0)");
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = sg;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 2.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+      } else if (world.powers.ionTimer > 0 && !d.allied) {
+        const dx = d.x - world.ship.x;
+        const dy = d.y - world.ship.y;
+        const dist = Math.hypot(dx, dy);
+        const coneR = POWERS.ion.radius * mutatorPowerAmpScale();
+        if (dist > 0.05 && dist <= coneR + r) {
+          const fx = Math.cos(world.ship.angle);
+          const fy = Math.sin(world.ship.angle);
+          if ((dx / dist) * fx + (dy / dist) * fy >= POWERS.ion.coneDot) {
+            ctx.strokeStyle = PALETTE.ion;
+            ctx.globalAlpha = 0.7;
+            ctx.lineWidth = 0.07;
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 1.35, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
 
       // evolved drones glow in their creature's color so each shape reads as
       // one distinct threat (bombs pulse faster and faster as the fuse burns)
@@ -1427,6 +1522,9 @@ export class Renderer {
         if (d.allied) {
           dg.addColorStop(0, PALETTE.goldPale);
           dg.addColorStop(1, PALETTE.goldDark);
+        } else if (slamming) {
+          dg.addColorStop(0, "#e8fbff");
+          dg.addColorStop(1, "#1a6a88");
         } else {
           dg.addColorStop(0, PALETTE.redBright);
           dg.addColorStop(1, PALETTE.redDark);
@@ -1434,13 +1532,13 @@ export class Renderer {
       }
       ctx.fillStyle = dg;
       ctx.fill();
-      ctx.strokeStyle = frozen && !thawFlicker ? "#2a4a66" : "#3d0810";
+      ctx.strokeStyle = frozen && !thawFlicker ? "#2a4a66" : slamming ? "#0a4458" : "#3d0810";
       ctx.lineWidth = 0.05;
       ctx.stroke();
 
       // core: warm glow normally, ice crystal when frozen
       ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = frozen && !thawFlicker ? "#dffaff" : d.allied ? PALETTE.gold : "#ff8866";
+      ctx.fillStyle = frozen && !thawFlicker ? "#dffaff" : d.allied ? PALETTE.gold : slamming ? PALETTE.ion : "#ff8866";
       ctx.beginPath();
       ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2);
       ctx.fill();
@@ -2299,6 +2397,8 @@ export class Renderer {
       ]);
     if (p.pulseTimer > 0)
       powers.push(["PULSE", p.pulseTimer, POWERS.pulse.chargeTime, POWER_COLORS.pulse]);
+    if (p.ionTimer > 0)
+      powers.push(["ION", p.ionTimer, POWERS.ion.chargeTime, POWER_COLORS.ion]);
     if (p.autocannonTimer > 0)
       powers.push([
         "AUTOCANNON",

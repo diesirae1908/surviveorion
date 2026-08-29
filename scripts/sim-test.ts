@@ -185,6 +185,40 @@ function muteAmbientPickups(world: World): void {
   );
 }
 
+// --- 3c. ion: Pulse-style charge, then a directed cone shove ---
+{
+  const world = createWorld(17.8, 10);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.ship.angle = Math.PI / 2; // facing up at pickup
+
+  const missed = spawnDroneDirect(world, 0, 3, 0.6, 0);
+  const aimed = spawnDroneDirect(world, 3, 0, 0.6, 0);
+  missed.frozen = 99;
+  aimed.frozen = 99;
+
+  activate(world, "ion");
+  check(
+    "ion charges on pickup instead of firing",
+    world.powers.ionTimer > 0 && (aimed.slamTimer ?? 0) <= 0 && (missed.slamTimer ?? 0) <= 0,
+    `timer ${world.powers.ionTimer.toFixed(2)}`,
+  );
+
+  world.ship.angle = 0; // steer the cone right during the charge
+  step(world, POWERS.ion.chargeTime + 0.05);
+
+  check("ion fires after the charge", world.powers.ionTimer <= 0);
+  check(
+    "aimed cone slams the drone in front of the new heading",
+    (aimed.slamTimer ?? 0) > 0 && Math.abs((aimed.slamVx ?? 0) - POWERS.ion.slamSpeed) < 0.01,
+    `timer ${aimed.slamTimer} vx ${aimed.slamVx}`,
+  );
+  check(
+    "drone outside the aimed cone is not slammed",
+    (missed.slamTimer ?? 0) <= 0 && missed.alive,
+  );
+}
+
 // --- 4. every power id activates without crashing ---
 {
   const world = createWorld(17.8, 10);
