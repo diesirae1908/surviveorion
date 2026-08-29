@@ -1,5 +1,16 @@
 # JOURNAL
 
+## 2026-08-29: Live YouTube Shorts discovery overlay via Studio
+
+- Lucas signed into Survive Orion Studio (`UCJKMXg2yatBgDZv5XrnPO8A`).
+- Updated descriptions on all 6 live Shorts: Rate This Dodge, GOLD DASH,
+  He Knew, THE FLOOD, THE PIT, Official Trailer. Titles kept (already
+  named Orion). `#Shorts` + tags + trailing `surviveorion.com`. Made for
+  Kids already off.
+- Posted the pin-comment CTA on all 6. Studio pin menu click did not
+  stick as Pinned. Playlists not created yet.
+- IG/TikTok live twins still blocked (Buffer cannot edit sent).
+
 ## 2026-08-29: Discovery overlay applied to scheduled Buffer posts
 
 - Lucas: update the previous posts, do it all (titles, pin comment, playlists).

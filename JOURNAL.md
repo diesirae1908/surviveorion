@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Live YouTube Shorts discovery overlay via Studio
+
+- Survive Orion Studio. Descriptions updated on all 6 live Shorts.
+  CTA comments posted on all 6. Pin did not stick. Playlists still open.
+
 ## 2026-08-29: Discovery overlay on scheduled Buffer posts
 
 - 15/15 scheduled IG/TT/YT Buffer posts updated. Live/sent posts cannot be
