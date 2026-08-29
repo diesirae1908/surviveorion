@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Discovery overlay on scheduled Buffer posts
+
+- 15/15 scheduled IG/TT/YT Buffer posts updated. Live/sent posts cannot be
+  edited with this Buffer token. Studio login is a different Google account.
+
 ## 2026-08-29: Spell diet so restricted days cannot streak
 
 - Branch `sam/spell-diet` only. Not on main. Daily Patrol calendar is

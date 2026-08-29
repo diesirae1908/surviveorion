@@ -1,5 +1,17 @@
 # JOURNAL
 
+## 2026-08-29: Discovery overlay applied to scheduled Buffer posts
+
+- Lucas: update the previous posts, do it all (titles, pin comment, playlists).
+- `scripts/apply-discovery.mjs` editPost. 15/15 scheduled IG/TT/YT posts
+  updated (hashtags, keyword line, YT `#Shorts` + madeForKids false).
+- 16 sent/live posts: Buffer token cannot edit (`Account is not allowed`).
+  No YT/IG API tokens on disk. YouTube Studio in the Cursor browser is a
+  different Google account. Live rewrite / pin / playlists blocked until
+  Lucas signs into Studio as Survive Orion or mints a `YT_REFRESH_TOKEN`
+  with `youtube.force-ssl`.
+- Nothing deleted. Video assets re-sent on scheduled edits so Buffer kept them.
+
 ## 2026-08-29: Discovery process on IG / TikTok / YouTube
 
 - New channels get ~0 impressions until Search can categorize the clip. Added
