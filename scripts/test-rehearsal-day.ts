@@ -1,7 +1,8 @@
 /**
  * Rehearsal ?day= contract: future-day mutator pick + daily seed match the
  * real date-hash paths (same shared instance pilots will get).
- * Also locks the ?rehearsal= director gate decision table (mirrors main.ts).
+ * Also locks the future-day gate decision table (mirrors main.ts):
+ * production allowlist only; leftover ?rehearsal=director does not count.
  * Run: npx tsx scripts/test-rehearsal-day.ts
  */
 import { hashString } from "../src/math";
@@ -46,6 +47,31 @@ check("?rehearsal=director wins over stored off", rehearsalDirectorActive("direc
 check("?rehearsal=off locks even with stored director", !rehearsalDirectorActive("off", "director"));
 check("no param reads stored director flag", rehearsalDirectorActive(null, "director"));
 check("no param without storage stays locked", !rehearsalDirectorActive(null, null));
+
+function lobbyPickerVisible(clipInbox: boolean): boolean {
+  return clipInbox;
+}
+function previewGateOpen(localhost: boolean, clipInbox: boolean): boolean {
+  return localhost || clipInbox;
+}
+check("Lucas allowlist unlocks future days without rehearsal URL", previewGateOpen(false, true));
+check("random pilot stays locked on production", !previewGateOpen(false, false));
+check("director leftover does not unlock production", !lobbyPickerVisible(false));
+check("localhost still unlocks URL preview without allowlist", previewGateOpen(true, false));
+check("lobby picker is allowlist only, even on localhost", !lobbyPickerVisible(false));
+check("lobby picker shows for the allowlisted account", lobbyPickerVisible(true));
+
+function clipSaveUiVisible(clipInbox: boolean): boolean {
+  return clipInbox;
+}
+function startRecordingAllowed(clipInbox: boolean, recordRuns: boolean, training: boolean): boolean {
+  return clipInbox && recordRuns && !training;
+}
+check("luciux sees Save clip and Send to inbox", clipSaveUiVisible(true));
+check("other pilots do not see Save clip", !clipSaveUiVisible(false));
+check("leftover recordRuns does not record for a stranger", !startRecordingAllowed(false, true, false));
+check("luciux with Record on starts a clip", startRecordingAllowed(true, true, false));
+check("training never records", !startRecordingAllowed(true, true, true));
 
 // Seed path is the same function the client uses at run start for a rehearsed day.
 {

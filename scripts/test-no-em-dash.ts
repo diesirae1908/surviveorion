@@ -26,15 +26,15 @@ const srcFiles: FileSpec[] = fs
   .map((f) => ({ file: `src/${f}` }));
 
 // Player-facing surfaces only: the client (src/), the served HTML shell,
-// and the community server's routes. server/index.mjs's ADMIN_PAGE is an
-// internal, Bearer-key-gated dashboard for Lucas, not a player surface, so
-// its line range is excluded rather than combed for style.
+// and the community server's routes. /admin lives in server/admin.html and
+// is Bearer-key-gated for Lucas, not a player surface, so it is not listed.
 const FILES: FileSpec[] = [
   { file: "index.html" },
-  { file: "server/index.mjs", skipRanges: [[798, 1120]] },
+  { file: "server/index.mjs" },
   { file: "server/nickname.mjs" },
   { file: "server/badges.mjs" },
   { file: "server/validate.mjs" },
+  { file: "server/clip-inbox.mjs" },
   // server/db.mjs deliberately excluded: it's SQL schema/query code with no
   // player-facing response strings (no json(res, ...) calls), and its one
   // em dash lives in a SQL "--" comment this script's stripper doesn't

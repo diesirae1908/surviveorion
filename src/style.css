@@ -348,8 +348,11 @@ button.launch {
 
 .pilot-badge {
   min-width: 0;
+  max-width: min(420px, 88vw);
   display: flex;
   align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 10px 26px;
   font-size: 13px;
@@ -360,6 +363,10 @@ button.launch {
 }
 
 .pilot-badge b {
+  overflow: hidden;
+  max-width: 14em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--orion-flare);
   font-weight: bold;
 }
@@ -500,6 +507,32 @@ button.launch {
   padding: 2px 8px;
   border-radius: 3px;
   text-shadow: none;
+}
+
+.creator-days {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(380px, 92vw);
+  margin: 8px 0 4px;
+}
+.creator-days-label {
+  color: var(--orion-gold);
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: var(--orion-tracking-label);
+}
+.creator-day-select {
+  width: 100%;
+  max-width: 380px;
+  padding: 8px 10px;
+  background: rgba(20, 14, 4, 0.9);
+  color: var(--orion-gold-pale, #ffe9a8);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 13px;
 }
 
 .mutator-row {
@@ -1551,6 +1584,34 @@ button.link-btn:active {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+/* Career stats are locked: reserved square for paid analytics. */
+.analytics-lock {
+  aspect-ratio: 1;
+  width: min(240px, 72vw);
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  background: rgba(26, 26, 42, 0.7);
+  border: 1px dashed rgba(170, 136, 68, 0.45);
+  border-radius: 4px;
+  opacity: 0.55;
+}
+
+.analytics-lock-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.analytics-lock-state {
+  color: var(--orion-bronze);
+  font-size: 11px;
+  letter-spacing: var(--orion-tracking-label);
 }
 
 /* --- badges --- */

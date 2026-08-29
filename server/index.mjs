@@ -6,6 +6,10 @@
 //   GOOGLE_CLIENT_ID=... node ...    # enable "Sign in with Google"
 //   CLERK_PUBLISHABLE_KEY=pk_... CLERK_SECRET_KEY=sk_...   # enable Clerk sign-in
 //   ORION_ADMIN_KEY=...              # unlock /admin dashboard + /api/admin/*
+//   CLIP_INBOX_SECRET=...            # Grok fetch URL /clip-inbox/<secret>/
+//   CLIP_INBOX_GOOGLE_SUB=...        # Lucas-only upload + future-day rehearsal
+//   CLIP_INBOX_CALLSIGN=...          # optional callsign allowlist fallback
+//   CLIP_INBOX_DIR=...               # override disk path (default /data/clip-inbox)
 //
 // Environment can also come from server/.env (KEY=value lines, not committed).
 
@@ -28,6 +32,7 @@ import {
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
+import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload } from "./clip-inbox.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -191,12 +196,29 @@ const publicUser = (u) => ({ callsign: u.callsign, country: u.country });
  * publicUser(): the account owner needs to see their own real callsign.
  */
 const sanitizeEntry = (e) => (e ? { ...e, callsign: sanitizeCallsignForDisplay(e.callsign) } : e);
-/** Drop server-only merge metadata before any leaderboard row reaches a client. */
+/** Drop server-only merge metadata before any leaderboard row reaches a client.
+ * `virtual` stays on Daily Patrol ghost rows so the lobby can skip a profile
+ * click (those callsigns are not accounts). userId never leaves the server. */
 const publicBoardEntry = (e) => {
-  const { virtual: _v, userId: _u, ...rest } = e;
-  return sanitizeEntry(rest);
+  const { virtual, userId: _u, ...rest } = e;
+  const out = sanitizeEntry(rest);
+  if (virtual) out.virtual = true;
+  return out;
 };
 const sanitizeEntries = (list) => list.map(publicBoardEntry);
+
+/** Admin-only: today's (or a picked day's) public board, split real vs filler. */
+function adminDayBoard(dailyDate) {
+  const entries = sanitizeEntries(
+    dailyLeaderboardCombinedWithBots({ dailyDate, limit: 100 }),
+  );
+  const realPilots = entries.filter((e) => !e.virtual).length;
+  return {
+    realPilots,
+    fillerBots: entries.length - realPilots,
+    entries,
+  };
+}
 
 /**
  * Auto-naming for Google/Clerk signups: the display name comes from a
@@ -401,6 +423,7 @@ const routes = {
       // patrol history calendar: bounds how far back "missed" can honestly
       // apply for this account (see src/dailyHistory.ts).
       joinedAt: user.created_at,
+      clipInbox: clipInboxAllowed(user),
     });
   },
 
@@ -703,6 +726,14 @@ const routes = {
     json(res, 200, { activity: sanitizeEntries(store.friendActivity(user.id, 20)) });
   },
 
+  "POST /api/clip-inbox": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!rateLimit(`clip-inbox:${user.id}`, 8)) {
+      return json(res, 429, { error: "too many uploads, try again in a minute" });
+    }
+    return handleClipInboxUpload(req, res, user);
+  },
+
   // Player feedback (works signed-in or anonymous; email is optional so we
   // can reach back out with follow-ups / rewards).
   "POST /api/feedback": async (req, res, user) => {
@@ -742,6 +773,7 @@ const routes = {
     // else here is the existing all-time / rolling dashboard, unchanged.
     const day = store.adminStatsForDay(dateParam || undefined);
     if (dateParam && !day) return json(res, 400, { error: "invalid date" });
+    if (day) day.board = adminDayBoard(day.date);
     json(res, 200, { ...store.adminStats(), day });
   },
 
@@ -849,329 +881,12 @@ function arenaLeaderboard(req, res, user, code, url) {
   json(res, 200, { arena: { code: arena.code, name: arena.name }, entries, me });
 }
 
-// --- admin dashboard (single self-contained page; data via /api/admin/*) ---
+// --- admin dashboard (self-contained HTML; data via /api/admin/*) ---
 
-const ADMIN_PAGE = /* html */ `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>ORION mission control</title>
-<style>
-  body { margin: 0 auto; padding: 24px; max-width: 1100px; background: #08080f; color: #ffee88;
-         font: 14px/1.5 Georgia, serif; }
-  h1 { color: #ffd700; letter-spacing: .3em; font-size: 18px; text-transform: uppercase; }
-  h2 { color: #ffd700; letter-spacing: .15em; font-size: 13px; text-transform: uppercase;
-       border-bottom: 1px solid rgba(170,136,68,.4); padding-bottom: 6px; margin: 30px 0 12px; }
-  h3 { color: #8a7a55; letter-spacing: .1em; font-size: 11px; text-transform: uppercase; margin: 14px 0 8px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-  .stat { background: rgba(26,26,42,.6); border: 1px solid rgba(170,136,68,.35);
-          padding: 10px 14px; border-radius: 4px; }
-  .stat .v { color: #ffd700; font-size: 22px; }
-  .stat .k { color: #8a7a55; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-  .row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px 28px;
-          align-items: start; }
-  .panel { min-width: 0; }
-  table { border-collapse: collapse; width: 100%; }
-  td, th { border-bottom: 1px solid rgba(170,136,68,.2); padding: 6px 10px; text-align: left;
-           vertical-align: top; }
-  th { color: #8a7a55; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-  input { background: rgba(26,26,42,.85); border: 1px solid #aa8844; color: #ffee88;
-          font: inherit; padding: 10px 14px; width: 280px; }
-  button { background: #ffd700; border: 0; color: #08080f; font: inherit; padding: 10px 22px;
-           cursor: pointer; margin-left: 8px; }
-  button:disabled { background: rgba(170,136,68,.4); color: #4a4a3a; cursor: default; }
-  .daynav { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; flex-wrap: wrap; }
-  .daynav input[type="date"] { width: 160px; margin: 0; color-scheme: dark; }
-  .daynav button { margin-left: 0; padding: 8px 16px; }
-  .daynav .today { background: transparent; border: 1px solid #aa8844; color: #ffd700; }
-  .err { color: #ff4455; margin-top: 10px; }
-  .muted { color: #8a7a55; }
-  pre { white-space: pre-wrap; margin: 0; font: 12px/1.5 monospace; }
-  /* horizontal bar lists */
-  .hbar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
-  .hbar-label { width: 150px; flex: none; text-align: right; font-size: 13px;
-                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hbar-track { flex: 1; background: rgba(26,26,42,.6); border-radius: 3px; height: 17px; overflow: hidden; }
-  .hbar-fill { height: 100%; background: linear-gradient(90deg, #aa8844, #ffd700); border-radius: 3px;
-               box-shadow: 0 0 10px rgba(255,215,0,.2); }
-  .hbar-val { width: 90px; flex: none; font-size: 12px; color: #ffd700; }
-  /* per-day column charts */
-  .colchart { display: flex; align-items: stretch; gap: 4px; height: 150px; margin-top: 6px; }
-  .colwrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .colval { font-size: 10px; color: #ffd700; text-align: center; height: 16px; }
-  .colstack { flex: 1; position: relative; }
-  .colstack .b, .colstack .a { position: absolute; bottom: 0; left: 12%; width: 76%; border-radius: 2px 2px 0 0; }
-  .colstack .b { background: rgba(196,30,58,.5); }
-  .colstack .a { background: linear-gradient(180deg, #ffee88, #cc8800); box-shadow: 0 0 8px rgba(255,215,0,.25); }
-  .collabel { font-size: 9px; color: #8a7a55; text-align: center; padding-top: 4px;
-              white-space: nowrap; overflow: hidden; }
-  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: #8a7a55; margin: 8px 0 2px; }
-  .chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-  /* stacked split bar */
-  .split { display: flex; height: 18px; border-radius: 3px; overflow: hidden; background: rgba(26,26,42,.6); }
-  .split div { min-width: 2px; }
-</style>
-</head>
-<body>
-<h1>Orion mission control</h1>
-<div id="gate">
-  <p class="muted">Enter the admin key to load analytics.</p>
-  <input id="key" type="password" placeholder="admin key" autofocus>
-  <button onclick="go()">Open</button>
-  <div id="gate-err" class="err"></div>
-</div>
-<div id="dash" style="display:none"></div>
-<script>
-const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
-const secs = (s) => s == null ? "—" : s >= 60 ? Math.floor(s / 60) + "m " + Math.round(s % 60) + "s" : Math.round(s) + "s";
-const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const stat = (k, v) => '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + "</div></div>";
-const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : "";
-const GOLD = "#ffd700", RED = "rgba(196,30,58,.75)", BLUE = "#7fb8d4", BRONZE = "#aa8844";
-
-/** Horizontal bar list: rows = [{ label, value, val (display) }]. */
-function hbars(rows, empty) {
-  if (!rows.length) return '<div class="muted">' + empty + "</div>";
-  const max = Math.max.apply(null, rows.map((r) => r.value).concat([1]));
-  return rows.map((r) =>
-    '<div class="hbar-row"><div class="hbar-label">' + r.label + "</div>" +
-    '<div class="hbar-track"><div class="hbar-fill" style="width:' + Math.max(1.5, (r.value / max) * 100).toFixed(1) + '%"></div></div>' +
-    '<div class="hbar-val">' + r.val + "</div></div>",
-  ).join("");
-}
-
-/** Per-day columns, oldest → newest. days = [{ day, a (gold), b (dim red) }]. */
-function colchart(days, aName, bName) {
-  if (!days.length) return '<div class="muted">nothing yet</div>';
-  const max = Math.max.apply(null, days.map((d) => Math.max(d.a, d.b)).concat([1]));
-  const cols = days.map((d) => {
-    const title = esc(d.day + " — " + fmt(d.b) + " " + bName + ", " + fmt(d.a) + " " + aName);
-    return '<div class="colwrap" title="' + title + '">' +
-      '<div class="colval">' + (d.b || "") + "</div>" +
-      '<div class="colstack">' +
-        '<div class="b" style="height:' + ((d.b / max) * 100).toFixed(1) + '%"></div>' +
-        '<div class="a" style="height:' + ((d.a / max) * 100).toFixed(1) + '%"></div>' +
-      "</div>" +
-      '<div class="collabel">' + d.day.slice(5).replace("-", "/") + "</div>" +
-    "</div>";
-  }).join("");
-  return '<div class="legend"><span><span class="chip" style="background:linear-gradient(180deg,#ffee88,#cc8800)"></span>' +
-    aName + '</span><span><span class="chip" style="background:rgba(196,30,58,.5)"></span>' + bName + "</span></div>" +
-    '<div class="colchart">' + cols + "</div>";
-}
-
-/** One stacked 100% bar + legend. parts = [{ label, value }]. */
-function splitBar(parts) {
-  const COLORS = [GOLD, RED, BLUE, BRONZE, "#8888cc"];
-  parts = parts.filter((p) => p.value > 0);
-  if (!parts.length) return '<div class="muted">nothing yet</div>';
-  const total = parts.reduce((s, p) => s + p.value, 0);
-  return '<div class="split">' +
-    parts.map((p, i) => '<div style="width:' + ((p.value / total) * 100).toFixed(1) + "%;background:" +
-      COLORS[i % COLORS.length] + '" title="' + esc(p.label) + ": " + fmt(p.value) + '"></div>').join("") +
-    "</div><div class='legend'>" +
-    parts.map((p, i) => '<span><span class="chip" style="background:' + COLORS[i % COLORS.length] + '"></span>' +
-      esc(p.label) + " · " + fmt(p.value) + " (" + Math.round((p.value / total) * 100) + "%)</span>").join("") +
-    "</div>";
-}
-
-/** One stats/splits panel for a single day (used by the date selector). */
-function renderDay(day) {
-  const body = document.getElementById("day-body");
-  if (!body) return;
-  if (!day) { body.innerHTML = "<p class='err'>No data for that date.</p>"; return; }
-  body.innerHTML =
-    "<div class='grid'>" +
-      stat("visitors", fmt(day.traffic.uniques)) +
-      stat("visits", fmt(day.traffic.visits)) +
-      stat("new pilots", fmt(day.users.new)) +
-      stat("runs", fmt(day.runs.total)) +
-      stat("signed-in players", fmt(day.runs.signedInPlayers)) +
-      stat("anonymous runs", fmt(day.runs.anonymous)) +
-    "</div>" +
-    "<div class='row2'>" +
-      "<div class='panel'><h3>Countries</h3>" +
-        hbars(day.traffic.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "no traffic that day") +
-      "</div>" +
-      "<div class='panel'><h3>Referrers</h3>" +
-        hbars(day.traffic.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "direct visits only") +
-      "</div>" +
-      "<div class='panel'><h3>Site face</h3>" +
-        splitBar(day.traffic.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
-      "</div>" +
-      "<div class='panel'><h3>Devices</h3>" +
-        splitBar(day.traffic.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
-      "</div>" +
-    "</div>" +
-    "<div class='row2'>" +
-      "<div class='panel'><h3>Boards</h3>" +
-        splitBar(day.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
-      "</div>" +
-      "<div class='panel'><h3>Game modes</h3>" +
-        splitBar(day.runs.gameModeSplit.map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
-      "</div>" +
-    "</div>" +
-    "<div class='row2'>" +
-      "<div class='panel'><h3>Game length</h3><div class='grid'>" +
-        stat("average", secs(day.gameLength.avg)) + stat("median", secs(day.gameLength.median)) + stat("longest", secs(day.gameLength.max)) +
-      "</div></div>" +
-      "<div class='panel'><h3>Score</h3><div class='grid'>" +
-        stat("average", fmt(day.score.avg)) + stat("median", fmt(day.score.median)) + stat("best", fmt(day.score.max)) +
-      "</div></div>" +
-      "<div class='panel'><h3>Combat</h3><div class='grid'>" +
-        stat("avg kills", fmt(day.combat.avgKills, 1)) + stat("best multiplier", "x" + fmt(day.combat.bestMultiplier, 1)) +
-      "</div></div>" +
-    "</div>";
-}
-
-let ADMIN_AUTH = null;
-let TODAY = null;   // today's date (PT, "YYYY-MM-DD"), from the server
-let currentDay = null;
-
-/** Shift a "YYYY-MM-DD" string by N calendar days (plain UTC arithmetic, no timezone). */
-function shiftDate(dateStr, days) {
-  const [y, m, dd] = dateStr.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, dd));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
-}
-
-function setDayControls(dateStr) {
-  currentDay = dateStr;
-  document.getElementById("day-date").value = dateStr;
-  document.getElementById("day-next").disabled = dateStr >= TODAY;
-}
-
-async function loadDay(dateStr) {
-  const res = await fetch("/api/admin/stats?date=" + dateStr, ADMIN_AUTH);
-  const s = await res.json();
-  if (!res.ok || !s.day) {
-    document.getElementById("day-body").innerHTML = "<p class='err'>" + esc(s.error ?? "no data") + "</p>";
-    return;
-  }
-  renderDay(s.day);
-  setDayControls(s.day.date);
-}
-
-function navDay(delta) { loadDay(shiftDate(currentDay, delta)); }
-function jumpToday() { loadDay(TODAY); }
-
-async function go() {
-  const key = document.getElementById("key").value.trim();
-  const auth = { headers: { Authorization: "Bearer " + key } };
-  const sRes = await fetch("/api/admin/stats", auth);
-  if (!sRes.ok) { document.getElementById("gate-err").textContent = "Wrong key (or ORION_ADMIN_KEY unset)."; return; }
-  const s = await sRes.json();
-  const fb = (await (await fetch("/api/admin/feedback", auth)).json()).feedback ?? [];
-  localStorage.setItem("orion.adminKey", key);
-  document.getElementById("gate").style.display = "none";
-  const d = document.getElementById("dash");
-  d.style.display = "";
-  const t = s.traffic ?? null;
-  ADMIN_AUTH = auth;
-  TODAY = s.day ? s.day.date : null;
-  d.innerHTML =
-    "<h2>Day report</h2>" +
-    "<div class='daynav'>" +
-      "<button onclick='navDay(-1)'>&#9664; prev day</button>" +
-      "<input id='day-date' type='date' max='" + esc(TODAY) + "'>" +
-      "<button id='day-next' onclick='navDay(1)'>next day &#9654;</button>" +
-      "<button class='today' onclick='jumpToday()'>today</button>" +
-    "</div>" +
-    "<div id='day-body'></div>" +
-    "<p class='muted'>Pick a date to see that day's traffic, runs, and performance. Everything below stays all-time / rolling.</p>" +
-    "<p class='muted'>Days and \\"today\\" counters are Pacific Time (PT). Weeks are rolling 7 days.</p>" +
-    (t ? (
-    "<h2>Traffic</h2><div class='grid'>" +
-      stat("visitors today", fmt(t.today.uniques)) +
-      stat("visits today", fmt(t.today.visits)) +
-      stat("visitors (7 days)", fmt(t.week.uniques)) +
-      stat("visits (7 days)", fmt(t.week.visits)) +
-      stat("visitors all-time", fmt(t.total.uniques)) +
-      stat("visits all-time", fmt(t.total.visits)) +
-    "</div>" +
-    "<h3>Visits per day (last 14)</h3>" +
-      colchart(t.perDay.slice().reverse().map((v) => ({ day: v.day, a: v.uniques, b: v.visits })), "visitors", "visits") +
-    "<div class='row2'>" +
-      "<div class='panel'><h3>Countries (14d)</h3>" +
-        hbars(t.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "nothing yet") +
-      "</div>" +
-      "<div class='panel'><h3>Referrers (14d)</h3>" +
-        hbars(t.referrers.map((r) => ({ label: esc(r.k), value: r.uniques, val: fmt(r.uniques) + " visitors" })), "direct visits only so far") +
-      "</div>" +
-      "<div class='panel'><h3>Site face (14d)</h3>" +
-        splitBar(t.paths.map((p) => ({ label: p.k === "fullgame" ? "full game" : "daily", value: p.visits }))) +
-      "</div>" +
-      "<div class='panel'><h3>Devices (14d)</h3>" +
-        splitBar(t.platforms.map((p) => ({ label: p.k === "touch" ? "phone" : p.k, value: p.visits }))) +
-      "</div>" +
-    "</div>"
-    ) : "") +
-    "<h2>Pilots</h2><div class='grid'>" +
-      stat("registered pilots", fmt(s.users.total)) +
-      stat("new this week", fmt(s.users.newThisWeek)) +
-      stat("new today", fmt(s.users.newToday)) +
-      stat("returning (&gt;1 run)", fmt(s.users.returningPlayers)) +
-    "</div>" +
-    "<h2>Runs</h2><div class='grid'>" +
-      stat("total runs", fmt(s.runs.total)) +
-      stat("anonymous runs", fmt(s.runs.anonymous)) +
-      stat("signed-in players", fmt(s.runs.signedInPlayers)) +
-    "</div>" +
-    "<h3>Runs per day (last 14)</h3>" +
-      colchart(s.runs.perDay.slice().reverse().map((r) => ({ day: r.day, a: r.players, b: r.runs })), "signed-in players", "runs") +
-    "<div class='row2'>" +
-      "<div class='panel'><h3>Boards</h3>" +
-        splitBar(s.runs.modeSplit.map((m) => ({ label: m.mode, value: m.runs }))) +
-      "</div>" +
-      "<div class='panel'><h3>Game modes</h3>" +
-        splitBar((s.runs.gameModeSplit ?? []).map((g) => ({ label: g.gameMode || "classic", value: g.runs }))) +
-      "</div>" +
-    "</div>" +
-    "<div class='row2'>" +
-      "<div class='panel'><h2>Game length</h2><div class='grid'>" +
-        stat("average", secs(s.gameLength.avg)) +
-        stat("median", secs(s.gameLength.median)) +
-        stat("longest", secs(s.gameLength.max)) +
-      "</div><h3>Distribution</h3>" +
-        hbars(Object.entries(s.gameLength.buckets).map(([k, v]) => ({ label: esc(k), value: v, val: fmt(v) + " runs" })), "nothing yet") +
-      "</div>" +
-      "<div class='panel'><h2>Score</h2><div class='grid'>" +
-        stat("average", fmt(s.score.avg)) + stat("median", fmt(s.score.median)) +
-        stat("p90", fmt(s.score.p90)) + stat("p99", fmt(s.score.p99)) +
-        stat("best", fmt(s.score.max)) +
-      "</div>" +
-      "<h2>Combat</h2><div class='grid'>" +
-        stat("avg kills / run", fmt(s.combat.avgKills, 1)) +
-        stat("kills / minute", fmt(s.combat.killsPerMinute, 1)) +
-        stat("avg peak multiplier", "x" + fmt(s.combat.avgMaxMultiplier, 1)) +
-        stat("best multiplier", "x" + fmt(s.combat.bestMultiplier, 1)) +
-      "</div></div>" +
-    "</div>" +
-    "<h2>Community</h2><div class='grid'>" +
-      stat("feedback reports", fmt(s.community.feedback)) +
-      stat("with email", fmt(s.community.feedbackWithEmail)) +
-      stat("arenas", fmt(s.community.arenas)) +
-      stat("badges awarded", fmt(s.community.badgesAwarded)) +
-    "</div>" +
-    "<h3>Badge holders</h3>" +
-      hbars(s.community.badgeCounts.map((b) => ({ label: esc(b.badge), value: b.holders, val: fmt(b.holders) + " pilots" })), "no badges earned yet") +
-    "<h2>Recent feedback</h2><table><tr><th>when</th><th>pilot</th><th>email</th><th>message</th></tr>" +
-      fb.map((f) => "<tr><td class='muted'>" + new Date(f.createdAt).toLocaleString() + "</td><td>" +
-        esc(f.callsign ?? "anon") + "</td><td>" + esc(f.email ?? "") + "</td><td><pre>" +
-        esc(f.message) + "</pre><span class='muted'>" + esc(f.context) + "</span></td></tr>").join("") +
-    "</table>";
-  document.getElementById("day-date").addEventListener("change", (e) => loadDay(e.target.value));
-  if (s.day) { renderDay(s.day); setDayControls(s.day.date); }
-}
-const saved = localStorage.getItem("orion.adminKey");
-if (saved) { document.getElementById("key").value = saved; go(); }
-document.getElementById("key").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
-</script>
-</body>
-</html>`;
+const ADMIN_PAGE = fs.readFileSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "admin.html"),
+  "utf8",
+);
 
 // --- server ---
 
@@ -1192,6 +907,7 @@ const server = http.createServer(async (req, res) => {
     }
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);
+    if (await handleClipInboxPublic(req, res, url)) return;
     if (!url.pathname.startsWith("/api/") && SERVE_DIST && isStaticMethod(req.method)) {
       return serveStatic(req, res, url.pathname, DIST);
     }

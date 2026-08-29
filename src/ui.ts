@@ -60,6 +60,14 @@ export interface UiCallbacks {
   onFeedback: (message: string, email: string) => Promise<void>;
   /** Save the just-finished run's local clip (see recorder.ts); false = nothing to save. */
   onSaveClip: () => boolean;
+  /** Lucas-only: POST the clip pair to surviveorion's inbox. */
+  onSendToInbox: () => Promise<boolean>;
+  /** Rehearse a future patrol date (YYYY-MM-DD), or null to return to live today. */
+  onRehearseDay: (date: string | null) => void;
+  /** Daily-lobby/settings Google/password sign-in (needed for crew inbox). */
+  onCrewSignIn: () => void;
+  /** Open a public pilot record (daily board rows, with wingmate actions). */
+  onPilot: (callsign: string) => void;
 }
 
 export interface MenuCommunity {
@@ -67,6 +75,8 @@ export interface MenuCommunity {
   callsign: string | null | undefined;
   /** Incoming friend requests — shows a dot on the Wingmates button. */
   pendingFriends?: number;
+  /** Lucas-only: Record runs / Save clip / Send to inbox. Same allowlist as the inbox. */
+  clipInbox?: boolean;
 }
 
 export interface GameOverStats {
@@ -106,11 +116,8 @@ export interface GameOverStats {
   clipReady?: boolean;
   /** That clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
   clipCapped?: boolean;
-  /** iOS/WebKit and desktop Chrome fallback: object URL for a visible Save JSON <a download>. */
-  clipJsonHref?: string;
-  clipJsonFilename?: string;
-  /** Desktop Chrome: second programmatic download may be blocked; show settings hint. */
-  clipJsonChromeHint?: boolean;
+  /** Lucas-only: Record / Save clip / Send to inbox (GET /api/me.clipInbox). */
+  clipInbox?: boolean;
 }
 
 /**
@@ -194,6 +201,13 @@ export interface DailyLobbyInfo {
   preview?: boolean;
   /** Rehearsed UTC date when ?day= is active (shown on the preview badge). */
   previewDate?: string;
+  /** Lucas-only: show the next-patrol picker and treat picks as sandboxed rehearsal. */
+  creator?: boolean;
+  upcomingDays?: Array<{ date: string; names: string }>;
+  /** Signed-in callsign when the community server is up. */
+  callsign?: string;
+  country?: string;
+  pendingFriends?: number;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -205,6 +219,8 @@ export interface DailyBoardRow {
   mode: BoardMode;
   /** Highlight this row gold — it's the viewer's own placement. */
   isMe: boolean;
+  /** Daily Patrol ghost: not a real account, no profile to open. */
+  virtual?: boolean;
 }
 
 /**
@@ -575,18 +591,20 @@ export class Ui {
     return btn;
   }
 
-  /**
-   * Second-gesture JSON download for iOS/WebKit (and any host that cannot
-   * fire two programmatic downloads from one click). Real <a download>, not
-   * a button that clicks a hidden link.
-   */
-  private saveJsonLink(href: string, filename: string): HTMLAnchorElement {
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = filename;
-    a.textContent = "Save JSON";
-    a.className = "share-btn";
-    return a;
+  private sendInboxButton(): HTMLButtonElement {
+    const btn = this.button("Send to inbox", false, () => {
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+      void this.cb.onSendToInbox().then((ok) => {
+        btn.textContent = ok ? "Sent!" : "Couldn't send";
+        setTimeout(() => {
+          btn.textContent = "Send to inbox";
+          btn.disabled = false;
+        }, 1800);
+      });
+    });
+    btn.classList.add("share-btn");
+    return btn;
   }
 
   /**
@@ -626,6 +644,57 @@ export class Ui {
       ),
     );
     return card;
+  }
+
+  /** Lucas-only: pick a future patrol to record before it goes live. */
+  private rehearsalDayPicker(info: DailyLobbyInfo): HTMLElement {
+    const wrap = this.el("div", "creator-days", "");
+    wrap.appendChild(this.el("div", "creator-days-label", "CREW REHEARSAL"));
+    const select = document.createElement("select");
+    select.className = "creator-day-select";
+    const live = document.createElement("option");
+    live.value = "";
+    live.textContent = "Live today";
+    select.appendChild(live);
+    for (const day of info.upcomingDays ?? []) {
+      const opt = document.createElement("option");
+      opt.value = day.date;
+      opt.textContent = `${day.date} · ${day.names}`;
+      select.appendChild(opt);
+    }
+    select.value = info.previewDate ?? "";
+    select.addEventListener("change", () => {
+      this.cb.onRehearseDay(select.value || null);
+    });
+    wrap.appendChild(select);
+    wrap.appendChild(
+      this.el("div", "field-hint center", "Unlimited, not scored. Same mutators pilots will get that day."),
+    );
+    return wrap;
+  }
+
+  /** Daily lobby identity: signed-out Sign in, or the viewer's callsign. */
+  private lobbyPilotBadge(info: DailyLobbyInfo): HTMLElement {
+    const badge = document.createElement("button");
+    badge.className = "pilot-badge";
+    badge.type = "button";
+    if (info.callsign) {
+      const flag = info.country ? `${countryFlag(info.country)} ` : "";
+      const name = escapeHtml(sanitizeCallsignForDisplay(info.callsign));
+      badge.innerHTML =
+        `<span class="wing">✦</span> ${flag}<b>${name}</b> <span class="sub">pilot profile</span>`;
+      badge.title = "Pilot profile";
+      if ((info.pendingFriends ?? 0) > 0) {
+        badge.appendChild(this.el("span", "notif-dot", ""));
+      }
+      badge.addEventListener("click", () => this.cb.onProfile());
+    } else {
+      badge.innerHTML =
+        `<span class="wing">✦</span> Sign in <span class="sub">save your score, find wingmates</span>`;
+      badge.title = "Sign in";
+      badge.addEventListener("click", () => this.cb.onCrewSignIn());
+    }
+    return badge;
   }
 
   showMenu(bestScore: number, touchDevice: boolean, community?: MenuCommunity): void {
@@ -708,7 +777,7 @@ export class Ui {
     gear.title = "Settings";
     gear.innerHTML = "&#9881;";
     gear.addEventListener("click", () =>
-      this.showSettings(touchDevice, () => this.showMenu(bestScore, touchDevice, community)),
+      this.showSettings(touchDevice, () => this.showMenu(bestScore, touchDevice, community), community),
     );
     screen.appendChild(gear);
 
@@ -716,9 +785,10 @@ export class Ui {
   }
 
   /**
-   * Daily-only site lobby, kept deliberately spare: Launch, Training Ground,
-   * How to play, Powers, Leaderboard. No accounts here — players who want on
-   * the board enter a pseudo on the game-over screen (guest signup).
+   * Daily-only site lobby: Launch, Training Ground, How to play, Powers,
+   * today's board. A profile chip opens sign-in or the pilot record
+   * (country, wingmates). Unsigned players can still join the board via
+   * the game-over guest prompt.
    */
   showDailyLobby(info: DailyLobbyInfo): void {
     this.clear();
@@ -728,6 +798,7 @@ export class Ui {
     screen.appendChild(this.wordmarkTitle());
     screen.appendChild(this.el("div", "subtitle", "Daily Patrol"));
     screen.appendChild(this.el("div", "divider", ""));
+    if (info.online) screen.appendChild(this.lobbyPilotBadge(info));
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
     const calendarLink = this.el("button", "link-btn calendar-link", "See previous patrols");
@@ -740,6 +811,10 @@ export class Ui {
       screen.appendChild(
         this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview, info.previewDate),
       );
+    }
+
+    if (info.creator && info.upcomingDays && info.upcomingDays.length > 0) {
+      screen.appendChild(this.rehearsalDayPicker(info));
     }
 
     // attempt pips: one per daily try, spent ones dimmed. A preview run
@@ -854,7 +929,11 @@ export class Ui {
     gear.title = "Settings";
     gear.innerHTML = "&#9881;";
     gear.addEventListener("click", () =>
-      this.showSettings(info.touchDevice, () => this.showDailyLobby(info)),
+      this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
+        callsign: info.callsign,
+        pendingFriends: info.pendingFriends,
+        clipInbox: info.creator,
+      }),
     );
     screen.appendChild(gear);
 
@@ -1167,7 +1246,7 @@ export class Ui {
   }
 
   /** Settings screen: audio/shake toggles + flight manual. */
-  showSettings(touchDevice: boolean, onBack: () => void): void {
+  showSettings(touchDevice: boolean, onBack: () => void, community?: MenuCommunity): void {
     this.clear();
     this.pauseBtn.style.display = "none";
 
@@ -1175,6 +1254,26 @@ export class Ui {
     this.makeSubmenu(screen, onBack);
     screen.appendChild(this.el("div", "heading gold small", "SETTINGS"));
     screen.appendChild(this.el("div", "divider", ""));
+
+    if (community?.callsign) {
+      const profile = this.el(
+        "button",
+        "link-btn",
+        `Pilot profile · ${escapeHtml(sanitizeCallsignForDisplay(community.callsign))}`,
+      );
+      profile.addEventListener("click", () => this.cb.onProfile());
+      screen.appendChild(profile);
+      screen.appendChild(
+        this.el("div", "field-hint center", "Country, wingmates, and sign out live here."),
+      );
+    } else {
+      const signIn = this.el("button", "link-btn", "Sign in");
+      signIn.addEventListener("click", () => this.cb.onCrewSignIn());
+      screen.appendChild(signIn);
+      screen.appendChild(
+        this.el("div", "field-hint center", "Optional. Needed to save a score to the board from a new device."),
+      );
+    }
 
     screen.appendChild(this.toggleRow([
       ["sound", "Sound"],
@@ -1200,30 +1299,29 @@ export class Ui {
       ),
     );
 
-    // opt-in local recording. When it can't work here, show a disabled row
-    // that says why instead of a toggle that silently produces no clip, or
-    // silently vanishing (a dead control is worse than no control, but a
-    // hidden one still leaves a player wondering where it went).
-    if (recordingSupported()) {
-      screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
-      screen.appendChild(
-        this.el(
-          "div",
-          "field-hint center",
-          "Saves a local clip of each run for you to download. Stays on this device: " +
-            "nothing is uploaded, nothing is stored on our end. A quick toggle also " +
-            "shows up on the game-over screen after a run.",
-        ),
-      );
-    } else {
-      const row = this.el("div", "toggles", "");
-      const dead = document.createElement("button");
-      dead.textContent = "Record runs: unavailable";
-      dead.disabled = true;
-      dead.classList.add("off");
-      row.appendChild(dead);
-      screen.appendChild(row);
-      screen.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
+    // Recording is Lucas-only (same allowlist as Send to inbox). Other
+    // pilots never see the toggle or a clip download.
+    if (community?.clipInbox) {
+      if (recordingSupported()) {
+        screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
+        screen.appendChild(
+          this.el(
+            "div",
+            "field-hint center",
+            "Saves a local clip of each run. Send to inbox posts the webm and JSON pair for Grok. " +
+              "A quick toggle also shows up on the game-over screen after a run.",
+          ),
+        );
+      } else {
+        const row = this.el("div", "toggles", "");
+        const dead = document.createElement("button");
+        dead.textContent = "Record runs: unavailable";
+        dead.disabled = true;
+        dead.classList.add("off");
+        row.appendChild(dead);
+        screen.appendChild(row);
+        screen.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
+      }
     }
 
     const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
@@ -1327,7 +1425,7 @@ export class Ui {
     );
 
     const feedback = this.button("Send feedback", false, () =>
-      this.showFeedback(() => this.showSettings(touchDevice, onBack)),
+      this.showFeedback(() => this.showSettings(touchDevice, onBack, community)),
     );
     feedback.classList.add("small-btn");
     screen.appendChild(feedback);
@@ -1725,37 +1823,24 @@ export class Ui {
     if (stats.showShare) {
       screen.appendChild(this.shareButton());
     }
-    if (stats.clipReady) {
-      const clipRow = this.el("div", "clip-save-row", "");
-      clipRow.appendChild(this.saveClipButton());
-      if (stats.clipJsonHref && stats.clipJsonFilename) {
-        clipRow.appendChild(this.saveJsonLink(stats.clipJsonHref, stats.clipJsonFilename));
+    if (stats.clipInbox) {
+      if (stats.clipReady) {
+        const clipRow = this.el("div", "clip-save-row", "");
+        clipRow.appendChild(this.saveClipButton());
+        clipRow.appendChild(this.sendInboxButton());
+        screen.appendChild(clipRow);
+        if (stats.clipCapped) {
+          screen.appendChild(
+            this.el(
+              "div",
+              "field-hint center",
+              `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
+            ),
+          );
+        }
+      } else if (recordingSupported()) {
+        screen.appendChild(this.recordNextRunControl());
       }
-      screen.appendChild(clipRow);
-      if (stats.clipJsonChromeHint) {
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            "JSON missing? Chrome blocks the second file. Allow Automatic downloads for this site " +
-              "(chrome://settings/content/automaticDownloads), then Save clip again. Or click Save JSON.",
-          ),
-        );
-      }
-      if (stats.clipCapped) {
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            `Clip capped at ${fmtTime(RECORDING_MAX_SECONDS)}: saved up to the cutoff.`,
-          ),
-        );
-      }
-    } else if (recordingSupported()) {
-      // no clip from THIS run (recording was off) — the fix for "recording
-      // is not findable" is putting the toggle right where a player is
-      // already looking after a run, not leaving it buried in Settings.
-      screen.appendChild(this.recordNextRunControl());
     }
 
     // DETAILS: everything that isn't the hero/highlight/medal/board —
@@ -2046,15 +2131,23 @@ export class Ui {
   }
 
   private dailyBoardRow(row: DailyBoardRow, pinned: boolean): HTMLElement {
-    return this.el(
+    const clickable = !row.virtual;
+    const el = this.el(
       "div",
-      `board-row${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
+      `board-row${clickable ? " link" : ""}${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
       `<span class="rank">${row.rank}</span>` +
         `<span class="flag" title="${countryName(row.country)}">${row.country ? countryFlag(row.country) : "·"}</span>` +
         `<span class="name">${escapeHtml(row.callsign)}</span>` +
         `<span class="device" title="${DEVICE_LABEL[row.mode]}">${DEVICE_TAG[row.mode]}</span>` +
         `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
     );
+    if (clickable) {
+      el.addEventListener("click", () => {
+        if (row.isMe) this.cb.onProfile();
+        else this.cb.onPilot(row.callsign);
+      });
+    }
+    return el;
   }
 
   /** Celebrate freshly earned badges on the game-over screen. */

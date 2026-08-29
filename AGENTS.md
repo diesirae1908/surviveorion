@@ -53,6 +53,17 @@ npx tsx scripts/sim-test.ts   # headless playtest: runs the real game loop,
 without human-approved files in `social/out/approved/`. Run tests with
 `cd social && npm test`.
 
+Lucas-only clip inbox (Grok cutter, no Drive OAuth): signed-in allowlist
+(`CLIP_INBOX_GOOGLE_SUB` / `CLIP_INBOX_CALLSIGN` on Render) POSTs the
+`webm`+`.json` pair to `POST /api/clip-inbox`. Bytes live on the existing
+`/data` disk at `/data/clip-inbox`. Grok lists pending at
+`GET /clip-inbox/<CLIP_INBOX_SECRET>/` and marks done with
+`POST /clip-inbox/<CLIP_INBOX_SECRET>/consumed` `{id}`. Consume never deletes.
+The same allowlist unlocks Crew Rehearsal, Record runs, and Save clip.
+The JSON sidecar is not a download; it only travels with Send to inbox.
+Other players never see those controls. A leftover
+`?rehearsal=director` browser flag does not count.
+
 ## Brand
 
 `brand/` is the ORION brand kit (v1.0, 2026-08-24). It is the source of truth
@@ -169,7 +180,9 @@ first, then:
   A day that needs one sets `extraPowerIds` (same hook as Vortex on
   SINGULARITY). Afterburner stays benched in the base pool.
 - **Field guide:** unlisted `/guide.html`, built from `MUTATOR_POOL` so it
-  cannot go stale. Fly links use `?mutator=` + `?rehearsal=director`.
+  cannot go stale. Fly links still use `?mutator=` + `?rehearsal=director`
+  (localhost tuning). On production, flying a future day requires the
+  clip-inbox allowlist session.
 
 ## Gameplay tuning facts
 
@@ -301,9 +314,10 @@ first, then:
   (`FULL_GAME`/`DAILY_ONLY` in main.ts; `?fullgame=1` works anywhere, same
   build/deploy — the server SPA-fallbacks unknown paths to index.html). The
   daily side boots straight to a minimal Daily Patrol lobby — Launch /
-  Training Ground / How to play / Powers / Leaderboard plus a Feedback
+  Training Ground / How to play / Powers, today's board, a profile chip
+  (sign in / callsign, country, wingmates) plus a Feedback
   footer link (the /fullgame door is unlisted — URL only — since the public
-  Reddit launch; no cinematic, no sign-in on the lobby; players get on
+  Reddit launch; no cinematic; unsigned players can still get on
   the board via the game-over guest pseudo prompt), caps dailies at 3
   attempts per Pacific day (`orion.dailyAttempts` in save.ts client-side, and
   the server independently rejects a 4th daily score per account per patrol day —
@@ -359,5 +373,8 @@ first, then:
   hashed IP, country via cf-ipcountry or locale guess, referrer hostname,
   daily/fullgame, touch/desktop → `visits` table). `/admin` on the community
   server is the traffic + stats + feedback dashboard (Bearer `ORION_ADMIN_KEY`
-  only — no `?key=` param); crash reports arrive via `/api/feedback` with a
-  `[crash]` prefix and show up there too.
+  only, no `?key=` param), served from `server/admin.html`. The date picker
+  only scopes the Selected day report; All time / rolling sits below and
+  ignores it. The public daily board on that report splits real scores from
+  filler bots (virtual, not visits, not runs). Crash reports arrive via
+  `/api/feedback` with a `[crash]` prefix and show up there too.

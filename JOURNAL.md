@@ -16,6 +16,99 @@ why, commit hash, follow-ups), committed together with the work. See
 - Sim-test: charge-then-aim (turn during charge, only the new heading
   slams). `test:mutators` snapshot untouched (copy-only on the pool entry).
 
+## 2026-08-28: Record / Save clip are luciux-only; no JSON download
+
+- Crew Rehearsal and POST /api/clip-inbox were already allowlist-gated, but
+  Record runs and Save clip still showed for every pilot. Those UI paths and
+  the recorder start now require the same `clipInbox` flag
+  (`CLIP_INBOX_CALLSIGN=luciux` on Render). Save JSON is gone: the sidecar
+  only travels with Send to inbox. Other accounts never get the pair.
+  Commit `4b44eab`.
+
+## 2026-08-28: Mixed filler names LIVE
+
+- Pushed `c82e42d` to `main`. Render `dep-da93ch710e5c73apo96g` live.
+  Server-only change, bundle still `main-BOf4OLSR.js`.
+- Live `GET /api/leaderboard/daily?mode=all&limit=20`: Niko (FI), Jonas
+  (SE), keel (NZ), tess (GB), Patchwork (CA). Meteor Courier / Kestrel
+  Wing gone. Real pilots (Trip, Jarsco, Luciano, L33x, bellend, Haribro)
+  unchanged.
+
+## 2026-08-28: Daily filler names vary format and origin
+
+- Public daily board fillers were all two-word Title Case sci-fi names
+  with a random flag, which made the Filler column obvious next to real
+  pilots (Trip, Jarsco, Luciano, L33x, bellend, Haribro).
+- `server/dailyBots.mjs` now uses a mixed pool: first names, lowercase
+  handles, one-word callsigns, a few two-word leftovers, a few digit
+  handles. Country is bound to the name (Kenji stays JP).
+- Tests cover format mix, uniqueness, live-name collision, and country
+  pairing. Not merged, not deployed (customer-facing board).
+
+## 2026-08-28: Crew Rehearsal picker is allowlist-only
+
+- The future-day dropdown was also unlocking from a leftover
+  `?rehearsal=director` flag in localStorage, so a second account on the
+  same browser still saw next-14 patrols. Picker is `clipInbox` from
+  `/api/me` only. Production `?day=` / `?mutator=` also require that
+  allowlist. Localhost URL preview stays for tuning. Stale
+  `orion.rehearsal` is cleared on boot.
+
+## 2026-08-28: Admin analytics revamp live
+
+- Pushed `1057fc3` to `main`. Render `dep-da9361v10e5c73apkfj0` live.
+- `/admin` is the Shopify-style report. Selected day vs all-time. Public
+  board split real vs filler. Verified live HTML + `day.board` (6 real,
+  17 fillers on 2026-08-28 PT).
+
+## 2026-08-28: Admin analytics Shopify-style revamp (branch `sam/admin-analytics`)
+
+- `/admin` dropped the gold-on-void Mission Control chrome. Light analytics
+  page in `server/admin.html`: Selected day (owns the date picker) vs All
+  time and rolling (explicitly ignores the picker).
+- Day report now includes the public daily board, split into real scores vs
+  filler bots. Those fillers are why the lobby can show ~19 names with only
+  a handful of visits. Bots never write visits or runs.
+- `GET /api/admin/stats` attaches `day.board` (`realPilots`, `fillerBots`,
+  `entries`). Lucas: push live.
+
+## 2026-08-28: Profile analytics locked as a WIP square
+
+- Career stats, Iron Rain record, and the run sparkline are hidden on
+  own profile and public pilot records. A dashed square reads ANALYTICS /
+  LOCKED / WIP so the slot is reserved for the paid analytics plan.
+  Badge grid unchanged. Live on `main` `b2383de`.
+
+## 2026-08-28: Daily lobby profile + wingmates
+
+- Daily lobby hid identity after the Reddit launch, so even a signed-in
+  pilot could not find their callsign, country, or friends. The same
+  fullgame screens now open from a lobby profile chip (Sign in, or
+  callsign + flag). TODAY'S BOARD rows open a public pilot record with
+  Add / Accept / Decline. Own profile has Wingmates (mutual accept) and
+  Sign out. Settings shows Pilot profile when signed in.
+- Reuses existing `/api/me`, `/api/friends/*`, `PATCH /api/me` country.
+  Daily ghost rows stay on the board but are not clickable (`virtual` on
+  the public combined board, userId still stripped). Live on `main`
+  `bfe22eb` (profile chip `673acca`).
+
+## 2026-08-28: Lucas-only clip inbox + future-day rehearsal
+
+- Phone workflow without Drive OAuth: allowlisted Google account
+  (`CLIP_INBOX_GOOGLE_SUB` / `CLIP_INBOX_CALLSIGN`) sees Crew Rehearsal
+  (next 14 patrols, sandboxed) and Send to inbox on game-over. Upload is
+  `POST /api/clip-inbox` (multipart webm+json). Grok fetches
+  `GET /clip-inbox/<secret>/`; consume moves pending → consumed, never
+  deletes. Disk: existing Render `/data` (`orion-data`, 1GB) at
+  `/data/clip-inbox`. Inbox module `3671450`. Live on `main` `bfe22eb`.
+- Sidecar now includes `deathTime`, `powers[]`, and `events[]` (mutator /
+  power / death timestamps) so the cutter can label CLOSE CALL / SPACE DUST
+  / THE BOARD / TODAY'S PATROL. Rehearsal runs stamp the future date on the
+  filename. Canvas recording is still the full playfield.
+- Tests: `test:clip-inbox` PASS, sidecar extras PASS, `sim-test` ALL CHECKS
+  PASSED. Render env still needs `CLIP_INBOX_SECRET` + allowlist before the
+  inbox/rehearsal picker is useful in prod.
+
 ## 2026-08-28: Social clips letterbox full playfield
 
 - Pipeline now shows the entire playfield in 1080x1920 with true black bars.

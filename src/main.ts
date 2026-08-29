@@ -27,9 +27,8 @@ import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
 import {
   buildClipSidecar,
   clipSidecarBasename,
-  isDesktopChrome,
-  isIosWebKit,
   type ClipSidecar,
+  type ClipSidecarPower,
 } from "./clipSidecar";
 import {
   clearActiveMutators,
@@ -127,10 +126,12 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * Dev-only on localhost (Lucas's call, 2026-08-10): letting anyone rehearse a
  * specific mutator by id kills the everyone-discovers-the-day-together
  * scarcity that's the whole point of a daily. Restricted to localhost/127.0.0.1
- * (so `npm run dev` keeps the rehearsal tool for tuning); on production the
- * params are ignored unless the director gate is open (`localStorage.orion.rehearsal
- * === "director"`, set via `?rehearsal=director` which persists for later visits;
- * `?rehearsal=off` clears it). The param applies on the same page load — no reload.
+ * (so `npm run dev` keeps the rehearsal tool for tuning). On production the
+ * params are ignored unless the signed-in account is on the clip-inbox
+ * allowlist (`GET /api/me` `clipInbox`). The lobby Crew Rehearsal picker
+ * is allowlist-only everywhere, including localhost. A leftover
+ * `?rehearsal=director` flag must not unlock future days for the next
+ * account on that browser.
  *
  * `?day=YYYY-MM-DD` (same gate) forces the daily run seed and, unless
  * `?mutator=` overrides it, the mutator pick to that civil date — identical
@@ -145,29 +146,11 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * falls back to today's real mutator(s).
  */
 const PREVIEW_ALLOWED_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-const rehearsalParam = new URLSearchParams(location.search).get("rehearsal");
-let REHEARSAL_DIRECTOR = false;
-if (rehearsalParam === "director") {
-  try {
-    localStorage.setItem("orion.rehearsal", "director");
-  } catch {
-    /* private browsing */
-  }
-  REHEARSAL_DIRECTOR = true;
-} else if (rehearsalParam === "off") {
-  try {
-    localStorage.removeItem("orion.rehearsal");
-  } catch {
-    /* private browsing */
-  }
-} else {
-  try {
-    REHEARSAL_DIRECTOR = localStorage.getItem("orion.rehearsal") === "director";
-  } catch {
-    /* private browsing */
-  }
+try {
+  localStorage.removeItem("orion.rehearsal");
+} catch {
+  /* private browsing */
 }
-const PREVIEW_ALLOWED = PREVIEW_ALLOWED_HOST || REHEARSAL_DIRECTOR;
 
 function parsePreviewDayParam(): Date | null {
   const raw = new URLSearchParams(location.search).get("day");
@@ -177,18 +160,81 @@ function parsePreviewDayParam(): Date | null {
   return d;
 }
 
-const PREVIEW_DAY = PREVIEW_ALLOWED ? parsePreviewDayParam() : null;
-const PREVIEW_MUTATORS: Mutator[] = PREVIEW_ALLOWED
-  ? (new URLSearchParams(location.search)
+function parsePreviewMutators(): Mutator[] {
+  return (
+    new URLSearchParams(location.search)
       .get("mutator")
       ?.split(",")
       .map((id) => getMutatorById(id.trim()))
       .filter((m): m is Mutator => !!m)
-      .slice(0, 2) ?? [])
-  : [];
-const PREVIEW_ACTIVE = PREVIEW_ALLOWED && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null);
-/** Rehearsal date string for preview UI/console (null = today's real patrol). */
-const PREVIEW_REHEARSAL_DATE = PREVIEW_DAY?.toISOString().slice(0, 10) ?? null;
+      .slice(0, 2) ?? []
+  );
+}
+
+/** Set after GET /api/me when this Google account is allowlisted. */
+let creatorAccess = false;
+let PREVIEW_DAY: Date | null = null;
+let PREVIEW_MUTATORS: Mutator[] = [];
+let PREVIEW_ACTIVE = false;
+let PREVIEW_REHEARSAL_DATE: string | null = null;
+
+function previewGateOpen(): boolean {
+  // Localhost keeps ?day= / ?mutator= for tuning. Production is allowlist
+  // only: a leftover ?rehearsal=director in localStorage must not unlock
+  // future days for whoever next signs in on that browser.
+  return PREVIEW_ALLOWED_HOST || creatorAccess;
+}
+
+function syncPreview(): void {
+  const allowed = previewGateOpen();
+  if (allowed && PREVIEW_DAY === null && PREVIEW_MUTATORS.length === 0) {
+    PREVIEW_DAY = parsePreviewDayParam();
+    PREVIEW_MUTATORS = parsePreviewMutators();
+  }
+  if (!allowed) {
+    PREVIEW_DAY = null;
+    PREVIEW_MUTATORS = [];
+  }
+  PREVIEW_REHEARSAL_DATE = PREVIEW_DAY?.toISOString().slice(0, 10) ?? null;
+  PREVIEW_ACTIVE = allowed && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null);
+}
+
+syncPreview();
+
+function addIsoDays(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+function upcomingPatrols(n = 14): Array<{ date: string; names: string }> {
+  const today = patrolDateStr();
+  const out: Array<{ date: string; names: string }> = [];
+  for (let i = 0; i < n; i++) {
+    const date = addIsoDays(today, i);
+    const muts = getMutatorsForDateStr(date);
+    out.push({ date, names: muts.map((m) => m.name).join(" + ") || "CLASSIC" });
+  }
+  return out;
+}
+
+function applyCreatorAccess(on: boolean): void {
+  creatorAccess = on;
+  syncPreview();
+}
+
+function setRehearsalDay(dateStr: string | null): void {
+  if (!previewGateOpen()) return;
+  if (!dateStr) {
+    PREVIEW_DAY = null;
+    PREVIEW_MUTATORS = [];
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const d = new Date(`${dateStr}T00:00:00.000Z`);
+    PREVIEW_DAY = Number.isNaN(d.getTime()) ? null : d;
+    PREVIEW_MUTATORS = [];
+  }
+  syncPreview();
+  if (state === "menu") showMenu();
+}
 
 if (PREVIEW_ACTIVE) {
   const bits = [
@@ -269,8 +315,8 @@ let lastClipCapped = false;
 /** Sidecar snapshotted at game-over so a later save cannot read a reset world. */
 let lastClipSidecar: ClipSidecar | null = null;
 let lastClipBasename: string | null = null;
-/** Object URL for the iOS/WebKit Save JSON <a download>; revoked on the next run. */
-let lastClipJsonUrl: string | null = null;
+/** Power pickups this run (world.time), snapshotted into the sidecar. */
+let clipPowerLog: ClipSidecarPower[] = [];
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -476,14 +522,29 @@ const ui = new Ui(settings, {
   onSaveClip: () => {
     if (!lastClipBlob || !lastClipBasename) return false;
     downloadClip(lastClipBlob, `${lastClipBasename}.${clipExtension(lastClipBlob)}`);
-    // iOS/iPadOS WebKit often swallows a second programmatic download in the
-    // same click. Video only here; those clients get a visible Save JSON link.
-    if (!isIosWebKit() && lastClipSidecar) {
-      const jsonBlob = new Blob([JSON.stringify(lastClipSidecar)], { type: "application/json" });
-      downloadClip(jsonBlob, `${lastClipBasename}.json`);
-    }
     return true;
   },
+  onSendToInbox: async () => {
+    if (!lastClipBlob || !lastClipSidecar || !lastClipBasename) return false;
+    try {
+      await api.uploadClipInbox(
+        lastClipBlob,
+        lastClipSidecar,
+        lastClipBasename,
+        clipExtension(lastClipBlob),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  onRehearseDay: (date) => setRehearsalDay(date),
+  onCrewSignIn: () =>
+    community.showAuth(() => {
+      applyCreatorAccess(api.clipInbox);
+      showMenu();
+    }),
+  onPilot: (callsign) => community.showPilot(callsign, showMenu),
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
   onRebind: (action, code) => {
@@ -510,7 +571,9 @@ const community = new CommunityUi(
   document.getElementById("ui")!,
   api,
   showMenu,
-  () => {}, // menu re-reads auth state every time it renders
+  () => {
+    applyCreatorAccess(api.clipInbox);
+  },
 );
 
 function showMenu(): void {
@@ -531,6 +594,11 @@ function showMenu(): void {
       medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
       preview: PREVIEW_ACTIVE,
       previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
+      creator: creatorAccess,
+      upcomingDays: creatorAccess ? upcomingPatrols(14) : undefined,
+      callsign: api.user?.callsign,
+      country: api.user?.country,
+      pendingFriends: api.pendingFriends,
     });
     fillDailyHint();
     fillDailyBoard();
@@ -541,6 +609,7 @@ function showMenu(): void {
   ui.showMenu(bestScore, isTouchDevice(), {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
     pendingFriends: api.pendingFriends,
+    clipInbox: api.clipInbox,
   });
   fillDailyHint();
 }
@@ -590,6 +659,7 @@ function fillDailyBoard(): void {
         score: e.best,
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
+        virtual: !!e.virtual,
       }));
       const inTopTen = entries.slice(0, 10).some((e) => e.isMe);
       const pinned =
@@ -878,11 +948,9 @@ function startRun(): void {
   lastClipCapped = false;
   lastClipSidecar = null;
   lastClipBasename = null;
-  if (lastClipJsonUrl) {
-    URL.revokeObjectURL(lastClipJsonUrl);
-    lastClipJsonUrl = null;
-  }
-  activeRecording = settings.recordRuns && !runIsTraining ? startRecording(canvas) : null;
+  clipPowerLog = [];
+  activeRecording =
+    settings.recordRuns && api.clipInbox && !runIsTraining ? startRecording(canvas) : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
 }
@@ -974,13 +1042,11 @@ function snapshotClipSidecar(): void {
     mutators,
     daily: runIsDaily,
     gameMode: runGameMode,
+    powers: clipPowerLog.slice(),
+    now: PREVIEW_ACTIVE ? previewDailyDate() : undefined,
   };
   lastClipSidecar = buildClipSidecar(input);
   lastClipBasename = clipSidecarBasename(input);
-  if (lastClipJsonUrl) URL.revokeObjectURL(lastClipJsonUrl);
-  lastClipJsonUrl = URL.createObjectURL(
-    new Blob([JSON.stringify(lastClipSidecar)], { type: "application/json" }),
-  );
 }
 
 /** Death: start the crimson veil; the game-over screen fades in mid-veil. */
@@ -1098,15 +1164,7 @@ function showGameOverUi(): void {
     closestCallLabel: closestCallLabel(world.closestCall),
     clipReady: lastClipBlob !== null,
     clipCapped: lastClipCapped,
-    clipJsonHref:
-      lastClipBlob && (isIosWebKit() || isDesktopChrome()) && lastClipJsonUrl
-        ? lastClipJsonUrl
-        : undefined,
-    clipJsonFilename:
-      lastClipBlob && (isIosWebKit() || isDesktopChrome()) && lastClipBasename
-        ? `${lastClipBasename}.json`
-        : undefined,
-    clipJsonChromeHint: lastClipBlob && isDesktopChrome() ? true : undefined,
+    clipInbox: api.clipInbox,
   });
   submitRun();
 }
@@ -1245,6 +1303,7 @@ function drainEvents(w: World): void {
         // the hint line lingers longer so new pilots learn what they grabbed
         popups.spawn(e.x, e.y - 0.55, POWER_HINTS[e.power], POWER_COLORS[e.power], 0.22, 1.7);
         audio.pickup();
+        clipPowerLog.push({ id: e.power, name: POWER_NAMES[e.power], time: world.time });
         break;
       case "shieldUp":
         audio.shieldUp();
@@ -1598,6 +1657,7 @@ window.addEventListener("pointerdown", () => {
 // Re-render the menu once the community server responds (session restore,
 // server availability) so the community buttons appear/disappear correctly.
 void api.init().then(() => {
+  applyCreatorAccess(api.clipInbox);
   if (state === "menu") showMenu();
 });
 
