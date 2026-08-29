@@ -11,6 +11,10 @@
 - HEVC spacedust remuxed to H.264. Hosted all four mp4s in
   `public/social-drafts/`. Masters left in place. Buffer `--only` those
   four titles so earlier Approved rows are not duplicated.
+- CapCut 720p exports had moov at the end. Buffer could not read them.
+  Hosted copies remuxed `-c copy -movflags +faststart`. Space Dust
+  already scheduled (IG/TT/YT `6a9282c2463a5d78ec64dda8` /
+  `6a9282c3aad1969d9e08c670` / `6a9282c43a3b8905af2827eb`).
 
 ## 2026-08-28: Letterbox full playfield, black bars
 
