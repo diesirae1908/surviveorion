@@ -17,11 +17,12 @@ percent, and the last frame loops into the first. Raw gameplay with meme energy 
 2. **Cold open on the peak.** The first 0.5 to 1 second is the most intense moment of the clip
    (the graze, the death, the chaos), punched in, with the beat-1 hook text already on screen.
    Then a 2-frame flash "rewind" and the story starts. Never open on context.
-3. **Visual velocity.** A text beat, zoom step, speed change, cut, or overlay pop must happen
-   at least every 2.5 seconds. If a stretch has none, cut the stretch.
-4. **Ramp the moment.** The payoff moment plays at 45 to 50 percent speed with a punch zoom
-   (1.3 to 1.6x) and a 4 to 8 px shake on the nearest pass. Setup plays at 110 to 130 percent.
-   Nothing plays at flat 100 percent for more than ~4 seconds.
+3. **Visual velocity.** A text beat, speed change, cut, or overlay pop must happen
+   at least every 2.5 seconds. If a stretch has none, cut the stretch. Do not invent
+   that velocity by cropping the playfield.
+4. **Ramp the moment.** The payoff moment plays at 45 to 50 percent speed. Setup plays
+   at 110 to 130 percent. Nothing plays at flat 100 percent for more than ~4 seconds.
+   Speed ramps only: no punch-zoom crop.
 5. **End into the loop.** Freeze the final frame 0.3 to 0.4s with the CTA text, and make it
    visually rhyme with the cold open so the replay is seamless. Never fade out.
 

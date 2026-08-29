@@ -1,3 +1,5 @@
+# HISTORICAL (2026-08-25 Void-pad + zoompan). Do not run.
+# Framing lock 2026-08-28: full playfield, black bars. See src/preset-runner.mjs.
 set -e
 FF=/opt/node22/lib/node_modules/ffmpeg-static/ffmpeg
 PAD="pad=2904:5164:0:1754:color=#0a0a12"
