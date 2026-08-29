@@ -4,14 +4,6 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
-<<<<<<< HEAD
-## 2026-08-28: Profile analytics locked as a WIP square
-
-- Career stats, Iron Rain record, and the run sparkline are hidden on
-  own profile and public pilot records. A dashed square reads ANALYTICS /
-  LOCKED / WIP so the slot is reserved for the paid analytics plan.
-  Badge grid unchanged. Live on `main` `b2383de`.
-=======
 ## 2026-08-28: Admin analytics Shopify-style revamp (branch `sam/admin-analytics`)
 
 - `/admin` dropped the gold-on-void Mission Control chrome. Light analytics
@@ -21,8 +13,14 @@ why, commit hash, follow-ups), committed together with the work. See
   filler bots. Those fillers are why the lobby can show ~19 names with only
   a handful of visits. Bots never write visits or runs.
 - `GET /api/admin/stats` attaches `day.board` (`realPilots`, `fillerBots`,
-  `entries`). Not on main; not deployed.
->>>>>>> 38a95f6 (Restyle /admin as a Shopify-like report with a selected-day vs all-time split.)
+  `entries`). Lucas: push live.
+
+## 2026-08-28: Profile analytics locked as a WIP square
+
+- Career stats, Iron Rain record, and the run sparkline are hidden on
+  own profile and public pilot records. A dashed square reads ANALYTICS /
+  LOCKED / WIP so the slot is reserved for the paid analytics plan.
+  Badge grid unchanged. Live on `main` `b2383de`.
 
 ## 2026-08-28: Daily lobby profile + wingmates
 
