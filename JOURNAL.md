@@ -4,6 +4,19 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: ION charge rams; a few shields drop
+
+- Lucas: ION is super fun but a bit too hard. While the cone is charging,
+  hull-glow contact now rams (drones, mines, lighthouses, ride-out on
+  lethal blasts). Radius `POWERS.ion.ramRadius` 0.45, not a starshell
+  bubble. Charge is still 0.8s.
+- Ion-day drops are no longer ion-only: ion weight 20, shield 5 (~1 in 5).
+  Shield detonation is the map-clean breath. Difficulty 0.9 -> 0.85.
+- Copy + `POWER_HINTS.ion` updated. First live ION day is still Aug 31.
+- Sim-test: charge ram. `test:mutators` snapshot untouched (weights/copy
+  only). Social calendar captions for ION day are stale; re-run
+  `npm run calendar:sync` if those posts have not gone out yet.
+
 ## 2026-08-28: Grok cutter cuts land in Notion Clips
 
 - Grok POSTs finished cuts to `POST /clip-inbox/<secret>/cuts` (multipart

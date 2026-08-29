@@ -219,6 +219,30 @@ function muteAmbientPickups(world: World): void {
   );
 }
 
+// --- 3c2. ion charge: hull-glow rams while the cone is up ---
+{
+  const world = createWorld(17.8, 10, true);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  activate(world, "ion");
+  const ram = spawnDroneDirect(
+    world,
+    world.ship.x + POWERS.ion.ramRadius * 0.4,
+    world.ship.y,
+    0.6,
+    0,
+  );
+  ram.frozen = 0;
+  tick(world, input, FIXED_DT);
+  check(
+    "ion charge rams overlapping drones instead of dying",
+    world.phase === "playing" && !ram.alive && world.powers.ionTimer > 0,
+    `phase ${world.phase} alive ${ram.alive} timer ${world.powers.ionTimer.toFixed(2)}`,
+  );
+}
+
 // --- 4. every power id activates without crashing ---
 {
   const world = createWorld(17.8, 10);

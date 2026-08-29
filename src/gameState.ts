@@ -153,32 +153,35 @@ export function tick(world: World, input: InputState, dt: number): void {
   world.shake = Math.max(0, world.shake - dt * 1.6);
 }
 
+/** True invuln that rams on contact: shell, dash, vortex, or ion charge. */
+function isRamInvulnerable(world: World): boolean {
+  const p = world.powers;
+  return (
+    p.starshellTimer > 0 ||
+    p.afterburnerDash > 0 ||
+    p.afterburnerGrace > 0 ||
+    p.vortices.length > 0 ||
+    p.ionTimer > 0
+  );
+}
+
+function shipRamRadius(world: World): number {
+  if (world.powers.starshellTimer > 0) return POWERS.starshell.killRadius;
+  if (world.powers.ionTimer > 0) return POWERS.ion.ramRadius;
+  return SHIP.radius;
+}
+
 function handleShipDroneCollisions(world: World): void {
   if (world.phase !== "playing") return;
   const s = world.ship;
-  // the starshell rams with the whole golden bubble, not just the hull
-  const shipR =
-    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
+  const shipR = shipRamRadius(world);
 
   for (const d of world.drones) {
     if (!d.alive || d.allied) continue;
     if (!circlesOverlap(s.x, s.y, shipR, d.x, d.y, droneRadius(d))) continue;
 
-    // starshell: invulnerable ram-kill shell — everything you touch dies
-    if (world.powers.starshellTimer > 0) {
-      killDrone(world, d);
-      continue;
-    }
-
-    // dashing through drones kills them; the arrival grace window extends
-    // that protection so landing inside a swarm isn't an instant death
-    if (world.powers.afterburnerDash > 0 || world.powers.afterburnerGrace > 0) {
-      killDrone(world, d);
-      continue;
-    }
-
-    // an open vortex shields the pilot: contact ram-kills the drone instead
-    if (world.powers.vortices.length > 0) {
+    // starshell / dash / vortex / ion charge: contact ram-kills
+    if (isRamInvulnerable(world)) {
       killDrone(world, d);
       continue;
     }
@@ -212,8 +215,7 @@ function handleShipDroneCollisions(world: World): void {
 function handleShipMineCollisions(world: World): void {
   if (world.phase !== "playing") return;
   const s = world.ship;
-  const shipR =
-    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
+  const shipR = shipRamRadius(world);
 
   for (const m of world.mines) {
     if (!m.alive) continue;
@@ -227,20 +229,7 @@ function handleShipMineCollisions(world: World): void {
 
     if (!isMineArmed(m)) continue;
 
-    // starshell rams mines safely too: they detonate against the shell
-    if (world.powers.starshellTimer > 0) {
-      killMine(world, m);
-      continue;
-    }
-
-    // dashing through a mine detonates it safely, arrival grace included
-    if (world.powers.afterburnerDash > 0 || world.powers.afterburnerGrace > 0) {
-      killMine(world, m);
-      continue;
-    }
-
-    // vortex invulnerability covers mines too: they detonate harmlessly
-    if (world.powers.vortices.length > 0) {
+    if (isRamInvulnerable(world)) {
       killMine(world, m);
       continue;
     }
@@ -268,13 +257,8 @@ function handleShipMineCollisions(world: World): void {
 function handleShipLighthouseCollisions(world: World): void {
   if (world.phase !== "playing") return;
   const s = world.ship;
-  const invuln =
-    world.powers.starshellTimer > 0 ||
-    world.powers.afterburnerDash > 0 ||
-    world.powers.afterburnerGrace > 0 ||
-    world.powers.vortices.length > 0;
-  const shipR =
-    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
+  const invuln = isRamInvulnerable(world);
+  const shipR = shipRamRadius(world);
 
   for (const lh of world.lighthouses) {
     if (!lh.alive) continue;
@@ -334,8 +318,7 @@ function handleHowlerRams(world: World): void {
 function handleShipBlastCollisions(world: World): void {
   if (world.phase !== "playing") return;
   const s = world.ship;
-  const shipR =
-    world.powers.starshellTimer > 0 ? POWERS.starshell.killRadius : SHIP.radius;
+  const shipR = shipRamRadius(world);
 
   for (const b of world.powers.blasts) {
     if (!b.lethalToShip) continue;
@@ -343,11 +326,9 @@ function handleShipBlastCollisions(world: World): void {
     if (r <= 0) continue;
     if (!circlesOverlap(s.x, s.y, shipR, b.x, b.y, r)) continue;
 
-    // same escape hatches as a drone hit: the shell/dash/vortex ride it out
-    // untouched (there's nothing to ram-kill, so just skip the crater).
-    if (world.powers.starshellTimer > 0) continue;
-    if (world.powers.afterburnerDash > 0 || world.powers.afterburnerGrace > 0) continue;
-    if (world.powers.vortices.length > 0) continue;
+    // same escape hatches as a drone hit: the shell/dash/vortex/ion charge
+    // ride it out (there's nothing to ram-kill, so just skip the crater).
+    if (isRamInvulnerable(world)) continue;
 
     if (world.powers.shieldActive) {
       detonateShield(world);
@@ -371,21 +352,13 @@ function handleShipBlastCollisions(world: World): void {
  * Graze pass: shaving past a live drone (inside the band beyond actual
  * contact) pays points and keeps the multiplier alive. Only counts when the
  * near-miss is genuinely risky — true invulnerability (starshell, dash,
- * open vortex) disables it, as do frozen drones (they shatter harmlessly
- * anyway). A banked shield does NOT disable grazes: contact would still cost
- * the extra life, so the near-miss is a real risk.
+ * open vortex, ion charge) disables it, as do frozen drones (they shatter
+ * harmlessly anyway). A banked shield does NOT disable grazes: contact
+ * would still cost the extra life, so the near-miss is a real risk.
  */
 function handleGrazes(world: World): void {
   if (world.phase !== "playing") return;
-  const p = world.powers;
-  if (
-    p.starshellTimer > 0 ||
-    p.afterburnerDash > 0 ||
-    p.afterburnerGrace > 0 ||
-    p.vortices.length > 0
-  ) {
-    return;
-  }
+  if (isRamInvulnerable(world)) return;
 
   const s = world.ship;
   for (const d of world.drones) {

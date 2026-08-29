@@ -287,7 +287,7 @@ export interface PowersState {
   shieldActive: boolean; // persists until it absorbs a hit (banked extra life)
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
   pulseTimer: number; // >0 => pulse charging
-  ionTimer: number; // >0 => ion charging; cone follows ship facing
+  ionTimer: number; // >0 => ion charging; cone follows ship facing; hull-glow rams
   /** Armed magnet grabs waiting for a pickup to spawn (board was empty). */
   magnetPending: number;
   afterburnerCharge: number; // >0 => charging up the dash

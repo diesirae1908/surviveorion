@@ -813,5 +813,15 @@ const SNAPSHOT_WAVE2: Record<string, string> = goldenWave2 as Record<string, str
   check("frozen-mine shatter pays points", ice.score > 0);
 }
 
+{
+  const ion = getMutatorById("ion-day")!;
+  const weights = ion.overrides.powerWeights ?? {};
+  check(
+    "ion-day is mostly Ion with a few shields",
+    weights.ion === 20 && weights.shield === 5 && (ion.overrides.extraPowerIds ?? []).includes("ion"),
+    `ion ${weights.ion} shield ${weights.shield}`,
+  );
+}
+
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);
 if (failures > 0) process.exit(1);

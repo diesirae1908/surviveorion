@@ -1132,7 +1132,7 @@ export class Renderer {
     ctx.lineTo(x + fx * radius, y + fy * radius);
     ctx.stroke();
 
-    const nose = 0.35 + progress * 0.55;
+    const nose = Math.max(POWERS.ion.ramRadius, 0.35 + progress * 0.55);
     const ng = ctx.createRadialGradient(x, y, 0, x, y, nose);
     ng.addColorStop(0, "#e8fbff");
     ng.addColorStop(1, "rgba(102,221,255,0)");

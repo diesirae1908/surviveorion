@@ -655,7 +655,7 @@ export const SCORING = {
   // contact) pays points, bumps the multiplier, and resets its decay delay —
   // threading a tight gap is a scoring strategy, not just survival. Per-drone
   // cooldown stops orbiting one drone for infinite pay. No graze while truly
-  // invulnerable (starshell/dash/vortex); a banked shield still grazes since
+  // invulnerable (starshell/dash/vortex/ion charge); a banked shield still grazes since
   // contact would cost the extra life.
   grazeBand: 0.65,
   grazePoints: 10,
@@ -837,13 +837,15 @@ export const POWERS = {
     pullRadius: 22,
   },
   // Mutator-only: Pulse-style charge, then a directed cone shove. Pushed
-  // drones live and fly the aim axis; what they slam dies.
+  // drones live and fly the aim axis; what they slam dies. While the cone
+  // is up the hull-glow rams (small radius, not a starshell bubble).
   ion: {
     chargeTime: 0.8,
     radius: 5.5,
     coneDot: 0.45,
     slamSpeed: 11,
     slamDuration: 1.1,
+    ramRadius: 0.45,
   },
   // Mutator-only: nearby drones go gold, ram hostiles, then pop.
   howlers: {
@@ -1030,6 +1032,6 @@ export const POWER_HINTS: Record<PowerId, string> = {
   thunder: "lightning ray, hops from each kill",
   cloak: "they lose you, bombs drop, then boom",
   flare: "decoy. they chase it, it does not kill",
-  ion: "charge, aim the cone, slams kill",
+  ion: "charge, ram, slams kill",
   howlers: "gold allies hunt, then pop",
 };

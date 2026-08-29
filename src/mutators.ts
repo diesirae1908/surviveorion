@@ -734,12 +734,16 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "ion-day",
     name: "ION",
-    briefing: "Charge, aim the cone, let them break each other.",
-    subline: "Every pickup is Ion. It charges like Pulse. Steer the cone, then drones in it fly that way. The pushed ones live. What they slam dies.",
-    difficultyFactor: 0.9,
+    briefing: "Charge, ram the cone, let them break each other.",
+    subline: "Most pickups are Ion. A few shields drop too. Ion charges like Pulse. While the cone is up you can ram. Then drones in it fly that way. The pushed ones live. What they slam dies.",
+    difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
-    overrides: { extraPowerIds: ["ion"], powerWeights: monoPowerWeights("ion") },
+    overrides: {
+      extraPowerIds: ["ion"],
+      // ~1 in 5 drops is a shield (ion 20, shield 5). Breathing room, not a second identity.
+      powerWeights: { ...monoPowerWeights("ion"), shield: 5 },
+    },
   },
   {
     id: "howlers-day",
