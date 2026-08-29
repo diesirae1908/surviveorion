@@ -1,7 +1,8 @@
 /**
  * Rehearsal ?day= contract: future-day mutator pick + daily seed match the
  * real date-hash paths (same shared instance pilots will get).
- * Also locks the ?rehearsal= director gate decision table (mirrors main.ts).
+ * Also locks the future-day gate decision table (mirrors main.ts):
+ * production allowlist only; leftover ?rehearsal=director does not count.
  * Run: npx tsx scripts/test-rehearsal-day.ts
  */
 import { hashString } from "../src/math";
@@ -47,12 +48,18 @@ check("?rehearsal=off locks even with stored director", !rehearsalDirectorActive
 check("no param reads stored director flag", rehearsalDirectorActive(null, "director"));
 check("no param without storage stays locked", !rehearsalDirectorActive(null, null));
 
-function creatorOrDirector(clipInbox: boolean, director: boolean, localhost: boolean): boolean {
-  return clipInbox || director || localhost;
+function lobbyPickerVisible(clipInbox: boolean): boolean {
+  return clipInbox;
 }
-check("Lucas allowlist unlocks future days without rehearsal URL", creatorOrDirector(true, false, false));
-check("random pilot stays locked on production", !creatorOrDirector(false, false, false));
-check("localhost still unlocks without allowlist", creatorOrDirector(false, false, true));
+function previewGateOpen(localhost: boolean, clipInbox: boolean): boolean {
+  return localhost || clipInbox;
+}
+check("Lucas allowlist unlocks future days without rehearsal URL", previewGateOpen(false, true));
+check("random pilot stays locked on production", !previewGateOpen(false, false));
+check("director leftover does not unlock production", !lobbyPickerVisible(false));
+check("localhost still unlocks URL preview without allowlist", previewGateOpen(true, false));
+check("lobby picker is allowlist only, even on localhost", !lobbyPickerVisible(false));
+check("lobby picker shows for the allowlisted account", lobbyPickerVisible(true));
 
 // Seed path is the same function the client uses at run start for a rehearsed day.
 {

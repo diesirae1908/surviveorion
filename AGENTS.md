@@ -60,7 +60,8 @@ Lucas-only clip inbox (Grok cutter, no Drive OAuth): signed-in allowlist
 `GET /clip-inbox/<CLIP_INBOX_SECRET>/` and marks done with
 `POST /clip-inbox/<CLIP_INBOX_SECRET>/consumed` `{id}`. Consume never deletes.
 The same allowlist unlocks a Crew Rehearsal date picker on the daily lobby
-(next 14 patrols, sandboxed like `?day=`). Other players never see either UI.
+(next 14 patrols, sandboxed like `?day=`). Other players never see that
+picker. A leftover `?rehearsal=director` browser flag does not count.
 
 ## Brand
 
@@ -178,7 +179,9 @@ first, then:
   A day that needs one sets `extraPowerIds` (same hook as Vortex on
   SINGULARITY). Afterburner stays benched in the base pool.
 - **Field guide:** unlisted `/guide.html`, built from `MUTATOR_POOL` so it
-  cannot go stale. Fly links use `?mutator=` + `?rehearsal=director`.
+  cannot go stale. Fly links still use `?mutator=` + `?rehearsal=director`
+  (localhost tuning). On production, flying a future day requires the
+  clip-inbox allowlist session.
 
 ## Gameplay tuning facts
 

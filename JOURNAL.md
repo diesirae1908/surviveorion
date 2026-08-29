@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Crew Rehearsal picker is allowlist-only
+
+- The future-day dropdown was also unlocking from a leftover
+  `?rehearsal=director` flag in localStorage, so a second account on the
+  same browser still saw next-14 patrols. Picker is `clipInbox` from
+  `/api/me` only. Production `?day=` / `?mutator=` also require that
+  allowlist. Localhost URL preview stays for tuning. Stale
+  `orion.rehearsal` is cleared on boot.
+
 ## 2026-08-28: Profile analytics locked as a WIP square
 
 - Career stats, Iron Rain record, and the run sparkline are hidden on

@@ -128,10 +128,12 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * Dev-only on localhost (Lucas's call, 2026-08-10): letting anyone rehearse a
  * specific mutator by id kills the everyone-discovers-the-day-together
  * scarcity that's the whole point of a daily. Restricted to localhost/127.0.0.1
- * (so `npm run dev` keeps the rehearsal tool for tuning); on production the
- * params are ignored unless the director gate is open (`localStorage.orion.rehearsal
- * === "director"`, set via `?rehearsal=director` which persists for later visits;
- * `?rehearsal=off` clears it). The param applies on the same page load — no reload.
+ * (so `npm run dev` keeps the rehearsal tool for tuning). On production the
+ * params are ignored unless the signed-in account is on the clip-inbox
+ * allowlist (`GET /api/me` `clipInbox`). The lobby Crew Rehearsal picker
+ * is allowlist-only everywhere, including localhost. A leftover
+ * `?rehearsal=director` flag must not unlock future days for the next
+ * account on that browser.
  *
  * `?day=YYYY-MM-DD` (same gate) forces the daily run seed and, unless
  * `?mutator=` overrides it, the mutator pick to that civil date — identical
@@ -146,27 +148,10 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * falls back to today's real mutator(s).
  */
 const PREVIEW_ALLOWED_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-const rehearsalParam = new URLSearchParams(location.search).get("rehearsal");
-let REHEARSAL_DIRECTOR = false;
-if (rehearsalParam === "director") {
-  try {
-    localStorage.setItem("orion.rehearsal", "director");
-  } catch {
-    /* private browsing */
-  }
-  REHEARSAL_DIRECTOR = true;
-} else if (rehearsalParam === "off") {
-  try {
-    localStorage.removeItem("orion.rehearsal");
-  } catch {
-    /* private browsing */
-  }
-} else {
-  try {
-    REHEARSAL_DIRECTOR = localStorage.getItem("orion.rehearsal") === "director";
-  } catch {
-    /* private browsing */
-  }
+try {
+  localStorage.removeItem("orion.rehearsal");
+} catch {
+  /* private browsing */
 }
 
 function parsePreviewDayParam(): Date | null {
@@ -196,7 +181,10 @@ let PREVIEW_ACTIVE = false;
 let PREVIEW_REHEARSAL_DATE: string | null = null;
 
 function previewGateOpen(): boolean {
-  return PREVIEW_ALLOWED_HOST || REHEARSAL_DIRECTOR || creatorAccess;
+  // Localhost keeps ?day= / ?mutator= for tuning. Production is allowlist
+  // only: a leftover ?rehearsal=director in localStorage must not unlock
+  // future days for whoever next signs in on that browser.
+  return PREVIEW_ALLOWED_HOST || creatorAccess;
 }
 
 function syncPreview(): void {
@@ -616,8 +604,8 @@ function showMenu(): void {
       medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
       preview: PREVIEW_ACTIVE,
       previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
-      creator: creatorAccess || REHEARSAL_DIRECTOR || PREVIEW_ALLOWED_HOST,
-      upcomingDays: creatorAccess || REHEARSAL_DIRECTOR || PREVIEW_ALLOWED_HOST ? upcomingPatrols(14) : undefined,
+      creator: creatorAccess,
+      upcomingDays: creatorAccess ? upcomingPatrols(14) : undefined,
       callsign: api.user?.callsign,
       country: api.user?.country,
       pendingFriends: api.pendingFriends,
