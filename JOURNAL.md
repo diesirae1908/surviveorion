@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Admin same-time compare snaps every 15 minutes
+
+- Lucas: otherwise it will always be red. Yesterday's window now floors to
+  the last completed 15-minute mark since midnight PT, and /admin reloads
+  today's slice every 15 minutes so the cutoff walks forward.
+
 ## 2026-08-29: Admin compare uses same clock time for today
 
 - Lucas caught it: the first ship compared a partial today to a full

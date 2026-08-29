@@ -317,7 +317,7 @@ function renderDay(day) {
   const compareNote = prev
     ? " Percentages are vs " + prettyDate(prev.date) +
       (prev.sameTime && prev.throughLabel
-        ? " through " + prev.throughLabel + " (same time of day)."
+        ? " through " + prev.throughLabel + " (same 15-minute mark, refreshes every 15 minutes)."
         : ".")
     : "";
   body.innerHTML =
@@ -381,6 +381,15 @@ function renderDay(day) {
 let ADMIN_AUTH = null;
 let TODAY = null;
 let currentDay = null;
+let dayRefreshTimer = null;
+const DAY_REFRESH_MS = 15 * 60 * 1000;
+
+function startDayRefresh() {
+  if (dayRefreshTimer) clearInterval(dayRefreshTimer);
+  dayRefreshTimer = setInterval(() => {
+    if (ADMIN_AUTH && currentDay && currentDay === TODAY) loadDay(currentDay);
+  }, DAY_REFRESH_MS);
+}
 
 function shiftDate(dateStr, days) {
   const [y, m, dd] = dateStr.split("-").map(Number);
@@ -532,6 +541,7 @@ async function go() {
     "</table></div></section>";
   document.getElementById("day-date").addEventListener("change", (e) => loadDay(e.target.value));
   if (s.day) { renderDay(s.day); setDayControls(s.day.date); }
+  startDayRefresh();
 }
 const saved = localStorage.getItem("orion.adminKey");
 if (saved) { document.getElementById("key").value = saved; go(); }
