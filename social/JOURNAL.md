@@ -1,5 +1,13 @@
 # JOURNAL
 
+## 2026-08-29: Ditch the Can + Dead Fart hosted for Buffer
+
+- New finals: `0828_ditchthecan_916.mp4` (Bored? Ditch the can, play Orion)
+  and `0828_deadfartsound_916.mp4` (death + fart + screaming monkey).
+- Captions follow the on-video hook for Ditch the Can. Dead Fart is the
+  fart-on-death gag. Faststart remux. Calendar: Sep 1 Ditch the Can,
+  Sep 2 Dead Fart. `--only` those titles.
+
 ## 2026-08-29: Dropped empty Aug 28 WASTED calendar row
 
 - Lucas: WASTED is the same format as SPACE DUST. Removed the unlinked
