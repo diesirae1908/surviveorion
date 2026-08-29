@@ -11,8 +11,9 @@ why, commit hash, follow-ups), committed together with the work. See
 
 ## 2026-08-29: Spell diet so restricted days cannot streak
 
-- Branch `sam/spell-diet` only. Not on main. Daily Patrol calendar is
-  customer-facing: Sam confirms with Lucas before merge.
+- LIVE `de86e4a` on `main`. Render `dep-da9hvjoae00c73amp6kg` live
+  ~11:13 AM PT. Bundle `main-Baa4C5p_.js` / `mutators-Cl8Ukli-.js`
+  (was `main-Cff0FvXQ.js` / `mutators-BRECQUcI.js`).
 - Wave 2 put 8 monopower entries in a 32-pool, so hash picks clustered
   (live 4-day restricted streak Aug 29–Sep 1). Full kit should be the
   default; restricted days stay a special, not a streak.
