@@ -213,9 +213,12 @@ const stat = (k, v, delta) =>
   '<div class="metric"><div class="metric-top"><div class="v">' + v + "</div>" +
   (delta || "") + '</div><div class="k">' + k + "</div></div>";
 
-function deltaHtml(curr, prev, prevDate, formatPrev) {
+function deltaHtml(curr, prev, prevDate, formatPrev, throughLabel) {
   if (prev == null || prevDate == null) return "";
-  const title = (formatPrev ? formatPrev(prev) : fmt(prev)) + " on " + prettyDate(prevDate);
+  const shown = formatPrev ? formatPrev(prev) : fmt(prev);
+  const title = throughLabel
+    ? shown + " by " + throughLabel + " on " + prettyDate(prevDate)
+    : shown + " on " + prettyDate(prevDate);
   let kind = "flat";
   let text = "0%";
   if (prev === 0 && curr === 0) {
@@ -307,13 +310,14 @@ function renderDay(day) {
   const board = day.board ?? { realPilots: 0, fillerBots: 0, entries: [] };
   const prev = day.previous ?? null;
   const prevDate = prev ? prev.date : null;
-  const vs = (curr, prevVal) => deltaHtml(curr, prevVal, prevDate);
+  const through = prev && prev.sameTime ? prev.throughLabel : null;
+  const vs = (curr, prevVal) => deltaHtml(curr, prevVal, prevDate, null, through);
   const title = document.getElementById("day-title");
   if (title) title.textContent = prettyDate(day.date);
   const compareNote = prev
     ? " Percentages are vs " + prettyDate(prev.date) +
-      (day.date === TODAY
-        ? " (today is still counting, so this is a partial day against a full previous day)."
+      (prev.sameTime && prev.throughLabel
+        ? " through " + prev.throughLabel + " (same time of day)."
         : ".")
     : "";
   body.innerHTML =
@@ -355,9 +359,9 @@ function renderDay(day) {
     "</div>" +
     '<div class="row2">' +
       '<div class="panel"><h3>Game length</h3><div class="metrics">' +
-        stat("Average", secs(day.gameLength.avg), deltaHtml(day.gameLength.avg, prev && prev.gameLength.avg, prevDate, secs)) +
-        stat("Median", secs(day.gameLength.median), deltaHtml(day.gameLength.median, prev && prev.gameLength.median, prevDate, secs)) +
-        stat("Longest", secs(day.gameLength.max), deltaHtml(day.gameLength.max, prev && prev.gameLength.max, prevDate, secs)) +
+        stat("Average", secs(day.gameLength.avg), deltaHtml(day.gameLength.avg, prev && prev.gameLength.avg, prevDate, secs, through)) +
+        stat("Median", secs(day.gameLength.median), deltaHtml(day.gameLength.median, prev && prev.gameLength.median, prevDate, secs, through)) +
+        stat("Longest", secs(day.gameLength.max), deltaHtml(day.gameLength.max, prev && prev.gameLength.max, prevDate, secs, through)) +
       "</div></div>" +
       '<div class="panel"><h3>Score</h3><div class="metrics">' +
         stat("Average", fmt(day.score.avg), vs(day.score.avg, prev && prev.score.avg)) +
