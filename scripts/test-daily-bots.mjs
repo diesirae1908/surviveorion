@@ -5,15 +5,27 @@
 process.env.ORION_DB = ":memory:";
 
 const {
-  DAILY_BOT_CALLSIGNS,
-  DAILY_BOT_PILOTS,
+  DAILY_BOT_COUNTRIES,
   dailyBotCount,
   allDailyBotsForDate,
   visibleDailyBots,
+  generateGamePseudo,
+  isUsableGamePseudo,
+  hashString,
 } = await import("../server/dailyBots.mjs");
 const { dailyLeaderboardCombinedWithBots } = await import("../server/dailyBoard.mjs");
 const { isNicknameBlocked, BLOCKED_CALLSIGN_PSEUDONYMS } = await import("../server/nickname.mjs");
 const { patrolDayStartMs } = await import("../server/patrolDate.mjs");
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 let failures = 0;
 function check(name, ok, detail = "") {
@@ -24,51 +36,68 @@ function check(name, ok, detail = "") {
 const DATE_A = "2026-09-15";
 const DATE_B = "2026-09-16";
 const dayStartA = patrolDayStartMs(DATE_A);
-const midDayA = dayStartA + 43_200_000;
 const endDayA = dayStartA + 86_399_000;
 
-// --- pool hygiene ---
+const SAMPLE_DATES = [DATE_A, DATE_B, "2026-10-01", "2026-11-20", "2026-08-29"];
+const generated = SAMPLE_DATES.flatMap((d) => allDailyBotsForDate(d));
+const names = generated.map((b) => b.callsign);
+
+// --- generator hygiene ---
 {
-  const pseudonymSet = new Set(BLOCKED_CALLSIGN_PSEUDONYMS.map((n) => n.toLowerCase()));
-  let blocked = 0;
-  let overlap = 0;
-  for (const name of DAILY_BOT_CALLSIGNS) {
-    if (isNicknameBlocked(name)) blocked++;
-    if (pseudonymSet.has(name.toLowerCase())) overlap++;
-  }
-  check("every bot callsign passes the nickname blocklist", blocked === 0, `blocked=${blocked}`);
-  check("bot pool does not overlap blocked-name pseudonyms", overlap === 0, `overlap=${overlap}`);
-  check("bot pool has ~60 names", DAILY_BOT_CALLSIGNS.length >= 55 && DAILY_BOT_CALLSIGNS.length <= 65);
-
   const CALLSIGN_RE = /^[A-Za-z0-9_\- ]{3,20}$/;
-  const shapeFail = DAILY_BOT_CALLSIGNS.filter((n) => !CALLSIGN_RE.test(n));
-  check("every bot callsign matches CALLSIGN_RE", shapeFail.length === 0, shapeFail.slice(0, 3).join(","));
+  let blocked = 0;
+  const shapeFail = [];
+  for (const name of names) {
+    if (isNicknameBlocked(name)) blocked++;
+    if (!CALLSIGN_RE.test(name)) shapeFail.push(name);
+  }
+  check("every generated callsign passes the nickname blocklist", blocked === 0, `blocked=${blocked}`);
+  check("every generated callsign matches CALLSIGN_RE", shapeFail.length === 0, shapeFail.slice(0, 3).join(","));
 
-  const folded = DAILY_BOT_CALLSIGNS.map((n) => n.toLowerCase());
-  check("bot callsigns are unique ignoring case", new Set(folded).size === folded.length);
+  const folded = names.map((n) => n.toLowerCase());
+  check("generated callsigns are unique ignoring case, per day", SAMPLE_DATES.every((d) => {
+    const dayNames = allDailyBotsForDate(d).map((b) => b.callsign.toLowerCase());
+    return new Set(dayNames).size === dayNames.length;
+  }));
 
-  const live = new Set(["trip", "jarsco", "luciano", "l33x", "bellend", "haribro"]);
+  const live = new Set(["trip", "jarsco", "luciano", "l33x", "bellend", "haribro", "luciux"]);
   const liveHit = folded.filter((n) => live.has(n));
-  check("bot pool does not reuse live real callsigns", liveHit.length === 0, liveHit.join(","));
+  check("generator does not reuse live real callsigns", liveHit.length === 0, liveHit.join(","));
 
-  const twoWordTitle = DAILY_BOT_CALLSIGNS.filter((n) => /^[A-Z][a-z]+ [A-Z][a-z]+$/.test(n));
-  const oneWord = DAILY_BOT_CALLSIGNS.filter((n) => !n.includes(" "));
-  const lower = DAILY_BOT_CALLSIGNS.filter((n) => n === n.toLowerCase());
-  const withDigit = DAILY_BOT_CALLSIGNS.filter((n) => /\d/.test(n));
-  check("two-word Title Case is a minority", twoWordTitle.length <= DAILY_BOT_CALLSIGNS.length * 0.4, String(twoWordTitle.length));
-  check("pool has plenty of one-word names", oneWord.length >= 20, String(oneWord.length));
-  check("pool has lowercase handles", lower.length >= 8, String(lower.length));
-  check("pool has a few digit handles", withDigit.length >= 3 && withDigit.length <= 8, String(withDigit.length));
+  const pseudonymSet = new Set(BLOCKED_CALLSIGN_PSEUDONYMS.map((n) => n.toLowerCase()));
+  check("generator does not emit blocked-name pseudonyms", folded.every((n) => !pseudonymSet.has(n)));
 
-  check("pilot list matches callsign export", DAILY_BOT_PILOTS.length === DAILY_BOT_CALLSIGNS.length);
-  const countries = new Set(DAILY_BOT_PILOTS.map((p) => p.country));
-  check("each pilot has an ISO country", DAILY_BOT_PILOTS.every((p) => /^[A-Z]{2}$/.test(p.country)));
-  check("pool spans many countries", countries.size >= 18, String(countries.size));
+  const twoWord = names.filter((n) => /^[A-Z][a-z]+ [A-Z][a-z]+$/.test(n));
+  const withDigit = names.filter((n) => /\d/.test(n));
+  const allCaps = names.filter((n) => /^[A-Z0-9_ -]{3,20}$/.test(n) && /[A-Z]/.test(n) && n === n.toUpperCase());
+  const allLower = names.filter((n) => n === n.toLowerCase() && /[a-z]/.test(n));
+  const hyphenated = names.filter((n) => n.includes("-"));
+  const firstNameish = names.filter((n) => /^[A-Z][a-z]{2,7}$/.test(n));
+  check("mix includes two-word callsigns", twoWord.length >= 5, String(twoWord.length));
+  check("mix includes digit handles", withDigit.length >= 5, String(withDigit.length));
+  check("mix includes ALL CAPS", allCaps.length >= 5, String(allCaps.length));
+  check("mix includes lowercase", allLower.length >= 5, String(allLower.length));
+  check("mix includes Dofus hyphen mashes", hyphenated.length >= 1, String(hyphenated.length));
+  check("mix includes normal first names", firstNameish.length >= 5, String(firstNameish.length));
+  check("countries are ISO codes", generated.every((b) => DAILY_BOT_COUNTRIES.includes(b.country)));
+  const countries = new Set(generated.map((b) => b.country));
+  check("sample spans many countries", countries.size >= 10, String(countries.size));
+}
+
+// --- generator itself is usable and rejects junk ---
+{
+  const used = new Set();
+  const rng = mulberry32(hashString("preview-pseudos"));
+  const batch = [];
+  for (let i = 0; i < 80; i++) batch.push(generateGamePseudo(rng, used));
+  check("generateGamePseudo can mint a large unique batch", batch.length === 80 && used.size === 80);
+  check("isUsableGamePseudo rejects a reserved live name", !isUsableGamePseudo("Trip", new Set()));
+  check("isUsableGamePseudo accepts a Dofus-style mash", isUsableGamePseudo("Xelorix", new Set()));
 }
 
 // --- count 20–40 ---
 {
-  for (const d of [DATE_A, DATE_B, "2026-10-01", "2026-11-20"]) {
+  for (const d of SAMPLE_DATES) {
     const n = dailyBotCount(d);
     check(`bot count for ${d} is 20–40`, n >= 20 && n <= 40, String(n));
   }
@@ -81,10 +110,6 @@ const endDayA = dayStartA + 86_399_000;
   check("same date yields identical bot set", a1.join("|") === a2.join("|"));
   const b1 = allDailyBotsForDate(DATE_B).map((b) => `${b.callsign}:${b.best}`);
   check("adjacent dates produce different bot sets", a1.join("|") !== b1.join("|"));
-
-  const byName = new Map(DAILY_BOT_PILOTS.map((p) => [p.callsign, p.country]));
-  const mismatched = allDailyBotsForDate(DATE_A).filter((b) => byName.get(b.callsign) !== b.country);
-  check("bot country follows the name, not a random flag", mismatched.length === 0, mismatched[0]?.callsign ?? "");
 }
 
 // --- time gating: early patrol morning < evening ---
@@ -128,3 +153,5 @@ if (failures > 0) {
   process.exit(1);
 }
 console.log("\nAll daily-bot checks passed.");
+console.log("Sample board (2026-08-29):", allDailyBotsForDate("2026-08-29").map((b) => b.callsign).join(", "));
+console.log("Sample board (2026-09-15):", allDailyBotsForDate("2026-09-15").map((b) => b.callsign).join(", "));

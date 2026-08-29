@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Melting-pot filler callsigns
+
+- Lucas: not one generator. Mix everything discussed: first names, typos,
+  ALL CAPS, lowercase, digits, Dofus mashes, two-word sci-fi, nonsense
+  real-word pairs. Shuffled quota per patrol day so no style dominates.
+- Same 20–40 / time-gate / blocklist / live-name skip. Seed
+  `orion-daily-bots-mix-`.
+
 ## 2026-08-29: Host Ditch the Can + Dead Fart social finals
 
 - Two new CapCut finals hosted at `/social-drafts/` with faststart.
