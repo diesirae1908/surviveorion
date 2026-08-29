@@ -12,9 +12,16 @@
   `public/social-drafts/`. Masters left in place. Buffer `--only` those
   four titles so earlier Approved rows are not duplicated.
 - CapCut 720p exports had moov at the end. Buffer could not read them.
-  Hosted copies remuxed `-c copy -movflags +faststart`. Space Dust
-  already scheduled (IG/TT/YT `6a9282c2463a5d78ec64dda8` /
-  `6a9282c3aad1969d9e08c670` / `6a9282c43a3b8905af2827eb`).
+  Hosted copies remuxed `-c copy -movflags +faststart`. All 12 posts
+  scheduled. Calendar rows now Scheduled.
+  Rate this dodge Aug 29 9am PT: IG/TT/YT `6a928364aa187a14a5eb769a` /
+  `6a9283653a3b8905af282f76` / `6a928366463a5d78ec64eb1a`.
+  GOLD DASH Aug 29 9am PT: `6a928368aa187a14a5eb76bf` /
+  `6a92836973b542df4dd455f6` / `6a928369e959557ce5579866`.
+  Nature's Call Aug 30 9am PT: `6a92836a3a3b8905af282f9b` /
+  `6a92836b463a5d78ec64eb40` / `6a92836caad1969d9e08cc65`.
+  Space Dust Aug 31 9am PT: `6a9282c2463a5d78ec64dda8` /
+  `6a9282c3aad1969d9e08c670` / `6a9282c43a3b8905af2827eb`.
 
 ## 2026-08-28: Letterbox full playfield, black bars
 
