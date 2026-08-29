@@ -161,13 +161,21 @@ function isRamInvulnerable(world: World): boolean {
     p.afterburnerDash > 0 ||
     p.afterburnerGrace > 0 ||
     p.vortices.length > 0 ||
-    p.ionTimer > 0
+    p.ionTimer > 0 ||
+    p.afterburnerCharge > 0
   );
 }
 
 function shipRamRadius(world: World): number {
   if (world.powers.starshellTimer > 0) return POWERS.starshell.killRadius;
   if (world.powers.ionTimer > 0) return POWERS.ion.ramRadius;
+  if (
+    world.powers.afterburnerCharge > 0 ||
+    world.powers.afterburnerDash > 0 ||
+    world.powers.afterburnerGrace > 0
+  ) {
+    return POWERS.afterburner.ramRadius;
+  }
   return SHIP.radius;
 }
 
@@ -180,7 +188,7 @@ function handleShipDroneCollisions(world: World): void {
     if (!d.alive || d.allied) continue;
     if (!circlesOverlap(s.x, s.y, shipR, d.x, d.y, droneRadius(d))) continue;
 
-    // starshell / dash / vortex / ion charge: contact ram-kills
+    // starshell / dash / charge / vortex / ion: contact ram-kills
     if (isRamInvulnerable(world)) {
       killDrone(world, d);
       continue;

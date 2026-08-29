@@ -25,6 +25,15 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   s.prevY = s.y;
   s.prevAngle = s.angle;
 
+  // afterburner charge: freeze in place and turn to aim the dash
+  if (world.powers.afterburnerCharge > 0) {
+    s.vx = 0;
+    s.vy = 0;
+    s.thrusting = 0;
+    aimShip(s, input, dt);
+    return;
+  }
+
   // SOLAR WIND: a hashed crosswind nudges position every tick, ahead of
   // every control scheme below (afterburner included). Into-wall wind is
   // dropped once the hull is already on that wall, so the current cannot
@@ -65,16 +74,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
     return;
   }
 
-  if (input.heading !== null) {
-    // touch: rotate toward the stick direction (shortest way around)
-    let diff = input.heading - s.angle;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    const maxTurn = SHIP.rotateSpeed * dt;
-    s.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
-  } else {
-    s.angle += -input.turn * SHIP.rotateSpeed * dt;
-  }
+  aimShip(s, input, dt);
 
   const fx = Math.cos(s.angle);
   const fy = Math.sin(s.angle);
@@ -104,9 +104,31 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   clampToBounds(s, world, SHIP.radius);
 }
 
+/** Rotate toward stick / keys. Used in normal flight and afterburner aim. */
+function aimShip(s: Ship, input: InputState, dt: number): void {
+  if (input.moveVector !== null) {
+    const mv = input.moveVector;
+    if (Math.hypot(mv.x, mv.y) < 0.12) return;
+    turnToward(s, Math.atan2(mv.y, mv.x), TILT.rotateSpeed * dt);
+    return;
+  }
+  if (input.heading !== null) {
+    turnToward(s, input.heading, SHIP.rotateSpeed * dt);
+    return;
+  }
+  s.angle += -input.turn * SHIP.rotateSpeed * dt;
+}
+
+function turnToward(s: Ship, target: number, maxTurn: number): void {
+  let diff = target - s.angle;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  s.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
+}
+
 /**
  * Direct control (Tilt to Live rules): velocity converges straight to a target
- * — no thrust integration, no damping, no drift. Hull faces travel direction.
+ * (no thrust integration, no damping, no drift). Hull faces travel direction.
  *
  * mv is a lean strength 0..1 (tilt) or a unit direction (keyboard/stick);
  * input.cruiseSpeed is the flight speed (tilt passes SHIP.maxSpeed).

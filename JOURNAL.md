@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: GOLD DASH stop-aim-ram, always one orb
+
+- Lucas: dash was hard to aim and the field filled too fast. Pickup now
+  freezes the ship for a 0.5s aim (turn only), ram-safe, then the locked
+  line burns. Trail 0.55 -> 1.1, ram bubble 0.5 on charge/dash/grace.
+  Ambient 0.75x. Always exactly one Afterburner; collect replaces it on
+  the far side via a date hash (no shared-seed draws).
+- Copy + hint updated. Difficulty 0.9 -> 0.85. Aug 29 UTC is GOLD DASH.
+- Sim-test: stop/turn/ram/dash + hold-one + formation script stays synced
+  if you collect. `test:mutators` snapshot untouched.
+
 ## 2026-08-28: ION charge ram LIVE
 
 - Pushed `fac1b93` (`d319787`) to surviveorion `main`. Render

@@ -823,5 +823,15 @@ const SNAPSHOT_WAVE2: Record<string, string> = goldenWave2 as Record<string, str
   );
 }
 
+{
+  const gold = getMutatorById("gold-dash")!;
+  check(
+    "gold-dash holds one Afterburner and slows the ambient fill",
+    gold.overrides.pickupHoldOne === true &&
+      gold.overrides.ambientRateScale === 0.75 &&
+      (gold.overrides.extraPowerIds ?? []).includes("afterburner"),
+  );
+}
+
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);
 if (failures > 0) process.exit(1);

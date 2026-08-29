@@ -733,16 +733,17 @@ export const POWERS = {
   magnet: {
     pullSpeed: 11,
   },
-  // Charge briefly, then dash forward in a straight line: enemies on the way
-  // die, and the burning trail left behind stays lethal for a few seconds.
+  // Pickup freezes the ship so you can turn and point, then a locked-line
+  // dash. Charge, dash, and arrival all ram. The burn corridor stays lethal.
   afterburner: {
-    chargeTime: 0.7,
+    chargeTime: 0.5,
     dashSpeed: 30,
     dashDuration: 0.35, // ~10 units of travel
     exitSpeed: 3.5, // hard brake when the dash ends so the ship stays controllable
     arrivalInvulnTime: 1.0, // grace window on arrival: contact kills drones instead of you
     trailLifetime: 2.5,
-    trailKillRadius: 0.55,
+    trailKillRadius: 1.1,
+    ramRadius: 0.5,
   },
   // Flash-freezes every drone and mine in a large area; frozen targets
   // stop dead and shatter harmlessly if you fly into them before they thaw.
@@ -1020,7 +1021,7 @@ export const POWER_HINTS: Record<PowerId, string> = {
   shockwave: "blasts the swarm away from you",
   pulse: "aimed shots, kills pay double",
   magnet: "yanks the nearest power to your ship",
-  afterburner: "warp dash, untouchable on arrival",
+  afterburner: "stop, aim, ram the line",
   freeze: "freezes drones and mines, shatter them for bonus",
   missiles: "homing missiles blast the swarm",
   starshell: "invulnerable, ram them!",

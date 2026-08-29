@@ -243,6 +243,104 @@ function muteAmbientPickups(world: World): void {
   );
 }
 
+// --- 3d. afterburner: freeze, aim, ram, then dash ---
+{
+  const world = createWorld(17.8, 10, true);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  world.ship.vx = 4;
+  world.ship.vy = -2;
+  world.ship.angle = 0;
+  activate(world, "afterburner");
+  tick(world, { ...input, turn: 1, thrust: 1 }, FIXED_DT);
+  check(
+    "afterburner charge stops the ship",
+    world.powers.afterburnerCharge > 0 &&
+      Math.abs(world.ship.vx) < 0.01 &&
+      Math.abs(world.ship.vy) < 0.01,
+    `vx ${world.ship.vx} vy ${world.ship.vy} charge ${world.powers.afterburnerCharge.toFixed(2)}`,
+  );
+  check("afterburner charge still lets you turn", world.ship.angle !== 0);
+
+  const ram = spawnDroneDirect(
+    world,
+    world.ship.x + POWERS.afterburner.ramRadius * 0.4,
+    world.ship.y,
+    0.6,
+    0,
+  );
+  ram.frozen = 0;
+  tick(world, input, FIXED_DT);
+  check(
+    "afterburner charge rams overlapping drones",
+    world.phase === "playing" && !ram.alive && world.powers.afterburnerCharge > 0,
+    `phase ${world.phase} alive ${ram.alive}`,
+  );
+
+  world.ship.angle = 0;
+  step(world, POWERS.afterburner.chargeTime + 0.05);
+  check(
+    "afterburner dashes along the aimed heading after the charge",
+    world.powers.afterburnerCharge <= 0 &&
+      (world.powers.afterburnerDash > 0 || world.powers.afterburnerGrace > 0),
+  );
+}
+
+// --- 3d2. GOLD DASH: always one pickup, replace far away, no seed desync ---
+{
+  const gold = getMutatorById("gold-dash")!;
+  setActiveMutators([gold], "2026-08-29");
+  const world = createWorld(17.8, 10, false, 0, "classic", true);
+  check("gold-dash opens with exactly one pickup", world.pickups.length === 1);
+  const orb = world.pickups[0];
+  world.ship.x = orb.x;
+  world.ship.y = orb.y;
+  tick(world, input, FIXED_DT);
+  check(
+    "collecting a gold-dash pickup spawns the next one immediately",
+    world.pickups.length === 1 && world.powers.afterburnerCharge > 0,
+    `pickups ${world.pickups.length} charge ${world.powers.afterburnerCharge}`,
+  );
+  const next = world.pickups[0];
+  const gap = Math.hypot(next.x - world.ship.x, next.y - world.ship.y);
+  check("next gold-dash pickup waits across the field", gap > 5, `gap ${gap.toFixed(2)}`);
+  clearActiveMutators();
+
+  const recordForms = (collect: boolean): string => {
+    setRunSeed(1234567);
+    setActiveMutators([gold], "2026-08-29");
+    const w = createWorld(17.8, 10, false, 0, "classic", true);
+    const forms: string[] = [];
+    const steps = Math.round(40 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      w.powers.starshellTimer = 9999;
+      if (collect && w.pickups[0]) {
+        w.ship.x = w.pickups[0].x;
+        w.ship.y = w.pickups[0].y;
+      }
+      tick(w, { ...input, inertia: false, moveVector: { x: 0, y: 0 } }, FIXED_DT);
+      for (const e of w.events) {
+        if (e.type === "formation") forms.push(`${w.time.toFixed(2)}:${e.kind}`);
+      }
+      w.events.length = 0;
+    }
+    clearActiveMutators();
+    setRunSeed(null);
+    return forms.join("|");
+  };
+  const withCollect = recordForms(true);
+  const withoutCollect = recordForms(false);
+  check(
+    "gold-dash collect-replace does not desync the formation script",
+    withCollect.length > 0 && withCollect === withoutCollect,
+    withCollect === withoutCollect
+      ? `${withCollect.split("|").length} formations`
+      : "scripts diverged",
+  );
+}
+
 // --- 4. every power id activates without crashing ---
 {
   const world = createWorld(17.8, 10);

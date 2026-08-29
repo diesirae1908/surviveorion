@@ -7,12 +7,14 @@ import {
   SPAWNABLE_POWER_IDS,
   type PowerId,
 } from "./config";
-import { clamp01, lerp, rand, randRange, scheduleRand, scheduleRange } from "./math";
+import { clamp01, hashString, lerp, rand, randRange, scheduleRand, scheduleRange } from "./math";
 import {
   mutatorExtraPowerIds,
+  mutatorPickupHoldOne,
   mutatorPickupIntervalScale,
   mutatorPickupMagnetStrength,
   mutatorPowerWeights,
+  takeHoldOneSpawnKey,
 } from "./mutators";
 import { circlesOverlap } from "./physics";
 import { activatePower } from "./powers";
@@ -37,10 +39,10 @@ function nextInterval(world: World): number {
 export function updatePickups(world: World, dt: number): void {
   if (world.phase !== "playing") return;
 
-  if (!world.sandbox) {
+  if (!world.sandbox && !mutatorPickupHoldOne()) {
     // refill floor: never leave the arena short on support. Skipped on Daily
-    // Patrol — refill timing depends on when the player collects, which
-    // would desync the shared seed (the faster baseline covers dailies).
+    // Patrol (refill timing depends on when the player collects, which
+    // would desync the shared seed; the faster baseline covers dailies).
     if (!world.daily && world.pickups.length < PICKUPS.minActive) {
       world.pickupTimer = Math.min(world.pickupTimer, 0.5);
     }
@@ -99,6 +101,7 @@ export function updatePickups(world: World, dt: number): void {
       world.pickups.splice(i, 1);
       world.events.push({ type: "pickup", power: p.power, x: p.x, y: p.y });
       activatePower(world, p.power);
+      if (mutatorPickupHoldOne()) spawnHoldOnePickup(world);
     }
   }
 }
@@ -159,6 +162,41 @@ function spawnPickup(world: World): void {
   // so anything auditing "what dropped and when" (e.g. sim-test's shared-seed
   // check) sees every scheduled drop, not just the ones that survive a frame.
   world.events.push({ type: "pickupSpawn", power, x, y });
+}
+
+/** GOLD DASH replacement: farthest of 12 date-hash candidates, no seed streams. */
+function spawnHoldOnePickup(world: World): void {
+  const hw = world.viewW / 2 - PICKUPS.edgeInset;
+  const hh = world.viewH / 2 - PICKUPS.edgeInset;
+  const key = takeHoldOneSpawnKey();
+  let bestX = 0;
+  let bestY = 0;
+  let bestDist = -1;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const hx = hashString(`${key}-x-${attempt}`) / 4294967296;
+    const hy = hashString(`${key}-y-${attempt}`) / 4294967296;
+    const x = -hw + hx * 2 * hw;
+    const y = -hh + hy * 2 * hh;
+    const dist = Math.hypot(x - world.ship.x, y - world.ship.y);
+    if (dist > bestDist) {
+      bestDist = dist;
+      bestX = x;
+      bestY = y;
+    }
+  }
+  const drift = (hashString(`${key}-drift`) / 4294967296) * Math.PI * 2;
+  const extras = mutatorExtraPowerIds();
+  const power = extras[0] ?? "afterburner";
+  const pickup: Pickup = {
+    x: bestX,
+    y: bestY,
+    power,
+    age: 0,
+    vx: Math.cos(drift) * PICKUPS.driftSpeed,
+    vy: Math.sin(drift) * PICKUPS.driftSpeed,
+  };
+  world.pickups.push(pickup);
+  world.events.push({ type: "pickupSpawn", power, x: bestX, y: bestY });
 }
 
 /**

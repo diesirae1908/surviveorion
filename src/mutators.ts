@@ -114,6 +114,9 @@ export interface MutatorOverrides {
   grazeMultiplierScale?: number;
   /** GRAZE PROTOCOL only: float the point number. */
   grazePopups?: boolean;
+  /** GOLD DASH: always exactly one pickup. Collecting it spawns the next
+   * across the field. Positions use a date hash, not the shared seed streams. */
+  pickupHoldOne?: boolean;
   /** RAM RAID: multiplies Starshell duration (Classic stays 6s). */
   starshellDurationScale?: number;
   /** THE LIGHTHOUSE: scanners instead of mines. */
@@ -658,12 +661,17 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "gold-dash",
     name: "GOLD DASH",
-    briefing: "Commit the line. The landing is yours.",
-    subline: "Every pickup is Afterburner. Charge, dash, then one second of invincible arrival.",
-    difficultyFactor: 0.9,
+    briefing: "Stop, point, burn the line.",
+    subline: "Every pickup is Afterburner. Grab one and you freeze, aim, then dash. You ram while aiming and the corridor burns. Another dash always waits across the field.",
+    difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
-    overrides: { extraPowerIds: ["afterburner"], powerWeights: monoPowerWeights("afterburner") },
+    overrides: {
+      extraPowerIds: ["afterburner"],
+      powerWeights: monoPowerWeights("afterburner"),
+      pickupHoldOne: true,
+      ambientRateScale: 0.75,
+    },
   },
   {
     id: "the-lighthouse",
@@ -904,6 +912,8 @@ export function combinedDifficultyFactor(mutators: Mutator[]): number {
 let active: Mutator[] = [];
 let activeWindDate: string | null = null;
 let activeWindStrength = 0;
+let holdOneDate: string | null = null;
+let holdOneSeq = 0;
 
 const WIND_PERIOD_MIN = 20;
 const WIND_PERIOD_MAX = 28;
@@ -985,12 +995,16 @@ export function setActiveMutators(mutators: Mutator[], patrolDateLabel: string |
     activeWindStrength = 0;
     activeWindDate = null;
   }
+  holdOneSeq = 0;
+  holdOneDate = active.some((m) => m.overrides.pickupHoldOne) ? label : null;
 }
 
 export function clearActiveMutators(): void {
   active = [];
   activeWindStrength = 0;
   activeWindDate = null;
+  holdOneDate = null;
+  holdOneSeq = 0;
 }
 
 export function getActiveMutators(): Mutator[] {
@@ -1121,6 +1135,19 @@ export function mutatorAssemblyMaxConcurrent(): number | null {
 
 export function mutatorPickupIntervalScale(): number {
   return scaleOf((o) => o.pickupIntervalScale);
+}
+
+/** GOLD DASH: keep exactly one pickup and replace it on collect. */
+export function mutatorPickupHoldOne(): boolean {
+  return holdOneDate !== null;
+}
+
+/** Date + incrementing index for hold-one replacement positions (no seed streams). */
+export function takeHoldOneSpawnKey(): string {
+  const date = holdOneDate ?? "hold-one";
+  const key = `orion-holdone-${date}-${holdOneSeq}`;
+  holdOneSeq += 1;
+  return key;
 }
 
 /** Per-power weight overrides merged across active mutators (last wins per key). */
