@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-28: Mixed filler names LIVE
+
+- Pushed `c82e42d` to `main`. Render `dep-da93ch710e5c73apo96g` live.
+  Server-only change, bundle still `main-BOf4OLSR.js`.
+- Live `GET /api/leaderboard/daily?mode=all&limit=20`: Niko (FI), Jonas
+  (SE), keel (NZ), tess (GB), Patchwork (CA). Meteor Courier / Kestrel
+  Wing gone. Real pilots (Trip, Jarsco, Luciano, L33x, bellend, Haribro)
+  unchanged.
+
 ## 2026-08-28: Daily filler names vary format and origin
 
 - Public daily board fillers were all two-word Title Case sci-fi names
