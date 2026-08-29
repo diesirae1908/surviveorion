@@ -107,11 +107,12 @@ fixture sidecars (day43 real one + hand-written edge cases: 8s death, Sunday dou
 
 ## Phase B: rendering (ffmpeg)
 
-**v2 grammar lives in `EDITING.md`.** That file replaces this section's v1 recipe (letterbox
-pad, static caption band, 22s patrol, fade-out endcard). Everything else in this SPEC stands.
+**v2 grammar lives in `EDITING.md`.** Framing lock (2026-08-28): full playfield, black
+bars. Scale the entire source to fit 1080x1920 and pad with true black. Never crop
+gameplay. Never zoompan into a 9:16 window. Everything else in this SPEC stands.
 
 Canonical output is still 1080x1920, H.264 high, yuv420p, CRF 19, 30fps, AAC. Five laws:
-full-bleed crop (never letterbox/pad), cold open on the peak, visual velocity every 2.5s,
+full playfield with black bars, cold open on the peak, visual velocity every 2.5s,
 ramp the moment, end into the loop (freeze CTA, no fade out). Duration caps: SPACE DUST
 6-9s · CLOSE CALL 8-11s · THE BOARD 9-12s · TODAY'S PATROL 10-14s.
 
@@ -221,7 +222,7 @@ DEFAULT_PRIVACY=public    # set to private for the first test uploads
 1. `npm test` green.
 2. `npm run golden` re-renders THE BOARD and TODAY'S PATROL from the day43 fixture (empty
    grazes: no CLOSE CALL, not SPACE DUST) plus one synthetic CLOSE CALL from `test/fixtures`.
-   Checklist is in `EDITING.md` (full-bleed, hook in 0.5s, velocity, ramp, freeze CTA).
+   Checklist is in `EDITING.md` (full playfield + black bars, hook in 0.5s, velocity, ramp, freeze CTA).
 3. `npm run batch` on an inbox of two runs produces a clean queue + REVIEW.md.
 4. One real YouTube upload with `DEFAULT_PRIVACY=private` succeeds end to end, thumbnail
    included, and is visible in Studio.

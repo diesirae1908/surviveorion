@@ -88,7 +88,8 @@ So the rule, and it shapes the whole pipeline:
 [Lucas plays, recording ON]                      30 min, once or twice a week
         v  clips + JSON sidecars into  ~/OrionClips/inbox/
 [harvest]      watches the folder, reads sidecars, ranks runs
-[edit]         ffmpeg per format preset: 9:16 crop, slow-mo at graze timestamps,
+[edit]         ffmpeg per format preset: 9:16 letterbox (full playfield, black bars),
+               slow-mo at graze timestamps,
                caption bars, watermark, scrim, end-card from the cover template
 [caption]      caption + hashtags per platform from metadata (templates below)
 [thumbnail]    for YouTube: still at the graze frame + thumbnail template overlay

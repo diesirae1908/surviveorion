@@ -15,30 +15,21 @@ import {
 } from "./ffmpeg-bin.mjs";
 import {
   NEW_BEST_PLAY_S,
+  letterboxFilter,
   newBestSourceTimes,
   patrolSourceTimes,
   requirePresetInputs,
-  scalePanX,
-  voidPadSpec,
   wastedSourceTimes,
 } from "./presets.mjs";
 
 const ENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p", "-r", "24"];
-const NEEDED = ["zoompan", "overlay", "hue", "vignette", "silenceremove"];
+const NEEDED = ["scale", "pad", "overlay", "hue", "vignette", "silenceremove"];
 
 /**
  * @typedef {object} FfmpegStep
  * @property {string} label
  * @property {string[]} args
  */
-
-function yExpr(yCenter) {
-  return `'max(0,min(${yCenter}-(ih/zoom)/2,ih-ih/zoom))'`;
-}
-
-function xExpr(expr) {
-  return `'max(0,min(${expr}-(iw/zoom)/2,iw-iw/zoom))'`;
-}
 
 /**
  * @param {import('./presets.mjs').LockedFormat} format
@@ -49,7 +40,7 @@ function xExpr(expr) {
  */
 export function buildPresetSteps(format, record, outputPath, ctx) {
   const basename = record.basename;
-  const pad = voidPadSpec(record.probe.width, record.probe.height, basename);
+  const vf = letterboxFilter(record.probe.width, record.probe.height, basename);
   const mkv = path.join(ctx.workDir, "src.mkv");
   const tagged = path.join(ctx.workDir, "tagged.mp4");
   /** @type {FfmpegStep[]} */
@@ -62,12 +53,6 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
 
   if (format === "WASTED") {
     const t = wastedSourceTimes(record.probe.duration, basename);
-    const w = record.probe.width;
-    const x0 = scalePanX(2400, w);
-    const x1 = scalePanX(1500, w);
-    const x2 = scalePanX(1180, w);
-    const x3 = scalePanX(1050, w);
-    const y = pad.yCenter;
     const segA = path.join(ctx.workDir, "segA.mp4");
     const freezePng = path.join(ctx.workDir, "freeze.png");
     const segF = path.join(ctx.workDir, "segF.mp4");
@@ -82,31 +67,28 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
       label: "segA-approach",
       args: [
         "-y", "-loglevel", "error", "-ss", String(t.approach), "-i", mkv, "-t", "4.5",
-        "-vf",
-        `${pad.filter},zoompan=z='1.5+0.55*min(on/107,1)':x=${xExpr(`${x0}-${x0 - x1}*min(on/107,1)`)}:y=${yExpr(y)}:d=1:fps=24:s=1080x1920`,
+        "-vf", `${vf},fps=24`,
         "-an", ...ENC, segA,
       ],
     });
     steps.push({
       label: "freeze-frame",
-      args: ["-y", "-loglevel", "error", "-ss", String(t.freeze), "-i", mkv, "-frames:v", "1", "-vf", pad.filter, freezePng],
+      args: ["-y", "-loglevel", "error", "-ss", String(t.freeze), "-i", mkv, "-frames:v", "1", "-vf", vf, freezePng],
     });
     steps.push({
       label: "segF-freeze-vo",
       args: [
         "-y", "-loglevel", "error", "-loop", "1", "-framerate", "24", "-i", freezePng, "-t", "4.3",
-        "-vf",
-        `zoompan=z='2.05+0.30*min(on/102,1)':x=${xExpr(`${x1}-${x1 - x2}*min(on/102,1)`)}:y=${yExpr(y)}:d=1:fps=24:s=1080x1920`,
+        "-vf", `${vf},fps=24`,
         "-an", ...ENC, segF,
       ],
     });
-    // zoompan first, then setpts on a second pass (setpts in the same graph does not stretch)
+    // letterbox first, then setpts on a second pass (setpts in the same graph does not stretch)
     steps.push({
-      label: "segC-zoompan",
+      label: "segC-letterbox",
       args: [
         "-y", "-loglevel", "error", "-ss", String(t.freeze), "-i", mkv, "-t", "1.7",
-        "-vf",
-        `${pad.filter},zoompan=z='2.35+0.10*min(on/81,1)':x=${xExpr(`${x2}-${x2 - x3}*min(on/81,1)`)}:y=${yExpr(y)}:d=1:fps=24:s=1080x1920`,
+        "-vf", `${vf},fps=24`,
         "-an", ...ENC, segCraw,
       ],
     });
@@ -120,7 +102,7 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
     });
     steps.push({
       label: "slam-frame",
-      args: ["-y", "-loglevel", "error", "-ss", String(t.slam), "-i", mkv, "-frames:v", "1", "-vf", pad.filter, slamPng],
+      args: ["-y", "-loglevel", "error", "-ss", String(t.slam), "-i", mkv, "-frames:v", "1", "-vf", vf, slamPng],
     });
     steps.push({
       label: "segD-wasted",
@@ -129,7 +111,7 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
         "-loop", "1", "-framerate", "24", "-i", slamPng,
         "-i", ASSETS.wasted,
         "-filter_complex",
-        `[0:v]zoompan=z='2.45':x=${xExpr(String(x3))}:y=${yExpr(y)}:d=1:fps=24:s=1080x1920,hue=s=0,eq=contrast=1.28:brightness=-0.05,vignette=PI/4.2[bg];[1:v]scale=880:-1[w];[bg][w]overlay=x=(W-w)/2:y='(H-h)/2-40':enable='gte(t,0.2)'`,
+        `[0:v]${vf},fps=24,hue=s=0,eq=contrast=1.28:brightness=-0.05,vignette=PI/4.2[bg];[1:v]scale=880:-1[w];[bg][w]overlay=x=(W-w)/2:y='(H-h)/2-40':enable='gte(t,0.2)'`,
         "-t", "2.0", "-an", ...ENC, segD,
       ],
     });
@@ -176,7 +158,6 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
 
   if (format === "PATROL") {
     const t = patrolSourceTimes(record.probe.duration, basename);
-    const y = pad.yCenter;
     const play = path.join(ctx.workDir, "play.mp4");
     const freezePng = path.join(ctx.workDir, "freeze.png");
     const freezeMp4 = path.join(ctx.workDir, "freeze.mp4");
@@ -186,21 +167,19 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
       label: "patrol-play",
       args: [
         "-y", "-loglevel", "error", "-ss", String(t.start), "-i", mkv, "-t", String(t.playS),
-        "-vf",
-        `${pad.filter},zoompan=z='1.5+0.22*min(on/191,1)':x=${xExpr("iw/2")}:y=${yExpr(y)}:d=1:fps=24:s=1080x1920`,
+        "-vf", `${vf},fps=24`,
         "-an", ...ENC, play,
       ],
     });
     steps.push({
       label: "patrol-freeze-frame",
-      args: ["-y", "-loglevel", "error", "-ss", String(t.freezeAt), "-i", mkv, "-frames:v", "1", "-vf", pad.filter, freezePng],
+      args: ["-y", "-loglevel", "error", "-ss", String(t.freezeAt), "-i", mkv, "-frames:v", "1", "-vf", vf, freezePng],
     });
     steps.push({
       label: "patrol-freeze",
       args: [
         "-y", "-loglevel", "error", "-loop", "1", "-framerate", "24", "-i", freezePng, "-t", String(t.freezeS),
-        "-vf",
-        `zoompan=z='1.72':x=${xExpr("iw/2")}:y=${yExpr(y)}:d=1:fps=24:s=1080x1920`,
+        "-vf", `${vf},fps=24`,
         "-an", ...ENC, freezeMp4,
       ],
     });
@@ -228,7 +207,6 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
 
   if (format === "NEW_BEST") {
     const t = newBestSourceTimes(record.probe.duration, basename);
-    const y = pad.yCenter;
     const play = path.join(ctx.workDir, "play.mp4");
     const boardMp4 = path.join(ctx.workDir, "board.mp4");
     const concatList = path.join(ctx.workDir, "concat.txt");
@@ -240,7 +218,7 @@ export function buildPresetSteps(format, record, outputPath, ctx) {
         "-y", "-loglevel", "error", "-ss", String(t.start), "-i", mkv, "-t", String(NEW_BEST_PLAY_S),
         "-i", music,
         "-filter_complex",
-        `[0:v]${pad.filter},zoompan=z='1.5':x=${xExpr("iw/2")}:y=${yExpr(y)}:d=1:fps=24:s=1080x1920[v];[1:a]atrim=0:${NEW_BEST_PLAY_S},asetpts=PTS-STARTPTS,volume=0.42[a]`,
+        `[0:v]${vf},fps=24[v];[1:a]atrim=0:${NEW_BEST_PLAY_S},asetpts=PTS-STARTPTS,volume=0.42[a]`,
         "-map", "[v]", "-map", "[a]",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p", "-r", "24",
         "-c:a", "aac", "-b:a", "192k",

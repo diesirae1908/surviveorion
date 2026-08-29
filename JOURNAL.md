@@ -15,7 +15,6 @@ why, commit hash, follow-ups), committed together with the work. See
 - Reuses existing `/api/me`, `/api/friends/*`, `PATCH /api/me` country.
   Daily ghost rows stay on the board but are not clickable (`virtual` on
   the public combined board, userId still stripped). No new endpoints.
-  Not merged.
 
 ## 2026-08-28: Lucas-only clip inbox + future-day rehearsal (branch `sam/clip-inbox`)
 
@@ -32,7 +31,14 @@ why, commit hash, follow-ups), committed together with the work. See
   filename. Canvas recording is still the full playfield.
 - Tests: `test:clip-inbox` PASS, sidecar extras PASS, `sim-test` ALL CHECKS
   PASSED. Render env still needs `CLIP_INBOX_SECRET` + allowlist before this
-  is useful in prod. Not merged.
+  is useful in prod.
+
+## 2026-08-28: Social clips letterbox full playfield
+
+- Pipeline now shows the entire playfield in 1080x1920 with true black bars.
+  Void pad + zoompan crop is retired. Helper: `LETTERBOX_VF` / `letterboxFilter` in `social/src/presets.mjs`.
+- Tests updated in `social/test/presets.test.mjs` and `social/test/edit-dry.test.mjs`.
+- No post, no `social/out/approved/`, no `src/` game runtime.
 
 ## 2026-08-28: GREAT WALL Buffer posts moved to Sep 26
 

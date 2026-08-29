@@ -28,11 +28,11 @@ the top-left; a future sidecar field could carry it explicitly).
 
 Build recipe notes (hard-won, keep):
 - The source webm has NO audio track and no duration header: remux `-c copy` to mkv first.
-- Full-bleed engine: pad source to 9:16 (2904x5164, Void), then zoompan with
-  s=1080x1920. Game height on screen = 615.7*z px; z 1.5 = wide, 2.2 = fills 70%.
-  y center 2582 constant; animate x toward the action; always clamp with max/min.
-- Slow-mo THROUGH zoompan: zoompan first, then setpts=2*PTS, then fps=24
-  (zoompan recounts frames, so setpts before it does nothing).
+- Letterbox engine (locked 2026-08-28): scale the entire playfield to fit 1080x1920,
+  pad with true black. No Void pad, no zoompan crop.
+  `scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black`
+- Slow-mo is a second-pass setpts=2*PTS after the letterbox encode
+  (setpts in the same graph as the encode does not stretch).
 - `-t` placement matters: output-side for normal segments; filter trim for slow-mo;
   for -loop 1 stills, -t goes on the OUTPUT or it loops forever.
 - ffmpeg-static has no drawtext: taglines and text are pre-rendered PNGs (Chromium+Rajdhani).

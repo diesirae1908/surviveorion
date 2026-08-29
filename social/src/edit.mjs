@@ -1,5 +1,5 @@
 /**
- * CutPlan + beat sheet -> ffmpeg. Full-bleed 9:16, freeze CTA, no fade-out.
+ * CutPlan + beat sheet -> ffmpeg. Full playfield letterbox, freeze CTA, no fade-out.
  */
 
 import { spawn } from "node:child_process";
@@ -29,6 +29,7 @@ import {
   ffmpegHasLibass,
 } from "./overlay-text.mjs";
 import { buildBeatSheet } from "./beats.mjs";
+import { LETTERBOX_VF } from "./presets.mjs";
 
 export const CANON = {
   width: 1080,
@@ -86,10 +87,6 @@ export function atempoFor(rate) {
 
 function escapeFilterPath(p) {
   return p.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "'\\''");
-}
-
-function even(n) {
-  return Math.max(2, Math.round(n) & ~1);
 }
 
 /**
@@ -171,13 +168,11 @@ export function buildFilterComplex(ctx) {
   const {
     plan,
     record,
-    cropCmdPath,
     assPath,
     useLibass,
     overlays,
     sourceW,
     sourceH,
-    initialCrop,
     sfxHits,
     musicPath,
     sheet,
@@ -215,9 +210,8 @@ export function buildFilterComplex(ctx) {
     `${vLabels.join("")}concat=n=${vLabels.length}:v=1:a=0[played]`
   );
 
-  const crop0 = `w=${even(initialCrop.w)}:h=${even(initialCrop.h)}:x=${even(initialCrop.x)}:y=${even(initialCrop.y)}`;
   parts.push(
-    `[played]fps=${CANON.fps},sendcmd=f='${escapeFilterPath(cropCmdPath)}',crop=${crop0},scale=${CANON.width}:${CANON.height},format=yuv420p[bleed]`
+    `[played]fps=${CANON.fps},${LETTERBOX_VF},format=yuv420p[bleed]`
   );
   parts.push(
     `[bleed]tpad=stop_mode=clone:stop_duration=${freeze}[frozen]`

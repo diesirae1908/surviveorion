@@ -3,13 +3,14 @@ import { describe, it } from "node:test";
 
 import { DAY43_BASE } from "../src/paths.mjs";
 import {
+  LETTERBOX_VF,
   assertNewBestEligible,
+  letterboxFilter,
   pickEligiblePresets,
   requirePresetInputs,
-  voidPadSpec,
   wastedSourceTimes,
 } from "../src/presets.mjs";
-import { renderPreset } from "../src/preset-runner.mjs";
+import { buildPresetSteps, renderPreset } from "../src/preset-runner.mjs";
 
 const day43Sidecar = {
   day: 43,
@@ -23,13 +24,38 @@ const day43Sidecar = {
 };
 
 describe("locked presets", () => {
-  it("Void pad maps day43 2904x1656 to 2904x5164 y=1754", () => {
-    const pad = voidPadSpec(2904, 1656, DAY43_BASE);
-    assert.equal(pad.padW, 2904);
-    assert.equal(pad.padH, 5164);
-    assert.equal(pad.padY, 1754);
-    assert.equal(pad.yCenter, 2582);
-    assert.match(pad.filter, /#0a0a12/);
+  it("letterbox fits day43 2904x1656 in 1080x1920 with black bars", () => {
+    const vf = letterboxFilter(2904, 1656, DAY43_BASE);
+    assert.equal(
+      vf,
+      "scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+    );
+    assert.equal(vf, LETTERBOX_VF);
+    assert.doesNotMatch(vf, /#0a0a12/);
+    assert.throws(() => letterboxFilter(0, 0, DAY43_BASE), /Cannot map source dims/);
+  });
+
+  it("locked presets letterbox gameplay and never zoompan", () => {
+    const record = {
+      basename: DAY43_BASE,
+      videoPath: "/tmp/orion-social-missing-clip.webm",
+      sidecar: day43Sidecar,
+      probe: { width: 2904, height: 1656, duration: 319.9, fps: 24, hasAudio: false },
+    };
+    for (const format of ["WASTED", "PATROL", "NEW_BEST"]) {
+      const steps = buildPresetSteps(format, record, "/tmp/orion-social-should-not-write.mp4", {
+        workDir: "/tmp/orion-social-letterbox-test",
+      });
+      const joined = steps.flatMap((s) => s.args || []).join("\n");
+      assert.doesNotMatch(joined, /zoompan/);
+      assert.match(joined, /scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2/);
+      assert.match(joined, /pad=1080:1920:\(ow-iw\)\/2:\(oh-ih\)\/2:black/);
+      if (format === "NEW_BEST") {
+        const board = steps.find((s) => s.label === "newbest-board");
+        assert.ok(board);
+        assert.match(board.args.join(" "), /scale=1080:1920,fps=24/);
+      }
+    }
   });
 
   it("day43 WASTED times stay locked at 312.6 / 317.1 / 318.5", () => {

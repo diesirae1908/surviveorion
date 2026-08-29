@@ -28,7 +28,7 @@ describe("edit --dry v2", () => {
     assert.equal(atempoFor(1.25), 1.25);
   });
 
-  it("filtergraph is full-bleed crop, no pad/letterbox, no fade-out", () => {
+  it("filtergraph letterboxes full playfield, no crop/zoompan, no fade-out", () => {
     const graze = { time: 10.5, clearance: 0.05, x: 1, y: 2 };
     const sheet = buildBeatSheet("CLOSE_CALL", sidecar, 50, { graze });
     const cropPath = precomputeCropPath({
@@ -65,11 +65,14 @@ describe("edit --dry v2", () => {
       sheet,
     });
 
-    assert.match(filterComplex, /crop=/);
-    assert.match(filterComplex, /sendcmd=/);
-    assert.match(filterComplex, /scale=1080:1920/);
+    assert.doesNotMatch(filterComplex, /crop=/);
+    assert.doesNotMatch(filterComplex, /sendcmd=/);
+    assert.doesNotMatch(filterComplex, /zoompan/);
+    assert.match(
+      filterComplex,
+      /scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1080:1920:\(ow-iw\)\/2:\(oh-ih\)\/2:black/
+    );
     assert.match(filterComplex, /tpad=stop_mode=clone/);
-    assert.doesNotMatch(filterComplex, /pad=1080:1920/);
     assert.doesNotMatch(filterComplex, /xfade/);
     assert.match(filterComplex, /trim/);
     assert.match(filterComplex, /setpts/);

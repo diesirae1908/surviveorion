@@ -1,5 +1,12 @@
 # JOURNAL
 
+## 2026-08-28: Letterbox full playfield, black bars
+
+- Locked look: entire source playfield scaled to fit 1080x1920, padded with true black.
+- Replaced Void-pad-then-zoompan in `presets.mjs` / `preset-runner.mjs`. `edit.mjs` letterboxes concatenated gameplay the same way. NEW_BEST board still `scale=1080:1920`.
+- Docs: EDITING.md law 1, SPEC.md Phase B, brand/SOCIAL.md, CAPCUT-TEMPLATES.md.
+- No post. Nothing written to `out/approved/`. Game runtime untouched.
+
 ## 2026-08-28: GREAT WALL Buffer posts moved to Sep 26
 
 - editPost on IG/TT/YT `6a9121e2efbc4adde7879dbe` /
