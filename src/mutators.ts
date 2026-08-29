@@ -215,6 +215,14 @@ function dualPowerWeights(a: PowerId, b: PowerId): Record<PowerId, number> {
 export const WAVE2_AVAILABLE_FROM = "2026-08-29";
 
 /**
+ * First PT patrol date the spell diet may rewrite a pick. History before
+ * this label stays on the wave-2 snapshot (hash + yesterday-raw-index only).
+ * From this date on, a monopower day is allowed only after two full-spell
+ * resolved days, so restricted days cannot streak.
+ */
+export const SPELL_DIET_FROM = "2026-08-31";
+
+/**
  * Shared pickup-drop slowdown for the choreography days (2026-08-12 mid-ramp
  * densify). Daily Patrol runs the whole drop schedule at
  * PICKUPS.dailyIntervalScale (0.7x intervals) because it has no refill floor;
@@ -789,6 +797,43 @@ function poolIndex(seedKey: string, length: number): number {
   return hashString(seedKey) % length;
 }
 
+/** Spell-restricted iff the mutator carries the monopower exclusion tag. */
+function isSpellRestricted(m: Mutator): boolean {
+  return m.tags.includes("monopower");
+}
+
+/** A day is restricted iff any active mutator that day is spell-restricted. */
+function dayIsRestricted(mutators: Mutator[]): boolean {
+  return mutators.some(isSpellRestricted);
+}
+
+/**
+ * Fully-resolved days, keyed by pool identity then date label. Lookback for
+ * the spell diet must see the finished pick (including yesterday's own diet
+ * step), not the raw hash index. Memoized so walking two days back from
+ * every date is linear, not exponential.
+ */
+const resolvedByPool = new WeakMap<Mutator[], Map<string, Mutator[]>>();
+
+function resolvedCacheFor(pool: Mutator[]): Map<string, Mutator[]> {
+  let cache = resolvedByPool.get(pool);
+  if (!cache) {
+    cache = new Map();
+    resolvedByPool.set(pool, cache);
+  }
+  return cache;
+}
+
+/**
+ * Restricted day allowed only when both of the previous two resolved days
+ * were full-spell. Dates before SPELL_DIET_FROM never consult this.
+ */
+function restrictedDayAllowed(dateStr: string, pool: Mutator[]): boolean {
+  const prev1 = getMutatorsForDateStr(addCivilDays(dateStr, -1), pool);
+  const prev2 = getMutatorsForDateStr(addCivilDays(dateStr, -2), pool);
+  return !dayIsRestricted(prev1) && !dayIsRestricted(prev2);
+}
+
 /**
  * Entries eligible on a given patrol date label, preserving pool order. Selection
  * below indexes into this, never the raw MUTATOR_POOL.length, so appending a
@@ -818,7 +863,7 @@ function eligiblePool(pool: Mutator[], dateStr: string): Mutator[] {
  * every live entry is pinned to the same availableFrom), there is nothing to
  * avoid repeating, so the step is skipped outright.
  */
-function pickFirst(dateStr: string, pool: Mutator[]): Mutator {
+function pickFirst(dateStr: string, pool: Mutator[], allowRestricted: boolean): Mutator {
   const eligible = eligiblePool(pool, dateStr);
   const idx = poolIndex(`orion-mutator-${dateStr}-1`, eligible.length);
   const yesterdayStr = addCivilDays(dateStr, -1);
@@ -826,13 +871,21 @@ function pickFirst(dateStr: string, pool: Mutator[]): Mutator {
   const yesterdayIdx =
     yesterdayEligible.length > 0 ? poolIndex(`orion-mutator-${yesterdayStr}-1`, yesterdayEligible.length) : -1;
   const finalIdx = idx === yesterdayIdx ? (idx + 1) % eligible.length : idx;
-  return eligible[finalIdx];
+  const chosen = eligible[finalIdx];
+  if (!allowRestricted && isSpellRestricted(chosen)) {
+    // Prefer a full-spell landing over avoiding yesterday's raw index.
+    for (let step = 1; step < eligible.length; step++) {
+      const candidate = eligible[(finalIdx + step) % eligible.length];
+      if (!isSpellRestricted(candidate)) return candidate;
+    }
+  }
+  return chosen;
 }
 
 /** Second Sunday slot: compatible with the first pick, distinct from it.
  * See pickFirst's comment for the eligible-pool / introduction-day notes,
  * which apply here identically. */
-function pickSecond(dateStr: string, first: Mutator, pool: Mutator[]): Mutator {
+function pickSecond(dateStr: string, first: Mutator, pool: Mutator[], allowRestricted: boolean): Mutator {
   const eligible = eligiblePool(pool, dateStr);
   const start = poolIndex(`orion-mutator-${dateStr}-2`, eligible.length);
   const yesterdayStr = addCivilDays(dateStr, -1);
@@ -844,20 +897,35 @@ function pickSecond(dateStr: string, first: Mutator, pool: Mutator[]): Mutator {
     const candidate = eligible[idx];
     if (candidate.id === first.id || shareTag(candidate, first)) continue;
     if (idx === yesterdayIdx && step === 0) continue; // try the next slot first
+    // If a restricted Sunday is not allowed, do not let a full-spell first
+    // pick get a monopower partner. If first is already monopower the day
+    // is already restricted; tag exclusion already blocks a second one.
+    if (!allowRestricted && isSpellRestricted(candidate)) continue;
     return candidate;
   }
   // unreachable with the current pool (always >=2 mutually-compatible
   // entries), but keep a safe, always-compatible fallback just in case.
-  const fallback = eligible.find((m) => m.id !== first.id && !shareTag(m, first));
+  const fallback = eligible.find(
+    (m) => m.id !== first.id && !shareTag(m, first) && (allowRestricted || !isSpellRestricted(m)),
+  );
   return fallback ?? first;
 }
 
 /** Mutator(s) for a YYYY-MM-DD patrol label: 1 normally, 2 on Sundays. */
 export function getMutatorsForDateStr(dateStr: string, pool: Mutator[] = MUTATOR_POOL): Mutator[] {
-  if (dateStr < MUTATORS_START_DATE) return [];
-  const first = pickFirst(dateStr, pool);
-  if (!isSundayDateStr(dateStr)) return [first];
-  return [first, pickSecond(dateStr, first, pool)];
+  const cache = resolvedCacheFor(pool);
+  const hit = cache.get(dateStr);
+  if (hit) return hit;
+  if (dateStr < MUTATORS_START_DATE) {
+    const empty: Mutator[] = [];
+    cache.set(dateStr, empty);
+    return empty;
+  }
+  const allowRestricted = dateStr < SPELL_DIET_FROM || restrictedDayAllowed(dateStr, pool);
+  const first = pickFirst(dateStr, pool, allowRestricted);
+  const result = !isSundayDateStr(dateStr) ? [first] : [first, pickSecond(dateStr, first, pool, allowRestricted)];
+  cache.set(dateStr, result);
+  return result;
 }
 
 /** Resolve mutators for a Date anchored at UTC midnight of its label. Live

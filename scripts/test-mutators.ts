@@ -23,6 +23,7 @@ import {
   getMutatorsForDateFromPool,
   MUTATOR_POOL,
   MUTATORS_START_DATE,
+  SPELL_DIET_FROM,
   WAVE2_AVAILABLE_FROM,
   mutatorAmbientRateScale,
   mutatorBlackoutPulse,
@@ -43,6 +44,7 @@ import { cancelIntoWallWind, clampToBounds } from "../src/physics";
 import type { World } from "../src/types";
 import golden from "./mutator-snapshot.json";
 import goldenWave2 from "./mutator-snapshot-wave2.json";
+import goldenDiet from "./mutator-snapshot-spell-diet.json";
 
 const input: InputState = {
   turn: 0,
@@ -67,14 +69,24 @@ function addUtcDays(dateStr: string, days: number): string {
 const SNAPSHOT_END_DATE = "2026-12-31";
 const SNAPSHOT: Record<string, string> = golden as Record<string, string>;
 const SNAPSHOT_WAVE2: Record<string, string> = goldenWave2 as Record<string, string>;
+const SNAPSHOT_DIET: Record<string, string> = goldenDiet as Record<string, string>;
+
+function snapshotWant(d: string): string | undefined {
+  if (d < WAVE2_AVAILABLE_FROM) return SNAPSHOT[d];
+  if (d < SPELL_DIET_FROM) return SNAPSHOT_WAVE2[d];
+  return SNAPSHOT_DIET[d];
+}
+
+function dayRestricted(dateStr: string): boolean {
+  return getMutatorsForDate(new Date(`${dateStr}T00:00:00Z`)).some((m) => m.tags.includes("monopower"));
+}
 
 // --- 1. Snapshot: every UTC date from MUTATORS_START_DATE through
-// SNAPSHOT_END_DATE must resolve to exactly the ids recorded in
-// mutator-snapshot.json. That file was generated once, before the
-// append-only selection rewrite, straight off getMutatorsForDate, and is
-// the byte-for-byte contract every future selection-math change must honor.
-// If this section fails: STOP. Revert the selection change. Do not update
-// the snapshot to match; the whole point is that these dates never move.
+// SNAPSHOT_END_DATE must resolve to exactly the ids recorded in the
+// matching frozen fixture. Dates before wave 2 stay on mutator-snapshot.json;
+// wave-2 dates before the spell diet stay on mutator-snapshot-wave2.json;
+// dates on/after SPELL_DIET_FROM use mutator-snapshot-spell-diet.json.
+// If a date before SPELL_DIET_FROM moves: STOP. Do not update those files.
 {
   let checked = 0;
   let mismatches = 0;
@@ -84,7 +96,7 @@ const SNAPSHOT_WAVE2: Record<string, string> = goldenWave2 as Record<string, str
     const got = getMutatorsForDate(new Date(`${d}T00:00:00Z`))
       .map((m) => m.id)
       .join("+");
-    const want = d < WAVE2_AVAILABLE_FROM ? SNAPSHOT[d] : SNAPSHOT_WAVE2[d];
+    const want = snapshotWant(d);
     checked++;
     if (want === undefined) {
       mismatches++;
@@ -96,9 +108,70 @@ const SNAPSHOT_WAVE2: Record<string, string> = goldenWave2 as Record<string, str
     d = addUtcDays(d, 1);
   }
   check(
-    "snapshot: dates before wave 2 match the frozen 22-pool fixture; later dates match wave 2",
+    "snapshot: pre-wave2 / wave2 / spell-diet fixtures match their windows",
     mismatches === 0,
     mismatches > 0 ? `${mismatches}/${checked} mismatched, e.g. ${firstFewMismatches.join(" | ")}` : `${checked} dates`,
+  );
+}
+
+{
+  let preMismatches = 0;
+  const firstFew: string[] = [];
+  let d = MUTATORS_START_DATE;
+  while (d < SPELL_DIET_FROM) {
+    const got = getMutatorsForDate(new Date(`${d}T00:00:00Z`))
+      .map((m) => m.id)
+      .join("+");
+    const want = d < WAVE2_AVAILABLE_FROM ? SNAPSHOT[d] : SNAPSHOT_WAVE2[d];
+    if (got !== want) {
+      preMismatches++;
+      if (firstFew.length < 5) firstFew.push(`${d}: got "${got}" want "${want}"`);
+    }
+    d = addUtcDays(d, 1);
+  }
+  check(
+    "spell diet: every date before SPELL_DIET_FROM still matches the existing fixtures",
+    preMismatches === 0,
+    firstFew.join(" | "),
+  );
+
+  const aug29 = getMutatorsForDate(new Date("2026-08-29T00:00:00Z"))
+    .map((m) => m.id)
+    .join("+");
+  const aug30 = getMutatorsForDate(new Date("2026-08-30T00:00:00Z"))
+    .map((m) => m.id)
+    .join("+");
+  check("spell diet: Aug 29 stays gold-dash", aug29 === "gold-dash", aug29);
+  check("spell diet: Aug 30 stays bait-shot+year-of-the-serpent", aug30 === "bait-shot+year-of-the-serpent", aug30);
+
+  let consecutive = 0;
+  let fullSpell = 0;
+  let restricted = 0;
+  let dietDays = 0;
+  const firstStreak: string[] = [];
+  d = SPELL_DIET_FROM;
+  let prevRestricted = dayRestricted(addUtcDays(SPELL_DIET_FROM, -1));
+  while (d <= SNAPSHOT_END_DATE) {
+    const isRestricted = dayRestricted(d);
+    dietDays++;
+    if (isRestricted) restricted++;
+    else fullSpell++;
+    if (isRestricted && prevRestricted) {
+      consecutive++;
+      if (firstStreak.length < 5) firstStreak.push(d);
+    }
+    prevRestricted = isRestricted;
+    d = addUtcDays(d, 1);
+  }
+  check(
+    "spell diet: no two consecutive restricted days from the gate through 2026-12-31",
+    consecutive === 0,
+    firstStreak.join(" | "),
+  );
+  check(
+    "spell diet: full-spell days are strictly more than half from the gate through 2026-12-31",
+    fullSpell > dietDays / 2,
+    `${fullSpell} full-spell / ${restricted} restricted / ${dietDays} days`,
   );
 }
 
@@ -303,7 +376,7 @@ const SNAPSHOT_WAVE2: Record<string, string> = goldenWave2 as Record<string, str
     const got = getMutatorsForDateFromPool(new Date(`${d}T00:00:00Z`), fakePool)
       .map((m) => m.id)
       .join("+");
-    const want = d < WAVE2_AVAILABLE_FROM ? SNAPSHOT[d] : SNAPSHOT_WAVE2[d];
+    const want = snapshotWant(d);
     if (got !== want) {
       preMismatches++;
       if (firstFewPre.length < 5) firstFewPre.push(`${d}: got "${got}" want "${want}"`);
