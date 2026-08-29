@@ -106,14 +106,15 @@ function nearestHostile(world: World, self: Drone): Drone | null {
   return best;
 }
 
-function nearestFlare(world: World, d: Drone): { x: number; y: number } | null {
+function nearestFlareAt(world: World, x: number, y: number): { x: number; y: number } | null {
   let best: { x: number; y: number } | null = null;
   let bestSq = Infinity;
+  const r2 = POWERS.flare.pullRadius * POWERS.flare.pullRadius;
   for (const f of world.powers.flares) {
-    const dx = f.x - d.x;
-    const dy = f.y - d.y;
+    const dx = f.x - x;
+    const dy = f.y - y;
     const sq = dx * dx + dy * dy;
-    if (sq < bestSq && sq <= POWERS.flare.pullRadius * POWERS.flare.pullRadius) {
+    if (sq < bestSq && sq <= r2) {
       bestSq = sq;
       best = f;
     }
@@ -121,11 +122,27 @@ function nearestFlare(world: World, d: Drone): { x: number; y: number } | null {
   return best;
 }
 
-/** Loose homing drones — not marching a script, not conscripted to a shape. */
+function nearestFlare(world: World, d: Drone): { x: number; y: number } | null {
+  return nearestFlareAt(world, d.x, d.y);
+}
+
+function turnAssemblyToward(a: Assembly, tx: number, ty: number, turnRate: number, dt: number): void {
+  const desired = Math.atan2(ty, tx);
+  const current = Math.atan2(a.dirY, a.dirX);
+  let delta = desired - current;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+  const turn = clamp(delta, -turnRate * dt, turnRate * dt);
+  const heading = current + turn;
+  a.dirX = Math.cos(heading);
+  a.dirY = Math.sin(heading);
+}
+
+/** Loose homing drones — not marching a script, not conscripted to a shape, not piled on a flare. */
 function countFreeDrones(world: World): number {
   let n = 0;
   for (const d of world.drones) {
-    if (d.alive && !d.scriptMode && !d.assembly) n++;
+    if (d.alive && !d.scriptMode && !d.assembly && !nearestFlare(world, d)) n++;
   }
   return n;
 }
@@ -180,7 +197,25 @@ export function updateDrones(world: World, dt: number): void {
     let hy = d.vy;
     let scripted = false;
 
-    if (d.scriptMode === "straight" && d.scriptDirX !== undefined && d.scriptDirY !== undefined) {
+    // Flare overrides trains/walls: they drop the script and pile on the decoy.
+    // Assemblies stay a shape and are steered in updateAssemblies.
+    const flare = !d.allied && chase ? nearestFlare(world, d) : null;
+    if (flare) {
+      d.scriptMode = undefined;
+      d.followTarget = null;
+      d.scriptSpeedScale = undefined;
+      const tx = flare.x - d.x;
+      const ty = flare.y - d.y;
+      const dist = Math.hypot(tx, ty);
+      if (dist > 0.35) {
+        hx = tx / dist;
+        hy = ty / dist;
+      } else {
+        d.vx = 0;
+        d.vy = 0;
+        continue;
+      }
+    } else if (d.scriptMode === "straight" && d.scriptDirX !== undefined && d.scriptDirY !== undefined) {
       // serpent heads carve a smooth-noise curve; walls march dead straight
       if (d.scriptWander) {
         const turn = smoothNoise(world.time * 0.9, d.jitterSeed) * d.scriptWander * dt;
@@ -224,7 +259,7 @@ export function updateDrones(world: World, dt: number): void {
       }
     }
 
-    if (!scripted) {
+    if (!scripted && !flare) {
       if (d.slamTimer && d.slamTimer > 0) {
         d.slamTimer -= dt;
         d.vx = d.slamVx ?? 0;
@@ -252,12 +287,6 @@ export function updateDrones(world: World, dt: number): void {
           if (prey) {
             tx = prey.x - d.x;
             ty = prey.y - d.y;
-          }
-        } else {
-          const flare = nearestFlare(world, d);
-          if (flare) {
-            tx = flare.x - d.x;
-            ty = flare.y - d.y;
           }
         }
         const dist = Math.hypot(tx, ty);
@@ -1072,7 +1101,7 @@ function slotWorldOffset(a: Assembly, d: Drone): { x: number; y: number } {
  */
 function tryFormAssembly(world: World, count: number, kind: AssemblyKind): void {
   const free = world.drones.filter(
-    (d) => d.alive && !d.scriptMode && !d.assembly && d.frozen <= 0,
+    (d) => d.alive && !d.scriptMode && !d.assembly && d.frozen <= 0 && !nearestFlare(world, d),
   );
   if (free.length < ASSEMBLY.minMembers) return;
 
@@ -1201,7 +1230,7 @@ function assemblyRadiusFor(kind: AssemblyKind, count: number): number {
  */
 function retireDistantFreeDrones(world: World, n: number): void {
   const loose = world.drones
-    .filter((d) => d.alive && !d.assembly && d.frozen <= 0)
+    .filter((d) => d.alive && !d.assembly && d.frozen <= 0 && !nearestFlare(world, d))
     .sort(
       (a, b) =>
         Math.hypot(b.x - world.ship.x, b.y - world.ship.y) -
@@ -1429,7 +1458,9 @@ export function updateAssemblies(world: World, dt: number): void {
       continue;
     }
 
-    a.timer -= dt;
+    const flare = nearestFlareAt(world, a.x, a.y);
+    // Hold the fuse while baited so the shape stays a blob instead of popping.
+    if (!flare || a.phase === "form") a.timer -= dt;
 
     if (a.phase === "form") {
       const speed = assemblyBaseSpeed(world) * ASSEMBLY.formSpeedScale;
@@ -1468,21 +1499,25 @@ export function updateAssemblies(world: World, dt: number): void {
 
     // --- active: each kind moves like a different creature ---
 
-    if (a.kind === "hunter") {
+    if (flare) {
+      const dx = flare.x - a.x;
+      const dy = flare.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      const hold = Math.max(0.8, a.radius * 0.35);
+      if (dist > 0.01) turnAssemblyToward(a, dx, dy, K.hunter.turnRate, dt);
+      if (dist > hold) {
+        a.x += a.dirX * a.speed * dt;
+        a.y += a.dirY * a.speed * dt;
+      }
+    } else if (a.kind === "hunter") {
       // limited turn rate: it tracks the ship but can be outflown, not outrun
-      const desired = Math.atan2(world.ship.y - a.y, world.ship.x - a.x);
-      const current = Math.atan2(a.dirY, a.dirX);
-      let delta = desired - current;
-      while (delta > Math.PI) delta -= Math.PI * 2;
-      while (delta < -Math.PI) delta += Math.PI * 2;
-      const turn = clamp(delta, -K.hunter.turnRate * dt, K.hunter.turnRate * dt);
-      const heading = current + turn;
-      a.dirX = Math.cos(heading);
-      a.dirY = Math.sin(heading);
+      turnAssemblyToward(a, world.ship.x - a.x, world.ship.y - a.y, K.hunter.turnRate, dt);
+      a.x += a.dirX * a.speed * dt;
+      a.y += a.dirY * a.speed * dt;
+    } else {
+      a.x += a.dirX * a.speed * dt;
+      a.y += a.dirY * a.speed * dt;
     }
-
-    a.x += a.dirX * a.speed * dt;
-    a.y += a.dirY * a.speed * dt;
 
     if (a.kind === "wheel") {
       // roll rate matches travel speed so the ring visibly rolls, not slides
@@ -1497,19 +1532,19 @@ export function updateAssemblies(world: World, dt: number): void {
       const cfg = a.kind === "lance" ? K.lance : K.wheel;
       const margin = a.kind === "wheel" ? a.radius : 0.4;
       bounceAssembly(world, a, margin);
-      if (a.bounces > cfg.maxBounces || a.timer <= 0) {
+      if (!flare && (a.bounces > cfg.maxBounces || a.timer <= 0)) {
         burstAssembly(world, a, ASSEMBLY.shatterSpeedScale, ASSEMBLY.shatterTime);
         continue;
       }
     }
 
-    if (a.kind === "bomb" && a.timer <= 0) {
+    if (!flare && a.kind === "bomb" && a.timer <= 0) {
       // detonation: members become fast straight-line shrapnel
       burstAssembly(world, a, K.bomb.shrapnelSpeedScale, K.bomb.shrapnelTime);
       continue;
     }
 
-    if (a.kind === "hunter" && a.timer <= 0) {
+    if (!flare && a.kind === "hunter" && a.timer <= 0) {
       // the vee tires out and dissolves back into the swarm
       disbandAssembly(world, a);
       continue;

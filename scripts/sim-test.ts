@@ -2,8 +2,8 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING } from "../src/config";
-import { droneRadius, spawnDroneDirect } from "../src/enemies";
+import { ASSEMBLY, FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING } from "../src/config";
+import { droneRadius, spawnAssemblyDirect, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
@@ -339,6 +339,88 @@ function muteAmbientPickups(world: World): void {
       ? `${withCollect.split("|").length} formations`
       : "scripts diverged",
   );
+}
+
+// --- 3e. flare: pulls trains and shapes, keeps the pile grouped ---
+{
+  const world = createWorld(17.8, 10);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.assemblies.length = 0;
+  world.assemblyTimer = 999;
+  world.crowdAssemblyTimer = 999;
+  world.ship.x = 0;
+  world.ship.y = 0;
+
+  const head = spawnDroneDirect(world, 2.2, 0.3, 0.6, 1.6);
+  head.scriptMode = "straight";
+  head.scriptDirX = 1;
+  head.scriptDirY = 0;
+  head.scriptTimer = 10;
+  const tail = spawnDroneDirect(world, 2.8, 0.3, 0.6, 1.6);
+  tail.scriptMode = "follow";
+  tail.followTarget = head;
+  tail.scriptTimer = 10;
+
+  activate(world, "flare");
+  check("flare drops a decoy", world.powers.flares.length === 1);
+  world.ship.x = 8;
+  world.ship.y = 8;
+  const killsBefore = world.kills;
+  step(world, 2.2);
+  const decoy = world.powers.flares[0];
+  const headDist = decoy ? Math.hypot(head.x - decoy.x, head.y - decoy.y) : 99;
+  const tailDist = decoy ? Math.hypot(tail.x - decoy.x, tail.y - decoy.y) : 99;
+  check("flare does not kill the pile", world.kills === killsBefore && head.alive && tail.alive);
+  check("serpent drones drop the train and home to the flare", !head.scriptMode && !tail.scriptMode);
+  check(
+    "scripted drones gather on the flare",
+    headDist < 1.6 && tailDist < 1.6,
+    `h ${headDist.toFixed(2)} t ${tailDist.toFixed(2)}`,
+  );
+
+  world.drones.length = 0;
+  world.assemblies.length = 0;
+  world.powers.flares.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  spawnAssemblyDirect(world, 1, "bomb", 10, 2.4, 0, -1, 0);
+  const bombKills = world.kills;
+  activate(world, "flare");
+  world.ship.x = 8;
+  world.ship.y = 8;
+  step(world, 3.2);
+  const bait = world.powers.flares[0];
+  const asm = world.assemblies[0];
+  const asmDist = bait && asm ? Math.hypot(asm.x - bait.x, asm.y - bait.y) : 99;
+  check(
+    "bomb shape stays grouped on the flare instead of detonating",
+    world.assemblies.length === 1 && asmDist < 2.2,
+    `assemblies ${world.assemblies.length} dist ${asmDist.toFixed(2)}`,
+  );
+  check("flare still does not kill the shape", world.kills === bombKills);
+
+  world.drones.length = 0;
+  world.assemblies.length = 0;
+  world.powers.flares.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  world.time = 40;
+  world.assemblyTimer = 999;
+  world.crowdAssemblyTimer = 0;
+  world.nextFormationDelay = 999;
+  world.sustainedSpawnCooldown = 999;
+  world.spawnAccumulator = 0;
+  world.lateAmbientAccumulator = 0;
+  activate(world, "flare");
+  if (world.powers.flares[0]) world.powers.flares[0].timer = 12;
+  world.ship.x = 8;
+  world.ship.y = 8;
+  for (let i = 0; i < 70; i++) {
+    spawnDroneDirect(world, Math.cos(i) * 0.25, Math.sin(i) * 0.25, 0.6, 0.4);
+  }
+  step(world, ASSEMBLY.crowdCooldown + 0.4);
+  check("flare pile does not fuse into an exploding shape", world.assemblies.length === 0);
 }
 
 // --- 4. every power id activates without crashing ---

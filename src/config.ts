@@ -832,7 +832,8 @@ export const POWERS = {
     bombRadius: 1.65,
     hoverAmp: 0.16,
   },
-  // Mutator-only: decoy. Drones home to it. Does not kill.
+  // Mutator-only: decoy. Drones, trains, and shapes home to it. Does not
+  // kill. The pile stays a pile: no crowd-evolution, no bomb pop.
   flare: {
     lifetime: 4.2,
     pullRadius: 22,
@@ -1032,7 +1033,7 @@ export const POWER_HINTS: Record<PowerId, string> = {
   razor: "orbiting blades, carve the swarm",
   thunder: "lightning ray, hops from each kill",
   cloak: "they lose you, bombs drop, then boom",
-  flare: "decoy. they chase it, it does not kill",
+  flare: "decoy. they chase it, even the shapes. it does not kill",
   ion: "charge, ram, slams kill",
   howlers: "gold allies hunt, then pop",
 };

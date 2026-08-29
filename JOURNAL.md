@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-29: Flare pulls trains and shapes, keeps the pile
+
+- Aug 30 is BAIT SHOT + YEAR OF THE SERPENT. Flare only homed loose
+  drones, so serpents ignored it, then the pile fused into a bomb.
+- Scripted drones (serpents/walls) now drop the train and gather on the
+  decoy. Assemblies steer toward it as a shape and do not burst, shatter,
+  or detonate while baited. Crowd-evolution ignores the pile.
+- Flare still does not kill. Pulse is still the shot.
+- Sim-test 3e covers train gather, parked bomb, no crowd fuse.
+  `test:mutators` snapshot untouched.
+
 ## 2026-08-29: Rewrote Ditch the Can + Dead Fart Buffer copy
 
 - Same 6 scheduled posts, new captions. No video files touched.
