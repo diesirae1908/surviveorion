@@ -872,14 +872,14 @@ function pickFirst(dateStr: string, pool: Mutator[], allowRestricted: boolean): 
     yesterdayEligible.length > 0 ? poolIndex(`orion-mutator-${yesterdayStr}-1`, yesterdayEligible.length) : -1;
   const finalIdx = idx === yesterdayIdx ? (idx + 1) % eligible.length : idx;
   const chosen = eligible[finalIdx];
-  if (!allowRestricted && isSpellRestricted(chosen)) {
-    // Prefer a full-spell landing over avoiding yesterday's raw index.
-    for (let step = 1; step < eligible.length; step++) {
-      const candidate = eligible[(finalIdx + step) % eligible.length];
-      if (!isSpellRestricted(candidate)) return candidate;
-    }
-  }
-  return chosen;
+  if (allowRestricted || !isSpellRestricted(chosen)) return chosen;
+  // Walking +1 from a monopower cluster always landed on the same neighbor
+  // (THE PIT after the original four, BLACKOUT after the wave-2 tail).
+  // Re-index the same date hash into the full-spell subset so skipped
+  // restricted days spread across the whole kit.
+  const fullSpell = eligible.filter((m) => !isSpellRestricted(m));
+  if (fullSpell.length === 0) return chosen;
+  return fullSpell[poolIndex(`orion-mutator-${dateStr}-1`, fullSpell.length)];
 }
 
 /** Second Sunday slot: compatible with the first pick, distinct from it.

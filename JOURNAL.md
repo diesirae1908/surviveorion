@@ -14,10 +14,12 @@ why, commit hash, follow-ups), committed together with the work. See
 - `SPELL_DIET_FROM = 2026-08-31`. A day is restricted iff any active
   mutator has the `monopower` tag. After the gate, a restricted day is
   allowed only when both previous resolved days were full-spell.
-  `pickFirst` keeps the hash + yesterday-raw-index step, then walks to
-  a non-monopower if the diet forbids it. Sunday `pickSecond` skips
-  monopower when a restricted day is not allowed. Lookback is memoized
-  on fully resolved days. No new `rand()` / `scheduleRand()` draws.
+  `pickFirst` keeps the hash + yesterday-raw-index step. If that lands
+  on monopower when the diet forbids it, the same date hash is re-indexed
+  into the full-spell subset (walking +1 dumped those days on THE PIT /
+  BLACKOUT). Sunday `pickSecond` skips monopower when a restricted day
+  is not allowed. Lookback is memoized on fully resolved days. No new
+  `rand()` / `scheduleRand()` draws.
 - Aug 29 GOLD DASH and Aug 30 BAIT SHOT + YEAR OF THE SERPENT stay
   frozen (both resolve with the old picker; the gate day's lookback
   sees two restricted days and forbids ION on Aug 31). Existing
@@ -25,7 +27,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - New fixture `scripts/mutator-snapshot-spell-diet.json` from the gate
   through 2026-12-31. That window: 97 full-spell / 26 restricted, no
   consecutive restricted days.
-- Sep 1 identity changes (STARFALL → THE PIT). Sep 2 RED ALERT and
+- Sep 1 identity changes (STARFALL → SOLAR WIND). Sep 2 RED ALERT and
   Sep 26 GREAT WALL unchanged.
 
 ## 2026-08-29: Social discovery process (IG / TikTok / YouTube)
