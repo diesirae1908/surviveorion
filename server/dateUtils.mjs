@@ -27,3 +27,42 @@ export function isValidUtcDateStr(s) {
     asDate.getUTCDate() === day
   );
 }
+
+/** Shift a YYYY-MM-DD calendar date by N days (UTC date math; PT labels are already dates). */
+export function shiftYmd(dateStr, days) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+export const COMPARE_SNAP_MS = 15 * 60 * 1000;
+
+/**
+ * Clip yesterday's admin window to the last completed 15-minute mark of
+ * today's elapsed PT time. `nowMs` is "now" on the selected day; the
+ * returned instant is that same elapsed (snapped) offset on the previous
+ * PT midnight. Elapsed is clamped to [0, day length] so a clock past
+ * midnight or before dawn cannot walk into the next/previous day.
+ */
+export function previousDayCompareUntilMs({
+  todayStart,
+  todayEnd,
+  prevStart,
+  nowMs,
+  snapMs = COMPARE_SNAP_MS,
+}) {
+  const elapsed = Math.min(Math.max(0, nowMs - todayStart), todayEnd - todayStart);
+  const snapped = Math.floor(elapsed / snapMs) * snapMs;
+  return prevStart + snapped;
+}
+
+export function formatPtClock(ms) {
+  return (
+    new Date(ms).toLocaleTimeString("en-US", {
+      timeZone: "America/Vancouver",
+      hour: "numeric",
+      minute: "2-digit",
+    }) + " PT"
+  );
+}

@@ -26,9 +26,10 @@
     "test:daily-bots": "node scripts/test-daily-bots.mjs",
     "test:rehearsal-day": "npx tsx scripts/test-rehearsal-day.ts",
     "test:patrol-date": "npx tsx scripts/test-patrol-date.ts",
+    "test:admin-compare": "node scripts/test-admin-compare.mjs",
     "test:no-em-dash": "npx tsx scripts/test-no-em-dash.ts",
     "test:mutators": "npx tsx scripts/test-mutators.ts",
-    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutators"
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutators && npm run test:admin-compare"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

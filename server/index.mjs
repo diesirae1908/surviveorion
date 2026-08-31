@@ -25,7 +25,13 @@ import * as store from "./db.mjs";
 import { validateRun, MODES, GAME_MODES } from "./validate.mjs";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname.mjs";
 import { qualifyingBadges } from "./badges.mjs";
-import { isValidUtcDateStr } from "./dateUtils.mjs";
+import {
+  isValidUtcDateStr,
+  shiftYmd,
+  COMPARE_SNAP_MS,
+  previousDayCompareUntilMs,
+  formatPtClock,
+} from "./dateUtils.mjs";
 import {
   dailyLeaderboardCombinedWithBots,
   dailyRankCombinedWithBots,
@@ -222,24 +228,6 @@ function adminDayBoard(dailyDate) {
   };
 }
 
-/** Shift a YYYY-MM-DD calendar date by N days (UTC date math; PT labels are already dates). */
-function shiftYmd(dateStr, days) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
-}
-
-function formatPtClock(ms) {
-  return new Date(ms).toLocaleTimeString("en-US", {
-    timeZone: "America/Vancouver",
-    hour: "numeric",
-    minute: "2-digit",
-  }) + " PT";
-}
-
-const COMPARE_SNAP_MS = 15 * 60 * 1000;
-
 /** Slim previous-day snapshot so the dashboard can show % vs the prior PT day.
  * When `sameTimeUntilMs` is set (viewing today), the previous window is clipped
  * to the last completed 15-minute mark since midnight PT. Finished days stay
@@ -253,12 +241,13 @@ function adminPreviousDay(dateStr, { sameTimeUntilMs } = {}) {
     const todayBounds = store.ptDateBounds(dateStr);
     const prevBounds = store.ptDateBounds(prevDate);
     if (todayBounds && prevBounds) {
-      const elapsed = Math.min(
-        Math.max(0, sameTimeUntilMs - todayBounds.start),
-        todayBounds.end - todayBounds.start,
-      );
-      const snapped = Math.floor(elapsed / COMPARE_SNAP_MS) * COMPARE_SNAP_MS;
-      untilMs = prevBounds.start + snapped;
+      untilMs = previousDayCompareUntilMs({
+        todayStart: todayBounds.start,
+        todayEnd: todayBounds.end,
+        prevStart: prevBounds.start,
+        nowMs: sameTimeUntilMs,
+        snapMs: COMPARE_SNAP_MS,
+      });
       sameTime = true;
       throughLabel = formatPtClock(untilMs);
     }
