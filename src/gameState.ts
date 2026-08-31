@@ -153,7 +153,7 @@ export function tick(world: World, input: InputState, dt: number): void {
   world.shake = Math.max(0, world.shake - dt * 1.6);
 }
 
-/** True invuln that rams on contact: shell, dash, vortex, or ion charge. */
+/** True invuln that rams on contact: shell, dash, vortex, or a charge window. */
 function isRamInvulnerable(world: World): boolean {
   const p = world.powers;
   return (
@@ -162,6 +162,7 @@ function isRamInvulnerable(world: World): boolean {
     p.afterburnerGrace > 0 ||
     p.vortices.length > 0 ||
     p.ionTimer > 0 ||
+    p.thunderTimer > 0 ||
     p.afterburnerCharge > 0
   );
 }
@@ -169,6 +170,7 @@ function isRamInvulnerable(world: World): boolean {
 function shipRamRadius(world: World): number {
   if (world.powers.starshellTimer > 0) return POWERS.starshell.killRadius;
   if (world.powers.ionTimer > 0) return POWERS.ion.ramRadius;
+  if (world.powers.thunderTimer > 0) return POWERS.thunder.ramRadius;
   if (
     world.powers.afterburnerCharge > 0 ||
     world.powers.afterburnerDash > 0 ||
@@ -334,7 +336,7 @@ function handleShipBlastCollisions(world: World): void {
     if (r <= 0) continue;
     if (!circlesOverlap(s.x, s.y, shipR, b.x, b.y, r)) continue;
 
-    // same escape hatches as a drone hit: the shell/dash/vortex/ion charge
+    // same escape hatches as a drone hit: the shell/dash/vortex/charge window
     // ride it out (there's nothing to ram-kill, so just skip the crater).
     if (isRamInvulnerable(world)) continue;
 
@@ -360,7 +362,7 @@ function handleShipBlastCollisions(world: World): void {
  * Graze pass: shaving past a live drone (inside the band beyond actual
  * contact) pays points and keeps the multiplier alive. Only counts when the
  * near-miss is genuinely risky — true invulnerability (starshell, dash,
- * open vortex, ion charge) disables it, as do frozen drones (they shatter
+ * open vortex, ion/thunder charge) disables it, as do frozen drones (they shatter
  * harmlessly anyway). A banked shield does NOT disable grazes: contact
  * would still cost the extra life, so the near-miss is a real risk.
  */

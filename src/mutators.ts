@@ -720,8 +720,8 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "thunder-day",
     name: "THUNDER",
-    briefing: "Aim the ray. Let it hop.",
-    subline: "Every pickup is Thunder. A lightning ray along your nose. Each kill sparks Arc hops. Ray kills pay double.",
+    briefing: "Charge. Aim the ray. Let it hop.",
+    subline: "Every pickup is Thunder. It charges like Pulse. Steer the ray, ram while it charges, then hops walk the pack. Ray kills pay double.",
     difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,

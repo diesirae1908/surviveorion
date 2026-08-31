@@ -243,6 +243,89 @@ function muteAmbientPickups(world: World): void {
   );
 }
 
+// --- 3c3. thunder: Pulse-style charge, then an aimed ray with sequential hops ---
+{
+  const world = createWorld(17.8, 10);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  world.ship.angle = Math.PI / 2;
+
+  const missed = spawnDroneDirect(world, 0, 4, 0.6, 0);
+  const aimed = spawnDroneDirect(world, 4, 0, 0.6, 0);
+  missed.frozen = 99;
+  aimed.frozen = 99;
+
+  activate(world, "thunder");
+  check(
+    "thunder charges on pickup instead of firing",
+    world.powers.thunderTimer > 0 && missed.alive && aimed.alive,
+    `timer ${world.powers.thunderTimer.toFixed(2)}`,
+  );
+
+  world.ship.angle = 0;
+  step(world, POWERS.thunder.chargeTime + 0.05);
+  check("thunder fires after the charge", world.powers.thunderTimer <= 0);
+  check("aimed ray kills the drone in front of the new heading", !aimed.alive);
+  check("drone off the aimed ray is not on the beam", missed.alive);
+}
+
+// --- 3c4. thunder charge: hull-glow rams while the ray is charging ---
+{
+  const world = createWorld(17.8, 10, true);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  activate(world, "thunder");
+  const ram = spawnDroneDirect(
+    world,
+    world.ship.x + POWERS.thunder.ramRadius * 0.4,
+    world.ship.y,
+    0.6,
+    0,
+  );
+  ram.frozen = 0;
+  tick(world, input, FIXED_DT);
+  check(
+    "thunder charge rams overlapping drones instead of dying",
+    world.phase === "playing" && !ram.alive && world.powers.thunderTimer > 0,
+    `phase ${world.phase} alive ${ram.alive} timer ${world.powers.thunderTimer.toFixed(2)}`,
+  );
+}
+
+// --- 3c5. thunder hops: sequential, cluster-local, shared budget ---
+{
+  const world = createWorld(17.8, 10);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  world.ship.angle = Math.PI / 2;
+
+  const beam = spawnDroneDirect(world, 0, 4, 0.6, 0);
+  const hop = spawnDroneDirect(world, 2.2, 4, 0.6, 0);
+  const far = spawnDroneDirect(world, 7, 4, 0.6, 0);
+  beam.frozen = 99;
+  hop.frozen = 99;
+  far.frozen = 99;
+
+  activate(world, "thunder");
+  world.powers.thunderTimer = 0.001;
+  tick(world, input, FIXED_DT);
+  check("ray kills the drone on the beam", !beam.alive);
+  check(
+    "hops do not all fire on the bolt frame",
+    hop.alive && far.alive && world.powers.thunderChain !== null,
+    `hop ${hop.alive} far ${far.alive} chain ${world.powers.thunderChain ? "yes" : "no"}`,
+  );
+
+  step(world, POWERS.thunder.hopInterval + 0.02);
+  check("first hop walks to the nearby drone", !hop.alive);
+  check("hop radius does not reach the far drone", far.alive);
+}
+
 // --- 3d. afterburner: freeze, aim, ram, then dash ---
 {
   const world = createWorld(17.8, 10, true);

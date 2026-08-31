@@ -4,6 +4,19 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-31: THUNDER charges, then the hops walk the pack
+
+- Pickup was an instant ray, so you could not aim. Thunder now charges
+  like Pulse (~0.65s). The preview ray tracks the nose. Hull-glow rams
+  while it charges (same idea as Ion).
+- Hops were 5 instant Arc jumps from every beam kill, all in one frame.
+  Now one sequential chain: hopRadius 2.6, hopInterval 0.055s, hopMax 8
+  shared across the whole ray. Jagged bolts. Cluster-local, readable.
+- Copy + hint updated. Snapshot untouched. Sim-test 3c3-3c5.
+- On `sam/thunder-charge` for QA on `dev`. First live THUNDER day is
+  Sep 4 PT. Not on `main`.
+
+
 ## 2026-08-29: Admin same-time compare snaps every 15 minutes
 
 - Lucas: otherwise it will always be red. Yesterday's window now floors to
