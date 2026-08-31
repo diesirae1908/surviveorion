@@ -6,7 +6,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 ## 2026-08-31: Lock the 15-minute same-time admin compare
 
-Moved `shiftYmd` / snap-window math into `dateUtils.mjs` so they can be tested without booting the server. A mid-bucket clock must clip yesterday to the last completed 15-minute mark; a clock before PT midnight must not walk into the day before yesterday. No compare-window behavior change. Commit pending.
+Moved `shiftYmd` / snap-window math into `dateUtils.mjs` so they can be tested without booting the server. A mid-bucket clock must clip yesterday to the last completed 15-minute mark; a clock before PT midnight must not walk into the day before yesterday. No compare-window behavior change. Commit `7a5e93d`.
 
 ## 2026-08-29: Admin same-time compare snaps every 15 minutes
 
