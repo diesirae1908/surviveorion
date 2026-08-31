@@ -935,6 +935,11 @@ export class Renderer {
       this.drawIonChargeCone(x, y, angle, world.powers.ionTimer, opts.uiTime);
     }
 
+    // thunder charge: aimed ray in world space so you can steer the bolt
+    if (world.powers.thunderTimer > 0) {
+      this.drawThunderChargeAim(x, y, angle, world.powers.thunderTimer, opts.uiTime);
+    }
+
     // afterburner charge: swelling orange glow before the dash fires
     if (world.powers.afterburnerCharge > 0) {
       const progress = 1 - world.powers.afterburnerCharge / POWERS.afterburner.chargeTime;
@@ -1136,6 +1141,55 @@ export class Renderer {
     const ng = ctx.createRadialGradient(x, y, 0, x, y, nose);
     ng.addColorStop(0, "#e8fbff");
     ng.addColorStop(1, "rgba(102,221,255,0)");
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = ng;
+    ctx.beginPath();
+    ctx.arc(x, y, nose, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /** Charge preview: the full ray tracks facing so the bolt can be aimed. */
+  private drawThunderChargeAim(
+    x: number,
+    y: number,
+    angle: number,
+    timer: number,
+    uiTime: number,
+  ): void {
+    const { ctx } = this;
+    const progress = 1 - timer / POWERS.thunder.chargeTime;
+    const amp = mutatorPowerAmpScale();
+    const len = POWERS.thunder.length * amp;
+    const width = POWERS.thunder.width * amp;
+    const fx = Math.cos(angle);
+    const fy = Math.sin(angle);
+    const x2 = x + fx * len;
+    const y2 = y + fy * len;
+    const pulse = 0.55 + 0.45 * Math.sin(uiTime * 16);
+    const alpha = (0.18 + 0.42 * progress) * pulse;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = PALETTE.thunder;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = width * (0.55 + 0.7 * progress);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    ctx.strokeStyle = PALETTE.white;
+    ctx.globalAlpha = alpha * 0.7;
+    ctx.lineWidth = width * 0.35;
+    ctx.stroke();
+
+    const nose = Math.max(POWERS.thunder.ramRadius, 0.32 + progress * 0.5);
+    const ng = ctx.createRadialGradient(x, y, 0, x, y, nose);
+    ng.addColorStop(0, "#e8fbff");
+    ng.addColorStop(1, "rgba(140,240,255,0)");
     ctx.globalAlpha = 1;
     ctx.fillStyle = ng;
     ctx.beginPath();
@@ -1861,16 +1915,49 @@ export class Renderer {
   private drawThunderBolts(world: World): void {
     const { ctx } = this;
     for (const b of world.powers.thunderBolts) {
-      const fade = 1 - b.elapsed / 0.18;
+      const life = b.kind === "hop" ? POWERS.thunder.hopBoltLifetime : POWERS.thunder.boltLifetime;
+      const t = clamp01(b.elapsed / life);
+      const fade = 1 - t;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.strokeStyle = `rgba(140,240,255,${fade})`;
-      ctx.lineWidth = POWERS.thunder.width;
       ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(b.x1, b.y1);
-      ctx.lineTo(b.x2, b.y2);
-      ctx.stroke();
+      ctx.lineJoin = "round";
+
+      if (b.kind === "hop") {
+        const dx = b.x2 - b.x1;
+        const dy = b.y2 - b.y1;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const segments = 6;
+        ctx.globalAlpha = fade * 0.95;
+        ctx.strokeStyle = PALETTE.thunder;
+        ctx.lineWidth = (0.16 * fade + 0.05) * mutatorPowerAmpScale();
+        ctx.beginPath();
+        ctx.moveTo(b.x1, b.y1);
+        for (let i = 1; i <= segments; i++) {
+          const frac = i / segments;
+          const px = b.x1 + dx * frac;
+          const py = b.y1 + dy * frac;
+          const jag = i === segments ? 0 : Math.sin(b.seed + i * 2.7) * 0.22;
+          ctx.lineTo(px + nx * jag, py + ny * jag);
+        }
+        ctx.stroke();
+        ctx.strokeStyle = PALETTE.white;
+        ctx.lineWidth = 0.05;
+        ctx.globalAlpha = fade * 0.75;
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = `rgba(140,240,255,${fade})`;
+        ctx.lineWidth = POWERS.thunder.width * mutatorPowerAmpScale();
+        ctx.beginPath();
+        ctx.moveTo(b.x1, b.y1);
+        ctx.lineTo(b.x2, b.y2);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(255,255,255,${fade * 0.7})`;
+        ctx.lineWidth = POWERS.thunder.width * 0.35;
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -2399,6 +2486,8 @@ export class Renderer {
       powers.push(["PULSE", p.pulseTimer, POWERS.pulse.chargeTime, POWER_COLORS.pulse]);
     if (p.ionTimer > 0)
       powers.push(["ION", p.ionTimer, POWERS.ion.chargeTime, POWER_COLORS.ion]);
+    if (p.thunderTimer > 0)
+      powers.push(["THUNDER", p.thunderTimer, POWERS.thunder.chargeTime, POWER_COLORS.thunder]);
     if (p.autocannonTimer > 0)
       powers.push([
         "AUTOCANNON",

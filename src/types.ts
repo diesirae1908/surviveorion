@@ -272,6 +272,16 @@ export interface ThunderBolt {
   x2: number;
   y2: number;
   elapsed: number;
+  kind: "ray" | "hop";
+  seed: number;
+}
+
+export interface ThunderChainState {
+  hopTimer: number;
+  hopsLeft: number;
+  fronts: Array<{ x: number; y: number }>;
+  hitDrones: Set<Drone>;
+  hitMines: Set<Mine>;
 }
 
 export interface Lighthouse {
@@ -288,6 +298,7 @@ export interface PowersState {
   starshellTimer: number; // >0 => invulnerable ram-kill shell active
   pulseTimer: number; // >0 => pulse charging
   ionTimer: number; // >0 => ion charging; cone follows ship facing; hull-glow rams
+  thunderTimer: number; // >0 => thunder charging; ray preview tracks facing; hull-glow rams
   /** Armed magnet grabs waiting for a pickup to spawn (board was empty). */
   magnetPending: number;
   afterburnerCharge: number; // >0 => charging up the dash
@@ -313,6 +324,7 @@ export interface PowersState {
   cloakBombs: CloakBomb[];
   flares: FlareDecoy[];
   thunderBolts: ThunderBolt[];
+  thunderChain: ThunderChainState | null;
 }
 
 export type RunPhase = "playing" | "dying" | "dead";
@@ -365,7 +377,9 @@ export type GameEvent =
   | { type: "lightsOut"; phase: "dark"; duration: number }
   | { type: "ringWarning" }
   | { type: "razorUp" }
+  | { type: "thunderCharge" }
   | { type: "thunderFire"; x: number; y: number }
+  | { type: "thunderHop"; x: number; y: number }
   | { type: "cloakUp" }
   | { type: "cloakDown" }
   | { type: "flareDrop"; x: number; y: number }

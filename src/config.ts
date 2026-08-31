@@ -820,10 +820,19 @@ export const POWERS = {
     bladeRadius: 0.42,
     spinRate: 3.4,
   },
-  // Mutator-only: aimed lightning ray. Beam kills pay Pulse 2x; hops are normal.
+  // Mutator-only: Pulse-style charge, then an aimed lightning ray. Beam
+  // kills pay Pulse 2x. Hops then walk the nearby pack one at a time
+  // (shared budget, cluster-local radius) so the reverberation is readable.
   thunder: {
-    width: 0.38,
+    chargeTime: 0.65,
+    ramRadius: 0.45,
+    width: 0.42,
     length: 16,
+    boltLifetime: 0.32,
+    hopRadius: 2.6,
+    hopInterval: 0.055,
+    hopMax: 8,
+    hopBoltLifetime: 0.28,
   },
   // Mutator-only: drones hover lost; invisible bombs pop when you reappear.
   cloak: {
@@ -1031,7 +1040,7 @@ export const POWER_HINTS: Record<PowerId, string> = {
   meteors: "explosions rain on drone packs",
   vortex: "drags drones in, you're untouchable",
   razor: "orbiting blades, carve the swarm",
-  thunder: "lightning ray, hops from each kill",
+  thunder: "charge, aim the ray, hops through the pack",
   cloak: "they lose you, bombs drop, then boom",
   flare: "decoy. they chase it, even the shapes. it does not kill",
   ion: "charge, ram, slams kill",

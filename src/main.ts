@@ -1427,7 +1427,13 @@ function drainEvents(w: World): void {
         popups.spawn(world.ship.x, world.ship.y + 1.2, "RAZOR", PALETTE.razor, 0.5, 1.1);
         audio.starshellUp();
         break;
+      case "thunderCharge":
+        audio.pulseCharge(POWERS.thunder.chargeTime);
+        break;
       case "thunderFire":
+        audio.arcZap();
+        break;
+      case "thunderHop":
         audio.arcZap();
         break;
       case "cloakUp":

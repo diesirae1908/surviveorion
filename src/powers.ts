@@ -7,7 +7,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { freezeMinesInRadius, isMineArmed, killMine, killMinesInRadius } from "./mines";
 import { killLighthousesInRadius } from "./lighthouse";
 import { mutatorPowerAmpScale, mutatorStarshellDurationScale } from "./mutators";
-import type { ArcChainState, Drone, Mine, Pickup, PowersState, World } from "./types";
+import type { ArcChainState, Drone, Mine, Pickup, PowersState, ThunderChainState, World } from "./types";
 import { clamp01 } from "./math";
 
 export function createPowersState(): PowersState {
@@ -16,6 +16,7 @@ export function createPowersState(): PowersState {
     starshellTimer: 0,
     pulseTimer: 0,
     ionTimer: 0,
+    thunderTimer: 0,
     magnetPending: 0,
     afterburnerCharge: 0,
     afterburnerDash: 0,
@@ -40,6 +41,7 @@ export function createPowersState(): PowersState {
     cloakBombs: [],
     flares: [],
     thunderBolts: [],
+    thunderChain: null,
   };
 }
 
@@ -210,7 +212,8 @@ export function activatePower(world: World, power: PowerId): void {
       world.events.push({ type: "razorUp" });
       break;
     case "thunder":
-      fireThunder(world);
+      p.thunderTimer = POWERS.thunder.chargeTime;
+      world.events.push({ type: "thunderCharge" });
       break;
     case "cloak":
       p.cloakTimer = POWERS.cloak.duration;
@@ -774,6 +777,14 @@ export function updatePowers(world: World, dt: number): void {
     }
   }
 
+  // thunder: charge while the ray preview tracks facing, then fire
+  if (p.thunderTimer > 0) {
+    p.thunderTimer -= dt;
+    if (p.thunderTimer <= 0 && world.phase === "playing") {
+      fireThunder(world);
+    }
+  }
+
   // projectiles: fly straight, kill each drone once, expire
   for (let i = p.projectiles.length - 1; i >= 0; i--) {
     const proj = p.projectiles[i];
@@ -829,6 +840,7 @@ export function updatePowers(world: World, dt: number): void {
   updateCloak(world, dt);
   updateFlares(world, dt);
   updateThunderBolts(world, dt);
+  updateThunderChain(world, dt);
   updateHowlers(world, dt);
 
   // expanding ring visuals
@@ -900,39 +912,59 @@ function pointToSegDist(
   return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
 }
 
-function burstArcFrom(world: World, x: number, y: number): void {
-  const p = world.powers;
-  const amp = mutatorPowerAmpScale();
-  const hitDrones = new Set<Drone>();
-  const hitMines = new Set<Mine>();
-  let cx = x;
-  let cy = y;
-  for (let hop = 0; hop < 5; hop++) {
+function pushThunderBolt(
+  p: PowersState,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  kind: "ray" | "hop",
+): void {
+  p.thunderBolts.push({
+    x1,
+    y1,
+    x2,
+    y2,
+    elapsed: 0,
+    kind,
+    seed: Math.random() * 1000,
+  });
+}
+
+function nextThunderHop(
+  world: World,
+  chain: ThunderChainState,
+): { target: Drone | Mine; fromX: number; fromY: number } | null {
+  const radius = POWERS.thunder.hopRadius * mutatorPowerAmpScale();
+  let best: Drone | Mine | null = null;
+  let bestSq = Infinity;
+  let fromX = 0;
+  let fromY = 0;
+  for (const front of chain.fronts) {
     const next = nearestEnemyInRadius(
       world,
-      cx,
-      cy,
-      POWERS.arc.jumpRadius * amp,
-      hitDrones,
-      hitMines,
+      front.x,
+      front.y,
+      radius,
+      chain.hitDrones,
+      chain.hitMines,
     );
-    if (!next) break;
-    pushArcBolt(p, cx, cy, next.x, next.y);
-    if (isDroneTarget(next)) {
-      killDrone(world, next);
-      hitDrones.add(next);
-    } else {
-      killMine(world, next);
-      hitMines.add(next);
+    if (!next) continue;
+    if (isDroneTarget(next) && next.allied) continue;
+    const sq = (next.x - front.x) ** 2 + (next.y - front.y) ** 2;
+    if (sq < bestSq) {
+      best = next;
+      bestSq = sq;
+      fromX = front.x;
+      fromY = front.y;
     }
-    cx = next.x;
-    cy = next.y;
-    world.events.push({ type: "arcZap", x: cx, y: cy });
   }
+  return best ? { target: best, fromX, fromY } : null;
 }
 
 function fireThunder(world: World): void {
   const s = world.ship;
+  const p = world.powers;
   const amp = mutatorPowerAmpScale();
   const dirX = Math.cos(s.angle);
   const dirY = Math.sin(s.angle);
@@ -940,19 +972,78 @@ function fireThunder(world: World): void {
   const x2 = s.x + dirX * len;
   const y2 = s.y + dirY * len;
   const half = (POWERS.thunder.width * amp) / 2;
-  world.powers.thunderBolts.push({ x1: s.x, y1: s.y, x2, y2, elapsed: 0 });
+  pushThunderBolt(p, s.x, s.y, x2, y2, "ray");
   world.events.push({ type: "thunderFire", x: s.x, y: s.y });
   world.shake = Math.max(world.shake, 0.28);
+
+  const hitDrones = new Set<Drone>();
+  const hitMines = new Set<Mine>();
+  const fronts: Array<{ x: number; y: number }> = [];
 
   for (const d of world.drones) {
     if (!d.alive || d.allied) continue;
     if (pointToSegDist(d.x, d.y, s.x, s.y, x2, y2) <= half + droneRadius(d)) {
       killDrone(world, d, "thunder");
-      burstArcFrom(world, d.x, d.y);
+      hitDrones.add(d);
+      fronts.push({ x: d.x, y: d.y });
     }
   }
-  killMinesInRadius(world, s.x + dirX * (len * 0.5), s.y + dirY * (len * 0.5), half + 1.2);
+  for (const m of world.mines) {
+    if (!m.alive || !isMineArmed(m)) continue;
+    if (pointToSegDist(m.x, m.y, s.x, s.y, x2, y2) <= half + MINES.radius) {
+      killMine(world, m);
+      hitMines.add(m);
+      fronts.push({ x: m.x, y: m.y });
+    }
+  }
   killLighthousesInRadius(world, s.x + dirX * (len * 0.5), s.y + dirY * (len * 0.5), half + 1.2);
+
+  if (fronts.length === 0) {
+    p.thunderChain = null;
+    return;
+  }
+  p.thunderChain = {
+    hopTimer: POWERS.thunder.hopInterval,
+    hopsLeft: POWERS.thunder.hopMax,
+    fronts,
+    hitDrones,
+    hitMines,
+  };
+}
+
+function updateThunderChain(world: World, dt: number): void {
+  const p = world.powers;
+  const chain = p.thunderChain;
+  if (!chain) return;
+
+  chain.hopTimer -= dt;
+  if (chain.hopTimer > 0) return;
+  if (chain.hopsLeft <= 0) {
+    p.thunderChain = null;
+    return;
+  }
+
+  const hop = nextThunderHop(world, chain);
+  if (!hop) {
+    p.thunderChain = null;
+    return;
+  }
+
+  pushThunderBolt(p, hop.fromX, hop.fromY, hop.target.x, hop.target.y, "hop");
+  if (isDroneTarget(hop.target)) {
+    killDrone(world, hop.target);
+    chain.hitDrones.add(hop.target);
+  } else {
+    killMine(world, hop.target);
+    chain.hitMines.add(hop.target);
+  }
+  chain.fronts.push({ x: hop.target.x, y: hop.target.y });
+  chain.hopsLeft -= 1;
+  chain.hopTimer = POWERS.thunder.hopInterval;
+  world.events.push({ type: "thunderHop", x: hop.target.x, y: hop.target.y });
+  world.shake = Math.max(world.shake, 0.1);
+
+  if (chain.hopsLeft <= 0) p.thunderChain = null;
 }
 
 function fireIon(world: World): void {
@@ -1075,8 +1166,10 @@ function updateFlares(world: World, dt: number): void {
 function updateThunderBolts(world: World, dt: number): void {
   const p = world.powers;
   for (let i = p.thunderBolts.length - 1; i >= 0; i--) {
-    p.thunderBolts[i].elapsed += dt;
-    if (p.thunderBolts[i].elapsed >= 0.18) p.thunderBolts.splice(i, 1);
+    const b = p.thunderBolts[i];
+    b.elapsed += dt;
+    const life = b.kind === "hop" ? POWERS.thunder.hopBoltLifetime : POWERS.thunder.boltLifetime;
+    if (b.elapsed >= life) p.thunderBolts.splice(i, 1);
   }
 }
 
