@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-08-31: Lock the 15-minute same-time admin compare
+
+Moved `shiftYmd` / snap-window math into `dateUtils.mjs` so they can be tested without booting the server. A mid-bucket clock must clip yesterday to the last completed 15-minute mark; a clock before PT midnight must not walk into the day before yesterday. No compare-window behavior change. Commit pending.
+
 ## 2026-08-29: Admin same-time compare snaps every 15 minutes
 
 - Lucas: otherwise it will always be red. Yesterday's window now floors to
