@@ -13,8 +13,8 @@ why, commit hash, follow-ups), committed together with the work. See
   Now one sequential chain: hopRadius 2.6, hopInterval 0.055s, hopMax 8
   shared across the whole ray. Jagged bolts. Cluster-local, readable.
 - Copy + hint updated. Snapshot untouched. Sim-test 3c3-3c5.
-- On `sam/thunder-charge` for QA on `dev`. First live THUNDER day is
-  Sep 4 PT. Not on `main`.
+- On `sam/thunder-charge` `a00edb7` for QA on `dev`. First live THUNDER
+  day is Sep 4 PT. Not on `main`.
 
 
 ## 2026-08-29: Admin same-time compare snaps every 15 minutes
