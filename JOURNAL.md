@@ -13,8 +13,11 @@ why, commit hash, follow-ups), committed together with the work. See
   Now one sequential chain: hopRadius 2.6, hopInterval 0.055s, hopMax 8
   shared across the whole ray. Jagged bolts. Cluster-local, readable.
 - Copy + hint updated. Snapshot untouched. Sim-test 3c3-3c5.
-- On `sam/thunder-charge` `a00edb7` for QA on `dev`. First live THUNDER
-  day is Sep 4 PT. Not on `main`.
+- LIVE `e256da6` (`a00edb7`). Render `dep-daasu89srm7s738h93jg` live
+  ~12:00 PM PT. Bundle `main-SqMlCn4D.js` / `mutators-DUMMGJR3.js`
+  (was `main-Baa4C5p_.js` / `mutators-Cl8Ukli-.js`). Tip had
+  `[skip render]`, so production was API-triggered. First live THUNDER
+  day is still Sep 4 PT.
 
 
 ## 2026-08-29: Admin same-time compare snaps every 15 minutes
