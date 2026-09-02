@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-02: Shared CORE prepended to AGENTS.md
+
+- Sam dispatch: prepended shared CORE from `~/Documents/Sam/knowledge/agent-core.md`
+  to repo root `AGENTS.md` (through Rule 1). Doc-only; no pitch rewrite. Commit `ad7b477`.
+
 ## 2026-08-31: THUNDER charges, then the hops walk the pack
 
 - Pickup was an instant ray, so you could not aim. Thunder now charges
