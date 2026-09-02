@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-02: Pitch rewrite + leftover orion-social marker
+
+- Opening of `AGENTS.md` no longer says "no gun" / "you have no gun".
+  Pitch is dodge, the swarm, the daily shared run, three attempts,
+  surviveorion.com. Play space is space. CORE left as-is (already prepended).
+- Marker `orion-social/NOT-CANONICAL.md` on the leftover nested clone at
+  `~/Documents/games/orion-web/orion-social/` (GitHub `orion-social`).
+  Canonical pipeline is `orion-web/social/`. Do not edit or delete the leftover.
+  File is not in this `dev` tree; it lives on the leftover checkout.
+
 ## 2026-09-02: Shared CORE prepended to AGENTS.md
 
 - Sam dispatch: prepended shared CORE from `~/Documents/Sam/knowledge/agent-core.md`
