@@ -15,8 +15,8 @@ If you retain nothing else, retain these six. Rule 1 above all.
 
 # Orion — agent instructions
 
-Orion is a daily dodging game: drone swarms close in, you have no gun, and the
-only thing that keeps you alive is moving well. Live at **surviveorion.com**.
+Orion is a daily shared run: dodge the swarm in space. Three attempts.
+Live at **surviveorion.com**.
 (The ship has inertia and that is what gives the movement its feel, but it is
 not the pitch. Lucas's call, 2026-08-24: the old "inertia arcade" framing is
 the previous game.)
@@ -24,7 +24,7 @@ the previous game.)
 **This repo is the game.** `orion-web` (GitHub `diesirae1908/surviveorion`),
 local path `~/Documents/games/orion-web` since the 2026-08-23 move. It is the
 only live Orion: TypeScript + Canvas + Vite client, zero-dependency Node
-community server (leaderboards, accounts, arenas; SQLite via `node:sqlite`,
+community server (leaderboards, accounts, daily board; SQLite via `node:sqlite`,
 Node 22.5+), PWA.
 
 Every other thing called Orion is a dead prototype, not a sibling version. The
