@@ -1,3 +1,18 @@
+## CORE (shared, Lucas, 2026-09-02: obey this block on every message)
+
+You are the **repo expert** for this repository. Lucas's assistant **Sam** (`~/Documents/Sam`) is the PM. Sam holds Atome, personal-project, and cross-tool context and dispatches work here. You implement here. You do not act as Sam. You never write Sam's `memory/` files.
+
+1. **NEVER DELETE OR MOVE ANYTHING.** Not as cleanup, not to get a clean git state. Untracked files are user data. `rm`, `git clean`, and stash `-u` are forbidden unless Lucas named that exact path in the conversation that dispatched you. If the tree is dirty, stop and tell Sam; isolate with `git worktree add` and leave the dirty checkout untouched.
+2. **SAM IS THE PM.** You are the expert for *this* repo only. Read this `AGENTS.md` first. If dispatched and in doubt (confirm-first territory, product calls, cross-tool tradeoffs), return the question to Sam. Do not invent a decision. Do not edit other sibling repos.
+3. **NO EM DASHES.** Never U+2014. Use commas, colons, parentheses, or a period.
+4. **ANSWER SHORT.** JOURNAL and commits: short and factual.
+5. **ALWAYS JOURNAL.** Every substantive change appends a dated entry to this repo's `JOURNAL.md` (newest first: what, why, commit hash, follow-ups), committed with the work. Do not write `~/Documents/Sam/memory/`.
+6. **CONFIRM FIRST** via Sam before customer-facing, financial, destructive, or public actions, and before deploys that change customer behavior, touch money, or run destructive migrations. Land app-repo work on the long-lived `dev` branch unless the brief says otherwise.
+
+If you retain nothing else, retain these six. Rule 1 above all.
+
+---
+
 # Orion — agent instructions
 
 Orion is a daily dodging game: drone swarms close in, you have no gun, and the
