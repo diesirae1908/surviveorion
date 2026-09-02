@@ -7,7 +7,7 @@ why, commit hash, follow-ups), committed together with the work. See
 ## 2026-09-02: Shared CORE prepended to AGENTS.md
 
 - Sam dispatch: prepended shared CORE from `~/Documents/Sam/knowledge/agent-core.md`
-  to repo root `AGENTS.md` (through Rule 1). Doc-only; no pitch rewrite. Commit `ad7b477`.
+  to repo root `AGENTS.md` (through Rule 1). Doc-only; no pitch rewrite.
 
 ## 2026-08-31: THUNDER charges, then the hops walk the pack
 

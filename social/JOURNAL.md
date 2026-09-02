@@ -3,7 +3,7 @@
 ## 2026-09-02: Shared CORE prepended to AGENTS.md
 
 - Sam dispatch: prepended shared CORE from `~/Documents/Sam/knowledge/agent-core.md`
-  to `social/AGENTS.md` (through Rule 1). Doc-only. Commit `ad7b477`.
+  to `social/AGENTS.md` (through Rule 1). Doc-only.
 
 ## 2026-08-29: Discovery overlay applied to scheduled Buffer posts
 
