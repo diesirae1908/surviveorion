@@ -13,6 +13,7 @@ why, commit hash, follow-ups), committed together with the work. See
   `~/Documents/games/orion-web/orion-social/` (GitHub `orion-social`).
   Canonical pipeline is `orion-web/social/`. Do not edit or delete the leftover.
   File is not in this `dev` tree; it lives on the leftover checkout.
+- Commit `044da63`. [skip render]
 
 ## 2026-09-02: Shared CORE prepended to AGENTS.md
 
