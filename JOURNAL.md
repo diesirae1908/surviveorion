@@ -4,6 +4,22 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-02 PT: THUNDER chain walks until too far
+
+- Lucas: tomorrow's THUNDER only did a small reverberation and the lightning
+  often did not show along the ray. The hard hopMax 8 was the stop.
+- Hop stop is now hopRadius (3.0, was 2.6). hopMax 48 is a safety cap only.
+  Ray width 0.52 (was 0.42) so hulls the beam visually touches actually die.
+  Hops stay sequential. Allied drones still ignored.
+- Primary ray draws the same jagged family as hops: faint core plus
+  ship → each ray-hit (sorted) → ray end. Hop kills score as thunder.
+- SFX: `thunderRay` / `thunderHop` in audio.ts (high sine/triangle shimmer).
+  No longer `arcZap`. Arc / Pulse / other powers untouched.
+- Sim 3c6: packed cluster of 12 walks past 8, isolated drone outside
+  hopRadius lives. `npx tsc --noEmit` + `npx tsx scripts/sim-test.ts`.
+- QA only on `dev`. Do not push `main`. Staging
+  https://surviveorion-dev.onrender.com `?mutator=thunder-day`.
+
 ## 2026-09-02 PT: CORE pack cherry-picked to main
 
 Cherry-picked from `dev` onto `main`: shared CORE prepend, pitch rewrite,

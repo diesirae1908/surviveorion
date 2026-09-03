@@ -936,27 +936,31 @@ function nextThunderHop(
   chain: ThunderChainState,
 ): { target: Drone | Mine; fromX: number; fromY: number } | null {
   const radius = POWERS.thunder.hopRadius * mutatorPowerAmpScale();
+  const rSq = radius * radius;
   let best: Drone | Mine | null = null;
   let bestSq = Infinity;
   let fromX = 0;
   let fromY = 0;
   for (const front of chain.fronts) {
-    const next = nearestEnemyInRadius(
-      world,
-      front.x,
-      front.y,
-      radius,
-      chain.hitDrones,
-      chain.hitMines,
-    );
-    if (!next) continue;
-    if (isDroneTarget(next) && next.allied) continue;
-    const sq = (next.x - front.x) ** 2 + (next.y - front.y) ** 2;
-    if (sq < bestSq) {
-      best = next;
-      bestSq = sq;
-      fromX = front.x;
-      fromY = front.y;
+    for (const d of world.drones) {
+      if (!d.alive || d.allied || chain.hitDrones.has(d)) continue;
+      const sq = (d.x - front.x) ** 2 + (d.y - front.y) ** 2;
+      if (sq <= rSq && sq < bestSq) {
+        best = d;
+        bestSq = sq;
+        fromX = front.x;
+        fromY = front.y;
+      }
+    }
+    for (const m of world.mines) {
+      if (!m.alive || !isMineArmed(m) || chain.hitMines.has(m)) continue;
+      const sq = (m.x - front.x) ** 2 + (m.y - front.y) ** 2;
+      if (sq <= rSq && sq < bestSq) {
+        best = m;
+        bestSq = sq;
+        fromX = front.x;
+        fromY = front.y;
+      }
     }
   }
   return best ? { target: best, fromX, fromY } : null;
@@ -972,20 +976,23 @@ function fireThunder(world: World): void {
   const x2 = s.x + dirX * len;
   const y2 = s.y + dirY * len;
   const half = (POWERS.thunder.width * amp) / 2;
-  pushThunderBolt(p, s.x, s.y, x2, y2, "ray");
   world.events.push({ type: "thunderFire", x: s.x, y: s.y });
   world.shake = Math.max(world.shake, 0.28);
 
   const hitDrones = new Set<Drone>();
   const hitMines = new Set<Mine>();
-  const fronts: Array<{ x: number; y: number }> = [];
+  const rayHits: Array<{ x: number; y: number; along: number }> = [];
 
   for (const d of world.drones) {
     if (!d.alive || d.allied) continue;
     if (pointToSegDist(d.x, d.y, s.x, s.y, x2, y2) <= half + droneRadius(d)) {
       killDrone(world, d, "thunder");
       hitDrones.add(d);
-      fronts.push({ x: d.x, y: d.y });
+      rayHits.push({
+        x: d.x,
+        y: d.y,
+        along: (d.x - s.x) * dirX + (d.y - s.y) * dirY,
+      });
     }
   }
   for (const m of world.mines) {
@@ -993,19 +1000,38 @@ function fireThunder(world: World): void {
     if (pointToSegDist(m.x, m.y, s.x, s.y, x2, y2) <= half + MINES.radius) {
       killMine(world, m);
       hitMines.add(m);
-      fronts.push({ x: m.x, y: m.y });
+      rayHits.push({
+        x: m.x,
+        y: m.y,
+        along: (m.x - s.x) * dirX + (m.y - s.y) * dirY,
+      });
     }
   }
   killLighthousesInRadius(world, s.x + dirX * (len * 0.5), s.y + dirY * (len * 0.5), half + 1.2);
 
-  if (fronts.length === 0) {
+  rayHits.sort((a, b) => a.along - b.along);
+  // Faint core so the aimed line stays readable, plus jagged segments
+  // ship → each ray-hit → ray end so every kill on the beam shows lightning.
+  pushThunderBolt(p, s.x, s.y, x2, y2, "ray");
+  let px = s.x;
+  let py = s.y;
+  for (const hit of rayHits) {
+    pushThunderBolt(p, px, py, hit.x, hit.y, "hop");
+    px = hit.x;
+    py = hit.y;
+  }
+  if ((px - x2) ** 2 + (py - y2) ** 2 > 0.04) {
+    pushThunderBolt(p, px, py, x2, y2, "hop");
+  }
+
+  if (rayHits.length === 0) {
     p.thunderChain = null;
     return;
   }
   p.thunderChain = {
     hopTimer: POWERS.thunder.hopInterval,
     hopsLeft: POWERS.thunder.hopMax,
-    fronts,
+    fronts: rayHits.map((h) => ({ x: h.x, y: h.y })),
     hitDrones,
     hitMines,
   };
@@ -1031,7 +1057,7 @@ function updateThunderChain(world: World, dt: number): void {
 
   pushThunderBolt(p, hop.fromX, hop.fromY, hop.target.x, hop.target.y, "hop");
   if (isDroneTarget(hop.target)) {
-    killDrone(world, hop.target);
+    killDrone(world, hop.target, "thunder");
     chain.hitDrones.add(hop.target);
   } else {
     killMine(world, hop.target);
