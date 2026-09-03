@@ -363,6 +363,19 @@ export class AudioSystem {
     this.tone(1320, 660, 0.06, "sine", 0.1, 0.02);
   }
 
+  /** Bright light-ray beam on THUNDER fire. Not Arc's square crackle. */
+  thunderRay(): void {
+    this.tone(1860, 2840, 0.16, "sine", 0.16);
+    this.tone(2480, 3720, 0.12, "triangle", 0.08, 0.02);
+    this.tone(3200, 4200, 0.18, "sine", 0.05, 0.03);
+  }
+
+  /** Same family as thunderRay, short so a long hop chain does not clip. */
+  thunderHop(): void {
+    this.tone(2100, 2800, 0.055, "sine", 0.07);
+    this.tone(3000, 3600, 0.04, "triangle", 0.035, 0.01);
+  }
+
   arcFizzle(): void {
     this.tone(420, 180, 0.15, "sine", 0.08);
     this.noiseBurst(0.08, 0.1, 1800);

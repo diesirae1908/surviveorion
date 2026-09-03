@@ -822,16 +822,17 @@ export const POWERS = {
   },
   // Mutator-only: Pulse-style charge, then an aimed lightning ray. Beam
   // kills pay Pulse 2x. Hops then walk the nearby pack one at a time
-  // (shared budget, cluster-local radius) so the reverberation is readable.
+  // until the next target is outside hopRadius. hopMax is only a safety
+  // cap so a packed swarm actually walks instead of stopping at 8.
   thunder: {
     chargeTime: 0.65,
     ramRadius: 0.45,
-    width: 0.42,
+    width: 0.52,
     length: 16,
     boltLifetime: 0.32,
-    hopRadius: 2.6,
+    hopRadius: 3.0,
     hopInterval: 0.055,
-    hopMax: 8,
+    hopMax: 48,
     hopBoltLifetime: 0.28,
   },
   // Mutator-only: drones hover lost; invisible bombs pop when you reappear.

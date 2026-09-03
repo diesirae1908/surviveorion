@@ -1914,50 +1914,48 @@ export class Renderer {
 
   private drawThunderBolts(world: World): void {
     const { ctx } = this;
+    const amp = mutatorPowerAmpScale();
     for (const b of world.powers.thunderBolts) {
       const life = b.kind === "hop" ? POWERS.thunder.hopBoltLifetime : POWERS.thunder.boltLifetime;
       const t = clamp01(b.elapsed / life);
       const fade = 1 - t;
+      const dx = b.x2 - b.x1;
+      const dy = b.y2 - b.y1;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const segments = Math.max(4, Math.min(14, Math.round(len * 1.4)));
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      if (b.kind === "hop") {
-        const dx = b.x2 - b.x1;
-        const dy = b.y2 - b.y1;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len;
-        const ny = dx / len;
-        const segments = 6;
-        ctx.globalAlpha = fade * 0.95;
-        ctx.strokeStyle = PALETTE.thunder;
-        ctx.lineWidth = (0.16 * fade + 0.05) * mutatorPowerAmpScale();
-        ctx.beginPath();
-        ctx.moveTo(b.x1, b.y1);
-        for (let i = 1; i <= segments; i++) {
-          const frac = i / segments;
-          const px = b.x1 + dx * frac;
-          const py = b.y1 + dy * frac;
-          const jag = i === segments ? 0 : Math.sin(b.seed + i * 2.7) * 0.22;
-          ctx.lineTo(px + nx * jag, py + ny * jag);
-        }
-        ctx.stroke();
-        ctx.strokeStyle = PALETTE.white;
-        ctx.lineWidth = 0.05;
-        ctx.globalAlpha = fade * 0.75;
-        ctx.stroke();
-      } else {
-        ctx.strokeStyle = `rgba(140,240,255,${fade})`;
-        ctx.lineWidth = POWERS.thunder.width * mutatorPowerAmpScale();
+      if (b.kind === "ray") {
+        ctx.strokeStyle = `rgba(140,240,255,${fade * 0.28})`;
+        ctx.lineWidth = POWERS.thunder.width * 0.4 * amp;
         ctx.beginPath();
         ctx.moveTo(b.x1, b.y1);
         ctx.lineTo(b.x2, b.y2);
         ctx.stroke();
-        ctx.strokeStyle = `rgba(255,255,255,${fade * 0.7})`;
-        ctx.lineWidth = POWERS.thunder.width * 0.35;
-        ctx.stroke();
       }
+
+      ctx.globalAlpha = fade * 0.95;
+      ctx.strokeStyle = PALETTE.thunder;
+      ctx.lineWidth = (0.16 * fade + 0.05) * amp;
+      ctx.beginPath();
+      ctx.moveTo(b.x1, b.y1);
+      for (let i = 1; i <= segments; i++) {
+        const frac = i / segments;
+        const px = b.x1 + dx * frac;
+        const py = b.y1 + dy * frac;
+        const jag = i === segments ? 0 : Math.sin(b.seed + i * 2.7) * 0.22;
+        ctx.lineTo(px + nx * jag, py + ny * jag);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = PALETTE.white;
+      ctx.lineWidth = 0.05;
+      ctx.globalAlpha = fade * 0.75;
+      ctx.stroke();
       ctx.restore();
     }
   }

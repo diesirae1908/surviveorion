@@ -326,6 +326,60 @@ function muteAmbientPickups(world: World): void {
   check("hop radius does not reach the far drone", far.alive);
 }
 
+// --- 3c6. thunder hops: packed cluster walks past 8, stops when too far ---
+{
+  const world = createWorld(17.8, 10);
+  muteAmbientPickups(world);
+  world.drones.length = 0;
+  world.ship.x = 0;
+  world.ship.y = 0;
+  world.ship.angle = 0;
+
+  const beam = spawnDroneDirect(world, 6, 0, 0.6, 0);
+  beam.frozen = 99;
+  const pack: ReturnType<typeof spawnDroneDirect>[] = [];
+  for (let i = 0; i < 12; i++) {
+    const d = spawnDroneDirect(world, 6, 1.6 + i * 1.4, 0.6, 0);
+    d.frozen = 99;
+    pack.push(d);
+  }
+  const isolated = spawnDroneDirect(world, 6, 1.6 + 12 * 1.4 + 4.2, 0.6, 0);
+  isolated.frozen = 99;
+
+  activate(world, "thunder");
+  world.powers.thunderTimer = 0.001;
+  tick(world, input, FIXED_DT);
+  check("packed-cluster ray kills the beam drone", !beam.alive);
+  check(
+    "packed-cluster hops stay sequential on the bolt frame",
+    pack.every((d) => d.alive) && world.powers.thunderChain !== null,
+  );
+  const rayBolts = world.powers.thunderBolts.filter((b) => b.kind === "hop" || b.kind === "ray");
+  check(
+    "ray spawn shows lightning through the beam hit, not a silent kill",
+    rayBolts.length >= 2,
+    `${rayBolts.length} bolts`,
+  );
+
+  for (let i = 0; i < 8; i++) {
+    step(world, POWERS.thunder.hopInterval + FIXED_DT);
+  }
+  const afterEight = pack.filter((d) => !d.alive).length;
+  check(
+    "chain is still walking after 8 hops when targets stay in radius",
+    afterEight >= 8 && pack.some((d) => d.alive) && world.powers.thunderChain !== null,
+    `dead ${afterEight} chain ${world.powers.thunderChain ? "yes" : "no"}`,
+  );
+
+  step(world, POWERS.thunder.hopInterval * 8 + 0.08);
+  check(
+    "packed cluster of 12 all die once hops finish walking",
+    pack.every((d) => !d.alive),
+    `alive ${pack.filter((d) => d.alive).length}`,
+  );
+  check("hop stops when the next target is outside hopRadius", isolated.alive);
+}
+
 // --- 3d. afterburner: freeze, aim, ram, then dash ---
 {
   const world = createWorld(17.8, 10, true);
