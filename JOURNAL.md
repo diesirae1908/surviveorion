@@ -19,6 +19,7 @@ why, commit hash, follow-ups), committed together with the work. See
   hopRadius lives. `npx tsc --noEmit` + `npx tsx scripts/sim-test.ts`.
 - QA only on `dev`. Do not push `main`. Staging
   https://surviveorion-dev.onrender.com `?mutator=thunder-day`.
+- Commit `72b6107`.
 
 ## 2026-09-02 PT: CORE pack cherry-picked to main
 
