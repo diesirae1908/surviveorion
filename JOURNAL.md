@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-02 PT: CORE pack cherry-picked to main
+
+Cherry-picked from `dev` onto `main`: shared CORE prepend, pitch rewrite,
+and journal tidy entries. `dev` still holds QA (thunder charge, admin
+compare, mutator preview, `src/main.ts`). [skip render]
+
 ## 2026-09-02: Pitch rewrite + leftover orion-social marker
 
 - Opening of `AGENTS.md` no longer says "no gun" / "you have no gun".
