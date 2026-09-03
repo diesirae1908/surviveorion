@@ -17,8 +17,9 @@ why, commit hash, follow-ups), committed together with the work. See
   No longer `arcZap`. Arc / Pulse / other powers untouched.
 - Sim 3c6: packed cluster of 12 walks past 8, isolated drone outside
   hopRadius lives. `npx tsc --noEmit` + `npx tsx scripts/sim-test.ts`.
-- QA only on `dev`. Do not push `main`. Staging
-  https://surviveorion-dev.onrender.com `?mutator=thunder-day`.
+- **LIVE on `main` / surviveorion.com** (Lucas push live ~10:39 PM PT Sep 2).
+  Cherry-picked from `dev` `72b6107`; prod commit `fa16153`. First THUNDER
+  patrol day still Sep 4 PT.
 
 ## 2026-09-02 PT: CORE pack cherry-picked to main
 
