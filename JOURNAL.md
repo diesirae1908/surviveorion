@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-07 PT: RAM RAID harden LIVE
+
+- Lucas: go live. Cherry-picked `550131b` onto `main` as `c2d1f19`. Remaining Sep 7 attempts play the harder day (one Starshell, 14s naked, ambient 1.2, medals 1.15).
+- GOLD DASH unchanged. Classic Starshell unchanged. `origin/dev` already had the work.
+
 ## 2026-09-07 PT: RAM RAID one shell, then naked
 
 - Today is RAM RAID. Identity is short shell then dodge naked, but it played as Classic plus a 2.4s invincible vacuum every ~6-8s, with up to 3 orbs to chain. Live top real: Manse 110k in 41s.
@@ -12,7 +17,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Ambient 1.2 while naked. Medals 0.85 → 1.15. Shell scale stays 0.4. Ram points untouched. Classic Starshell untouched.
 - Subline rewritten so it is honest. Field guide comes from MUTATOR_POOL. Buffer/social calendar rows for Sep 7 not touched.
 - Tests: `npm run test:mutators` snapshots unchanged; ram-raid hold-one / delay / starshell-not-afterburner; sim-test 3d3; GOLD DASH 3d2 still passes. `npx tsc --noEmit` + `npm run build` green.
-- Commit `550131b`. Pushed `origin/dev` only. Do not promote to main until Sam/Lucas (live is mid-day RAM RAID).
+- Commit `550131b`. Pushed `origin/dev` only. Promoted to `main` as `c2d1f19`.
 - QA: https://surviveorion-dev.onrender.com/?mutator=ram-raid
 - Next RAM RAID date: 2026-10-09.
 
