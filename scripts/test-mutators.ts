@@ -11,7 +11,7 @@
  * that should be untouched moved.
  */
 import { blackoutDarkRange, blackoutOverlayAmount, blackoutTelegraphMul } from "../src/blackout";
-import { BLACKOUT, CREATURE_DAYS, FLOOD_SURGE, MINES, POWERS, SHIP, STARFALL_RAIN } from "../src/config";
+import { BLACKOUT, CREATURE_DAYS, FIXED_DT, FLOOD_SURGE, MINES, POWERS, SHIP, STARFALL_RAIN } from "../src/config";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import { hashString, rand, scheduleRand, setRunSeed } from "../src/math";
@@ -902,8 +902,72 @@ function dayRestricted(dateStr: string): boolean {
     "gold-dash holds one Afterburner and slows the ambient fill",
     gold.overrides.pickupHoldOne === true &&
       gold.overrides.ambientRateScale === 0.75 &&
+      (gold.overrides.pickupHoldOneDelay ?? 0) === 0 &&
       (gold.overrides.extraPowerIds ?? []).includes("afterburner"),
   );
+
+  const ram = getMutatorById("ram-raid")!;
+  const ramWeights = ram.overrides.powerWeights ?? {};
+  check(
+    "ram-raid holds one Starshell, hotter ambient, harder medals",
+    ram.overrides.pickupHoldOne === true &&
+      ram.overrides.pickupHoldOneDelay === 14 &&
+      ram.overrides.ambientRateScale === 1.2 &&
+      ram.difficultyFactor === 1.15 &&
+      ram.overrides.starshellDurationScale === 0.4 &&
+      ramWeights.starshell === 20 &&
+      (ram.overrides.extraPowerIds ?? []).length === 0,
+  );
+
+  setActiveMutators([ram], "2026-09-07");
+  const ramWorld = createWorld(17.8, 10, false, 0, "classic", true);
+  check("ram-raid opens with exactly one pickup", ramWorld.pickups.length === 1);
+  check("ram-raid opening orb is Starshell", ramWorld.pickups[0]?.power === "starshell");
+  const ramOrb = ramWorld.pickups[0];
+  ramWorld.ship.x = ramOrb.x;
+  ramWorld.ship.y = ramOrb.y;
+  tick(ramWorld, input, FIXED_DT);
+  check(
+    "ram-raid collect does not spawn the next orb immediately",
+    ramWorld.pickups.length === 0 && ramWorld.powers.starshellTimer > 0,
+    `pickups ${ramWorld.pickups.length} shell ${ramWorld.powers.starshellTimer}`,
+  );
+  const delay = ram.overrides.pickupHoldOneDelay ?? 14;
+  const earlySteps = Math.round((delay - 0.5) / FIXED_DT);
+  for (let i = 0; i < earlySteps; i++) {
+    ramWorld.powers.starshellTimer = 9999;
+    tick(ramWorld, input, FIXED_DT);
+  }
+  check("ram-raid still empty before the delay elapses", ramWorld.pickups.length === 0);
+  const restSteps = Math.round(1.0 / FIXED_DT);
+  for (let i = 0; i < restSteps; i++) {
+    ramWorld.powers.starshellTimer = 9999;
+    tick(ramWorld, input, FIXED_DT);
+  }
+  check(
+    "ram-raid next orb is Starshell, not Afterburner",
+    ramWorld.pickups.length === 1 && ramWorld.pickups[0]?.power === "starshell",
+    `pickups ${ramWorld.pickups.length} power ${ramWorld.pickups[0]?.power}`,
+  );
+  const ramGap = Math.hypot(ramWorld.pickups[0].x - ramWorld.ship.x, ramWorld.pickups[0].y - ramWorld.ship.y);
+  check("ram-raid next orb waits across the field", ramGap > 5, `gap ${ramGap.toFixed(2)}`);
+  check("ram-raid still exactly one orb", ramWorld.pickups.length === 1);
+  clearActiveMutators();
+
+  setActiveMutators([gold], "2026-08-29");
+  const goldWorld = createWorld(17.8, 10, false, 0, "classic", true);
+  const goldOrb = goldWorld.pickups[0];
+  goldWorld.ship.x = goldOrb.x;
+  goldWorld.ship.y = goldOrb.y;
+  tick(goldWorld, input, FIXED_DT);
+  check(
+    "gold-dash still replaces immediately with Afterburner",
+    goldWorld.pickups.length === 1 &&
+      goldWorld.pickups[0].power === "afterburner" &&
+      goldWorld.powers.afterburnerCharge > 0,
+    `pickups ${goldWorld.pickups.length} power ${goldWorld.pickups[0]?.power}`,
+  );
+  clearActiveMutators();
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);

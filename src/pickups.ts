@@ -11,6 +11,7 @@ import { clamp01, hashString, lerp, rand, randRange, scheduleRand, scheduleRange
 import {
   mutatorExtraPowerIds,
   mutatorPickupHoldOne,
+  mutatorPickupHoldOneDelay,
   mutatorPickupIntervalScale,
   mutatorPickupMagnetStrength,
   mutatorPowerWeights,
@@ -39,7 +40,15 @@ function nextInterval(world: World): number {
 export function updatePickups(world: World, dt: number): void {
   if (world.phase !== "playing") return;
 
-  if (!world.sandbox && !mutatorPickupHoldOne()) {
+  if (mutatorPickupHoldOne()) {
+    // Hold-one days skip the interval spawner. GOLD DASH replaces on collect
+    // (delay 0). RAM RAID waits a constant delay, then spawnHoldOnePickup.
+    // No nextInterval / scheduleRand / rand here: collect timing is player-dependent.
+    if (world.pickups.length === 0) {
+      world.pickupTimer -= dt;
+      if (world.pickupTimer <= 0) spawnHoldOnePickup(world);
+    }
+  } else if (!world.sandbox) {
     // refill floor: never leave the arena short on support. Skipped on Daily
     // Patrol (refill timing depends on when the player collects, which
     // would desync the shared seed; the faster baseline covers dailies).
@@ -101,7 +110,11 @@ export function updatePickups(world: World, dt: number): void {
       world.pickups.splice(i, 1);
       world.events.push({ type: "pickup", power: p.power, x: p.x, y: p.y });
       activatePower(world, p.power);
-      if (mutatorPickupHoldOne()) spawnHoldOnePickup(world);
+      if (mutatorPickupHoldOne()) {
+        const delay = mutatorPickupHoldOneDelay();
+        if (delay <= 0) spawnHoldOnePickup(world);
+        else world.pickupTimer = delay;
+      }
     }
   }
 }
@@ -164,7 +177,25 @@ function spawnPickup(world: World): void {
   world.events.push({ type: "pickupSpawn", power, x, y });
 }
 
-/** GOLD DASH replacement: farthest of 12 date-hash candidates, no seed streams. */
+/** Hold-one replacement: extraPowerIds[0] if set (GOLD DASH Afterburner),
+ * else the day's monopower from powerWeights (RAM RAID Starshell). */
+function holdOnePowerId(): PowerId {
+  const extras = mutatorExtraPowerIds();
+  if (extras[0]) return extras[0];
+  const weights = mutatorPowerWeights();
+  let best: PowerId | null = null;
+  let bestW = 0;
+  for (const id of Object.keys(weights) as PowerId[]) {
+    const w = weights[id] ?? 0;
+    if (w > bestW) {
+      bestW = w;
+      best = id;
+    }
+  }
+  return best ?? "afterburner";
+}
+
+/** Hold-one replacement: farthest of 12 date-hash candidates, no seed streams. */
 function spawnHoldOnePickup(world: World): void {
   const hw = world.viewW / 2 - PICKUPS.edgeInset;
   const hh = world.viewH / 2 - PICKUPS.edgeInset;
@@ -185,8 +216,7 @@ function spawnHoldOnePickup(world: World): void {
     }
   }
   const drift = (hashString(`${key}-drift`) / 4294967296) * Math.PI * 2;
-  const extras = mutatorExtraPowerIds();
-  const power = extras[0] ?? "afterburner";
+  const power = holdOnePowerId();
   const pickup: Pickup = {
     x: bestX,
     y: bestY,

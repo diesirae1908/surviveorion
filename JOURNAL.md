@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-07 PT: RAM RAID one shell, then naked
+
+- Today is RAM RAID. Identity is short shell then dodge naked, but it played as Classic plus a 2.4s invincible vacuum every ~6-8s, with up to 3 orbs to chain. Live top real: Manse 110k in 41s.
+- Hold-one (same pattern as GOLD DASH): exactly one Starshell. After collect, wait a constant 14s (no seeded draw) then spawn the next far away. GOLD DASH still replaces immediately with Afterburner.
+- `spawnHoldOnePickup` now picks extraPowerIds[0] if set, else the day's monopower from powerWeights (Starshell on RAM RAID). Was hardcoded Afterburner.
+- Ambient 1.2 while naked. Medals 0.85 → 1.15. Shell scale stays 0.4. Ram points untouched. Classic Starshell untouched.
+- Subline rewritten so it is honest. Field guide comes from MUTATOR_POOL. Buffer/social calendar rows for Sep 7 not touched.
+- Tests: `npm run test:mutators` snapshots unchanged; ram-raid hold-one / delay / starshell-not-afterburner; sim-test 3d3; GOLD DASH 3d2 still passes. `npx tsc --noEmit` + `npm run build` green.
+- Commit hash recorded in the follow-up line after the gameplay commit. Pushed `origin/dev` only. Do not promote to main until Sam/Lucas (live is mid-day RAM RAID).
+- QA: https://surviveorion-dev.onrender.com/?mutator=ram-raid
+- Next RAM RAID date: 2026-10-09.
+
 ## 2026-09-02 PT: THUNDER chain walks until too far
 
 - Lucas: tomorrow's THUNDER only did a small reverberation and the lightning

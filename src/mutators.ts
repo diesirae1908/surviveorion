@@ -114,9 +114,14 @@ export interface MutatorOverrides {
   grazeMultiplierScale?: number;
   /** GRAZE PROTOCOL only: float the point number. */
   grazePopups?: boolean;
-  /** GOLD DASH: always exactly one pickup. Collecting it spawns the next
-   * across the field. Positions use a date hash, not the shared seed streams. */
+  /** Hold-one days (GOLD DASH, RAM RAID): always exactly one pickup.
+   * Collecting it schedules the next across the field. Positions use a date
+   * hash, not the shared seed streams. GOLD DASH replaces immediately;
+   * RAM RAID waits `pickupHoldOneDelay` so the naked stretch is the day. */
   pickupHoldOne?: boolean;
+  /** Seconds after a hold-one collect before the next orb. 0/undefined =
+   * immediate (GOLD DASH). Must be a constant: no seeded draws. */
+  pickupHoldOneDelay?: number;
   /** RAM RAID: multiplies Starshell duration (Classic stays 6s). */
   starshellDurationScale?: number;
   /** THE LIGHTHOUSE: scanners instead of mines. */
@@ -656,13 +661,15 @@ export const MUTATOR_POOL: Mutator[] = [
     id: "ram-raid",
     name: "RAM RAID",
     briefing: "The shell is short. Spend it, then dodge naked.",
-    subline: "Starshell is the only drop, and it is scarce. The shell lasts about two seconds. You are invincible while it is up.",
-    difficultyFactor: 0.85,
+    subline: "Only one Starshell is out. The shell lasts about two seconds. Then dodge a denser swarm until the next orb appears across the field.",
+    difficultyFactor: 1.15,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
     overrides: {
       powerWeights: monoPowerWeights("starshell"),
-      pickupIntervalScale: 1.4,
+      pickupHoldOne: true,
+      pickupHoldOneDelay: 14,
+      ambientRateScale: 1.2,
       starshellDurationScale: 0.4,
     },
   },
@@ -1205,9 +1212,14 @@ export function mutatorPickupIntervalScale(): number {
   return scaleOf((o) => o.pickupIntervalScale);
 }
 
-/** GOLD DASH: keep exactly one pickup and replace it on collect. */
+/** Hold-one days: keep exactly one pickup and replace it on collect. */
 export function mutatorPickupHoldOne(): boolean {
   return holdOneDate !== null;
+}
+
+/** Seconds to wait after a hold-one collect. 0 = immediate (GOLD DASH). */
+export function mutatorPickupHoldOneDelay(): number {
+  return firstOf((o) => o.pickupHoldOneDelay) ?? 0;
 }
 
 /** Date + incrementing index for hold-one replacement positions (no seed streams). */

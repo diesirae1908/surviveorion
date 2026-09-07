@@ -478,6 +478,71 @@ function muteAmbientPickups(world: World): void {
   );
 }
 
+// --- 3d3. RAM RAID: hold-one Starshell, delayed replace, no afterburner, no seed desync ---
+{
+  const ram = getMutatorById("ram-raid")!;
+  setActiveMutators([ram], "2026-09-07");
+  const world = createWorld(17.8, 10, false, 0, "classic", true);
+  check("ram-raid opens with exactly one pickup", world.pickups.length === 1);
+  check("ram-raid opening orb is Starshell", world.pickups[0].power === "starshell");
+  const orb = world.pickups[0];
+  world.ship.x = orb.x;
+  world.ship.y = orb.y;
+  tick(world, input, FIXED_DT);
+  check(
+    "collecting a ram-raid pickup does not spawn the next one immediately",
+    world.pickups.length === 0 && world.powers.starshellTimer > 0,
+    `pickups ${world.pickups.length} shell ${world.powers.starshellTimer}`,
+  );
+  const delay = ram.overrides.pickupHoldOneDelay ?? 14;
+  const waitSteps = Math.round((delay + 0.25) / FIXED_DT);
+  for (let i = 0; i < waitSteps; i++) {
+    world.powers.starshellTimer = 9999;
+    tick(world, input, FIXED_DT);
+  }
+  check(
+    "ram-raid next orb is Starshell after the delay, not Afterburner",
+    world.pickups.length === 1 && world.pickups[0].power === "starshell",
+    `pickups ${world.pickups.length} power ${world.pickups[0]?.power}`,
+  );
+  const next = world.pickups[0];
+  const gap = Math.hypot(next.x - world.ship.x, next.y - world.ship.y);
+  check("next ram-raid pickup waits across the field", gap > 5, `gap ${gap.toFixed(2)}`);
+  clearActiveMutators();
+
+  const recordRamForms = (collect: boolean): string => {
+    setRunSeed(1234567);
+    setActiveMutators([ram], "2026-09-07");
+    const w = createWorld(17.8, 10, false, 0, "classic", true);
+    const forms: string[] = [];
+    const steps = Math.round(40 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      w.powers.starshellTimer = 9999;
+      if (collect && w.pickups[0]) {
+        w.ship.x = w.pickups[0].x;
+        w.ship.y = w.pickups[0].y;
+      }
+      tick(w, { ...input, inertia: false, moveVector: { x: 0, y: 0 } }, FIXED_DT);
+      for (const e of w.events) {
+        if (e.type === "formation") forms.push(`${w.time.toFixed(2)}:${e.kind}`);
+      }
+      w.events.length = 0;
+    }
+    clearActiveMutators();
+    setRunSeed(null);
+    return forms.join("|");
+  };
+  const ramWithCollect = recordRamForms(true);
+  const ramWithoutCollect = recordRamForms(false);
+  check(
+    "ram-raid collect-replace does not desync the formation script",
+    ramWithCollect.length > 0 && ramWithCollect === ramWithoutCollect,
+    ramWithCollect === ramWithoutCollect
+      ? `${ramWithCollect.split("|").length} formations`
+      : "scripts diverged",
+  );
+}
+
 // --- 3e. flare: pulls trains and shapes, keeps the pile grouped ---
 {
   const world = createWorld(17.8, 10);
