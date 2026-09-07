@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-07 PT: RAM RAID harden LIVE
+
+- Lucas: go live. Cherry-picked `550131b` onto `main` as `c2d1f19`. Remaining Sep 7 attempts play the harder day (one Starshell, 14s naked, ambient 1.2, medals 1.15).
+- GOLD DASH unchanged. Classic Starshell unchanged. `origin/dev` already had the work.
+
 ## 2026-09-07 PT: RAM RAID one shell, then naked
 
 - Today is RAM RAID. Identity is short shell then dodge naked, but it played as Classic plus a 2.4s invincible vacuum every ~6-8s, with up to 3 orbs to chain. Live top real: Manse 110k in 41s.
