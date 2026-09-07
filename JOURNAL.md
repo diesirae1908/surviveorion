@@ -12,7 +12,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Ambient 1.2 while naked. Medals 0.85 → 1.15. Shell scale stays 0.4. Ram points untouched. Classic Starshell untouched.
 - Subline rewritten so it is honest. Field guide comes from MUTATOR_POOL. Buffer/social calendar rows for Sep 7 not touched.
 - Tests: `npm run test:mutators` snapshots unchanged; ram-raid hold-one / delay / starshell-not-afterburner; sim-test 3d3; GOLD DASH 3d2 still passes. `npx tsc --noEmit` + `npm run build` green.
-- Commit hash recorded in the follow-up line after the gameplay commit. Pushed `origin/dev` only. Do not promote to main until Sam/Lucas (live is mid-day RAM RAID).
+- Commit `550131b`. Pushed `origin/dev` only. Do not promote to main until Sam/Lucas (live is mid-day RAM RAID).
 - QA: https://surviveorion-dev.onrender.com/?mutator=ram-raid
 - Next RAM RAID date: 2026-10-09.
 
