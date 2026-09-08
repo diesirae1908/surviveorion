@@ -1855,7 +1855,7 @@ export class Renderer {
     const { ctx } = this;
     for (const lh of world.lighthouses) {
       if (!lh.alive) continue;
-      const len = lighthouseBeamLength(lh);
+      const len = lighthouseBeamLength(lh, world);
       const width = lighthouseBeamWidth(lh);
       const br = lighthouseBodyRadius();
       ctx.save();

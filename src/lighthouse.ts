@@ -22,14 +22,20 @@ export function lighthouseBeamWidth(lh: Lighthouse): number {
   return LIGHTHOUSE.beamWidthFrom + (LIGHTHOUSE.beamWidthTo - LIGHTHOUSE.beamWidthFrom) * t;
 }
 
-export function lighthouseBeamLength(lh: Lighthouse): number {
+/** Half the shorter playfield axis. Follows view-scale mutators; default 5. */
+export function lighthouseBeamCap(world: World): number {
+  return 0.5 * Math.min(world.viewW, world.viewH);
+}
+
+export function lighthouseBeamLength(lh: Lighthouse, world: World): number {
   const t = lighthouseGrow(lh);
-  return LIGHTHOUSE.beamLengthFrom + (LIGHTHOUSE.beamLengthTo - LIGHTHOUSE.beamLengthFrom) * t;
+  const grown = LIGHTHOUSE.beamLengthFrom + (LIGHTHOUSE.beamLengthTo - LIGHTHOUSE.beamLengthFrom) * t;
+  return Math.min(grown, lighthouseBeamCap(world));
 }
 
 /** Distance from point to the beam segment (body center to tip). */
-export function distToBeam(lh: Lighthouse, px: number, py: number): number {
-  const len = lighthouseBeamLength(lh);
+export function distToBeam(lh: Lighthouse, world: World, px: number, py: number): number {
+  const len = lighthouseBeamLength(lh, world);
   const x2 = lh.x + Math.cos(lh.angle) * len;
   const y2 = lh.y + Math.sin(lh.angle) * len;
   const dx = x2 - lh.x;
