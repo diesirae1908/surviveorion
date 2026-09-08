@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-08 PT: Lighthouse beam cap LIVE
+
+- Lucas: push live. Cherry-picked `2c5fbc1` onto `main` as `f956b4c`. Tomorrow's THE LIGHTHOUSE (2026-09-09) grows to `beamLengthTo` 5 and hard-caps at half the shorter playfield axis (`0.5 * min(viewW, viewH)`).
+- Hit + draw share `lighthouseBeamLength`. MUTATOR_POOL / snapshots untouched. QA journal `058a8af` not cherry-picked; this is the live record.
+
 ## 2026-09-08 PT: Lighthouse beam half-map cap
 
 - Lucas: tomorrow's THE LIGHTHOUSE (2026-09-09) is cool, but the ray is too long. Cap it so it cannot be longer than half the map.
