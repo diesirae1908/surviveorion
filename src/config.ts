@@ -877,7 +877,10 @@ export const LIGHTHOUSE = {
   beamWidthFrom: 0.035,
   beamWidthTo: 0.22,
   beamLengthFrom: 1.1,
-  beamLengthTo: 13.5,
+  // Grown length is also capped at half the shorter playfield axis
+  // (0.5 * min(viewW, viewH); default 5). 13.5 used to outrun the whole
+  // short axis (VIEW_MIN 10).
+  beamLengthTo: 5,
   spinRate: 0.72,
   destroyRadius: 1.55,
 };

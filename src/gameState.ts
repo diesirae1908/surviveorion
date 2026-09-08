@@ -273,7 +273,7 @@ function handleShipLighthouseCollisions(world: World): void {
   for (const lh of world.lighthouses) {
     if (!lh.alive) continue;
     const bodyHit = circlesOverlap(s.x, s.y, shipR, lh.x, lh.y, lighthouseBodyRadius());
-    const beamHit = distToBeam(lh, s.x, s.y) <= lighthouseBeamWidth(lh) / 2 + SHIP.radius;
+    const beamHit = distToBeam(lh, world, s.x, s.y) <= lighthouseBeamWidth(lh) / 2 + SHIP.radius;
     if (!bodyHit && !beamHit) continue;
     if (invuln || world.powers.shieldActive) {
       killLighthouse(world, lh);
