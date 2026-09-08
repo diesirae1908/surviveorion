@@ -4,13 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-08 PT: Lighthouse beam cap LIVE
+
+- Lucas: push live. Cherry-picked `2c5fbc1` onto `main` as `f956b4c`. Tomorrow's THE LIGHTHOUSE (2026-09-09) grows to `beamLengthTo` 5 and hard-caps at half the shorter playfield axis (`0.5 * min(viewW, viewH)`).
+- Hit + draw share `lighthouseBeamLength`. MUTATOR_POOL / snapshots untouched. QA journal `058a8af` not cherry-picked; this is the live record.
+
 ## 2026-09-08 PT: Lighthouse beam half-map cap
 
 - Lucas: tomorrow's THE LIGHTHOUSE (2026-09-09) is cool, but the ray is too long. Cap it so it cannot be longer than half the map.
 - Grown length still lerps `beamLengthFrom` 1.1 → `beamLengthTo` (was 13.5, now 5) over `growTime`. Hard cap is `0.5 * Math.min(world.viewW, world.viewH)` (default 5; follows view-scale). Same length for hit (`distToBeam`) and draw.
 - No new seeded draws. MUTATOR_POOL / `availableFrom` / snapshots untouched. Grow-from, spin, body unchanged.
 - Tests: `npx tsc --noEmit` green. `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED (THE LIGHTHOUSE evasive-bot 12.9s / 50pts). `npm run test:mutators` ALL PASS, 144 snapshot dates unchanged.
-- Commit `2c5fbc1`. Pushed `origin/dev` only. Do not push `main` until Lucas flies it.
+- Commit `2c5fbc1`. Pushed `origin/dev` only. Promoted to `main` as `f956b4c`.
 - QA: https://surviveorion-dev.onrender.com/?mutator=the-lighthouse
 - Follow-up: tomorrow's patrol day is the live feel check.
 
