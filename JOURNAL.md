@@ -10,7 +10,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Grown length still lerps `beamLengthFrom` 1.1 → `beamLengthTo` (was 13.5, now 5) over `growTime`. Hard cap is `0.5 * Math.min(world.viewW, world.viewH)` (default 5; follows view-scale). Same length for hit (`distToBeam`) and draw.
 - No new seeded draws. MUTATOR_POOL / `availableFrom` / snapshots untouched. Grow-from, spin, body unchanged.
 - Tests: `npx tsc --noEmit` green. `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED (THE LIGHTHOUSE evasive-bot 12.9s / 50pts). `npm run test:mutators` ALL PASS, 144 snapshot dates unchanged.
-- Commit `2ec9529`. Pushed `origin/dev` only. Do not push `main` until Lucas flies it.
+- Commit `2c5fbc1`. Pushed `origin/dev` only. Do not push `main` until Lucas flies it.
 - QA: https://surviveorion-dev.onrender.com/?mutator=the-lighthouse
 - Follow-up: tomorrow's patrol day is the live feel check.
 
