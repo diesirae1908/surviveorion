@@ -748,7 +748,7 @@ export class Renderer {
     hull.addColorStop(0.6, PALETTE.gold);
     hull.addColorStop(1, PALETTE.goldPale);
     ctx.fillStyle = hull;
-    ctx.strokeStyle = PALETTE.flare;
+    ctx.strokeStyle = PALETTE.goldPale;
     ctx.beginPath();
     ctx.moveTo(0.55, 0);
     ctx.lineTo(-0.3, 0.32);
@@ -921,7 +921,7 @@ export class Renderer {
       ctx.restore();
     }
 
-    // hull: sleek gold dart, Flare rim always on
+    // hull: sleek gold dart, goldPale rim always on (brand Flare, not power orange)
     ctx.lineJoin = "round";
     ctx.lineWidth = 0.06;
     const hull = ctx.createLinearGradient(-0.4, 0, 0.55, 0);
@@ -929,7 +929,7 @@ export class Renderer {
     hull.addColorStop(0.6, PALETTE.gold);
     hull.addColorStop(1, PALETTE.goldPale);
     ctx.fillStyle = hull;
-    ctx.strokeStyle = PALETTE.flare;
+    ctx.strokeStyle = PALETTE.goldPale;
     ctx.beginPath();
     ctx.moveTo(0.55, 0);
     ctx.lineTo(-0.3, 0.32);

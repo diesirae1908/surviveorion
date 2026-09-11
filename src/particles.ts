@@ -16,7 +16,7 @@ interface Particle {
   color: string;
 }
 
-/** Short Flare crescent on the hull side a drone just passed. Visual only. */
+/** Short goldPale crescent on the hull side a drone just passed. Visual only. */
 interface GrazeArc {
   angle: number;
   life: number;
@@ -56,7 +56,7 @@ export class Particles {
     }
   }
 
-  /** Hull-following Flare slash. `angle` is ship-to-drone at the graze instant. */
+  /** Hull-following goldPale slash. `angle` is ship-to-drone at the graze instant. */
   grazeArc(angle: number): void {
     this.grazeArcs.push({ angle, life: GRAZE_ARC_LIFE, maxLife: GRAZE_ARC_LIFE });
   }
@@ -103,7 +103,7 @@ export class Particles {
         const t = a.life / a.maxLife;
         const expand = 1 + (1 - t) * 0.18;
         const r = GRAZE_ARC_RADIUS * expand;
-        ctx.strokeStyle = PALETTE.flare;
+        ctx.strokeStyle = PALETTE.goldPale;
         ctx.lineWidth = 0.11;
         ctx.globalAlpha = 0.95 * t;
         ctx.beginPath();

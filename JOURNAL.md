@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: goldPale rim (Dispatch A color fix)
+
+- Hull rim and graze-arc primary stroke were `PALETTE.flare` (`#ff8844`, the Flare *power* orange). Brand Flare is `PALETTE.goldPale` (`#ffee88`).
+- Switched `drawShip` / intro ship rim and the graze-arc main stroke to `goldPale`. Thin goldPale inner arc kept. Flare power pickup and decoy untouched.
+- Tests: `npm test` green. `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED on retry (one prior run flaked on magnet pending-grab, unrelated to stroke color).
+- Follow-up on `feat/render-presence` only. Not merged.
+
 ## 2026-09-11 PT: Graze and ship readable (Dispatch A)
 
 - Existing graze was 5 sparks plus a popup only on GRAZE PROTOCOL. Ship had a dark `#5a4200` outline and a flame only while thrusting. Too quiet for Training Ground and for screenshot #1.
