@@ -35,6 +35,7 @@ import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile }
 import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
 import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload, handleClipCutsPublic } from "./clip-inbox.mjs";
+import { applyCors, isCorsPreflight } from "./cors.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -522,6 +523,15 @@ const routes = {
     json(res, 200, { user: publicUser(store.updateUser(user.id, patch)) });
   },
 
+  "DELETE /api/me": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!rateLimit(`delete:${user.id}`, 3)) return json(res, 429, { error: "slow down" });
+    const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? "");
+    if (m) store.deleteSession(m[1]);
+    store.deleteUser(user.id);
+    json(res, 200, { ok: true });
+  },
+
   "POST /api/scores": async (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
     if (!rateLimit(`score:${user.id}`, 6)) return json(res, 429, { error: "too many submissions" });
@@ -976,6 +986,12 @@ const server = http.createServer(async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  applyCors(req, res);
+  if (isCorsPreflight(req)) {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
   try {
     const arenaLb = /^\/api\/arenas\/([A-Za-z0-9]+)\/leaderboard$/.exec(url.pathname);
     if (req.method === "GET" && arenaLb) {

@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: CORS + in-app delete LIVE
+
+- Lucas: yes, promote server-only CORS + DELETE /api/me to live so the TestFlight app can talk to the daily board.
+- Copied from `origin/feat/ios-shell` onto `origin/main` (`310de11`). Did not cherry-pick `9968e8c` (mixed shell + server). Did not merge feat/ios-shell or origin/dev. Graze / iOS binary / Capacitor stay off main.
+- CORS allowlist only: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No `*`. Web stays same-origin.
+- `DELETE /api/me` requires a signed-in session (401 otherwise) and `rateLimit(delete:<id>, 3)`. Existing rate-limit keys and `DAILY_MAX_ATTEMPTS = 3` unchanged.
+- Tests: `test:cors-origins` PASS, `test:account-delete` PASS, plus server-daily-history, serve-static, notion-clips, daily-combined-rank, daily-bots. clip-inbox hung on a later pre-existing stranger-upload check after its CORS-related PASSes.
+- Follow-up: optionally cherry-pick this commit onto `origin/dev` so staging has the same CORS. Watch Render `surviveorion` for this SHA.
+
 ## 2026-09-08 PT: Lighthouse beam cap LIVE
 
 - Lucas: push live. Cherry-picked `2c5fbc1` onto `main` as `f956b4c`. Tomorrow's THE LIGHTHOUSE (2026-09-09) grows to `beamLengthTo` 5 and hard-caps at half the shorter playfield axis (`0.5 * min(viewW, viewH)`).
