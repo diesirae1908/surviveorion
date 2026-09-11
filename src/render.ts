@@ -157,7 +157,7 @@ export class Renderer {
     this.drawStars(opts.uiTime);
     this.drawArenaBoundary(world);
     this.drawWindCurrent(world, opts.uiTime);
-    this.drawOffscreenThreats(world);
+    this.drawOffscreenThreats(world, opts.uiTime);
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawMeteorTelegraphs(world, opts.uiTime);
     this.drawCreatureTelegraphs(world, opts.uiTime);
@@ -178,7 +178,10 @@ export class Renderer {
     this.drawMissiles(world, opts.alpha);
     this.drawDrones(world, opts.alpha);
     if (opts.showShip && world.phase === "playing") this.drawShip(world, opts);
-    particles.draw(ctx);
+    particles.draw(ctx, {
+      x: lerp(world.ship.prevX, world.ship.x, opts.alpha),
+      y: lerp(world.ship.prevY, world.ship.y, opts.alpha),
+    });
     popups.draw(ctx);
 
     // screen-space UI
@@ -739,13 +742,13 @@ export class Renderer {
 
     // hull: the same sleek gold dart with red canopy as drawShip
     ctx.lineJoin = "round";
-    ctx.lineWidth = 0.05;
+    ctx.lineWidth = 0.06;
     const hull = ctx.createLinearGradient(-0.4, 0, 0.55, 0);
     hull.addColorStop(0, PALETTE.goldDark);
     hull.addColorStop(0.6, PALETTE.gold);
     hull.addColorStop(1, PALETTE.goldPale);
     ctx.fillStyle = hull;
-    ctx.strokeStyle = "#5a4200";
+    ctx.strokeStyle = PALETTE.goldPale;
     ctx.beginPath();
     ctx.moveTo(0.55, 0);
     ctx.lineTo(-0.3, 0.32);
@@ -861,16 +864,17 @@ export class Renderer {
     const y = lerp(s.prevY, s.y, opts.alpha);
     const angle = lerp(s.prevAngle, s.angle, opts.alpha);
 
-    // multiplier heat: golden aura that builds as the kill multiplier climbs
+    // multiplier heat: ease-out so x5+ photographs; no vignette
     const heat = clamp01((world.multiplier - 1) / (SCORING.multiplierMax - 1));
+    const heatVis = 1 - (1 - heat) * (1 - heat);
     if (heat > 0.02) {
-      const r = 0.55 + heat * 0.75;
+      const r = 0.62 + heatVis * 0.95;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = heat * (0.4 + 0.12 * Math.sin(opts.uiTime * 6));
+      ctx.globalAlpha = heatVis * (0.58 + 0.16 * Math.sin(opts.uiTime * 6));
       const mg = ctx.createRadialGradient(x, y, 0.12, x, y, r);
       mg.addColorStop(0, PALETTE.goldPale);
-      mg.addColorStop(0.55, "rgba(255,215,0,0.35)");
+      mg.addColorStop(0.45, "rgba(255,215,0,0.5)");
       mg.addColorStop(1, "rgba(255,215,0,0)");
       ctx.fillStyle = mg;
       ctx.beginPath();
@@ -884,11 +888,13 @@ export class Renderer {
     ctx.rotate(angle);
     ctx.scale(SHIP.visualScale, SHIP.visualScale);
 
-    // engine flame
+    // engine plume: length follows speed (coasting included), not only thrust
     const dashing = world.powers.afterburnerDash > 0;
-    if (s.thrusting > 0 || dashing) {
+    const speedNorm = clamp01(Math.hypot(s.vx, s.vy) / 8);
+    const plume = Math.max(s.thrusting, speedNorm, dashing ? 1 : 0);
+    if (plume > 0.04) {
       const flicker = 0.8 + 0.2 * Math.sin(opts.uiTime * 40);
-      const flameLen = (dashing ? 1.1 : 0.55) * flicker * Math.max(s.thrusting, dashing ? 1 : 0);
+      const flameLen = (dashing ? 1.1 : 0.28 + 0.42 * plume) * flicker;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       const fg = ctx.createLinearGradient(-0.35, 0, -0.35 - flameLen, 0);
@@ -896,23 +902,34 @@ export class Renderer {
       fg.addColorStop(1, "rgba(196,30,58,0)");
       ctx.fillStyle = fg;
       ctx.beginPath();
-      ctx.moveTo(-0.32, 0.14);
+      ctx.moveTo(-0.32, 0.16);
       ctx.lineTo(-0.32 - flameLen, 0);
-      ctx.lineTo(-0.32, -0.14);
+      ctx.lineTo(-0.32, -0.16);
+      ctx.closePath();
+      ctx.fill();
+      const coreLen = flameLen * 0.55;
+      const cg = ctx.createLinearGradient(-0.35, 0, -0.35 - coreLen, 0);
+      cg.addColorStop(0, dashing ? "#fff6d0" : "#ffe0a0");
+      cg.addColorStop(1, "rgba(255,180,60,0)");
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.moveTo(-0.32, 0.07);
+      ctx.lineTo(-0.32 - coreLen, 0);
+      ctx.lineTo(-0.32, -0.07);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
     }
 
-    // hull: sleek gold dart with red accents
+    // hull: sleek gold dart, goldPale rim always on (brand Flare, not power orange)
     ctx.lineJoin = "round";
-    ctx.lineWidth = 0.05;
+    ctx.lineWidth = 0.06;
     const hull = ctx.createLinearGradient(-0.4, 0, 0.55, 0);
     hull.addColorStop(0, PALETTE.goldDark);
     hull.addColorStop(0.6, PALETTE.gold);
     hull.addColorStop(1, PALETTE.goldPale);
     ctx.fillStyle = hull;
-    ctx.strokeStyle = "#5a4200";
+    ctx.strokeStyle = PALETTE.goldPale;
     ctx.beginPath();
     ctx.moveTo(0.55, 0);
     ctx.lineTo(-0.3, 0.32);
@@ -1288,13 +1305,14 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Red chevrons at the screen edge pointing at approaching off-screen drones. */
-  private drawOffscreenThreats(world: World): void {
+  /** Alarm chevrons at the screen edge pointing at approaching off-screen drones. */
+  private drawOffscreenThreats(world: World, time: number): void {
     if (world.phase !== "playing") return;
     const { ctx } = this;
     const hw = this.viewW / 2;
     const hh = this.viewH / 2;
     const inset = 0.35;
+    const pulse = 0.72 + 0.28 * Math.sin(time * 8);
 
     for (const d of world.drones) {
       if (!d.alive) continue;
@@ -1302,19 +1320,22 @@ export class Renderer {
 
       const x = Math.max(-hw + inset, Math.min(hw - inset, d.x));
       const y = Math.max(-hh + inset, Math.min(hh - inset, d.y));
-      const dist = Math.hypot(d.x - x, d.y - y);
-      if (dist > 6) continue; // only warn about nearby threats
+      const dx = d.x - x;
+      const dy = d.y - y;
+      const sq = dx * dx + dy * dy;
+      if (sq > 36) continue; // only warn about nearby threats
+      const dist = Math.sqrt(sq);
 
-      const angle = Math.atan2(d.y - y, d.x - x);
+      const angle = Math.atan2(dy, dx);
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
-      ctx.globalAlpha = 0.75 * (1 - dist / 6);
+      ctx.globalAlpha = 0.75 * (1 - dist / 6) * pulse;
       ctx.fillStyle = PALETTE.redBright;
       ctx.beginPath();
-      ctx.moveTo(0.22, 0);
-      ctx.lineTo(-0.08, 0.14);
-      ctx.lineTo(-0.08, -0.14);
+      ctx.moveTo(0.352, 0);
+      ctx.lineTo(-0.128, 0.224);
+      ctx.lineTo(-0.128, -0.224);
       ctx.closePath();
       ctx.fill();
       ctx.restore();

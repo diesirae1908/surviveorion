@@ -37,7 +37,6 @@ import {
   getMutatorById,
   getMutatorsForDate,
   getMutatorsForDateStr,
-  mutatorGrazePopups,
   mutatorViewScale,
   setActiveMutators,
   MUTATOR_POOL,
@@ -1381,11 +1380,10 @@ function drainEvents(w: World): void {
         break;
       case "graze":
         particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
+        particles.grazeArc(Math.atan2(e.y - world.ship.y, e.x - world.ship.x));
         audio.graze();
         void hapticGraze();
-        if (mutatorGrazePopups()) {
-          popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
-        }
+        popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
         break;
       case "assembly": {
         // crowded drones just fused into a creature — name the threat
