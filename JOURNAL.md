@@ -12,7 +12,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - A3: Off-screen edge triangles ~1.6x, pulse opacity, Alarm `#ff4455`.
 - Tests: `npm run build` green. `npm test` green (highlights + no-em-dash included). `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED, Daily Patrol determinism unchanged.
 - Browser: Cursor browser MCP would not attach a tab in this session. Visual still for the QA agent on Training Ground only. Peak-density frame time not measured here (Training Ground is a trickle; no daily attempt).
-- Pushed `origin/feat/render-presence` only. Do not merge to `dev` or `main` from this dispatch.
+- Commit `30868e9`. Pushed `origin/feat/render-presence` only. Do not merge to `dev` or `main` from this dispatch.
 
 ## 2026-09-08 PT: Lighthouse beam cap LIVE
 
