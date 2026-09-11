@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: CORS + in-app delete on main, cherry-picked to dev
+
+- Lucas: yes, promote server-only CORS + DELETE /api/me to live so the TestFlight app can talk to the daily board.
+- Copied from `origin/feat/ios-shell` onto `origin/main` (`310de11`) as `3f07a35`. Did not cherry-pick `9968e8c` (mixed shell + server). Did not merge feat/ios-shell or origin/dev onto main. Graze / iOS binary / Capacitor stay off main.
+- CORS allowlist only: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No `*`. Web stays same-origin.
+- `DELETE /api/me` requires a signed-in session (401 otherwise) and `rateLimit(delete:<id>, 3)`. Existing rate-limit keys and `DAILY_MAX_ATTEMPTS = 3` unchanged.
+- Tests on the main worktree: `test:cors-origins` PASS, `test:account-delete` PASS, plus server-daily-history, serve-static, notion-clips, daily-combined-rank, daily-bots.
+- This entry is the same server-only commit cherry-picked onto `origin/dev` so staging is not missing CORS. No FF. No ios-shell merge.
+
 ## 2026-09-11 PT: goldPale rim (Dispatch A color fix)
 
 - Hull rim and graze-arc primary stroke were `PALETTE.flare` (`#ff8844`, the Flare *power* orange). Brand Flare is `PALETTE.goldPale` (`#ffee88`).

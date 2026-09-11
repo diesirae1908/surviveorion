@@ -262,6 +262,15 @@ export function getSessionUser(token) {
 
 export const deleteSession = (token) => db.prepare(`DELETE FROM sessions WHERE token = ?`).run(token);
 
+/**
+ * App Store in-app deletion: drop the user. Scores, sessions, badges,
+ * friends, and owned arenas cascade. Feedback and anonymous run rows
+ * keep their analytics but lose the user_id (ON DELETE SET NULL).
+ */
+export function deleteUser(id) {
+  db.prepare(`DELETE FROM users WHERE id = ?`).run(id);
+}
+
 /** Drop expired sessions (they're already invisible to reads; this reclaims space). */
 export const purgeExpiredSessions = () =>
   db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(Date.now());
