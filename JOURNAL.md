@@ -4,6 +4,22 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: QA Dispatch A visual pass (`30868e9`)
+
+- Played Training Ground only on `feat/render-presence` via `localhost:5178` (worktree `.worktrees/feat-render-presence`). Daily is THE PIT (patrol #60), not GRAZE PROTOCOL. Inertia on for the rest/thrust/coast stills, then off for the graze hunt. No Daily attempt. No `POST /api/scores`.
+- Cursor browser MCP would not keep a tab (same as the lead-dev). Visuals via Playwright against the feat Vite. No ORION Daily tab left open.
+- Evidence: `.worktrees/qa-render-presence/qa-evidence/2026-09-11-dispatch-a-feat/` (rest/thrust/coast, graze-probe/popup-3.png).
+- 1 graze arc + popup: PASS. Normal Training Ground graze showed a readable `+11` plus spark burst. HUD went 27 / x1.1. Fail condition (only 5 sparks or nothing) did not happen.
+- 2 popup Rajdhani: PASS. Canvas `fillText` hook: `+11` with `bold 32px Rajdhani, sans-serif` (not Georgia). Visible in `graze-probe/popup-3-tl.png`.
+- 3 ship rim + speed plume: PASS. Rest still has a rim. Thrust shows a plume. Slow motion stills also show a short flame. Hull fill stays gold (`239,190,0` at center).
+- 3b Sam rim-color check: PASS visually. Protagonist reads gold, not a permanent Flare pickup. An actual Flare orb (`#ff8844`) was on the same board and is clearly orange next to the gold dart. Code still strokes the hull with `PALETTE.flare` (power orange `#ff8844`, not brand Flare `#ffee88` / `goldPale`). At play scale the thin stroke reads cream-gold, not power-orange. Token mixup is a follow-up, not a visual fail.
+- 4 telegraphs: PASS. Edge triangles are larger than live, Alarm `#ff4455`, opacity pulses in `drawOffscreenThreats`. Spawn rings still Alarm, not Rising Red body text.
+- 5 scoring / grazeBand: PASS. `grazeBand` still 0.65. `highlights.ts` / `config.ts` / `gameState.ts` / `scoring.ts` untouched vs `d072633`. Lead-dev `npm test` + `sim-test` green. QA re-ran both on `1a4e317`: ALL CHECKS PASSED.
+- 6 no GRAZE chip / no time scale / POWER_COLORS: PASS. HUD stayed score / x / BEST / time. Pickups on the board were power-colored (cyan thunder, orange Flare, gold shockwave/starshell).
+- 7 hunt regressions: PASS. `TRAINING OVER` reachable in 844x390 (`overflow-y: auto`, scrollHeight 437). HUD padded. Training Ground did not submit.
+- FPS: 60 over 2s, desktop headless, Training Ground trickle. Not a mid-range phone at peak swarm.
+- Merge to `dev`: QA says yes for Dispatch A visuals. Do not merge from this QA branch. Token follow-up (hull/arc should use `goldPale` if they want brand Flare) can land later.
+
 ## 2026-09-11 PT: Graze and ship readable (Dispatch A)
 
 - Existing graze was 5 sparks plus a popup only on GRAZE PROTOCOL. Ship had a dark `#5a4200` outline and a flame only while thrusting. Too quiet for Training Ground and for screenshot #1.
