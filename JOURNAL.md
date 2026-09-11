@@ -41,6 +41,7 @@ Dispatch B. Isolated worktree `feat/ios-shell` from `origin/dev`. Dirty main che
 **4.2:** four native features are the answer. No fifth added.
 
 Tests: `npm run build` green. `npm test` green (includes new `test:cors-origins` and `test:account-delete`).
+Commit `9968e8c`. Pushed `origin/feat/ios-shell` only. Not merged to `dev` or `main`.
 
 Follow-up for Lucas: open `ios/App/App.xcodeproj` on a Mac with Xcode, sign with the existing Apple Developer team, create the Connect app for `com.surviveorion.app`, then TestFlight.
 
