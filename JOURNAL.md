@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: iOS shell merged origin/dev (graze/ship)
+
+- `origin/dev` had moved to `f53b658` (Dispatch A graze/ship + goldPale rim). This branch still started at `d072633`.
+- Merged `origin/dev` into `feat/ios-shell` (no FF of origin/dev, no main). Conflicts: JOURNAL both 2026-09-11 entries kept (iOS first); graze keeps `hapticGraze()` plus the always-on +points popup.
+- `npm run build` green. `npx cap sync ios` finished: dist copied, 6 plugins updated.
+- Merge `6346f37`. Pushed `feat/ios-shell` only.
+
 ## 2026-09-11 PT: iOS shell (Capacitor, bundled dist)
 
 Dispatch B. Isolated worktree `feat/ios-shell` from `origin/dev`. Dirty main checkout untouched. `feat/render-presence` not touched.
