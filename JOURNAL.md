@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: Graze and ship readable (Dispatch A)
+
+- Existing graze was 5 sparks plus a popup only on GRAZE PROTOCOL. Ship had a dark `#5a4200` outline and a flame only while thrusting. Too quiet for Training Ground and for screenshot #1.
+- A1: hook `{ type: "graze" }` only. Always a short Flare hull arc on the drone side, plus a Rajdhani +points popup. 5-spark burst and `audio.graze()` kept. No HUD GRAZE chip, no time scale, no extra shake. grazeBand / cooldown / points / multiplier / `highlights.ts` untouched.
+- A2: Flare rim always on (intro ship too). Plume length follows speed including coasting, one extra hot-core fill. Multiplier heat eased so x5+ reads. `SHIP.radius` and `visualScale` unchanged. Pickups not recoloured.
+- A3: Off-screen edge triangles ~1.6x, pulse opacity, Alarm `#ff4455`.
+- Tests: `npm run build` green. `npm test` green (highlights + no-em-dash included). `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED, Daily Patrol determinism unchanged.
+- Browser: Cursor browser MCP would not attach a tab in this session. Visual still for the QA agent on Training Ground only. Peak-density frame time not measured here (Training Ground is a trickle; no daily attempt).
+- Pushed `origin/feat/render-presence` only. Do not merge to `dev` or `main` from this dispatch.
+
 ## 2026-09-08 PT: Lighthouse beam cap LIVE
 
 - Lucas: push live. Cherry-picked `2c5fbc1` onto `main` as `f956b4c`. Tomorrow's THE LIGHTHOUSE (2026-09-09) grows to `beamLengthTo` 5 and hard-caps at half the shorter playfield axis (`0.5 * min(viewW, viewH)`).

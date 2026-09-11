@@ -1,3 +1,5 @@
+import { PALETTE } from "./config";
+
 // Cosmetic randomness only: particles fire on player-dependent events
 // (kills, pickups), so they must never draw from the seeded gameplay streams.
 const cosmeticRange = (min: number, max: number): number =>
@@ -14,8 +16,20 @@ interface Particle {
   color: string;
 }
 
+/** Short Flare crescent on the hull side a drone just passed. Visual only. */
+interface GrazeArc {
+  angle: number;
+  life: number;
+  maxLife: number;
+}
+
+const GRAZE_ARC_LIFE = 0.34;
+const GRAZE_ARC_HALF = 0.82;
+const GRAZE_ARC_RADIUS = 0.52;
+
 export class Particles {
   private pool: Particle[] = [];
+  private grazeArcs: GrazeArc[] = [];
 
   burst(
     x: number,
@@ -42,6 +56,11 @@ export class Particles {
     }
   }
 
+  /** Hull-following Flare slash. `angle` is ship-to-drone at the graze instant. */
+  grazeArc(angle: number): void {
+    this.grazeArcs.push({ angle, life: GRAZE_ARC_LIFE, maxLife: GRAZE_ARC_LIFE });
+  }
+
   update(dt: number): void {
     for (let i = this.pool.length - 1; i >= 0; i--) {
       const p = this.pool[i];
@@ -55,14 +74,19 @@ export class Particles {
       p.vx *= 1 - 1.5 * dt;
       p.vy *= 1 - 1.5 * dt;
     }
+    for (let i = this.grazeArcs.length - 1; i >= 0; i--) {
+      this.grazeArcs[i].life -= dt;
+      if (this.grazeArcs[i].life <= 0) this.grazeArcs.splice(i, 1);
+    }
   }
 
   clear(): void {
     this.pool.length = 0;
+    this.grazeArcs.length = 0;
   }
 
   /** Draw in world space; assumes the world transform is already applied. */
-  draw(ctx: CanvasRenderingContext2D): void {
+  draw(ctx: CanvasRenderingContext2D, ship?: { x: number; y: number }): void {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const p of this.pool) {
@@ -72,6 +96,26 @@ export class Particles {
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * t), 0, Math.PI * 2);
       ctx.fill();
+    }
+    if (ship && this.grazeArcs.length > 0) {
+      ctx.lineCap = "round";
+      for (const a of this.grazeArcs) {
+        const t = a.life / a.maxLife;
+        const expand = 1 + (1 - t) * 0.18;
+        const r = GRAZE_ARC_RADIUS * expand;
+        ctx.strokeStyle = PALETTE.flare;
+        ctx.lineWidth = 0.11;
+        ctx.globalAlpha = 0.95 * t;
+        ctx.beginPath();
+        ctx.arc(ship.x, ship.y, r, a.angle - GRAZE_ARC_HALF, a.angle + GRAZE_ARC_HALF);
+        ctx.stroke();
+        ctx.strokeStyle = PALETTE.goldPale;
+        ctx.lineWidth = 0.045;
+        ctx.globalAlpha = 0.85 * t;
+        ctx.beginPath();
+        ctx.arc(ship.x, ship.y, r, a.angle - GRAZE_ARC_HALF, a.angle + GRAZE_ARC_HALF);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
