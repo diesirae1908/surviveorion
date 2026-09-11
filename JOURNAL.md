@@ -8,7 +8,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 - App target Debug and Release now have `DEVELOPMENT_TEAM = 4R88D2NKUC` (App Store Connect seedId for `com.surviveorion.app`). `CODE_SIGN_STYLE` stays Automatic. Bundle id unchanged.
 - App Store Connect still needs Lucas to click New App. The API forbids CREATE on apps.
-- Isolated worktree `feat/ios-shell`. Not merged to `dev` or `main`.
+- Isolated worktree `feat/ios-shell`. Commit `fca1232`. Not merged to `dev` or `main`.
 
 ## 2026-09-11 PT: iOS shell merged origin/dev (graze/ship)
 
