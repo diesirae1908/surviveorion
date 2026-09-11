@@ -4,6 +4,46 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: iOS shell (Capacitor, bundled dist)
+
+Dispatch B. Isolated worktree `feat/ios-shell` from `origin/dev`. Dirty main checkout untouched. `feat/render-presence` not touched.
+
+**Pick: Capacitor, not Expo.** Shog.io EAS history is a different bundle (`io.shog.app`). Orion is Vite + Canvas. A remote WebView of surviveorion.com fails Guideline 4.2. One stack only.
+
+**Bundle ID:** `com.surviveorion.app` (not `io.shog.app`). Home screen name ORION. Store name ORION: Survive the Swarm. Subtitle: Dodge the swarm. Daily patrol.
+
+**Auth / origin (before native chrome):**
+- API is already Bearer in `orion.session`. Guest lock is `orion.guestSecret`.
+- App origin is `capacitor://localhost`. Native `/api` calls use `https://surviveorion.com`.
+- CORS allowlist: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No wildcard. Rate limits and the 3-attempt daily budget unchanged.
+- Fresh localStorage: a web pilot is a new guest. Sign-in stays on the lobby badge. No identity migration.
+- Google GIS in WKWebView is likely broken. Callsign + password is the recovery path. Do not relax server auth.
+
+**Landed (4.2 four + review):**
+1. Haptics on existing `{ type: "graze" }` (light) and death (heavy). Simulator does not vibrate. No physical device here, **haptics not tested**.
+2. Local notifications via `nextPatrolMidnight()` (midnight America/Los_Angeles). Permission on second session. Daily on, streak-at-risk off. No remote push.
+3. Native share sheet: share-card PNG + text.
+4. Offline Training Ground. Daily Patrol shows a clear offline state and will not launch.
+- In-app Delete account (`DELETE /api/me`). Privacy link to surviveorion.com/privacy.html.
+- Status bar hidden in play. Screen wake lock mid-run (Wake Lock API, iOS 16.4+).
+- Tilt: `NSMotionUsageDescription` + existing in-context permission from `fix/tilt-permission-flow` (already on origin/dev).
+- Audio unlocks after first gesture; pauses on background. Both orientations already allowed.
+- Lobby gear / privacy / calendar links bumped to 44pt. Rajdhani bundled for offline.
+
+**Parked:**
+- StoreKit, WidgetKit, Game Center, Android binary, mutators/scoring/physics.
+- App Store 1024 PNG (SVG only; listing assets after Dispatch A).
+- Certificates, provisioning, App Store Connect record, tax/banking, nutrition label, review notes, demo account: **Lucas**.
+- Xcode is not installed on this Mac (CLT only). Simulator walk not run.
+
+**Mutator desync:** bundled JS can drift from live web. Update plan is an App Store release (`npm run build && npx cap sync ios`). Do not load remote JS.
+
+**4.2:** four native features are the answer. No fifth added.
+
+Tests: `npm run build` green. `npm test` green (includes new `test:cors-origins` and `test:account-delete`).
+
+Follow-up for Lucas: open `ios/App/App.xcodeproj` on a Mac with Xcode, sign with the existing Apple Developer team, create the Connect app for `com.surviveorion.app`, then TestFlight.
+
 ## 2026-09-08 PT: Lighthouse beam cap LIVE
 
 - Lucas: push live. Cherry-picked `2c5fbc1` onto `main` as `f956b4c`. Tomorrow's THE LIGHTHOUSE (2026-09-09) grows to `beamLengthTo` 5 and hard-caps at half the shorter playfield axis (`0.5 * min(viewW, viewH)`).

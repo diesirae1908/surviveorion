@@ -12,3 +12,12 @@ final_videoasset/
 Final_videoasset/
 Recordings_raw/
 Recordings raw/
+
+# Capacitor generated copies of dist/ and CocoaPods
+ios/App/Pods
+ios/App/App/public
+ios/App/build
+ios/DerivedData
+android/.gradle
+android/app/build
+android/app/src/main/assets/public

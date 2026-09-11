@@ -24,6 +24,13 @@ import {
 import type { ShareOutcome } from "./share";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
 import { RECORDING_MAX_SECONDS, recordingSupported, recordingUnavailableReason } from "./recorder";
+import {
+  isNativeApp,
+  nativeNotifPrefs,
+  openPrivacyPolicy,
+  setNativeNotifDaily,
+  setNativeNotifStreak,
+} from "./native";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -800,7 +807,16 @@ export class Ui {
     screen.appendChild(this.wordmarkTitle());
     screen.appendChild(this.el("div", "subtitle", "Daily Patrol"));
     screen.appendChild(this.el("div", "divider", ""));
-    if (info.online) screen.appendChild(this.lobbyPilotBadge(info));
+    screen.appendChild(this.lobbyPilotBadge(info));
+    if (!info.online) {
+      screen.appendChild(
+        this.el(
+          "div",
+          "daily-offline",
+          "Can't reach patrol command. Daily Patrol needs a connection. Training Ground is open offline.",
+        ),
+      );
+    }
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
     const calendarLink = this.el("button", "link-btn calendar-link", "See previous patrols");
@@ -846,7 +862,11 @@ export class Ui {
     screen.appendChild(hint);
 
     // preview ignores the real attempt budget entirely: Launch always shows
-    if (info.preview || info.attemptsLeft > 0) {
+    if (!info.online && !info.preview) {
+      screen.appendChild(
+        this.el("div", "daily-locked", "Daily Patrol is offline."),
+      );
+    } else if (info.preview || info.attemptsLeft > 0) {
       const launch = this.button("Launch", true, () => this.cb.onDaily());
       launch.classList.add("launch");
       screen.appendChild(launch);
@@ -920,11 +940,15 @@ export class Ui {
 
     // footer: the feedback channel. (The /fullgame door still exists by URL,
     // but is unlisted while the daily is the public face.)
+    const footer = this.el("div", "lobby-footer", "");
     const feedback = this.el("button", "full-game-link", "Feedback");
     feedback.addEventListener("click", () =>
       this.showFeedback(() => this.showDailyLobby(info)),
     );
-    screen.appendChild(feedback);
+    const privacy = this.el("button", "full-game-link", "Privacy");
+    privacy.addEventListener("click", () => openPrivacyPolicy());
+    footer.append(feedback, privacy);
+    screen.appendChild(footer);
 
     const gear = document.createElement("button");
     gear.className = "corner-btn";
@@ -1425,6 +1449,40 @@ export class Ui {
         "Powers auto-activate on pickup. Touching a drone is fatal, unless shielded.<br/>Chain kills to build your multiplier and climb the leaderboard.",
       ),
     );
+
+    if (isNativeApp()) {
+      screen.appendChild(this.el("div", "manual-title", "REMINDERS"));
+      const notifRow = this.el("div", "toggles", "");
+      const dailyBtn = document.createElement("button");
+      const streakBtn = document.createElement("button");
+      const paintNotif = (): void => {
+        const p = nativeNotifPrefs();
+        dailyBtn.textContent = `Daily patrol: ${p.daily ? "ON" : "OFF"}`;
+        dailyBtn.classList.toggle("off", !p.daily);
+        streakBtn.textContent = `Streak at risk: ${p.streakAtRisk ? "ON" : "OFF"}`;
+        streakBtn.classList.toggle("off", !p.streakAtRisk);
+      };
+      dailyBtn.addEventListener("click", () => {
+        void setNativeNotifDaily(!nativeNotifPrefs().daily).then(paintNotif);
+      });
+      streakBtn.addEventListener("click", () => {
+        void setNativeNotifStreak(!nativeNotifPrefs().streakAtRisk).then(paintNotif);
+      });
+      paintNotif();
+      notifRow.append(dailyBtn, streakBtn);
+      screen.appendChild(notifRow);
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Local reminders only, at midnight Pacific. First launch never asks. Streak warning is off until you turn it on.",
+        ),
+      );
+    }
+
+    const privacy = this.el("button", "link-btn", "Privacy policy");
+    privacy.addEventListener("click", () => openPrivacyPolicy());
+    screen.appendChild(privacy);
 
     const feedback = this.button("Send feedback", false, () =>
       this.showFeedback(() => this.showSettings(touchDevice, onBack, community)),

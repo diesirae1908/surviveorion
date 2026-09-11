@@ -2,6 +2,7 @@
 // Native share sheet on phones, clipboard on desktop.
 
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalTier } from "./medals";
+import { isNativeApp, nativeShare } from "./native";
 import { patrolDateStr } from "./patrolDate";
 import { DAILY_MAX_ATTEMPTS } from "./save";
 
@@ -71,18 +72,95 @@ export function buildShareText(s: ShareStats): string {
 
 export type ShareOutcome = "shared" | "copied" | "failed";
 
+/** Brand-kit share card (1080 square) as a PNG blob for the native sheet. */
+export function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
+  if (typeof document === "undefined") return Promise.resolve(null);
+  const size = 1080;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return Promise.resolve(null);
+
+  const bg = ctx.createRadialGradient(size / 2, size / 2, 40, size / 2, size / 2, size * 0.78);
+  bg.addColorStop(0, "#12121e");
+  bg.addColorStop(1, "#0a0a12");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = "#2a2a3a";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(56, 56, 968, 968);
+
+  const gold = ctx.createLinearGradient(112, 0, 112, 200);
+  gold.addColorStop(0, "#ffee88");
+  gold.addColorStop(0.55, "#ffd700");
+  gold.addColorStop(1, "#cc8800");
+
+  ctx.fillStyle = gold;
+  ctx.font = "700 72px Rajdhani, system-ui, sans-serif";
+  ctx.fillText("ORION", 226, 190);
+  ctx.fillStyle = "#8a7a55";
+  ctx.font = "600 28px Rajdhani, system-ui, sans-serif";
+  ctx.fillText(`DAILY PATROL No. ${s.dayNumber}`, 226, 232);
+
+  const mins = Math.floor(s.time / 60);
+  const secs = Math.floor(s.time % 60).toString().padStart(2, "0");
+  const lines: Array<[string, string, string]> = [
+    ["SCORE", Math.floor(s.score).toLocaleString(), "#ffd700"],
+    ["SURVIVED", `${mins}:${secs}`, "#fff7e0"],
+    ["PEAK", `×${s.maxMultiplier.toFixed(1)}`, "#fff7e0"],
+  ];
+  if (s.rank !== null) lines.push(["RANK", `#${s.rank} today`, "#fff7e0"]);
+  if (s.medal) lines.push(["MEDAL", MEDAL_LABEL[s.medal], "#ffd700"]);
+  if (s.mutatorNames && s.mutatorNames.length > 0) {
+    lines.push(["TODAY'S MUTATOR", s.mutatorNames.join(" + "), "#ff4455"]);
+  }
+
+  let y = 360;
+  for (const [label, value, color] of lines) {
+    ctx.fillStyle = "#8a7a55";
+    ctx.font = "600 28px Rajdhani, system-ui, sans-serif";
+    ctx.fillText(label, 112, y);
+    ctx.fillStyle = color;
+    ctx.font = "700 56px Rajdhani, system-ui, sans-serif";
+    ctx.fillText(value, 112, y + 64);
+    y += 130;
+  }
+
+  ctx.fillStyle = "#8a7a55";
+  ctx.font = "600 28px Rajdhani, system-ui, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText("surviveorion.com", 968, 966);
+  ctx.textAlign = "left";
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/png");
+  });
+}
+
 /**
  * Native share sheet where it makes sense (phones), clipboard otherwise.
  * A user-cancelled share sheet still counts as "shared" — no error toast.
  */
-export async function shareText(text: string, preferNative: boolean): Promise<ShareOutcome> {
+export async function shareText(text: string, preferNative: boolean, png?: Blob | null): Promise<ShareOutcome> {
+  if (isNativeApp()) {
+    const ok = await nativeShare(text, png);
+    if (ok) return "shared";
+  }
   if (preferNative && typeof navigator.share === "function") {
     try {
-      await navigator.share({ text, url: SHARE_URL });
+      const files =
+        png && typeof File !== "undefined"
+          ? [new File([png], "orion-patrol.png", { type: "image/png" })]
+          : undefined;
+      if (files && navigator.canShare?.({ files })) {
+        await navigator.share({ text, url: SHARE_URL, files });
+      } else {
+        await navigator.share({ text, url: SHARE_URL });
+      }
       return "shared";
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return "shared";
-      // NotAllowedError etc. — fall through to the clipboard
     }
   }
   try {
@@ -91,4 +169,10 @@ export async function shareText(text: string, preferNative: boolean): Promise<Sh
   } catch {
     return "failed";
   }
+}
+
+export async function sharePatrol(stats: ShareStats, preferNative: boolean): Promise<ShareOutcome> {
+  const text = buildShareText(stats);
+  const png = await renderShareCardPng(stats);
+  return shareText(text, preferNative, png);
 }

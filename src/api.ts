@@ -3,6 +3,7 @@
 // thrown ApiError with a user-readable message.
 
 import type { GameMode } from "./config";
+import { apiBase } from "./native";
 
 export interface UserInfo {
   callsign: string;
@@ -173,7 +174,7 @@ export class Api {
 
     let res: Response;
     try {
-      res = await fetch(path, {
+      res = await fetch(`${apiBase()}${path}`, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -290,10 +291,28 @@ export class Api {
     } catch {
       // best effort — clear locally regardless
     }
+    this.clearLocalSession();
+  }
+
+  private clearLocalSession(): void {
     this.token = null;
     this.user = null;
     this.clipInbox = false;
+    this.hasPassword = true;
+    this.joinedAt = null;
+    this.pendingFriends = 0;
     localStorage.removeItem(TOKEN_KEY);
+  }
+
+  /**
+   * In-app account deletion (App Store 5.1.1(v)). Wipes the server row
+   * (scores, badges, friends cascade) and the local session. Guest secret
+   * stays on device so a later guest signup is a new account, not a reclaim.
+   */
+  async deleteAccount(): Promise<void> {
+    await this.request("DELETE", "/api/me");
+    this.clearLocalSession();
+    localStorage.removeItem(GUEST_SECRET_KEY);
   }
 
   async refreshClipInbox(): Promise<void> {
@@ -322,7 +341,7 @@ export class Api {
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     let res: Response;
     try {
-      res = await fetch("/api/clip-inbox", { method: "POST", headers, body: fd });
+      res = await fetch(`${apiBase()}/api/clip-inbox`, { method: "POST", headers, body: fd });
       this.online = true;
     } catch {
       this.online = false;

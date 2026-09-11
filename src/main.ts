@@ -79,7 +79,14 @@ import {
   type DailyDayLog,
   type KeyBindings,
 } from "./save";
-import { buildShareText, dailyNumber, shareText, DAILY_EPOCH_DATE } from "./share";
+import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE } from "./share";
+import {
+  bootNativeShell,
+  hapticDeath,
+  hapticGraze,
+  isNativeApp,
+  setPlayChrome,
+} from "./native";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
@@ -429,8 +436,10 @@ function failTiltToStick(reason: TiltEnableResult): void {
     reason === "no-data"
       ? "No motion data from this device. Flying with the touch stick."
       : "Motion access is blocked, so tilt can't steer. Flying with the touch stick. " +
-          "To fix it: quit and reopen your browser (or allow Motion & Orientation access" +
-          " in its settings), then pick Tilt again.",
+          (isNativeApp()
+            ? "To fix it: quit and reopen the app (or allow Motion & Orientation access in Settings), then pick Tilt again."
+            : "To fix it: quit and reopen your browser (or allow Motion & Orientation access" +
+              " in its settings), then pick Tilt again."),
   );
 }
 
@@ -473,14 +482,14 @@ const ui = new Ui(settings, {
         : mutatorsToday.length > 0
           ? medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday))
           : undefined;
-    return shareText(
-      buildShareText({
+    return sharePatrol(
+      {
         dayNumber: dailyNumber(),
         ...source,
         mutatorNames: sourceMutatorNames ?? todaysMutatorNames,
         medal,
         preview: PREVIEW_ACTIVE,
-      }),
+      },
       isTouchDevice(),
     );
   },
@@ -846,6 +855,10 @@ function renderPatrolCalendar(): void {
  */
 function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = false): void {
   if (state === "launching") return;
+  if (daily && !training && !api.online) {
+    ui.toast("Can't reach patrol command. Training Ground is open offline.");
+    return;
+  }
   // daily-only site: out of attempts → back to the lobby (shows the countdown).
   // Preview runs don't spend attempts, so they never hit this lockout.
   if (DAILY_ONLY && daily && !PREVIEW_ACTIVE && dailyAttemptsLeft() <= 0) {
@@ -938,6 +951,7 @@ function startRun(): void {
     runIsTraining,
   );
   world.clipView = { w: canvas.clientWidth, h: canvas.clientHeight };
+  void setPlayChrome(true);
   recordBeaten = false;
   particles.clear();
   popups.clear();
@@ -1020,6 +1034,7 @@ function quitToMenu(): void {
   tutorial = null;
   audio.setThrustLevel(0);
   audio.playTrack("menu");
+  void setPlayChrome(false);
   // an unfinished run (quit mid-flight, no game-over screen) never offers a
   // clip: stop and discard rather than leaving the recorder running
   if (activeRecording) {
@@ -1063,6 +1078,7 @@ function onGameOver(): void {
   gameOverUiShown = false;
   audio.setThrustLevel(0);
   audio.playTrack("gameover");
+  void setPlayChrome(false);
   // stop recording now, not when the game-over UI shows: finalizing the clip
   // (MediaRecorder flush) overlaps the death cinematic instead of adding a
   // delay before the result screen appears. Snapshot sidecar fields first so
@@ -1264,7 +1280,13 @@ input.onPause = () => {
 };
 
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && state === "playing") pause();
+  if (document.hidden) {
+    if (state === "playing") pause();
+    audio.pauseMusic();
+    audio.setThrustLevel(0);
+  } else if (state === "menu" || state === "gameover" || state === "paused") {
+    audio.resumeMusic();
+  }
 });
 
 const handleResize = (): void => {
@@ -1360,6 +1382,7 @@ function drainEvents(w: World): void {
       case "graze":
         particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
         audio.graze();
+        void hapticGraze();
         if (mutatorGrazePopups()) {
           popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
         }
@@ -1468,6 +1491,7 @@ function drainEvents(w: World): void {
       case "death":
         particles.burst(e.x, e.y, [PALETTE.gold, PALETTE.redBright, PALETTE.white], 60, 9, 1.2, 0.18);
         audio.death();
+        void hapticDeath();
         break;
     }
   }
@@ -1673,6 +1697,7 @@ void api.init().then(() => {
   applyCreatorAccess(api.clipInbox);
   if (state === "menu") showMenu();
 });
+void bootNativeShell();
 
 // traffic beacon: who's arriving, from where (admin dashboard only)
 api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
