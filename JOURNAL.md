@@ -11,7 +11,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - CORS allowlist only: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No `*`. Web stays same-origin.
 - `DELETE /api/me` requires a signed-in session (401 otherwise) and `rateLimit(delete:<id>, 3)`. Existing rate-limit keys and `DAILY_MAX_ATTEMPTS = 3` unchanged.
 - Tests: `test:cors-origins` PASS, `test:account-delete` PASS, plus server-daily-history, serve-static, notion-clips, daily-combined-rank, daily-bots. clip-inbox hung on a later pre-existing stranger-upload check after its CORS-related PASSes.
-- Follow-up: optionally cherry-pick this commit onto `origin/dev` so staging has the same CORS. Watch Render `surviveorion` for this SHA.
+- Commit `3f07a35` on `main`. Follow-up: optionally cherry-pick onto `origin/dev` so staging has the same CORS. Watch Render `surviveorion` for this SHA.
 
 ## 2026-09-08 PT: Lighthouse beam cap LIVE
 
