@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: iOS Automatic signing team
+
+- App target Debug and Release now have `DEVELOPMENT_TEAM = 4R88D2NKUC` (App Store Connect seedId for `com.surviveorion.app`). `CODE_SIGN_STYLE` stays Automatic. Bundle id unchanged.
+- App Store Connect still needs Lucas to click New App. The API forbids CREATE on apps.
+- Isolated worktree `feat/ios-shell`. Not merged to `dev` or `main`.
+
 ## 2026-09-11 PT: iOS shell merged origin/dev (graze/ship)
 
 - `origin/dev` had moved to `f53b658` (Dispatch A graze/ship + goldPale rim). This branch still started at `d072633`.
