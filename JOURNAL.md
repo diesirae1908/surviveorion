@@ -9,7 +9,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Hull rim and graze-arc primary stroke were `PALETTE.flare` (`#ff8844`, the Flare *power* orange). Brand Flare is `PALETTE.goldPale` (`#ffee88`).
 - Switched `drawShip` / intro ship rim and the graze-arc main stroke to `goldPale`. Thin goldPale inner arc kept. Flare power pickup and decoy untouched.
 - Tests: `npm test` green. `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED on retry (one prior run flaked on magnet pending-grab, unrelated to stroke color).
-- Follow-up on `feat/render-presence` only. Not merged.
+- Commit `e671a22`. Follow-up on `feat/render-presence` only. Not merged.
 
 ## 2026-09-11 PT: Graze and ship readable (Dispatch A)
 
