@@ -32,6 +32,8 @@ Lucas filed 8 notes after TestFlight 1.0 (3). Isolated worktree `.worktrees/feat
 
 **Follow-ups:** Sam owns archive / TestFlight / whether to deploy `apple_sub` + `/api/auth/apple`.
 
+Commit `e91e187`.
+
 ## 2026-09-11 PT: iOS native chrome design pass
 
 Lucas rejected TestFlight 1.0 (2) Home / Settings / Game Over as stock Settings-app chrome. Visual restyle only, from spec `Sam/reports/orion-ios-native-design-spec-2026-09-12.md`. Isolated worktree `.worktrees/feat-ios-native` at `74bcc9d`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect.
