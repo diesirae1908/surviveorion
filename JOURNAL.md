@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 PT: Free / Premium / Admin LIVE
+
+- Lucas: yes, promote the Free/Premium/Admin server slice to live so TestFlight can use archive, premium, and admin APIs.
+- Merged `origin/feat/ios-native` (`99c86ea`) into `origin/main` (`1fdb10e`) on `sam/promote-tiers-live`. Dirty main checkout untouched. Conflicts: JOURNAL (both histories, CORS live + tiers kept), package.json (cors/account-delete + native-play/premium-gates), `server/index.mjs` (live CORS apply + tier/apple-iap imports and routes).
+- CORS allowlist unchanged: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No `*`. `DELETE /api/me` kept.
+- Live now: `GET /api/me` tier fields, `POST /api/scores` past-day `PREMIUM_REQUIRED` / future `CREW_REQUIRED`, `POST /api/me/premium`, `GET /api/patrol-mutators`, `GET /api/friends/leaderboard?date=`.
+- Tests: `npm test` PASS (cors-origins, account-delete, native-play, premium-gates). `npm run build` green.
+- Merge `8d04eaf`. This journal commit is the tip pushed to `main`. Watch Render `surviveorion`. Optional follow-up: merge main into `origin/dev` so staging stays ahead.
+
 ## 2026-09-12 PT: Native Free / Premium / Admin + server gates
 
 Lucas: "go for eeeeeverything." Isolated worktree `.worktrees/feat-ios-native` from `17b84aa`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No Render deploy. No App Store Connect / archive.
