@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 PT: Web lobby native-parity + App Store CTA LIVE
+
+- Lucas: promote the lobby restyle + App Store CTA to live.
+- Isolated `.worktrees/feat-web-native-parity` (`feat/web-native-parity` tip `eb06c55`). Dirty main checkout untouched. `git fetch`: `origin/main` (`f000745`) still the merge-base / direct ancestor. Clean FF.
+- New copy checked (no U+2014): "Launch Patrol", "Get ORION on iPhone", "Daily reminder on your phone", "Patrol complete". Pre-existing comment dashes in `src/ui.ts` left alone.
+- Pushed `feat/web-native-parity:main`. Feature commits `57e3309` + `eb06c55`. This journal commit is the tip on `main`. Watch Render `surviveorion`.
+- CORS untouched this slice: `capacitor://localhost` stay on the live allowlist from the earlier CORS promote.
+- Did not merge to `origin/dev`: histories diverged (`origin/dev` at `9fbd3fd`, not an ancestor of this tip; main has the later iOS/tiers stack `dev` does not). Not clean.
+
 ## 2026-09-12 PT: Web lobby native-parity restyle + App Store CTA
 
 - Isolated `.worktrees/feat-web-native-parity` from `origin/main`. Dirty main checkout untouched. Pushed `feat/web-native-parity` only (`57e3309`). No `dev`/`main` push.
