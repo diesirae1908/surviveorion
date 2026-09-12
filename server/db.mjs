@@ -140,6 +140,30 @@ try {
   // column already exists
 }
 
+// Account tier (native Patrol Archive). Additive. role is free|premium|admin.
+// premium_until is a StoreKit expiry (ms). Admin allowlist still wins via
+// clip-inbox / role='admin' and does not need a receipt.
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'free'`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN premium_until INTEGER`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN premium_product_id TEXT`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN premium_transaction_id TEXT`);
+} catch {
+  // column already exists
+}
+
 // Migration for databases created before tilt controls (per-mode leaderboards).
 try {
   db.exec(`ALTER TABLE scores ADD COLUMN mode TEXT NOT NULL DEFAULT 'classic'`);
@@ -255,6 +279,19 @@ export function updateUser(id, { callsign, country, passSalt, passHash }) {
       id,
     );
   }
+  return getUserById(id);
+}
+
+export function setUserPremium(id, { until, productId, transactionId }) {
+  db.prepare(
+    `UPDATE users SET premium_until = ?, premium_product_id = ?, premium_transaction_id = ? WHERE id = ?`,
+  ).run(until ?? null, productId ?? null, transactionId ?? null, id);
+  return getUserById(id);
+}
+
+export function setUserRole(id, role) {
+  const next = role === "admin" || role === "premium" ? role : "free";
+  db.prepare(`UPDATE users SET role = ? WHERE id = ?`).run(next, id);
   return getUserById(id);
 }
 
@@ -729,6 +766,25 @@ export const pendingFriendCount = (userId) =>
   db
     .prepare(`SELECT COUNT(*) AS c FROM friends WHERE addressee_id = ? AND status = 'pending'`)
     .get(userId).c;
+
+/** Today's (or any day's) Daily Patrol board for a pilot and their wingmates. */
+export function friendsDailyBoard(userId, dailyDate) {
+  const ids = [userId, ...friendIdsOf(userId)];
+  const marks = ids.map(() => "?").join(",");
+  return db
+    .prepare(
+      `SELECT u.id AS userId, u.callsign, u.country,
+              MAX(s.score) AS best, COUNT(s.id) AS runs,
+              MAX(s.time_survived) AS bestTime
+       FROM users u
+       LEFT JOIN scores s
+         ON s.user_id = u.id AND s.daily_date = ? AND s.game_mode = 'classic'
+       WHERE u.id IN (${marks})
+       GROUP BY u.id
+       ORDER BY (MAX(s.score) IS NULL) ASC, MAX(s.score) DESC, MIN(s.created_at) ASC`,
+    )
+    .all(dailyDate, ...ids);
+}
 
 /** Best score per pilot among the user and their friends, ranked. */
 export function friendsLeaderboard(userId, mode = "desktop", gameMode = "classic") {

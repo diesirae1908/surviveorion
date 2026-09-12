@@ -18,6 +18,15 @@ export function parseNativePlay(search: string): NativePlayMode | null {
   return v === "daily" || v === "training" ? v : null;
 }
 
+/** Optional patrol date for native Daily (past replay or Crew rehearsal). */
+export function parseNativePlayDate(search: string): string | null {
+  const raw = new URLSearchParams(search).get("date");
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const d = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== raw) return null;
+  return raw;
+}
+
 /** True only when this page was opened as a play-only native run. */
 export function isNativePlay(): boolean {
   try {
@@ -63,6 +72,10 @@ export function postNativeGameOver(payload: {
   medal?: string | null;
   sharePngBase64?: string | null;
   callsign?: string | null;
+  clipBase64?: string | null;
+  clipBasename?: string | null;
+  clipSidecar?: string | null;
+  clipExt?: string | null;
 }): void {
   if (!isNativePlay()) return;
   postNative({ type: "gameOver", ...payload });

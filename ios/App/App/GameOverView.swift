@@ -5,11 +5,16 @@ struct GameOverView: View {
     let result: GameResult
     var callsign: String? = nil
     var autoShare = false
+    var isAdmin = false
     var onDone: () -> Void
+    var onFeedback: (() -> Void)? = nil
 
     @Environment(\.verticalSizeClass) private var vSize
     @State private var scoreLanded = false
     @State private var sharePresented = false
+    @State private var clipNote: String?
+    @State private var clipSaved = false
+    @State private var showFeedback = false
 
     private var landscape: Bool { vSize == .compact }
     private var hasMedal: Bool {
@@ -165,6 +170,70 @@ struct GameOverView: View {
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
             Button("Done") { onDone() }
                 .buttonStyle(OrionButtonStyle(kind: .primary))
+            Button("Feedback") {
+                if let onFeedback { onFeedback() } else { showFeedback = true }
+            }
+            .font(OrionFont.body(13, weight: .bold))
+            .foregroundStyle(OrionColor.bronze)
+            .frame(minHeight: OrionLayout.minTap)
+            if isAdmin, result.clipData != nil {
+                HStack(spacing: 16) {
+                    Button(clipSaved ? "Saved" : "Save Clip") { Task { await saveClip() } }
+                        .font(OrionFont.body(13, weight: .bold))
+                        .foregroundStyle(clipSaved ? OrionColor.hullGold : OrionColor.bronze)
+                    Button("Send to Inbox") { Task { await sendInbox() } }
+                        .font(OrionFont.body(13, weight: .bold))
+                        .foregroundStyle(OrionColor.bronze)
+                }
+                .frame(minHeight: OrionLayout.minTap)
+            }
+            if let clipNote {
+                Text(clipNote)
+                    .font(OrionFont.body(13))
+                    .foregroundStyle(OrionColor.alarm)
+            }
+        }
+        .sheet(isPresented: $showFeedback) {
+            FeedbackView(asSheet: true) { showFeedback = false }
+        }
+    }
+
+    private func saveClip() async {
+        guard let data = result.clipData else { return }
+        var access = ClipStore.photosStatus()
+        if access != .granted {
+            access = await ClipStore.requestPhotos()
+        }
+        if access != .granted {
+            clipNote = "Enable Photos access in Settings to save clips."
+            return
+        }
+        do {
+            try await ClipStore.saveVideo(data: data, ext: result.clipExt ?? "mp4")
+            clipSaved = true
+            clipNote = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { clipSaved = false }
+        } catch {
+            clipNote = "Enable Photos access in Settings to save clips."
+        }
+    }
+
+    private func sendInbox() async {
+        guard let data = result.clipData,
+              let base = result.clipBasename,
+              let side = result.clipSidecar
+        else { return }
+        do {
+            try await APIClient.shared.uploadClip(
+                video: data,
+                sidecar: side,
+                basename: base,
+                ext: result.clipExt ?? "mp4"
+            )
+            clipNote = nil
+            clipSaved = true
+        } catch {
+            clipNote = error.localizedDescription
         }
     }
 

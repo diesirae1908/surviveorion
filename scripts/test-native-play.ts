@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { parseNativePlay } from "../src/native.ts";
+import { parseNativePlay, parseNativePlayDate } from "../src/native.ts";
 
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
 const main = fs.readFileSync(path.join(ROOT, "src/main.ts"), "utf8");
@@ -17,6 +17,11 @@ assert.equal(parseNativePlay("?nativePlay=nope"), null);
 assert.equal(parseNativePlay("?nativePlay=daily"), "daily");
 assert.equal(parseNativePlay("?nativePlay=training"), "training");
 assert.equal(parseNativePlay("?nativePlay=training&foo=1"), "training");
+assert.equal(parseNativePlayDate(""), null);
+assert.equal(parseNativePlayDate("?nativePlay=daily"), null);
+assert.equal(parseNativePlayDate("?nativePlay=daily&date=2026-09-01"), "2026-09-01");
+assert.equal(parseNativePlayDate("?date=not-a-date"), null);
+assert.equal(parseNativePlayDate("?date=2026-13-40"), null);
 
 assert.match(main, /IS_NATIVE_PLAY/);
 assert.match(main, /clearScreens\(\)/);
@@ -29,6 +34,9 @@ assert.match(main, /orion-native-pause/);
 assert.match(main, /allow Motion & Fitness for ORION/);
 assert.match(main, /NATIVE_AUTO === "tiltconfirm"/);
 assert.match(main, /runMode \(the board this run files on\)/);
+assert.match(main, /NATIVE_PATROL_DATE/);
+assert.match(main, /parseNativePlayDate/);
+assert.match(main, /dailyDate/);
 assert.match(main, /input\.tilt\.stop\(\)/);
 
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");

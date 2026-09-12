@@ -46,7 +46,7 @@ enum PatrolDate {
         return String(format: "%d:%02d:%02d", h, m, s)
     }
 
-    private static func addCivilDays(_ dateStr: String, _ days: Int) -> String {
+    static func addCivilDays(_ dateStr: String, _ days: Int) -> String {
         let parts = dateStr.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return dateStr }
         var cal = Calendar(identifier: .gregorian)
@@ -58,6 +58,44 @@ enum PatrolDate {
         let d = cal.date(from: c) ?? Date()
         let out = cal.dateComponents([.year, .month, .day], from: d)
         return String(format: "%04d-%02d-%02d", out.year ?? 0, out.month ?? 0, out.day ?? 0)
+    }
+
+    static func monthKey(from dateStr: String) -> String {
+        String(dateStr.prefix(7))
+    }
+
+    static func monthStart(_ year: Int, _ month: Int) -> String {
+        String(format: "%04d-%02d-01", year, month)
+    }
+
+    static func weekdaySundayZero(_ dateStr: String) -> Int {
+        let parts = dateStr.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return 0 }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        var c = DateComponents()
+        c.year = parts[0]
+        c.month = parts[1]
+        c.day = parts[2]
+        let d = cal.date(from: c) ?? Date()
+        let wd = cal.component(.weekday, from: d) // 1 = Sunday
+        return wd - 1
+    }
+
+    static func daysInMonth(year: Int, month: Int) -> Int {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let d = cal.date(from: DateComponents(year: year, month: month, day: 1)) ?? Date()
+        return cal.range(of: .day, in: .month, for: d)?.count ?? 30
+    }
+
+    static func monthTitle(year: Int, month: Int) -> String {
+        let names = [
+            "", "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+            "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+        ]
+        guard month >= 1, month <= 12 else { return "" }
+        return "\(names[month]) \(year)"
     }
 
     /// Milliseconds Pacific Time lags behind UTC at `now` (same as src/patrolDate.ts).

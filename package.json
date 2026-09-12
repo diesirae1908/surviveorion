@@ -31,9 +31,10 @@
     "test:cors-origins": "node scripts/test-cors-origins.mjs",
     "test:account-delete": "node scripts/test-account-delete.mjs",
     "test:native-play": "npx tsx scripts/test-native-play.ts",
+    "test:premium-gates": "node scripts/test-premium-gates.mjs",
     "cap:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play"
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play && npm run test:premium-gates"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

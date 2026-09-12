@@ -23,4 +23,12 @@ enum MutatorCatalog {
     static func today(_ dateStr: String = PatrolDate.dateString()) -> [MutatorLine] {
         schedule[dateStr] ?? []
     }
+
+    static func name(for dateStr: String) -> String {
+        today(dateStr).first?.name ?? "CLASSIC"
+    }
+
+    static func shortName(for dateStr: String) -> String {
+        name(for: dateStr)
+    }
 }

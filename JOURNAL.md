@@ -4,6 +4,43 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 PT: Native Free / Premium / Admin + server gates
+
+Lucas: "go for eeeeeverything." Isolated worktree `.worktrees/feat-ios-native` from `17b84aa`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No Render deploy. No App Store Connect / archive.
+
+**Product model:** Free = today Daily (3 attempts) + Training + board + share + feedback + calendar browse. Past-day full-score replay is Patrol Archive. Premium = Free + archive replays + Analytics + Squadrons/Wingmates. Admin = clip-inbox allowlist or `users.role='admin'` (not IAP): Premium plus future/rehearsal days + Record/Save clip. Today Daily always free.
+
+**Server (additive, this branch only):**
+- `users.role` (default `free`), `premium_until`, `premium_product_id`, `premium_transaction_id` (same ALTER pattern as `apple_sub`).
+- `GET /api/me` now returns `tier`, `premiumActive`, `clipInbox`.
+- `POST /api/scores` accepts optional `dailyDate`. Today always allowed under the 3-attempt rule. Past date without premium/admin → 403 `PREMIUM_REQUIRED`. Future date without admin → 403 `CREW_REQUIRED`.
+- `POST /api/me/premium` verifies StoreKit 2 JWS via x5c ES256 + Apple issuer check (no extra deps). Unverified transaction ids are **not** trusted unless `ORION_PREMIUM_SANDBOX=1`. Tripwire honored: no production-trust-without-verify.
+- `GET /api/patrol-mutators?from=&to=` returns names; free/premium clamped to today; admin +14 days (web Crew Rehearsal horizon). Reads bundled `mutator-schedule.json`.
+- `GET /api/friends/leaderboard?date=` returns that day's squadron board (wingmates with no run still appear). Existing mode/gameMode path unchanged.
+- Feedback unchanged: Bearer session works on `POST /api/feedback`.
+
+**Native (spec `orion-ios-tiers-design-spec-2026-09-12.md`):**
+- Patrol Calendar, Patrol Archive sheet (monthly `com.surviveorion.app.premium.monthly` $4.99 / yearly `…yearly` $29.99), Analytics, Squadrons/Wingmates, Pilot Debrief feedback, Settings tier badge + Manage/Restore + extras, Crew Tools (admin only).
+- StoreKit 2: purchase, restore, `Transaction.updates`. Persists locally and POSTs signed JWS to `/api/me/premium`. Simulator/MISSING_METADATA degrades to "Premium unavailable".
+- DEBUG `-QAPremium` grants Premium locally without StoreKit or Daily spend (QA only, does not tell live server).
+- WebPlay: `?nativePlay=daily&date=YYYY-MM-DD` for archive/rehearsal. Website without the query unchanged. Archive dates do not spend today's attempt. Future dates leave unless `clipInbox`.
+- Record: Settings toggle injects `orion.settings.recordRuns`. Game Over Save Clip / Send to Inbox when a clip arrives on the native bridge. Photos add-only usage string. Training still skips record.
+
+**Tests:** `scripts/test-premium-gates.mjs` (tier + past/future score gates + mutator clamp). `test-native-play` covers `date=`. `npm run build` green. `npm test` green.
+
+**Verify:** Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. Screenshots `qa-evidence/tiers/`. Training Ground not spent. No Daily play in this pass.
+
+**Untested / device-only:** real StoreKit sandbox purchase, Photos save, Send to Inbox upload, live feedback Transmit tap, past-day score submit against live (server not deployed), Admin future days (needs allowlisted session), mid-run record HUD on device.
+
+**Follow-ups (Sam):**
+1. Deploy this branch before TestFlight can use `/api/me` tier, past-day submits, or `/api/me/premium`. Live still stamps today-only until then.
+2. ASC product metadata (MISSING_METADATA) so StoreKit loads in sandbox.
+3. Full App Store Server Library / Apple root-chain verify before trusting production IAP (current verify is x5c leaf + Apple issuer; `ORION_PREMIUM_SANDBOX=1` is the documented interim).
+4. Terms URL stub (Privacy works). Lifetime $49.99 omitted (not in ASC).
+5. Archive / TestFlight is Sam's.
+
+Commit pending (this push).
+
 ## 2026-09-11 PT: TestFlight 1.0 (4) tilt confirm, share, flags
 
 Lucas TestFlight 1.0 (4) notes plus a chat ask for board flags. Isolated worktree `.worktrees/feat-ios-native` from `a4ab40e`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.

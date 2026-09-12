@@ -146,6 +146,7 @@ struct ChamferedRectangle: InsettableShape {
 
 struct ChamferedPanel<Content: View>: View {
     var goldBorder = false
+    var stroke: Color? = nil
     var chamfer: CGFloat = 12
     var padding: CGFloat = 16
     @ViewBuilder var content: Content
@@ -157,12 +158,38 @@ struct ChamferedPanel<Content: View>: View {
             .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: chamfer))
             .overlay {
                 ChamferedRectangle(chamfer: chamfer)
-                    .strokeBorder(
-                        goldBorder ? OrionColor.hullGold.opacity(0.25) : OrionColor.hullLine,
-                        lineWidth: 1.5
-                    )
+                    .strokeBorder(strokeColor, lineWidth: 1.5)
             }
             .clipShape(ChamferedRectangle(chamfer: chamfer))
+    }
+
+    private var strokeColor: Color {
+        if let stroke { return stroke }
+        return goldBorder ? OrionColor.hullGold.opacity(0.25) : OrionColor.hullLine
+    }
+}
+
+struct MedalBadge: View {
+    var medal: String
+    var count: Int? = nil
+    var dimmed = false
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(medal.uppercased())
+                .font(OrionFont.body(12, weight: .bold))
+                .foregroundStyle(OrionColor.void)
+                .tracking(2)
+                .frame(width: 64, height: 28)
+                .background(OrionColor.medalGradient(named: medal), in: ChamferedRectangle(chamfer: 8))
+            if let count {
+                Text("\(count)")
+                    .font(OrionFont.display(18, weight: .bold))
+                    .foregroundStyle(OrionColor.starlight)
+                    .monospacedDigit()
+            }
+        }
+        .opacity(dimmed ? 0.30 : 1)
     }
 }
 

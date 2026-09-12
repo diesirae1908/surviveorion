@@ -6,6 +6,9 @@ enum PreferencesStore {
     private static let dailyNotifKey = "orion.notifDaily"
     private static let streakNotifKey = "orion.notifStreak"
     private static let attemptsKey = "orion.dailyAttempts"
+    private static let recordRunsKey = "orion.recordRuns"
+    private static let localPremiumUntilKey = "orion.premiumUntil"
+    private static let localPremiumProductKey = "orion.premiumProduct"
 
     static var sessionCount: Int {
         get { defaults.integer(forKey: sessionCountKey) }
@@ -56,6 +59,25 @@ enum PreferencesStore {
 
     static func attemptsLeft(today: String = PatrolDate.dateString()) -> Int {
         max(0, 3 - loadAttempts(today: today).used)
+    }
+
+    static var recordRuns: Bool {
+        get { defaults.bool(forKey: recordRunsKey) }
+        set { defaults.set(newValue, forKey: recordRunsKey) }
+    }
+
+    static var localPremiumUntil: TimeInterval {
+        get { defaults.double(forKey: localPremiumUntilKey) }
+        set { defaults.set(newValue, forKey: localPremiumUntilKey) }
+    }
+
+    static var localPremiumProduct: String? {
+        get { defaults.string(forKey: localPremiumProductKey) }
+        set { defaults.set(newValue, forKey: localPremiumProductKey) }
+    }
+
+    static var localPremiumActive: Bool {
+        localPremiumUntil > Date().timeIntervalSince1970
     }
 
     static func applyWebAttemptsJSON(_ raw: String?) {

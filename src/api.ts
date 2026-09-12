@@ -160,6 +160,8 @@ export class Api {
   hasPassword = true;
   /** Lucas-only clip inbox + future-day rehearsal. Set from GET /api/me. */
   clipInbox = false;
+  tier: "free" | "premium" | "admin" = "free";
+  premiumActive = false;
   /** false once a request fails to reach the server at all. */
   online = true;
 
@@ -212,12 +214,16 @@ export class Api {
           hasPassword?: boolean;
           joinedAt?: number;
           clipInbox?: boolean;
+          tier?: "free" | "premium" | "admin";
+          premiumActive?: boolean;
         }>("GET", "/api/me");
         this.user = me.user;
         this.pendingFriends = me.pendingFriends ?? 0;
         this.hasPassword = me.hasPassword ?? true;
         this.joinedAt = me.joinedAt ?? null;
         this.clipInbox = !!me.clipInbox;
+        this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
+        this.premiumActive = !!me.premiumActive || this.clipInbox;
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;
@@ -298,6 +304,8 @@ export class Api {
     this.token = null;
     this.user = null;
     this.clipInbox = false;
+    this.tier = "free";
+    this.premiumActive = false;
     this.hasPassword = true;
     this.joinedAt = null;
     this.pendingFriends = 0;
@@ -318,11 +326,19 @@ export class Api {
   async refreshClipInbox(): Promise<void> {
     if (!this.token) {
       this.clipInbox = false;
+      this.tier = "free";
+      this.premiumActive = false;
       return;
     }
     try {
-      const me = await this.request<{ clipInbox?: boolean }>("GET", "/api/me");
+      const me = await this.request<{
+        clipInbox?: boolean;
+        tier?: "free" | "premium" | "admin";
+        premiumActive?: boolean;
+      }>("GET", "/api/me");
       this.clipInbox = !!me.clipInbox;
+      this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
+      this.premiumActive = !!me.premiumActive || this.clipInbox;
     } catch {
       this.clipInbox = false;
     }
@@ -373,6 +389,8 @@ export class Api {
     platform: string;
     /** true for Daily Patrol runs (server files it on today's board too). */
     daily?: boolean;
+    /** Past-day / rehearsal Daily (server gates: premium for past, admin for future). */
+    dailyDate?: string;
   }): Promise<SubmitResult> {
     return this.request<SubmitResult>("POST", "/api/scores", run);
   }

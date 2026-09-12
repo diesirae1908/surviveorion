@@ -30,6 +30,11 @@ struct OrionApp: App {
                         model.pendingGameOver = true
                         model.pendingShare = true
                     }
+                    if args[i + 1] == "calendar" { model.pendingCalendar = true }
+                    if args[i + 1] == "premium" { model.pendingPremium = .generic }
+                    if args[i + 1] == "feedback" { model.pendingFeedback = true }
+                    if args[i + 1] == "wingmates" { model.pendingWingmates = true }
+                    if args[i + 1] == "analytics" { model.pendingAnalytics = true }
                 }
             }
             .onOpenURL { url in

@@ -86,6 +86,7 @@ import {
   isNativeApp,
   isNativePlay,
   parseNativePlay,
+  parseNativePlayDate,
   postNativeGameOver,
   postNativeLeave,
   setPlayChrome,
@@ -122,6 +123,8 @@ const DAILY_ONLY = !FULL_GAME;
 const NATIVE_PLAY = parseNativePlay(location.search);
 const IS_NATIVE_PLAY = NATIVE_PLAY !== null;
 const NATIVE_AUTO = new URLSearchParams(location.search).get("nativeAuto");
+const NATIVE_PATROL_DATE = IS_NATIVE_PLAY && NATIVE_PLAY === "daily" ? parseNativePlayDate(location.search) : null;
+const NATIVE_ARCHIVE = !!(NATIVE_PATROL_DATE && NATIVE_PATROL_DATE !== patrolDateStr());
 
 if (DAILY_ONLY) document.title = "ORION Daily";
 
@@ -273,7 +276,7 @@ if (PREVIEW_ACTIVE) {
 
 /** Patrol date label for preview/rehearsal runs (today's PT date otherwise). */
 function currentPatrolDateStr(): string {
-  return PREVIEW_REHEARSAL_DATE ?? patrolDateStr();
+  return NATIVE_PATROL_DATE ?? PREVIEW_REHEARSAL_DATE ?? patrolDateStr();
 }
 
 /** UTC date whose shared daily script preview/rehearsal runs use (today otherwise). */
@@ -285,6 +288,7 @@ function previewDailyDate(): Date {
 function todaysMutators(): Mutator[] {
   if (PREVIEW_MUTATORS.length > 0) return PREVIEW_MUTATORS;
   if (PREVIEW_ACTIVE && PREVIEW_DAY) return getMutatorsForDate(PREVIEW_DAY);
+  if (NATIVE_PATROL_DATE) return getMutatorsForDateStr(NATIVE_PATROL_DATE);
   return getMutatorsForDateStr(patrolDateStr());
 }
 
@@ -328,6 +332,7 @@ let runRefunded = false;
 let activeRecording: RecordingHandle | null = null;
 /** Finished clip for the run that just ended, ready to download from the result screen. */
 let lastClipBlob: Blob | null = null;
+let lastClipReady: Promise<void> | null = null;
 /** True if that clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
 let lastClipCapped = false;
 /** Sidecar snapshotted at game-over so a later save cannot read a reset world. */
@@ -875,7 +880,7 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   }
   // daily-only site: out of attempts → back to the lobby (shows the countdown).
   // Preview runs don't spend attempts, so they never hit this lockout.
-  if (DAILY_ONLY && daily && !PREVIEW_ACTIVE && dailyAttemptsLeft() <= 0) {
+  if (DAILY_ONLY && daily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE && dailyAttemptsLeft() <= 0) {
     quitToMenu();
     return;
   }
@@ -918,7 +923,7 @@ function doLaunch(quick = false): void {
   if (state === "launching") return;
   // daily-only retry path (Fly again / Space): the attempt budget still
   // rules, except for a preview run, which never spends one.
-  if (DAILY_ONLY && pendingDaily && !PREVIEW_ACTIVE && dailyAttemptsLeft() <= 0) {
+  if (DAILY_ONLY && pendingDaily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE && dailyAttemptsLeft() <= 0) {
     quitToMenu();
     return;
   }
@@ -949,7 +954,7 @@ function startRun(): void {
   runGameMode = runIsDaily || runIsTraining ? "classic" : pendingGameMode;
   // an attempt is spent the moment a daily run starts (quitting mid-run
   // counts) — a preview run is sandboxed from the budget entirely
-  if (DAILY_ONLY && runIsDaily && !PREVIEW_ACTIVE) useDailyAttempt();
+  if (DAILY_ONLY && runIsDaily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE) useDailyAttempt();
   runRefunded = false;
   // PBs are per game mode — the NEW RECORD beat compares like-for-like
   bestScore = loadBestScore(runGameMode);
@@ -990,6 +995,7 @@ function startRun(): void {
   // Ground never reaches the game-over screen (no save-clip button to use it),
   // so skip it there rather than burn CPU for nothing.
   lastClipBlob = null;
+  lastClipReady = null;
   lastClipCapped = false;
   lastClipSidecar = null;
   lastClipBasename = null;
@@ -1125,7 +1131,7 @@ function onGameOver(): void {
     snapshotClipSidecar();
     const rec = activeRecording;
     activeRecording = null;
-    void rec.stop().then((blob) => {
+    lastClipReady = rec.stop().then((blob) => {
       lastClipBlob = blob;
       lastClipCapped = rec.hitCap;
     });
@@ -1151,7 +1157,24 @@ function onGameOver(): void {
 }
 
 async function emitNativePlayGameOver(medal: string | null): Promise<void> {
+  if (lastClipReady) {
+    await lastClipReady.catch(() => {});
+    lastClipReady = null;
+  }
   let sharePngBase64: string | null = null;
+  let clipBase64: string | null = null;
+  if (IS_NATIVE_PLAY && lastClipBlob && lastClipBlob.size < 12_000_000) {
+    clipBase64 = await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const s = String(reader.result ?? "");
+        const comma = s.indexOf(",");
+        resolve(comma >= 0 ? s.slice(comma + 1) : s);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(lastClipBlob as Blob);
+    });
+  }
   if (runIsDaily && lastRunShare && !runRefunded) {
     try {
       const blob = await renderShareCardPng({
@@ -1188,6 +1211,10 @@ async function emitNativePlayGameOver(medal: string | null): Promise<void> {
     medal,
     sharePngBase64,
     callsign: api.user?.callsign ?? null,
+    clipBase64,
+    clipBasename: lastClipBasename,
+    clipSidecar: lastClipSidecar ? JSON.stringify(lastClipSidecar) : null,
+    clipExt: lastClipBlob ? clipExtension(lastClipBlob) : null,
   });
 }
 
@@ -1323,6 +1350,7 @@ function submitRun(): void {
     gameMode: runGameMode,
     platform: isTouchDevice() ? "touch" : "desktop",
     daily: (runIsDaily && !runRefunded) || undefined,
+    dailyDate: runIsDaily && NATIVE_PATROL_DATE ? NATIVE_PATROL_DATE : undefined,
   };
   if (!api.signedIn) {
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget
@@ -1792,6 +1820,10 @@ void api.init().then(() => {
   applyCreatorAccess(api.clipInbox);
   if (IS_NATIVE_PLAY) {
     const training = NATIVE_PLAY === "training";
+    if (NATIVE_PATROL_DATE && NATIVE_PATROL_DATE > patrolDateStr() && !api.clipInbox) {
+      postNativeLeave();
+      return;
+    }
     beginLaunch(!training, "classic", training);
     return;
   }

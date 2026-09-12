@@ -69,6 +69,8 @@ enum PlayExit {
 
 final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate {
     var mode: PlayMode = .training
+    var patrolDate: String? = nil
+    var recordRuns = false
     var onExit: ((PlayExit) -> Void)?
     var onSession: ((String?, String?, String?) -> Void)?
 
@@ -130,6 +132,9 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         )
 
         var q = "nativePlay=\(mode.rawValue)"
+        if let patrolDate, !patrolDate.isEmpty {
+            q += "&date=\(patrolDate)"
+        }
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-QAAutoStick") { q += "&nativeAuto=stick" }
         if args.contains("-QATiltConfirm") { q += "&nativeAuto=tiltconfirm" }
@@ -243,6 +248,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         } else {
             attemptsJSON = "null"
         }
+        let record = recordRuns ? "true" : "false"
         return """
         (function(){
           try {
@@ -252,6 +258,11 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             if (t) localStorage.setItem('orion.session', t);
             if (g) localStorage.setItem('orion.guestSecret', g);
             if (a) localStorage.setItem('orion.dailyAttempts', a);
+            var raw = localStorage.getItem('orion.settings');
+            var s = {};
+            try { s = raw ? JSON.parse(raw) : {}; } catch (e) { s = {}; }
+            s.recordRuns = \(record);
+            localStorage.setItem('orion.settings', JSON.stringify(s));
           } catch (e) {}
         })();
         """
@@ -284,6 +295,10 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             if let b64 = body["sharePngBase64"] as? String, !b64.isEmpty {
                 png = Data(base64Encoded: b64)
             }
+            var clip: Data?
+            if let b64 = body["clipBase64"] as? String, !b64.isEmpty {
+                clip = Data(base64Encoded: b64)
+            }
             let result = GameResult(
                 mode: mode,
                 score: intValue(body["score"]),
@@ -291,7 +306,11 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
                 kills: intValue(body["kills"]),
                 medal: body["medal"] as? String,
                 sharePng: png,
-                callsign: body["callsign"] as? String
+                callsign: body["callsign"] as? String,
+                clipData: clip,
+                clipBasename: body["clipBasename"] as? String,
+                clipSidecar: body["clipSidecar"] as? String,
+                clipExt: body["clipExt"] as? String
             )
             finish(.finished(result))
         default:
@@ -370,13 +389,15 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
 }
 
 struct PlayView: UIViewControllerRepresentable {
-    let mode: PlayMode
+    let launch: PlayLaunch
     var onExit: (PlayExit) -> Void
     @EnvironmentObject private var model: AppModel
 
     func makeUIViewController(context: Context) -> PlayWebController {
         let vc = PlayWebController()
-        vc.mode = mode
+        vc.mode = launch.mode
+        vc.patrolDate = launch.date
+        vc.recordRuns = model.isAdmin && PreferencesStore.recordRuns
         vc.onExit = onExit
         vc.onSession = { token, secret, attempts in
             Task { @MainActor in

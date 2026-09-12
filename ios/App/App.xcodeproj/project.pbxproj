@@ -36,6 +36,16 @@
 		A100001B /* empire-of-the-stars.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B100001D /* empire-of-the-stars.mp3 */; };
 		A100001C /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100001E /* AuthenticationServices.framework */; };
 		A100001D /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100001F /* CoreMotion.framework */; };
+		A1000021 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* StoreKitManager.swift */; };
+		A1000022 /* TierViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000022 /* TierViews.swift */; };
+		A1000023 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000023 /* CalendarView.swift */; };
+		A1000024 /* PremiumSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000024 /* PremiumSheet.swift */; };
+		A1000025 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000025 /* AnalyticsView.swift */; };
+		A1000026 /* SquadronsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000026 /* SquadronsView.swift */; };
+		A1000027 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000027 /* FeedbackView.swift */; };
+		A1000028 /* ClipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000028 /* ClipStore.swift */; };
+		A1000029 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000029 /* StoreKit.framework */; };
+		A100002A /* Photos.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100002A /* Photos.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +82,16 @@
 		B100001E /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		B100001F /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
 		B1000020 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		B1000021 /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
+		B1000022 /* TierViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TierViews.swift; sourceTree = "<group>"; };
+		B1000023 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		B1000024 /* PremiumSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumSheet.swift; sourceTree = "<group>"; };
+		B1000025 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
+		B1000026 /* SquadronsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SquadronsView.swift; sourceTree = "<group>"; };
+		B1000027 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
+		B1000028 /* ClipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipStore.swift; sourceTree = "<group>"; };
+		B1000029 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		B100002A /* Photos.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Photos.framework; path = System/Library/Frameworks/Photos.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,6 +104,8 @@
 				A1000018 /* SafariServices.framework in Frameworks */,
 				A100001C /* AuthenticationServices.framework in Frameworks */,
 				A100001D /* CoreMotion.framework in Frameworks */,
+				A1000029 /* StoreKit.framework in Frameworks */,
+				A100002A /* Photos.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,6 +142,14 @@
 				B100000F /* WebPlay.swift */,
 				B100001B /* LobbyMusic.swift */,
 				B100001C /* NativeAuth.swift */,
+				B1000021 /* StoreKitManager.swift */,
+				B1000022 /* TierViews.swift */,
+				B1000023 /* CalendarView.swift */,
+				B1000024 /* PremiumSheet.swift */,
+				B1000025 /* AnalyticsView.swift */,
+				B1000026 /* SquadronsView.swift */,
+				B1000027 /* FeedbackView.swift */,
+				B1000028 /* ClipStore.swift */,
 				B1000020 /* App.entitlements */,
 				B100001D /* empire-of-the-stars.mp3 */,
 				B1000010 /* Assets.xcassets */,
@@ -141,6 +171,8 @@
 				B1000018 /* SafariServices.framework */,
 				B100001E /* AuthenticationServices.framework */,
 				B100001F /* CoreMotion.framework */,
+				B1000029 /* StoreKit.framework */,
+				B100002A /* Photos.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -245,6 +277,14 @@
 				A100000F /* WebPlay.swift in Sources */,
 				A1000019 /* LobbyMusic.swift in Sources */,
 				A100001A /* NativeAuth.swift in Sources */,
+				A1000021 /* StoreKitManager.swift in Sources */,
+				A1000022 /* TierViews.swift in Sources */,
+				A1000023 /* CalendarView.swift in Sources */,
+				A1000024 /* PremiumSheet.swift in Sources */,
+				A1000025 /* AnalyticsView.swift in Sources */,
+				A1000026 /* SquadronsView.swift in Sources */,
+				A1000027 /* FeedbackView.swift in Sources */,
+				A1000028 /* ClipStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
