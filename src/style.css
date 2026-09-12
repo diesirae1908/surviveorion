@@ -99,7 +99,43 @@
   --orion-dur-screen: 350ms;   /* .screen fadeIn */
   --orion-dur-fadeout: 700ms;  /* .screen.fade-out */
   --orion-dur-gameover: 1600ms;/* game over rising out of the death veil */
+  --orion-dur-pulse: 2400ms;
 
+  /* ---- Corner language (chamfer, never a rounded pill) ----------------- */
+  --orion-chamfer: 0.22;      /* corner cut as a fraction of the shorter side */
+  --orion-chamfer-lg: 12px;   /* cards, primary/secondary buttons */
+  --orion-chamfer-md: 8px;    /* chips, inputs, small buttons */
+  --orion-chamfer-sm: 6px;    /* pips, tiny badges */
+
+  /* ---- Spacing scale -------------------------------------------------- */
+  --orion-space-1: 6px;
+  --orion-space-2: 12px;
+  --orion-space-3: 18px;
+  --orion-space-4: 28px;
+  --orion-space-5: 44px;
+
+}
+
+/* One clip-path chamfer, size via --c. Clips the painted box including border. */
+.chamfer,
+.mutator-card,
+.preview-badge,
+.daily-board-wrap,
+.daily-board-search,
+button.primary,
+button.launch,
+.menu-mode-btn.training,
+.lobby-stack-btn,
+.share-btn,
+.small-btn,
+.corner-btn.settings-chip {
+  --c: var(--orion-chamfer-lg);
+  clip-path: polygon(
+    var(--c) 0, calc(100% - var(--c)) 0,
+    100% var(--c), 100% calc(100% - var(--c)),
+    calc(100% - var(--c)) 100%, var(--c) 100%,
+    0 calc(100% - var(--c)), 0 var(--c)
+  );
 }
 
 html,
@@ -200,7 +236,7 @@ body {
 }
 
 .title .wordmark-svg {
-  width: clamp(240px, 60vw, 474px);
+  width: clamp(260px, 72vw, 540px);
   height: auto;
   filter: drop-shadow(0 0 60px rgba(255, 215, 0, 0.25));
 }
@@ -340,7 +376,8 @@ button:active {
 }
 
 button.primary {
-  background: linear-gradient(180deg, var(--orion-gold) 0%, #ffaa00 50%, var(--orion-ingot) 100%);
+  --c: var(--orion-chamfer-lg);
+  background: var(--orion-gradient-gold);
   color: #1a1208;
   font-weight: bold;
   border-color: var(--orion-gold);
@@ -352,19 +389,24 @@ button.primary:active {
 }
 
 button.launch {
+  --c: var(--orion-chamfer-lg);
   font-size: 22px;
   padding: 20px 80px;
   letter-spacing: var(--orion-tracking-label);
-  animation: launchGlow 2.4s ease-in-out infinite;
+  animation: launchGlow var(--orion-dur-pulse) var(--orion-ease-out) infinite alternate;
+}
+
+button.launch:disabled {
+  animation: none;
+  filter: none;
 }
 
 @keyframes launchGlow {
-  0%,
-  100% {
-    box-shadow: 0 0 18px rgba(255, 215, 0, 0.25);
+  0% {
+    filter: drop-shadow(0 0 16px rgba(255, 215, 0, 0.28));
   }
-  50% {
-    box-shadow: 0 0 42px rgba(255, 215, 0, 0.55);
+  100% {
+    filter: drop-shadow(0 0 22px rgba(255, 215, 0, 0.36));
   }
 }
 
@@ -506,28 +548,69 @@ button.launch {
   text-shadow: 0 0 32px rgba(255, 215, 0, 0.35);
 }
 
+.mutator-card-wrap {
+  position: relative;
+  width: min(380px, 92vw);
+  z-index: 0;
+}
+
+.mutator-card-glow {
+  position: absolute;
+  inset: -16px;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.18), transparent 70%);
+  filter: blur(40px);
+  z-index: -1;
+  pointer-events: none;
+}
+
 /* daily lobby briefing card: mission dossier treatment */
 .mutator-card {
+  --c: var(--orion-chamfer-lg);
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  width: min(380px, 92vw);
-  padding: 8px 18px 10px;
-  border: 1px solid rgba(255, 215, 0, 0.18);
-  border-top: 2px solid rgba(255, 215, 0, 0.65);
-  background: rgba(20, 14, 4, 0.85);
+  width: 100%;
+  padding: var(--orion-space-3);
+  border: 1.5px solid rgba(255, 215, 0, 0.25);
+  background: var(--orion-deep-space);
+  overflow: hidden;
+}
+
+.mutator-card::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  width: 40px;
+  height: 40px;
+  background-image: url("../brand/assets/logo/orion-mark-gold.svg");
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.mutator-overline {
+  color: var(--orion-bronze);
+  font-size: 10px;
+  font-weight: var(--orion-weight-label);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
+  margin-bottom: 4px;
 }
 
 /* ?mutator= preview override badge, on the lobby briefing card */
 .preview-badge {
-  color: #1a1206;
-  background: var(--orion-alarm);
+  --c: var(--orion-chamfer-md);
+  color: var(--orion-alarm);
+  background: var(--orion-deep-space);
   font-size: 10px;
   font-weight: bold;
   letter-spacing: var(--orion-tracking-label);
   padding: 2px 8px;
-  border-radius: 3px;
+  border: 1px solid rgba(255, 68, 85, 0.6);
   text-shadow: none;
 }
 
@@ -566,12 +649,14 @@ button.launch {
 }
 
 .mutator-name {
-  color: var(--orion-gold);
-  font-size: 16px;
+  background: var(--orion-gradient-gold);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: clamp(26px, 7vw, 32px);
   font-weight: bold;
   letter-spacing: var(--orion-tracking-display);
   text-transform: uppercase;
-  text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
 }
 
 .mutator-briefing {
@@ -593,9 +678,9 @@ button.launch {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  margin-top: 4px;
-  padding-top: 8px;
+  gap: var(--orion-space-2);
+  margin-top: var(--orion-space-1);
+  padding-top: var(--orion-space-2);
   border-top: 1px solid rgba(170, 136, 68, 0.3);
   width: 100%;
 }
@@ -641,29 +726,33 @@ button.launch {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-/* attempt pips: ammo-count HUD on a visible track */
+/* attempt pips: chamfered diamonds on a visible track */
 .attempt-pips {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: var(--orion-space-2);
   margin: 2px 0 2px;
-  padding: 8px 22px;
+  padding: var(--orion-space-2) var(--orion-space-3);
   width: min(280px, 80vw);
   background: rgba(255, 215, 0, 0.03);
   border: 1px solid rgba(255, 215, 0, 0.12);
 }
 
-.attempt-pips .pip {
-  color: var(--orion-gold);
-  font-size: 26px;
-  text-shadow: 0 0 18px rgba(255, 215, 0, 0.75);
+.attempt-pips .pip,
+.pip {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transform: rotate(45deg);
+  clip-path: polygon(28% 0, 100% 0, 100% 72%, 72% 100%, 0 100%, 0 28%);
+  background: var(--orion-gradient-gold);
 }
 
-.attempt-pips .pip.spent {
-  color: #5a1822;
-  font-size: 26px;
-  text-shadow: 0 0 8px rgba(196, 30, 58, 0.3);
+.attempt-pips .pip.spent,
+.pip.spent {
+  background: var(--orion-bronze);
+  opacity: 0.35;
 }
 
 .attempt-pips .pips-label {
@@ -671,6 +760,12 @@ button.launch {
   color: var(--orion-brass);
   font-size: 13px;
   letter-spacing: var(--orion-tracking-display);
+}
+
+.attempt-pips .pips-label.complete {
+  color: var(--orion-alarm);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
 }
 
 /* today's-leader line on the lobby (same id as the menu daily hint) */
@@ -717,20 +812,25 @@ button.launch {
   color: var(--orion-gold);
 }
 
-/* inline daily-lobby leaderboard: zone separator + community board */
+/* inline daily-lobby leaderboard: secondary card, hull-line not gold */
 .daily-board-wrap {
+  --c: var(--orion-chamfer-lg);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--orion-space-2);
   width: min(420px, 92vw);
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(170, 136, 68, 0.2);
+  margin-top: var(--orion-space-1);
+  padding: var(--orion-space-3);
+  background: var(--orion-deep-space);
+  border: 1px solid var(--orion-hull-line);
 }
 
 .daily-board-search {
+  --c: var(--orion-chamfer-md);
   width: 100%;
   margin-bottom: 2px;
+  background: var(--orion-void);
+  border: 1px solid var(--orion-hull-line);
 }
 
 .board-row .device {
@@ -997,19 +1097,34 @@ button.launch {
   }
 }
 
-/* Training Ground card: the sparring room, bronze instead of gold */
-.menu-mode-btn.training {
+/* Training Ground + daily lobby secondary stack: chamfered outline */
+.menu-mode-btn.training,
+.lobby-stack-btn {
+  --c: var(--orion-chamfer-lg);
+  position: relative;
+  width: min(380px, 92vw);
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 7px 22px;
+  padding: var(--orion-space-2) var(--orion-space-3);
+  font-family: inherit;
   font-size: 12px;
+  font-weight: 600;
   letter-spacing: var(--orion-tracking-label);
-  border: 1px solid rgba(170, 136, 68, 0.3);
-  background: transparent;
-  color: var(--orion-bronze);
+  text-transform: uppercase;
+  text-decoration: none;
+  text-align: center;
+  border: 1px solid var(--orion-gold);
+  background: var(--orion-deep-space);
+  color: var(--orion-gold);
+  cursor: pointer;
+}
+
+a.lobby-stack-btn {
+  box-sizing: border-box;
 }
 
 .menu-mode-btn.training .daily-name {
@@ -1035,6 +1150,7 @@ button.launch {
 }
 
 .share-btn {
+  --c: var(--orion-chamfer-lg);
   min-width: 0;
   padding: 10px 30px;
   font-size: 14px;
@@ -1123,6 +1239,18 @@ a.share-btn:active {
   letter-spacing: var(--orion-tracking-body);
 }
 
+.corner-btn.settings-chip {
+  --c: var(--orion-chamfer-md);
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: var(--orion-weight-label);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
+  color: var(--orion-gold);
+  background: var(--orion-deep-space);
+  border: 1px solid var(--orion-hull-line);
+}
+
 .corner-btn:hover {
   color: var(--orion-gold);
 }
@@ -1206,6 +1334,7 @@ a.share-btn:active {
   font-size: 11px;
   letter-spacing: var(--orion-tracking-label);
   margin-right: -0.14em;
+  text-transform: uppercase;
 }
 
 .manual {
@@ -1508,9 +1637,10 @@ button.link-btn:active {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
+  padding: var(--orion-space-2);
   background: rgba(26, 26, 42, 0.7);
-  border: 1px solid rgba(170, 136, 68, 0.25);
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--orion-hull-line) 40%, transparent);
   color: var(--orion-flare);
   font-size: 14px;
   text-align: left;
@@ -1859,9 +1989,37 @@ button.link-btn:active {
 }
 
 .small-btn {
+  --c: var(--orion-chamfer-md);
   min-width: 0;
   padding: 9px 26px;
   font-size: 13px;
+}
+
+.app-store-cta {
+  text-transform: none;
+  letter-spacing: var(--orion-tracking-body);
+}
+
+.app-store-cta .daily-name {
+  color: var(--orion-starlight);
+  font-size: 14px;
+  font-weight: var(--orion-weight-label);
+  letter-spacing: var(--orion-tracking-body);
+  text-transform: none;
+}
+
+.app-store-cta .daily-sub {
+  color: var(--orion-bronze);
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: var(--orion-tracking-body);
+}
+
+.lobby-stack-btn .notif-dot {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  margin-left: 0;
 }
 
 #pause-btn {

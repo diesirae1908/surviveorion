@@ -4,6 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 PT: Web lobby native-parity restyle + App Store CTA
+
+- Isolated `.worktrees/feat-web-native-parity` from `origin/main`. Dirty main checkout untouched. Pushed `feat/web-native-parity` only. No `dev`/`main` push.
+- Spec: `Sam/reports/orion-web-native-parity-design-2026-09-12.md`. Lobby chrome only (`src/style.css`, `src/ui.ts`). In-run HUD / canvas untouched. No Premium / StoreKit / rename.
+
+**Matched:** chamfer tokens + `.chamfer` clip-path; mark+wordmark header (inlined from `orion-logo-horizontal-gold.svg`); SETTINGS chip; DAILY PATROL / PATROL #N labels; TODAY'S BRIEFING overline; gold-gradient mutator name; faint mark watermark + one gold glow; chamfered attempt pips; spent-day "Patrol complete" in alarm; Launch Patrol + gold-gradient + idle pulse (drop-shadow, stops when disabled); Training Ground / Patrol Calendar / Wingmates / App Store / Feedback stack; How to play + Powers stay in `.menu-row`; Privacy stays footer-tier; board card hull-line (no gold glow); chamfered search well.
+
+**App Store:** `https://apps.apple.com/app/id6811113450`, `target="_blank" rel="noopener"`. Copy: "Get ORION on iPhone" / "Daily reminder on your phone". `APP_STORE_LIVE = true` so the link ships (parent brief: ship even if the listing is not public yet). Flip the flag to hide.
+
+**Deviations / left for later:**
+- §3 live countdown + one-line rules reminder not built (spec flagged as a scope question).
+- Wordmark is inlined SVG, not a Vite `?url` import: `tsx` tests that load `ui.ts` cannot resolve `.svg`.
+- `.daily-locked` is text-only, no box to chamfer.
+- SETTINGS chip also on the full-game menu (same header control).
+
+**Verify:** `npm run build` green. `npm test` green. Screenshots `qa-evidence/web-parity/01-lobby-desktop.png`, `02-lobby-phone.png`, `03-lobby-phone-actions.png`. Tripwire: no scoring / mutators / CORS / auth changes.
+
 ## 2026-09-12 PT: Free / Premium / Admin LIVE
 
 - Lucas: yes, promote the Free/Premium/Admin server slice to live so TestFlight can use archive, premium, and admin APIs.

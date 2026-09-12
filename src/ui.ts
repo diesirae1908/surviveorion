@@ -33,6 +33,10 @@ import {
   setNativeNotifStreak,
 } from "./native";
 
+/** Flip false to hide the App Store CTA. Listing: apps.apple.com/app/id6811113450 */
+const APP_STORE_LIVE = true;
+const APP_STORE_URL = "https://apps.apple.com/app/id6811113450";
+
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
   /** Launch today's Daily Patrol (shared-seed run, daily board — always Classic). */
@@ -314,8 +318,6 @@ function fmtScoreShort(n: number): string {
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
 export class Ui {
-  private static wordmarkSeq = 0;
-
   private root: HTMLElement;
   private pauseBtn: HTMLButtonElement;
   private dailyBoardFull: DailyBoardRow[] | null = null;
@@ -549,17 +551,22 @@ export class Ui {
     return e;
   }
 
-  /** Kit wordmark (`brand/assets/logo/orion-wordmark.svg`) for screen titles. */
+  /** Combined mark + wordmark (`brand/assets/logo/orion-logo-horizontal-gold.svg`). */
   private wordmarkTitle(): HTMLElement {
-    const gradId = `orion-wordmark-grad-${++Ui.wordmarkSeq}`;
     const wrap = document.createElement("div");
     wrap.className = "title";
     wrap.innerHTML =
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 431 100" role="img" aria-label="ORION" class="wordmark-svg">` +
-      `<defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">` +
-      `<stop offset="0" stop-color="#ffee88"/><stop offset="0.55" stop-color="#ffd700"/><stop offset="1" stop-color="#cc8800"/>` +
-      `</linearGradient></defs>` +
-      `<g fill="url(#${gradId})" fill-rule="evenodd">` +
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 603 128" role="img" aria-label="ORION" class="wordmark-svg">` +
+      `<g transform="translate(0,0) scale(1.28)">` +
+      `<g fill="none" stroke="#ffd700" stroke-width="10">` +
+      `<path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/>` +
+      `<path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>` +
+      `<path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/>` +
+      `<path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>` +
+      `</g>` +
+      `<circle cx="50" cy="50" r="15" fill="#c41e3a"/>` +
+      `</g>` +
+      `<g transform="translate(172,14)" fill="#ffd700" fill-rule="evenodd">` +
       `<path transform="translate(0,0)" d="M22 0 L56 0 L78 22 L78 78 L56 100 L22 100 L0 78 L0 22 Z M30 22 L48 22 L56 30 L56 70 L48 78 L30 78 L22 70 L22 30 Z"/>` +
       `<path transform="translate(104,0)" d="M0 0 L56 0 L78 22 L78 38 L58 60 L78 100 L48 100 L28 60 L22 60 L22 100 L0 100 Z M22 20 L46 20 L56 30 L46 40 L22 40 Z"/>` +
       `<path transform="translate(203,0)" d="M0 0 L22 0 L22 100 L0 100 Z"/>` +
@@ -567,6 +574,32 @@ export class Ui {
       `<path transform="translate(353,0)" d="M0 22 L22 0 L24 0 L56 58 L56 0 L78 0 L78 78 L56 100 L54 100 L22 42 L22 100 L0 100 Z"/>` +
       `</g></svg>`;
     return wrap;
+  }
+
+  private settingsChip(onClick: () => void): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "corner-btn settings-chip chamfer";
+    btn.title = "Settings";
+    btn.textContent = "Settings";
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  private lobbyStackButton(
+    label: string,
+    onClick: () => void,
+    opts?: { sub?: string; notif?: boolean; extraClass?: string },
+  ): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `menu-mode-btn training lobby-stack-btn chamfer${opts?.extraClass ? ` ${opts.extraClass}` : ""}`;
+    btn.innerHTML = opts?.sub
+      ? `<span class="daily-name">${escapeHtml(label)}</span><span class="daily-sub">${escapeHtml(opts.sub)}</span>`
+      : `<span class="daily-name">${escapeHtml(label)}</span>`;
+    if (opts?.notif) btn.appendChild(this.el("span", "notif-dot", ""));
+    btn.addEventListener("click", onClick);
+    return btn;
   }
 
   /** Share-result button with inline outcome feedback (Shared! / Copied!). */
@@ -580,7 +613,7 @@ export class Ui {
         setTimeout(() => (btn.textContent = "Share result"), 1600);
       });
     });
-    btn.classList.add("share-btn");
+    btn.classList.add("share-btn", "chamfer");
     return btn;
   }
 
@@ -628,11 +661,14 @@ export class Ui {
     preview?: boolean,
     previewDate?: string,
   ): HTMLElement {
-    const card = this.el("div", "mutator-card", "");
+    const wrap = this.el("div", "mutator-card-wrap", "");
+    wrap.appendChild(this.el("div", "mutator-card-glow", ""));
+    const card = this.el("div", "mutator-card chamfer", "");
     if (preview) {
       const label = previewDate ? `PREVIEW · ${previewDate}` : "PREVIEW";
-      card.appendChild(this.el("div", "preview-badge", label));
+      card.appendChild(this.el("div", "preview-badge chamfer", label));
     }
+    card.appendChild(this.el("div", "mutator-overline", "Today's briefing"));
     for (const m of mutators) {
       card.appendChild(
         this.el(
@@ -653,7 +689,8 @@ export class Ui {
           `<span class="medal-pip gold">🥇 ${fmtScoreShort(thresholds.gold)}</span>`,
       ),
     );
-    return card;
+    wrap.appendChild(card);
+    return wrap;
   }
 
   /** Lucas-only: pick a future patrol to record before it goes live. */
@@ -781,15 +818,11 @@ export class Ui {
       screen.appendChild(badge);
     }
 
-    // settings gear (toggles + controls live behind it)
-    const gear = document.createElement("button");
-    gear.className = "corner-btn";
-    gear.title = "Settings";
-    gear.innerHTML = "&#9881;";
-    gear.addEventListener("click", () =>
-      this.showSettings(touchDevice, () => this.showMenu(bestScore, touchDevice, community), community),
+    screen.appendChild(
+      this.settingsChip(() =>
+        this.showSettings(touchDevice, () => this.showMenu(bestScore, touchDevice, community), community),
+      ),
     );
-    screen.appendChild(gear);
 
     this.root.appendChild(screen);
   }
@@ -820,9 +853,6 @@ export class Ui {
     }
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
-    const calendarLink = this.el("button", "link-btn calendar-link", "See previous patrols");
-    calendarLink.addEventListener("click", () => this.cb.onPatrolCalendar());
-    screen.appendChild(calendarLink);
     // pre-launch-gate days carry no mutators and no thresholds (see
     // mutators.ts MUTATORS_START_DATE): skip the card entirely so the lobby
     // looks exactly like it did before this feature shipped.
@@ -845,13 +875,13 @@ export class Ui {
     } else {
       const pipsRow = this.el("div", "attempt-pips", "");
       for (let i = 0; i < info.maxAttempts; i++) {
-        pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, "◆"));
+        pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, ""));
       }
       pipsRow.appendChild(
         this.el(
           "span",
-          "pips-label",
-          info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "done for today",
+          info.attemptsLeft > 0 ? "pips-label" : "pips-label complete",
+          info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "Patrol complete",
         ),
       );
       screen.appendChild(pipsRow);
@@ -868,8 +898,8 @@ export class Ui {
         this.el("div", "daily-locked", "Daily Patrol is offline."),
       );
     } else if (info.preview || info.attemptsLeft > 0) {
-      const launch = this.button("Launch", true, () => this.cb.onDaily());
-      launch.classList.add("launch");
+      const launch = this.button("Launch Patrol", true, () => this.cb.onDaily());
+      launch.classList.add("launch", "chamfer");
       screen.appendChild(launch);
       if (!info.preview && info.attemptsLeft === 1) {
         screen.appendChild(
@@ -902,12 +932,12 @@ export class Ui {
     // loads. Placed before utility buttons so it's reachable without deep
     // scrolling on mobile.
     if (info.online) {
-      const boardWrap = this.el("div", "daily-board-wrap", "");
+      const boardWrap = this.el("div", "daily-board-wrap chamfer", "");
       boardWrap.id = "daily-lobby-board-wrap";
       boardWrap.appendChild(this.el("div", "manual-title", "TODAY'S BOARD"));
       const search = document.createElement("input");
       search.type = "search";
-      search.className = "field daily-board-search";
+      search.className = "field daily-board-search chamfer";
       search.placeholder = "Search callsign…";
       search.id = "daily-board-search";
       search.autocomplete = "off";
@@ -923,46 +953,61 @@ export class Ui {
       screen.appendChild(boardWrap);
     }
 
-    const training = this.el("button", "menu-mode-btn training", "");
+    const training = this.el("button", "menu-mode-btn training chamfer", "");
     training.innerHTML =
       `<span class="daily-name">✦ Training Ground</span>` +
       `<span class="daily-sub">free practice, unlimited</span>`;
     training.addEventListener("click", () => this.cb.onTraining());
     screen.appendChild(training);
 
+    screen.appendChild(
+      this.lobbyStackButton("Patrol Calendar", () => this.cb.onPatrolCalendar()),
+    );
+    screen.appendChild(
+      this.lobbyStackButton("Wingmates", () => this.cb.onFriends(), {
+        notif: (info.pendingFriends ?? 0) > 0,
+      }),
+    );
+    if (APP_STORE_LIVE) {
+      const store = document.createElement("a");
+      store.className = "menu-mode-btn training lobby-stack-btn chamfer app-store-cta";
+      store.href = APP_STORE_URL;
+      store.target = "_blank";
+      store.rel = "noopener";
+      store.innerHTML =
+        `<span class="daily-name">Get ORION on iPhone</span>` +
+        `<span class="daily-sub">Daily reminder on your phone</span>`;
+      screen.appendChild(store);
+    }
+    screen.appendChild(
+      this.lobbyStackButton("Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
+    );
+
     const learnRow = this.el("div", "menu-row", "");
     const howTo = this.button("How to play", false, () => this.cb.onTutorial());
-    howTo.classList.add("small-btn");
+    howTo.classList.add("small-btn", "chamfer");
     learnRow.appendChild(howTo);
     const powers = this.button("Powers", false, () => this.showPowers(() => this.showDailyLobby(info)));
-    powers.classList.add("small-btn");
+    powers.classList.add("small-btn", "chamfer");
     learnRow.appendChild(powers);
     screen.appendChild(learnRow);
 
-    // footer: the feedback channel. (The /fullgame door still exists by URL,
-    // but is unlisted while the daily is the public face.)
+    // Privacy stays footer-tier (legal, not a promoted action).
     const footer = this.el("div", "lobby-footer", "");
-    const feedback = this.el("button", "full-game-link", "Feedback");
-    feedback.addEventListener("click", () =>
-      this.showFeedback(() => this.showDailyLobby(info)),
-    );
     const privacy = this.el("button", "full-game-link", "Privacy");
     privacy.addEventListener("click", () => openPrivacyPolicy());
-    footer.append(feedback, privacy);
+    footer.append(privacy);
     screen.appendChild(footer);
 
-    const gear = document.createElement("button");
-    gear.className = "corner-btn";
-    gear.title = "Settings";
-    gear.innerHTML = "&#9881;";
-    gear.addEventListener("click", () =>
-      this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
-        callsign: info.callsign,
-        pendingFriends: info.pendingFriends,
-        clipInbox: info.creator,
-      }),
+    screen.appendChild(
+      this.settingsChip(() =>
+        this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
+          callsign: info.callsign,
+          pendingFriends: info.pendingFriends,
+          clipInbox: info.creator,
+        }),
+      ),
     );
-    screen.appendChild(gear);
 
     this.root.appendChild(screen);
   }
@@ -1092,7 +1137,7 @@ export class Ui {
   /**
    * Patrol history calendar: a month at a time, Sunday-start grid, tap a
    * day for its mutator(s) and result. Reached from the daily lobby's
-   * discreet "See previous patrols" link.
+   * Patrol Calendar button.
    */
   showPatrolCalendar(
     month: PatrolCalendarMonth,
