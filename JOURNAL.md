@@ -22,6 +22,8 @@ Lucas TestFlight 1.0 (4) notes plus a chat ask for board flags. Isolated worktre
 
 **Follow-ups:** Sam owns archive / TestFlight.
 
+Commit `6ad6964`.
+
 ## 2026-09-11 PT: TestFlight 1.0 (3) native play fixes
 
 Lucas filed 8 notes after TestFlight 1.0 (3). Isolated worktree `.worktrees/feat-ios-native` from `76f9296`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.
