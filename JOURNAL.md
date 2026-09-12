@@ -30,6 +30,8 @@ Lucas rejected TestFlight 1.0 (2) Home / Settings / Game Over as stock Settings-
 
 **Follow-ups:** Sam owns archive/upload. `npm run build` before `xcodebuild`.
 
+Commit `82de8a4`.
+
 ## 2026-09-11 PT: SwiftUI host + bundled play canvas
 
 Lucas: not a Capacitor wrapper, a real iOS app. Isolated worktree
