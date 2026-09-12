@@ -6,7 +6,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 ## 2026-09-12 PT: Web lobby native-parity restyle + App Store CTA
 
-- Isolated `.worktrees/feat-web-native-parity` from `origin/main`. Dirty main checkout untouched. Pushed `feat/web-native-parity` only. No `dev`/`main` push.
+- Isolated `.worktrees/feat-web-native-parity` from `origin/main`. Dirty main checkout untouched. Pushed `feat/web-native-parity` only (`57e3309`). No `dev`/`main` push.
 - Spec: `Sam/reports/orion-web-native-parity-design-2026-09-12.md`. Lobby chrome only (`src/style.css`, `src/ui.ts`). In-run HUD / canvas untouched. No Premium / StoreKit / rename.
 
 **Matched:** chamfer tokens + `.chamfer` clip-path; mark+wordmark header (inlined from `orion-logo-horizontal-gold.svg`); SETTINGS chip; DAILY PATROL / PATROL #N labels; TODAY'S BRIEFING overline; gold-gradient mutator name; faint mark watermark + one gold glow; chamfered attempt pips; spent-day "Patrol complete" in alarm; Launch Patrol + gold-gradient + idle pulse (drop-shadow, stops when disabled); Training Ground / Patrol Calendar / Wingmates / App Store / Feedback stack; How to play + Powers stay in `.menu-row`; Privacy stays footer-tier; board card hull-line (no gold glow); chamfered search well.
