@@ -3,6 +3,7 @@
 // thrown ApiError with a user-readable message.
 
 import type { GameMode } from "./config";
+import { apiBase } from "./native";
 
 export interface UserInfo {
   callsign: string;
@@ -159,6 +160,8 @@ export class Api {
   hasPassword = true;
   /** Lucas-only clip inbox + future-day rehearsal. Set from GET /api/me. */
   clipInbox = false;
+  tier: "free" | "premium" | "admin" = "free";
+  premiumActive = false;
   /** false once a request fails to reach the server at all. */
   online = true;
 
@@ -173,7 +176,7 @@ export class Api {
 
     let res: Response;
     try {
-      res = await fetch(path, {
+      res = await fetch(`${apiBase()}${path}`, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -211,12 +214,16 @@ export class Api {
           hasPassword?: boolean;
           joinedAt?: number;
           clipInbox?: boolean;
+          tier?: "free" | "premium" | "admin";
+          premiumActive?: boolean;
         }>("GET", "/api/me");
         this.user = me.user;
         this.pendingFriends = me.pendingFriends ?? 0;
         this.hasPassword = me.hasPassword ?? true;
         this.joinedAt = me.joinedAt ?? null;
         this.clipInbox = !!me.clipInbox;
+        this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
+        this.premiumActive = !!me.premiumActive || this.clipInbox;
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;
@@ -290,20 +297,48 @@ export class Api {
     } catch {
       // best effort — clear locally regardless
     }
+    this.clearLocalSession();
+  }
+
+  private clearLocalSession(): void {
     this.token = null;
     this.user = null;
     this.clipInbox = false;
+    this.tier = "free";
+    this.premiumActive = false;
+    this.hasPassword = true;
+    this.joinedAt = null;
+    this.pendingFriends = 0;
     localStorage.removeItem(TOKEN_KEY);
+  }
+
+  /**
+   * In-app account deletion (App Store 5.1.1(v)). Wipes the server row
+   * (scores, badges, friends cascade) and the local session. Guest secret
+   * stays on device so a later guest signup is a new account, not a reclaim.
+   */
+  async deleteAccount(): Promise<void> {
+    await this.request("DELETE", "/api/me");
+    this.clearLocalSession();
+    localStorage.removeItem(GUEST_SECRET_KEY);
   }
 
   async refreshClipInbox(): Promise<void> {
     if (!this.token) {
       this.clipInbox = false;
+      this.tier = "free";
+      this.premiumActive = false;
       return;
     }
     try {
-      const me = await this.request<{ clipInbox?: boolean }>("GET", "/api/me");
+      const me = await this.request<{
+        clipInbox?: boolean;
+        tier?: "free" | "premium" | "admin";
+        premiumActive?: boolean;
+      }>("GET", "/api/me");
       this.clipInbox = !!me.clipInbox;
+      this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
+      this.premiumActive = !!me.premiumActive || this.clipInbox;
     } catch {
       this.clipInbox = false;
     }
@@ -322,7 +357,7 @@ export class Api {
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     let res: Response;
     try {
-      res = await fetch("/api/clip-inbox", { method: "POST", headers, body: fd });
+      res = await fetch(`${apiBase()}/api/clip-inbox`, { method: "POST", headers, body: fd });
       this.online = true;
     } catch {
       this.online = false;
@@ -354,6 +389,8 @@ export class Api {
     platform: string;
     /** true for Daily Patrol runs (server files it on today's board too). */
     daily?: boolean;
+    /** Past-day / rehearsal Daily (server gates: premium for past, admin for future). */
+    dailyDate?: string;
   }): Promise<SubmitResult> {
     return this.request<SubmitResult>("POST", "/api/scores", run);
   }

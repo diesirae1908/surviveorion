@@ -42,7 +42,7 @@ export class Popups {
       const s = p.size / 32;
       ctx.scale(s, -s);
       ctx.globalAlpha = alpha;
-      ctx.font = "bold 32px Georgia, serif";
+      ctx.font = "700 32px Rajdhani, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.shadowColor = p.color;

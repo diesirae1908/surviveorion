@@ -4,6 +4,43 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 PT: Native Free / Premium / Admin + server gates
+
+Lucas: "go for eeeeeverything." Isolated worktree `.worktrees/feat-ios-native` from `17b84aa`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No Render deploy. No App Store Connect / archive.
+
+**Product model:** Free = today Daily (3 attempts) + Training + board + share + feedback + calendar browse. Past-day full-score replay is Patrol Archive. Premium = Free + archive replays + Analytics + Squadrons/Wingmates. Admin = clip-inbox allowlist or `users.role='admin'` (not IAP): Premium plus future/rehearsal days + Record/Save clip. Today Daily always free.
+
+**Server (additive, this branch only):**
+- `users.role` (default `free`), `premium_until`, `premium_product_id`, `premium_transaction_id` (same ALTER pattern as `apple_sub`).
+- `GET /api/me` now returns `tier`, `premiumActive`, `clipInbox`.
+- `POST /api/scores` accepts optional `dailyDate`. Today always allowed under the 3-attempt rule. Past date without premium/admin → 403 `PREMIUM_REQUIRED`. Future date without admin → 403 `CREW_REQUIRED`.
+- `POST /api/me/premium` verifies StoreKit 2 JWS via x5c ES256 + Apple issuer check (no extra deps). Unverified transaction ids are **not** trusted unless `ORION_PREMIUM_SANDBOX=1`. Tripwire honored: no production-trust-without-verify.
+- `GET /api/patrol-mutators?from=&to=` returns names; free/premium clamped to today; admin +14 days (web Crew Rehearsal horizon). Reads bundled `mutator-schedule.json`.
+- `GET /api/friends/leaderboard?date=` returns that day's squadron board (wingmates with no run still appear). Existing mode/gameMode path unchanged.
+- Feedback unchanged: Bearer session works on `POST /api/feedback`.
+
+**Native (spec `orion-ios-tiers-design-spec-2026-09-12.md`):**
+- Patrol Calendar, Patrol Archive sheet (monthly `com.surviveorion.app.premium.monthly` $4.99 / yearly `…yearly` $29.99), Analytics, Squadrons/Wingmates, Pilot Debrief feedback, Settings tier badge + Manage/Restore + extras, Crew Tools (admin only).
+- StoreKit 2: purchase, restore, `Transaction.updates`. Persists locally and POSTs signed JWS to `/api/me/premium`. Simulator/MISSING_METADATA degrades to "Premium unavailable".
+- DEBUG `-QAPremium` grants Premium locally without StoreKit or Daily spend (QA only, does not tell live server).
+- WebPlay: `?nativePlay=daily&date=YYYY-MM-DD` for archive/rehearsal. Website without the query unchanged. Archive dates do not spend today's attempt. Future dates leave unless `clipInbox`.
+- Record: Settings toggle injects `orion.settings.recordRuns`. Game Over Save Clip / Send to Inbox when a clip arrives on the native bridge. Photos add-only usage string. Training still skips record.
+
+**Tests:** `scripts/test-premium-gates.mjs` (tier + past/future score gates + mutator clamp). `test-native-play` covers `date=`. `npm run build` green. `npm test` green.
+
+**Verify:** Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. Screenshots `qa-evidence/tiers/`. Training Ground not spent. No Daily play in this pass.
+
+**Untested / device-only:** real StoreKit sandbox purchase, Photos save, Send to Inbox upload, live feedback Transmit tap, past-day score submit against live (server not deployed), Admin future days (needs allowlisted session), mid-run record HUD on device.
+
+**Follow-ups (Sam):**
+1. Deploy this branch before TestFlight can use `/api/me` tier, past-day submits, or `/api/me/premium`. Live still stamps today-only until then.
+2. ASC product metadata (MISSING_METADATA) so StoreKit loads in sandbox.
+3. Full App Store Server Library / Apple root-chain verify before trusting production IAP (current verify is x5c leaf + Apple issuer; `ORION_PREMIUM_SANDBOX=1` is the documented interim).
+4. Terms URL stub (Privacy works). Lifetime $49.99 omitted (not in ASC).
+5. Archive / TestFlight is Sam's.
+
+Commit `98ed195`.
+
 ## 2026-09-11 PT: CORS + in-app delete LIVE
 
 - Lucas: yes, promote server-only CORS + DELETE /api/me to live so the TestFlight app can talk to the daily board.
@@ -12,6 +49,212 @@ why, commit hash, follow-ups), committed together with the work. See
 - `DELETE /api/me` requires a signed-in session (401 otherwise) and `rateLimit(delete:<id>, 3)`. Existing rate-limit keys and `DAILY_MAX_ATTEMPTS = 3` unchanged.
 - Tests: `test:cors-origins` PASS, `test:account-delete` PASS, plus server-daily-history, serve-static, notion-clips, daily-combined-rank, daily-bots. clip-inbox hung on a later pre-existing stranger-upload check after its CORS-related PASSes.
 - Commit `3f07a35` on `main`. Follow-up: optionally cherry-pick onto `origin/dev` so staging has the same CORS. Watch Render `surviveorion` for this SHA.
+
+## 2026-09-11 PT: TestFlight 1.0 (4) tilt confirm, share, flags
+
+Lucas TestFlight 1.0 (4) notes plus a chat ask for board flags. Isolated worktree `.worktrees/feat-ios-native` from `a4ab40e`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.
+
+**1 Tilt confirm + mid-run recalibrate / mode switch:** Tilt pick now shows HOLD YOUR POSITION (Confirm / Cancel) before Core Motion starts. Cancel returns to the control picker. Confirm captures neutral via the existing `enableTilt` / `requestMotion` path. Native pause menu (when `isNativePlay()`) adds Recalibrate tilt (already there when on tilt) plus Switch to touch / Switch to tilt. Switching TO tilt reuses the same confirm. Website pause is unchanged. Mid-run switch changes flight only: `runMode` stays whatever `startRun` captured, so it does not spend a Daily attempt or fork the board. `TiltControl.stop()` + `stopMotion` bridge when leaving tilt.
+
+**2 Share:** Game Over Share always shows (PNG + text, or text only). Text is score / survived / medal / callsign. Presented from a host VC inside the game-over sheet so the activity sheet is not swallowed. Copy is on the sheet. No third-party SDKs.
+
+**3 Country flags:** `OrionFormat.flag(country:)` builds a regional-indicator emoji from a 2-letter ISO code (empty/invalid → nothing). Home Today's Board and Full Board show the flag next to the callsign. Ghost rows use a flag only when `country` is present.
+
+**Tripwire:** mode switch does not restart, does not call `useDailyAttempt`, does not rewrite `runMode`.
+
+**Verify:** `npm run build` green. `npm test` green. Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. Training Ground only. Screenshots in `qa-evidence/tf-fixes-2/`.
+
+**Untested / device-only:** real Core Motion streaming and Motion permission sheet, mid-run tilt switch on a physical phone, Daily share PNG (fixture was Training text-only), Instagram/Messages shortcuts on device.
+
+**Follow-ups:** Sam owns archive / TestFlight.
+
+Commit `6ad6964`.
+
+## 2026-09-11 PT: TestFlight 1.0 (3) native play fixes
+
+Lucas filed 8 notes after TestFlight 1.0 (3). Isolated worktree `.worktrees/feat-ios-native` from `76f9296`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.
+
+**1 Quit → Home:** pause Main menu now `postNativeLeave()` and tears down the play WKWebView. `showMenu()` in native play no longer calls `hideAll()` (that put the pause button back on an empty starfield). Game over dismisses the cover first, then the native sheet. Screenshot `qa-evidence/tf-fixes/07-quit-clean-home.png`.
+
+**2 Landscape / canvas:** play WebView is edge-pinned; `syncViewport` injects `__orionViewport` + safe-area CSS and fires resize on layout and rotation. `render.resize` prefers that, then `visualViewport`. Portrait Training fills the screen (`05-training-run.png`). Simulator rotation not captured (no assistive access, no simctl rotate).
+
+**3 Tilt:** Core Motion (`CMMotionManager`) on Tilt pick only, streamed as `oriontilt`. Blocked-motion copy uses iOS Motion & Fitness when `isNativePlay()`. Simulator: device-only (no Motion permission sheet).
+
+**4 Background pause:** `willResignActive` posts `orion-native-pause`. Run stays paused; no auto-resume on foreground. Native play also skips the web `visibilitychange` music resume.
+
+**5–6 Board:** Home shows top 5 with score + survived time. Full Board shows time and Desktop / Touch / Tilt / Ghost. API already returned `bestTime` + `mode` + `virtual`.
+
+**7 Controls copy:** dropped "Tilt is our tribute to Tilt to Live." Same string in `src/ui.ts` (website + native canvas). Tip that remains: hold the phone at a comfortable angle before tapping.
+
+**8 Home music:** loops bundled `public/music/empire-of-the-stars.mp3` (website menu bed) on Home / Board / Settings. Pauses when a run starts, restores when the play cover dismisses.
+
+**9 Stargate SFX:** same `audio.warp` visual; quieter sine envelope, shorter tail, less saw/rumble.
+
+**10 Auth:** native Settings has Sign in with Apple + Sign in with Google + callsign/password. Guest unchanged. Google: WKWebView OAuth against `accounts.google.com` only (never the live game, no Daily spend), then existing `POST /api/auth/google`. Apple: AuthenticationServices + `App.entitlements` + `POST /api/auth/apple`. Server adds additive `users.apple_sub` (same ALTER TABLE pattern as `clerk_sub`). Does not change Google / password / guest. **Not deployed.** TestFlight Apple will 404 against live surviveorion.com until Sam deploys this branch. No wildcard CORS.
+
+**Verify:** `npm run build` green. `npm test` green. Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. Training Ground only. Screenshots in `qa-evidence/tf-fixes/`.
+
+**Untested / device-only:** haptics, real Core Motion permission sheet, physical landscape rotate, Home music by ear, background-pause on a device, live Apple sign-in (needs deploy), Google OAuth if the live client redirect URI rejects `https://surviveorion.com/`.
+
+**Follow-ups:** Sam owns archive / TestFlight / whether to deploy `apple_sub` + `/api/auth/apple`.
+
+Commit `e91e187`.
+
+## 2026-09-11 PT: iOS native chrome design pass
+
+Lucas rejected TestFlight 1.0 (2) Home / Settings / Game Over as stock Settings-app chrome. Visual restyle only, from spec `Sam/reports/orion-ios-native-design-spec-2026-09-12.md`. Isolated worktree `.worktrees/feat-ios-native` at `74bcc9d`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect.
+
+**Tokens / components** (`Theme.swift`): added `hullLine`, `flare`, `ingot`, `brass`, `risingRed`, `medalSilver`, `medalCopper` from `orion.tokens.json`. `goldPale` kept as an alias of `flare` for BoardView. Gold gradient uses stops 0 / 0.55 / 1. `ChamferedRectangle` (45-degree cuts, 0.22 cap), chamfered panels, Patrol Sight ring ported from `orion-mark.svg` arc math (r=37, four SVG endpoints), starfield from 52 of the 90 `orion-app-icon.svg` stars, custom chamfered toggle (28x16 track), gold bloom, attempt pips, `OrionButtonStyle` gold-gradient primary.
+
+**Screens:** Home is a mission briefing (wordmark + Patrol Sight, TODAY'S BRIEFING, glowing mutator card, diamond pips, PATROL COMPLETE at 0 attempts, pulsing Launch). Settings dropped `Form` for chamfered panels and the custom toggle. Game Over is a centered trophy (60pt gold score, ring watermark, gold bloom, horizontal stats, color medal badge). Two-column Home when regular-width or compact-height.
+
+**Approved copy:** `TODAY'S BRIEFING` overline. `PATROL COMPLETE` when `attemptsLeft == 0`.
+
+**Frozen:** play path, API, Keychain, notifications, WebView, BoardView layout. No web/`server/` edits.
+
+**QA hooks:** existing `-QAPlay` also accepts `settings` and `gameover` (fixture training result, silver medal) so screenshots do not need Simulator assistive taps.
+
+**Verify:** `npm run build` green. `npm test` green. Xcode 26.6, iPhone 17 Simulator (clean UDID `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`). No Swift compiler warnings in the changed files. Screenshots: `qa-evidence/design-pass/01-home.png`, `02-settings.png`, `03-gameover.png`, `04-training.png` (control picker), `05-home-regular-width.png` (iPad Air 11-inch, same two-column path as iPhone landscape).
+
+**Deviations (closest faithful, not a redesign):**
+- Rajdhani Medium/SemiBold are not in the bundled TTFs. Labels/data use Bold, body uses Regular, as the spec allowed.
+- Wordmark + Settings chip live in the scroll header, not the system nav bar. iOS 26 toolbar glass wrapped toolbar items in a pill, which the spec forbids.
+- iPhone landscape screenshot not captured: the already-booted iPhone 17 had a leftover SpringBoard notification alert (no assistive access to dismiss). Two-column layout verified on iPad regular-width instead.
+- Game Over shot is the `-QAPlay gameover` fixture, not a real Training death (taps blocked).
+- Optional CRT hairlines skipped (spec: skip if they muddy the starfield/glow).
+- THE PIT subline still says "arena". That string comes from the bundled mutator catalog, not this restyle.
+
+**Follow-ups:** Sam owns archive/upload. `npm run build` before `xcodebuild`.
+
+Commit `82de8a4`.
+
+## 2026-09-11 PT: SwiftUI host + bundled play canvas
+
+Lucas: not a Capacitor wrapper, a real iOS app. Isolated worktree
+`.worktrees/feat-ios-native` from `origin/feat/ios-shell` (`53d6d76`). Dirty
+main checkout untouched. Pushed `feat/ios-native` only.
+
+**Shell:** SwiftUI `HomeView` / `BoardView` / `SettingsView` / `PlayView`.
+Bundle id `com.surviveorion.app`, team `4R88D2NKUC`, project still
+`ios/App/App.xcodeproj`. CAPBridgeViewController is no longer the root.
+Capacitor sources stay on disk (never deleted) and are not compiled.
+
+**Play:** WKWebView loads bundled `dist/` only, never surviveorion.com as the
+page. Query `?nativePlay=daily|training` skips lobby chrome and auto-starts
+that mode. Website without the query is unchanged (`test:native-play`).
+JS bridge `window.webkit.messageHandlers.orion`: graze / death / gameOver /
+session. Native haptics on graze (light) and death (heavy). Session Bearer +
+guest secret live in Keychain and are injected into localStorage at
+documentStart so `src/api.ts` still submits scores.
+
+**WebView origin:** `capacitor://localhost` via `WKURLSchemeHandler` (scheme
+`capacitor`). That string is already on the live CORS allowlist
+(`capacitor://localhost`, `ionic://localhost`, `https://localhost`,
+`http://localhost`). No server change. `http`/`https` cannot be registered
+as custom schemes, so a local HTTP server on a high port would have sent
+`http://localhost:PORT` and failed the exact-origin check.
+
+**No `/api/daily` on the server.** Home uses `GET /api/leaderboard/daily?mode=all`
+plus a build-time `mutator-schedule.json` from `getMutatorsForDateStr` (App
+Store release still ships mutator updates).
+
+**Native chrome:** midnight America/Los_Angeles notifications (permission on
+the second process, not first launch). Streak-at-risk default off. Privacy
+in SFSafariViewController. Delete account calls `DELETE /api/me`. App icon
+is the existing flattened 1024 RGB PNG from `brand/assets/icon/png/`.
+Rajdhani 400/700 bundled. Launch screen: Void + gold ring.
+
+**Verify:** `npm run build` green. `npm test` green (includes new
+`test:native-play`). Xcode 26.6, iPhone 17 Simulator: Home loads live board
+(THE PIT, L33x 649253 on 2026-09-11 PT). Training Ground opens the bundled
+canvas (CHOOSE YOUR CONTROLS). Screenshots:
+`qa-evidence/01-home.png`, `qa-evidence/02-training.png`. No Daily Patrol
+attempt from the Simulator. Airplane mode not forced; offline path is
+`APIError.offline` on Home (Launch Patrol disabled, Training still offered).
+
+**Untested:** haptics (Simulator does not vibrate, not tested on device).
+Landscape rotation not visually flipped (Info.plist + AppDelegate allow
+all orientations). Native game-over sheet + share PNG not fully walked
+(could not tap FLY without Simulator assistive access). Notification
+permission dialog is second-session as designed; a leftover SpringBoard
+prompt overlayed some QA shots.
+
+**Follow-ups:** Sam owns archive/upload, App Store Connect, CORS if the
+origin ever changes. `npm run build` must run before `xcodebuild` (`dist/`
+is gitignored, folder-referenced by the Xcode project).
+
+Commit `5da4cbc`.
+
+## 2026-09-11 PT: iOS Automatic signing team
+
+- App target Debug and Release now have `DEVELOPMENT_TEAM = 4R88D2NKUC` (App Store Connect seedId for `com.surviveorion.app`). `CODE_SIGN_STYLE` stays Automatic. Bundle id unchanged.
+- App Store Connect still needs Lucas to click New App. The API forbids CREATE on apps.
+- Isolated worktree `feat/ios-shell`. Commit `fca1232`. Not merged to `dev` or `main`.
+
+## 2026-09-11 PT: iOS shell merged origin/dev (graze/ship)
+
+- `origin/dev` had moved to `f53b658` (Dispatch A graze/ship + goldPale rim). This branch still started at `d072633`.
+- Merged `origin/dev` into `feat/ios-shell` (no FF of origin/dev, no main). Conflicts: JOURNAL both 2026-09-11 entries kept (iOS first); graze keeps `hapticGraze()` plus the always-on +points popup.
+- `npm run build` green. `npx cap sync ios` finished: dist copied, 6 plugins updated.
+- Merge `6346f37`. Pushed `feat/ios-shell` only.
+
+## 2026-09-11 PT: iOS shell (Capacitor, bundled dist)
+
+Dispatch B. Isolated worktree `feat/ios-shell` from `origin/dev`. Dirty main checkout untouched. `feat/render-presence` not touched.
+
+**Pick: Capacitor, not Expo.** Shog.io EAS history is a different bundle (`io.shog.app`). Orion is Vite + Canvas. A remote WebView of surviveorion.com fails Guideline 4.2. One stack only.
+
+**Bundle ID:** `com.surviveorion.app` (not `io.shog.app`). Home screen name ORION. Store name ORION: Survive the Swarm. Subtitle: Dodge the swarm. Daily patrol.
+
+**Auth / origin (before native chrome):**
+- API is already Bearer in `orion.session`. Guest lock is `orion.guestSecret`.
+- App origin is `capacitor://localhost`. Native `/api` calls use `https://surviveorion.com`.
+- CORS allowlist: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No wildcard. Rate limits and the 3-attempt daily budget unchanged.
+- Fresh localStorage: a web pilot is a new guest. Sign-in stays on the lobby badge. No identity migration.
+- Google GIS in WKWebView is likely broken. Callsign + password is the recovery path. Do not relax server auth.
+
+**Landed (4.2 four + review):**
+1. Haptics on existing `{ type: "graze" }` (light) and death (heavy). Simulator does not vibrate. No physical device here, **haptics not tested**.
+2. Local notifications via `nextPatrolMidnight()` (midnight America/Los_Angeles). Permission on second session. Daily on, streak-at-risk off. No remote push.
+3. Native share sheet: share-card PNG + text.
+4. Offline Training Ground. Daily Patrol shows a clear offline state and will not launch.
+- In-app Delete account (`DELETE /api/me`). Privacy link to surviveorion.com/privacy.html.
+- Status bar hidden in play. Screen wake lock mid-run (Wake Lock API, iOS 16.4+).
+- Tilt: `NSMotionUsageDescription` + existing in-context permission from `fix/tilt-permission-flow` (already on origin/dev).
+- Audio unlocks after first gesture; pauses on background. Both orientations already allowed.
+- Lobby gear / privacy / calendar links bumped to 44pt. Rajdhani bundled for offline.
+
+**Parked:**
+- StoreKit, WidgetKit, Game Center, Android binary, mutators/scoring/physics.
+- App Store 1024 PNG (SVG only; listing assets after Dispatch A).
+- Certificates, provisioning, App Store Connect record, tax/banking, nutrition label, review notes, demo account: **Lucas**.
+- Xcode is not installed on this Mac (CLT only). Simulator walk not run.
+
+**Mutator desync:** bundled JS can drift from live web. Update plan is an App Store release (`npm run build && npx cap sync ios`). Do not load remote JS.
+
+**4.2:** four native features are the answer. No fifth added.
+
+Tests: `npm run build` green. `npm test` green (includes new `test:cors-origins` and `test:account-delete`).
+Commit `9968e8c`. Pushed `origin/feat/ios-shell` only. Not merged to `dev` or `main`.
+
+Follow-up for Lucas: open `ios/App/App.xcodeproj` on a Mac with Xcode, sign with the existing Apple Developer team, create the Connect app for `com.surviveorion.app`, then TestFlight.
+
+## 2026-09-11 PT: goldPale rim (Dispatch A color fix)
+
+- Hull rim and graze-arc primary stroke were `PALETTE.flare` (`#ff8844`, the Flare *power* orange). Brand Flare is `PALETTE.goldPale` (`#ffee88`).
+- Switched `drawShip` / intro ship rim and the graze-arc main stroke to `goldPale`. Thin goldPale inner arc kept. Flare power pickup and decoy untouched.
+- Tests: `npm test` green. `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED on retry (one prior run flaked on magnet pending-grab, unrelated to stroke color).
+- Commit `e671a22`. Follow-up on `feat/render-presence` only. Not merged.
+
+## 2026-09-11 PT: Graze and ship readable (Dispatch A)
+
+- Existing graze was 5 sparks plus a popup only on GRAZE PROTOCOL. Ship had a dark `#5a4200` outline and a flame only while thrusting. Too quiet for Training Ground and for screenshot #1.
+- A1: hook `{ type: "graze" }` only. Always a short Flare hull arc on the drone side, plus a Rajdhani +points popup. 5-spark burst and `audio.graze()` kept. No HUD GRAZE chip, no time scale, no extra shake. grazeBand / cooldown / points / multiplier / `highlights.ts` untouched.
+- A2: Flare rim always on (intro ship too). Plume length follows speed including coasting, one extra hot-core fill. Multiplier heat eased so x5+ reads. `SHIP.radius` and `visualScale` unchanged. Pickups not recoloured.
+- A3: Off-screen edge triangles ~1.6x, pulse opacity, Alarm `#ff4455`.
+- Tests: `npm run build` green. `npm test` green (highlights + no-em-dash included). `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED, Daily Patrol determinism unchanged.
+- Browser: Cursor browser MCP would not attach a tab in this session. Visual still for the QA agent on Training Ground only. Peak-density frame time not measured here (Training Ground is a trickle; no daily attempt).
+- Commit `30868e9`. Pushed `origin/feat/render-presence` only. Do not merge to `dev` or `main` from this dispatch.
 
 ## 2026-09-08 PT: Lighthouse beam cap LIVE
 
@@ -24,7 +267,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Grown length still lerps `beamLengthFrom` 1.1 → `beamLengthTo` (was 13.5, now 5) over `growTime`. Hard cap is `0.5 * Math.min(world.viewW, world.viewH)` (default 5; follows view-scale). Same length for hit (`distToBeam`) and draw.
 - No new seeded draws. MUTATOR_POOL / `availableFrom` / snapshots untouched. Grow-from, spin, body unchanged.
 - Tests: `npx tsc --noEmit` green. `npx tsx scripts/sim-test.ts` ALL CHECKS PASSED (THE LIGHTHOUSE evasive-bot 12.9s / 50pts). `npm run test:mutators` ALL PASS, 144 snapshot dates unchanged.
-- Commit `2ec9529`. Pushed `origin/dev` only. Do not push `main` until Lucas flies it.
+- Commit `2c5fbc1`. Pushed `origin/dev` only. Promoted to `main` as `f956b4c`.
 - QA: https://surviveorion-dev.onrender.com/?mutator=the-lighthouse
 - Follow-up: tomorrow's patrol day is the live feel check.
 
@@ -41,7 +284,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Ambient 1.2 while naked. Medals 0.85 → 1.15. Shell scale stays 0.4. Ram points untouched. Classic Starshell untouched.
 - Subline rewritten so it is honest. Field guide comes from MUTATOR_POOL. Buffer/social calendar rows for Sep 7 not touched.
 - Tests: `npm run test:mutators` snapshots unchanged; ram-raid hold-one / delay / starshell-not-afterburner; sim-test 3d3; GOLD DASH 3d2 still passes. `npx tsc --noEmit` + `npm run build` green.
-- Commit hash recorded in the follow-up line after the gameplay commit. Pushed `origin/dev` only. Do not promote to main until Sam/Lucas (live is mid-day RAM RAID).
+- Commit `550131b`. Pushed `origin/dev` only. Promoted to `main` as `c2d1f19`.
 - QA: https://surviveorion-dev.onrender.com/?mutator=ram-raid
 - Next RAM RAID date: 2026-10-09.
 
@@ -124,6 +367,12 @@ compare, mutator preview, `src/main.ts`). [skip render]
   Runs 19 (-24%), Anonymous +100%.
 - QA-only preview-host commit stayed on `dev`. Admin-only, no player-facing
   change.
+
+## 2026-08-29: Staging host can preview mutators
+
+- `surviveorion-dev.onrender.com` is now a PREVIEW_ALLOWED_HOST so QA can use
+  `?mutator=` / `?day=` without touching live. Live hosts unchanged.
+- Render service `surviveorion-dev` tracks this `dev` branch, own `/data` disk.
 
 ## 2026-08-29: Discovery overlay on scheduled Buffer posts
 

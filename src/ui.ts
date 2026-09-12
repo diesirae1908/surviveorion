@@ -24,6 +24,14 @@ import {
 import type { ShareOutcome } from "./share";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
 import { RECORDING_MAX_SECONDS, recordingSupported, recordingUnavailableReason } from "./recorder";
+import {
+  isNativeApp,
+  isNativePlay,
+  nativeNotifPrefs,
+  openPrivacyPolicy,
+  setNativeNotifDaily,
+  setNativeNotifStreak,
+} from "./native";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -800,7 +808,16 @@ export class Ui {
     screen.appendChild(this.wordmarkTitle());
     screen.appendChild(this.el("div", "subtitle", "Daily Patrol"));
     screen.appendChild(this.el("div", "divider", ""));
-    if (info.online) screen.appendChild(this.lobbyPilotBadge(info));
+    screen.appendChild(this.lobbyPilotBadge(info));
+    if (!info.online) {
+      screen.appendChild(
+        this.el(
+          "div",
+          "daily-offline",
+          "Can't reach patrol command. Daily Patrol needs a connection. Training Ground is open offline.",
+        ),
+      );
+    }
 
     screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
     const calendarLink = this.el("button", "link-btn calendar-link", "See previous patrols");
@@ -846,7 +863,11 @@ export class Ui {
     screen.appendChild(hint);
 
     // preview ignores the real attempt budget entirely: Launch always shows
-    if (info.preview || info.attemptsLeft > 0) {
+    if (!info.online && !info.preview) {
+      screen.appendChild(
+        this.el("div", "daily-locked", "Daily Patrol is offline."),
+      );
+    } else if (info.preview || info.attemptsLeft > 0) {
       const launch = this.button("Launch", true, () => this.cb.onDaily());
       launch.classList.add("launch");
       screen.appendChild(launch);
@@ -920,11 +941,15 @@ export class Ui {
 
     // footer: the feedback channel. (The /fullgame door still exists by URL,
     // but is unlisted while the daily is the public face.)
+    const footer = this.el("div", "lobby-footer", "");
     const feedback = this.el("button", "full-game-link", "Feedback");
     feedback.addEventListener("click", () =>
       this.showFeedback(() => this.showDailyLobby(info)),
     );
-    screen.appendChild(feedback);
+    const privacy = this.el("button", "full-game-link", "Privacy");
+    privacy.addEventListener("click", () => openPrivacyPolicy());
+    footer.append(feedback, privacy);
+    screen.appendChild(footer);
 
     const gear = document.createElement("button");
     gear.className = "corner-btn";
@@ -1426,6 +1451,40 @@ export class Ui {
       ),
     );
 
+    if (isNativeApp()) {
+      screen.appendChild(this.el("div", "manual-title", "REMINDERS"));
+      const notifRow = this.el("div", "toggles", "");
+      const dailyBtn = document.createElement("button");
+      const streakBtn = document.createElement("button");
+      const paintNotif = (): void => {
+        const p = nativeNotifPrefs();
+        dailyBtn.textContent = `Daily patrol: ${p.daily ? "ON" : "OFF"}`;
+        dailyBtn.classList.toggle("off", !p.daily);
+        streakBtn.textContent = `Streak at risk: ${p.streakAtRisk ? "ON" : "OFF"}`;
+        streakBtn.classList.toggle("off", !p.streakAtRisk);
+      };
+      dailyBtn.addEventListener("click", () => {
+        void setNativeNotifDaily(!nativeNotifPrefs().daily).then(paintNotif);
+      });
+      streakBtn.addEventListener("click", () => {
+        void setNativeNotifStreak(!nativeNotifPrefs().streakAtRisk).then(paintNotif);
+      });
+      paintNotif();
+      notifRow.append(dailyBtn, streakBtn);
+      screen.appendChild(notifRow);
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Local reminders only, at midnight Pacific. First launch never asks. Streak warning is off until you turn it on.",
+        ),
+      );
+    }
+
+    const privacy = this.el("button", "link-btn", "Privacy policy");
+    privacy.addEventListener("click", () => openPrivacyPolicy());
+    screen.appendChild(privacy);
+
     const feedback = this.button("Send feedback", false, () =>
       this.showFeedback(() => this.showSettings(touchDevice, onBack, community)),
     );
@@ -1574,6 +1633,28 @@ export class Ui {
       recal.classList.add("small-btn");
       screen.appendChild(recal);
     }
+    // Native play only: switch Touch ↔ Tilt without restarting the run.
+    // Website pause stays as it was (recalibrate when already on tilt).
+    if (isNativePlay() && this.cb.getControls().tiltSupported) {
+      if (this.cb.getControls().mode === "tilt") {
+        const toTouch = this.button("Switch to touch", false, () => {
+          void this.cb.onControlModeChange("stick").then(() => this.showPause());
+        });
+        toTouch.classList.add("small-btn");
+        screen.appendChild(toTouch);
+      } else {
+        const toTilt = this.button("Switch to tilt", false, () => {
+          this.showTiltReadyConfirm(
+            () => {
+              void this.cb.onControlModeChange("tilt").then(() => this.showPause());
+            },
+            () => this.showPause(),
+          );
+        });
+        toTilt.classList.add("small-btn");
+        screen.appendChild(toTilt);
+      }
+    }
     this.root.appendChild(screen);
   }
 
@@ -1600,7 +1681,7 @@ export class Ui {
 
   /**
    * Pre-launch control picker (touch devices with a motion sensor): the
-   * default drag-anywhere stick, or tilt as the Tilt to Live tribute.
+   * default drag-anywhere stick, or phone tilt.
    */
   showModeSelect(current: ControlMode, onPick: (mode: ControlMode) => void): void {
     this.clear();
@@ -1613,19 +1694,46 @@ export class Ui {
     const stick = this.button("Touch: drag anywhere to fly", current !== "tilt", () =>
       onPick("stick"),
     );
-    const tilt = this.button("Tilt: lean your phone to fly", current === "tilt", () =>
-      onPick("tilt"),
-    );
+    const tilt = this.button("Tilt: lean your phone to fly", current === "tilt", () => {
+      this.showTiltReadyConfirm(
+        () => onPick("tilt"),
+        () => this.showModeSelect(current, onPick),
+      );
+    });
     screen.appendChild(stick);
     screen.appendChild(tilt);
     screen.appendChild(
       this.el(
         "div",
         "field-hint center",
-        "Tilt is our tribute to Tilt to Live. Hold your phone at your comfortable" +
-          " play angle before tapping, that becomes neutral.",
+        "Hold your phone at your comfortable play angle before tapping, that becomes neutral.",
       ),
     );
+    this.root.appendChild(screen);
+  }
+
+  /**
+   * Confirm comfortable play angle before starting motion / capturing neutral.
+   * Cancel returns to the caller (control picker or pause).
+   */
+  showTiltReadyConfirm(onConfirm: () => void, onCancel: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "HOLD YOUR POSITION"));
+    screen.appendChild(this.el("div", "divider", ""));
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Hold your phone at your comfortable play angle, then confirm. That becomes neutral.",
+      ),
+    );
+    screen.appendChild(this.button("Confirm", true, onConfirm));
+    const cancel = this.button("Cancel", false, onCancel);
+    cancel.classList.add("small-btn");
+    screen.appendChild(cancel);
     this.root.appendChild(screen);
   }
 

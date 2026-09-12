@@ -1,0 +1,407 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1000001 /* OrionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001 /* OrionApp.swift */; };
+		A1000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000002 /* AppDelegate.swift */; };
+		A1000003 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000003 /* Theme.swift */; };
+		A1000004 /* PatrolDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000004 /* PatrolDate.swift */; };
+		A1000005 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000005 /* KeychainStore.swift */; };
+		A1000006 /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000006 /* PreferencesStore.swift */; };
+		A1000007 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000007 /* APIClient.swift */; };
+		A1000008 /* MutatorCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000008 /* MutatorCatalog.swift */; };
+		A1000009 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000009 /* NotificationScheduler.swift */; };
+		A100000A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000A /* AppModel.swift */; };
+		A100000B /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000B /* HomeView.swift */; };
+		A100000C /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000C /* BoardView.swift */; };
+		A100000D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000D /* SettingsView.swift */; };
+		A100000E /* GameOverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000E /* GameOverView.swift */; };
+		A100000F /* WebPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000F /* WebPlay.swift */; };
+		A1000010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1000010 /* Assets.xcassets */; };
+		A1000011 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B1000011 /* LaunchScreen.storyboard */; };
+		A1000012 /* Rajdhani-400.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B1000012 /* Rajdhani-400.ttf */; };
+		A1000013 /* Rajdhani-700.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B1000013 /* Rajdhani-700.ttf */; };
+		A1000014 /* mutator-schedule.json in Resources */ = {isa = PBXBuildFile; fileRef = B1000014 /* mutator-schedule.json */; };
+		A1000015 /* dist in Resources */ = {isa = PBXBuildFile; fileRef = B1000015 /* dist */; };
+		A1000016 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000016 /* WebKit.framework */; };
+		A1000017 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000017 /* UserNotifications.framework */; };
+		A1000018 /* SafariServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000018 /* SafariServices.framework */; };
+		A1000019 /* LobbyMusic.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100001B /* LobbyMusic.swift */; };
+		A100001A /* NativeAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100001C /* NativeAuth.swift */; };
+		A100001B /* empire-of-the-stars.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B100001D /* empire-of-the-stars.mp3 */; };
+		A100001C /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100001E /* AuthenticationServices.framework */; };
+		A100001D /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100001F /* CoreMotion.framework */; };
+		A1000021 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000021 /* StoreKitManager.swift */; };
+		A1000022 /* TierViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000022 /* TierViews.swift */; };
+		A1000023 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000023 /* CalendarView.swift */; };
+		A1000024 /* PremiumSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000024 /* PremiumSheet.swift */; };
+		A1000025 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000025 /* AnalyticsView.swift */; };
+		A1000026 /* SquadronsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000026 /* SquadronsView.swift */; };
+		A1000027 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000027 /* FeedbackView.swift */; };
+		A1000028 /* ClipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000028 /* ClipStore.swift */; };
+		A1000029 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000029 /* StoreKit.framework */; };
+		A100002A /* Photos.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100002A /* Photos.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B1000000 /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000001 /* OrionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrionApp.swift; sourceTree = "<group>"; };
+		B1000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B1000003 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		B1000004 /* PatrolDate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatrolDate.swift; sourceTree = "<group>"; };
+		B1000005 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		B1000006 /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStore.swift; sourceTree = "<group>"; };
+		B1000007 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		B1000008 /* MutatorCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutatorCatalog.swift; sourceTree = "<group>"; };
+		B1000009 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		B100000A /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		B100000B /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		B100000C /* BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardView.swift; sourceTree = "<group>"; };
+		B100000D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B100000E /* GameOverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverView.swift; sourceTree = "<group>"; };
+		B100000F /* WebPlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPlay.swift; sourceTree = "<group>"; };
+		B1000010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B1000011 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B1000012 /* Rajdhani-400.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Rajdhani-400.ttf"; path = "../../public/fonts/Rajdhani-400.ttf"; sourceTree = SOURCE_ROOT; };
+		B1000013 /* Rajdhani-700.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Rajdhani-700.ttf"; path = "../../public/fonts/Rajdhani-700.ttf"; sourceTree = SOURCE_ROOT; };
+		B1000014 /* mutator-schedule.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "mutator-schedule.json"; path = Resources/mutator-schedule.json; sourceTree = "<group>"; };
+		B1000015 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = ../../dist; sourceTree = SOURCE_ROOT; };
+		B1000016 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		B1000017 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
+		B1000018 /* SafariServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SafariServices.framework; path = System/Library/Frameworks/SafariServices.framework; sourceTree = SDKROOT; };
+		B1000019 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B100001A /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		B100001B /* LobbyMusic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LobbyMusic.swift; sourceTree = "<group>"; };
+		B100001C /* NativeAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAuth.swift; sourceTree = "<group>"; };
+		B100001D /* empire-of-the-stars.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "empire-of-the-stars.mp3"; path = "../../public/music/empire-of-the-stars.mp3"; sourceTree = SOURCE_ROOT; };
+		B100001E /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
+		B100001F /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
+		B1000020 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		B1000021 /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
+		B1000022 /* TierViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TierViews.swift; sourceTree = "<group>"; };
+		B1000023 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		B1000024 /* PremiumSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumSheet.swift; sourceTree = "<group>"; };
+		B1000025 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
+		B1000026 /* SquadronsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SquadronsView.swift; sourceTree = "<group>"; };
+		B1000027 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
+		B1000028 /* ClipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipStore.swift; sourceTree = "<group>"; };
+		B1000029 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		B100002A /* Photos.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Photos.framework; path = System/Library/Frameworks/Photos.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C1000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000016 /* WebKit.framework in Frameworks */,
+				A1000017 /* UserNotifications.framework in Frameworks */,
+				A1000018 /* SafariServices.framework in Frameworks */,
+				A100001C /* AuthenticationServices.framework in Frameworks */,
+				A100001D /* CoreMotion.framework in Frameworks */,
+				A1000029 /* StoreKit.framework in Frameworks */,
+				A100002A /* Photos.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D1000001 = {
+			isa = PBXGroup;
+			children = (
+				B100001A /* debug.xcconfig */,
+				D1000002 /* App */,
+				D1000003 /* Frameworks */,
+				D1000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D1000002 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B1000001 /* OrionApp.swift */,
+				B1000002 /* AppDelegate.swift */,
+				B1000003 /* Theme.swift */,
+				B1000004 /* PatrolDate.swift */,
+				B1000005 /* KeychainStore.swift */,
+				B1000006 /* PreferencesStore.swift */,
+				B1000007 /* APIClient.swift */,
+				B1000008 /* MutatorCatalog.swift */,
+				B1000009 /* NotificationScheduler.swift */,
+				B100000A /* AppModel.swift */,
+				B100000B /* HomeView.swift */,
+				B100000C /* BoardView.swift */,
+				B100000D /* SettingsView.swift */,
+				B100000E /* GameOverView.swift */,
+				B100000F /* WebPlay.swift */,
+				B100001B /* LobbyMusic.swift */,
+				B100001C /* NativeAuth.swift */,
+				B1000021 /* StoreKitManager.swift */,
+				B1000022 /* TierViews.swift */,
+				B1000023 /* CalendarView.swift */,
+				B1000024 /* PremiumSheet.swift */,
+				B1000025 /* AnalyticsView.swift */,
+				B1000026 /* SquadronsView.swift */,
+				B1000027 /* FeedbackView.swift */,
+				B1000028 /* ClipStore.swift */,
+				B1000020 /* App.entitlements */,
+				B100001D /* empire-of-the-stars.mp3 */,
+				B1000010 /* Assets.xcassets */,
+				B1000011 /* LaunchScreen.storyboard */,
+				B1000012 /* Rajdhani-400.ttf */,
+				B1000013 /* Rajdhani-700.ttf */,
+				B1000014 /* mutator-schedule.json */,
+				B1000015 /* dist */,
+				B1000019 /* Info.plist */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D1000003 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B1000016 /* WebKit.framework */,
+				B1000017 /* UserNotifications.framework */,
+				B1000018 /* SafariServices.framework */,
+				B100001E /* AuthenticationServices.framework */,
+				B100001F /* CoreMotion.framework */,
+				B1000029 /* StoreKit.framework */,
+				B100002A /* Photos.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D1000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000 /* App.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E1000001 /* App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F1000003 /* Build configuration list for PBXNativeTarget "App" */;
+			buildPhases = (
+				E1000002 /* Sources */,
+				C1000001 /* Frameworks */,
+				E1000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = App;
+			productName = App;
+			productReference = B1000000 /* App.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E1000000 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					E1000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = F1000001 /* Build configuration list for PBXProject "App" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D1000001;
+			productRefGroup = D1000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E1000001 /* App */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E1000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000011 /* LaunchScreen.storyboard in Resources */,
+				A1000010 /* Assets.xcassets in Resources */,
+				A1000012 /* Rajdhani-400.ttf in Resources */,
+				A1000013 /* Rajdhani-700.ttf in Resources */,
+				A1000014 /* mutator-schedule.json in Resources */,
+				A1000015 /* dist in Resources */,
+				A100001B /* empire-of-the-stars.mp3 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E1000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000001 /* OrionApp.swift in Sources */,
+				A1000002 /* AppDelegate.swift in Sources */,
+				A1000003 /* Theme.swift in Sources */,
+				A1000004 /* PatrolDate.swift in Sources */,
+				A1000005 /* KeychainStore.swift in Sources */,
+				A1000006 /* PreferencesStore.swift in Sources */,
+				A1000007 /* APIClient.swift in Sources */,
+				A1000008 /* MutatorCatalog.swift in Sources */,
+				A1000009 /* NotificationScheduler.swift in Sources */,
+				A100000A /* AppModel.swift in Sources */,
+				A100000B /* HomeView.swift in Sources */,
+				A100000C /* BoardView.swift in Sources */,
+				A100000D /* SettingsView.swift in Sources */,
+				A100000E /* GameOverView.swift in Sources */,
+				A100000F /* WebPlay.swift in Sources */,
+				A1000019 /* LobbyMusic.swift in Sources */,
+				A100001A /* NativeAuth.swift in Sources */,
+				A1000021 /* StoreKitManager.swift in Sources */,
+				A1000022 /* TierViews.swift in Sources */,
+				A1000023 /* CalendarView.swift in Sources */,
+				A1000024 /* PremiumSheet.swift in Sources */,
+				A1000025 /* AnalyticsView.swift in Sources */,
+				A1000026 /* SquadronsView.swift in Sources */,
+				A1000027 /* FeedbackView.swift in Sources */,
+				A1000028 /* ClipStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F1000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B100001A /* debug.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F1000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F1000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4R88D2NKUC;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.surviveorion.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F1000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4R88D2NKUC;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.surviveorion.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F1000001 /* Build configuration list for PBXProject "App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1000010 /* Debug */,
+				F1000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F1000003 /* Build configuration list for PBXNativeTarget "App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1000012 /* Debug */,
+				F1000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E1000000 /* Project object */;
+}

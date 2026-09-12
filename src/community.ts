@@ -16,6 +16,7 @@ import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 import { isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
 import { dailyResetLabel } from "./ui";
+import { openPrivacyPolicy } from "./native";
 
 const BOARD_MODE_KEY = "orion.boardMode";
 const BOARD_GAME_MODE_KEY = "orion.boardGameMode";
@@ -471,6 +472,30 @@ export class CommunityUi {
         });
       }),
     );
+
+    const privacy = this.button("Privacy policy", false, () => openPrivacyPolicy());
+    privacy.classList.add("small-btn");
+    body.appendChild(privacy);
+
+    const danger = this.el("div", "panel");
+    danger.appendChild(
+      this.el(
+        "div",
+        "field-hint",
+        "Delete this account and its scores, badges, and wingmates. This cannot be undone.",
+      ),
+    );
+    danger.appendChild(
+      this.button("Delete account", false, () => {
+        if (!window.confirm("Delete this pilot and every score on it? This cannot be undone.")) return;
+        void this.guard(error, async () => {
+          await this.api.deleteAccount();
+          this.onAuthChange();
+          this.onBack();
+        });
+      }),
+    );
+    body.appendChild(danger);
     this.backRow(screen);
   }
 

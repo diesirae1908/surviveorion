@@ -37,7 +37,6 @@ import {
   getMutatorById,
   getMutatorsForDate,
   getMutatorsForDateStr,
-  mutatorGrazePopups,
   mutatorViewScale,
   setActiveMutators,
   MUTATOR_POOL,
@@ -79,7 +78,19 @@ import {
   type DailyDayLog,
   type KeyBindings,
 } from "./save";
-import { buildShareText, dailyNumber, shareText, DAILY_EPOCH_DATE } from "./share";
+import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE, renderShareCardPng } from "./share";
+import {
+  bootNativeShell,
+  hapticDeath,
+  hapticGraze,
+  isNativeApp,
+  isNativePlay,
+  parseNativePlay,
+  parseNativePlayDate,
+  postNativeGameOver,
+  postNativeLeave,
+  setPlayChrome,
+} from "./native";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
@@ -109,6 +120,11 @@ const FULL_GAME =
   location.pathname.replace(/\/+$/, "") === "/fullgame" ||
   new URLSearchParams(location.search).has("fullgame");
 const DAILY_ONLY = !FULL_GAME;
+const NATIVE_PLAY = parseNativePlay(location.search);
+const IS_NATIVE_PLAY = NATIVE_PLAY !== null;
+const NATIVE_AUTO = new URLSearchParams(location.search).get("nativeAuto");
+const NATIVE_PATROL_DATE = IS_NATIVE_PLAY && NATIVE_PLAY === "daily" ? parseNativePlayDate(location.search) : null;
+const NATIVE_ARCHIVE = !!(NATIVE_PATROL_DATE && NATIVE_PATROL_DATE !== patrolDateStr());
 
 if (DAILY_ONLY) document.title = "ORION Daily";
 
@@ -146,7 +162,11 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * (matches the one-or-two-per-day rule); if nothing valid survives, this
  * falls back to today's real mutator(s).
  */
-const PREVIEW_ALLOWED_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const PREVIEW_ALLOWED_HOST =
+  !isNativePlay() &&
+  (location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1" ||
+    location.hostname === "surviveorion-dev.onrender.com");
 try {
   localStorage.removeItem("orion.rehearsal");
 } catch {
@@ -256,7 +276,7 @@ if (PREVIEW_ACTIVE) {
 
 /** Patrol date label for preview/rehearsal runs (today's PT date otherwise). */
 function currentPatrolDateStr(): string {
-  return PREVIEW_REHEARSAL_DATE ?? patrolDateStr();
+  return NATIVE_PATROL_DATE ?? PREVIEW_REHEARSAL_DATE ?? patrolDateStr();
 }
 
 /** UTC date whose shared daily script preview/rehearsal runs use (today otherwise). */
@@ -268,6 +288,7 @@ function previewDailyDate(): Date {
 function todaysMutators(): Mutator[] {
   if (PREVIEW_MUTATORS.length > 0) return PREVIEW_MUTATORS;
   if (PREVIEW_ACTIVE && PREVIEW_DAY) return getMutatorsForDate(PREVIEW_DAY);
+  if (NATIVE_PATROL_DATE) return getMutatorsForDateStr(NATIVE_PATROL_DATE);
   return getMutatorsForDateStr(patrolDateStr());
 }
 
@@ -311,6 +332,7 @@ let runRefunded = false;
 let activeRecording: RecordingHandle | null = null;
 /** Finished clip for the run that just ended, ready to download from the result screen. */
 let lastClipBlob: Blob | null = null;
+let lastClipReady: Promise<void> | null = null;
 /** True if that clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
 let lastClipCapped = false;
 /** Sidecar snapshotted at game-over so a later save cannot read a reset world. */
@@ -426,14 +448,17 @@ function failTiltToStick(reason: TiltEnableResult): void {
     reason === "no-data"
       ? "No motion data from this device. Flying with the touch stick."
       : "Motion access is blocked, so tilt can't steer. Flying with the touch stick. " +
-          "To fix it: quit and reopen your browser (or allow Motion & Orientation access" +
-          " in its settings), then pick Tilt again.",
+          (isNativeApp() || isNativePlay()
+            ? "To fix it: allow Motion & Fitness for ORION in iOS Settings, then pick Tilt again."
+            : "To fix it: quit and reopen your browser (or allow Motion & Orientation access" +
+              " in its settings), then pick Tilt again."),
   );
 }
 
 function setStickMode(): void {
   controls.mode = "stick";
   input.controlMode = "stick";
+  input.tilt.stop();
   saveControlPrefs(controls);
 }
 
@@ -470,14 +495,14 @@ const ui = new Ui(settings, {
         : mutatorsToday.length > 0
           ? medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday))
           : undefined;
-    return shareText(
-      buildShareText({
+    return sharePatrol(
+      {
         dayNumber: dailyNumber(),
         ...source,
         mutatorNames: sourceMutatorNames ?? todaysMutatorNames,
         medal,
         preview: PREVIEW_ACTIVE,
-      }),
+      },
       isTouchDevice(),
     );
   },
@@ -502,6 +527,8 @@ const ui = new Ui(settings, {
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
   onPatrolCalendar: () => openPatrolCalendar(),
   onControlModeChange: async (mode) => {
+    // Flight only. runMode (the board this run files on) stays whatever
+    // startRun captured. Does not spend a Daily attempt or restart.
     if (mode === "tilt") {
       const r = await enableTilt();
       if (r !== "ok") failTiltToStick(r);
@@ -579,6 +606,10 @@ const community = new CommunityUi(
 );
 
 function showMenu(): void {
+  if (IS_NATIVE_PLAY) {
+    ui.clearScreens();
+    return;
+  }
   if (DAILY_ONLY) {
     const attempts = loadDailyAttempts();
     const mutatorsToday = todaysMutators();
@@ -838,14 +869,18 @@ function renderPatrolCalendar(): void {
 
 /**
  * Launch entry point: on touch devices with a motion sensor, first offer the
- * choice between the default touch stick and tilt mode (Tilt to Live tribute).
+ * choice between the default touch stick and tilt mode.
  * Desktop has no sensor, so it goes straight in.
  */
 function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = false): void {
   if (state === "launching") return;
+  if (daily && !training && !api.online) {
+    ui.toast("Can't reach patrol command. Training Ground is open offline.");
+    return;
+  }
   // daily-only site: out of attempts → back to the lobby (shows the countdown).
   // Preview runs don't spend attempts, so they never hit this lockout.
-  if (DAILY_ONLY && daily && !PREVIEW_ACTIVE && dailyAttemptsLeft() <= 0) {
+  if (DAILY_ONLY && daily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE && dailyAttemptsLeft() <= 0) {
     quitToMenu();
     return;
   }
@@ -854,6 +889,18 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   if (!daily && !training) {
     pendingGameMode = gameMode;
     saveGameMode(gameMode); // the menu remembers the last mode flown
+  }
+  if (IS_NATIVE_PLAY && NATIVE_AUTO === "stick") {
+    setStickMode();
+    doLaunch();
+    return;
+  }
+  if (IS_NATIVE_PLAY && NATIVE_AUTO === "tiltconfirm") {
+    ui.showTiltReadyConfirm(
+      () => {},
+      () => ui.showModeSelect(controls.mode, () => {}),
+    );
+    return;
   }
   if (isTouchDevice() && TiltControl.supported()) {
     ui.showModeSelect(controls.mode, (mode) => {
@@ -876,7 +923,7 @@ function doLaunch(quick = false): void {
   if (state === "launching") return;
   // daily-only retry path (Fly again / Space): the attempt budget still
   // rules, except for a preview run, which never spends one.
-  if (DAILY_ONLY && pendingDaily && !PREVIEW_ACTIVE && dailyAttemptsLeft() <= 0) {
+  if (DAILY_ONLY && pendingDaily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE && dailyAttemptsLeft() <= 0) {
     quitToMenu();
     return;
   }
@@ -907,7 +954,7 @@ function startRun(): void {
   runGameMode = runIsDaily || runIsTraining ? "classic" : pendingGameMode;
   // an attempt is spent the moment a daily run starts (quitting mid-run
   // counts) — a preview run is sandboxed from the budget entirely
-  if (DAILY_ONLY && runIsDaily && !PREVIEW_ACTIVE) useDailyAttempt();
+  if (DAILY_ONLY && runIsDaily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE) useDailyAttempt();
   runRefunded = false;
   // PBs are per game mode — the NEW RECORD beat compares like-for-like
   bestScore = loadBestScore(runGameMode);
@@ -935,6 +982,7 @@ function startRun(): void {
     runIsTraining,
   );
   world.clipView = { w: canvas.clientWidth, h: canvas.clientHeight };
+  void setPlayChrome(true);
   recordBeaten = false;
   particles.clear();
   popups.clear();
@@ -947,6 +995,7 @@ function startRun(): void {
   // Ground never reaches the game-over screen (no save-clip button to use it),
   // so skip it there rather than burn CPU for nothing.
   lastClipBlob = null;
+  lastClipReady = null;
   lastClipCapped = false;
   lastClipSidecar = null;
   lastClipBasename = null;
@@ -1012,11 +1061,24 @@ function resume(): void {
 }
 
 function quitToMenu(): void {
+  if (IS_NATIVE_PLAY) {
+    audio.setThrustLevel(0);
+    audio.pauseMusic();
+    void setPlayChrome(false);
+    if (activeRecording) {
+      const rec = activeRecording;
+      activeRecording = null;
+      void rec.stop();
+    }
+    postNativeLeave();
+    return;
+  }
   state = "menu";
   fx = null;
   tutorial = null;
   audio.setThrustLevel(0);
   audio.playTrack("menu");
+  void setPlayChrome(false);
   // an unfinished run (quit mid-flight, no game-over screen) never offers a
   // clip: stop and discard rather than leaving the recorder running
   if (activeRecording) {
@@ -1060,6 +1122,7 @@ function onGameOver(): void {
   gameOverUiShown = false;
   audio.setThrustLevel(0);
   audio.playTrack("gameover");
+  void setPlayChrome(false);
   // stop recording now, not when the game-over UI shows: finalizing the clip
   // (MediaRecorder flush) overlaps the death cinematic instead of adding a
   // delay before the result screen appears. Snapshot sidecar fields first so
@@ -1068,7 +1131,7 @@ function onGameOver(): void {
     snapshotClipSidecar();
     const rec = activeRecording;
     activeRecording = null;
-    void rec.stop().then((blob) => {
+    lastClipReady = rec.stop().then((blob) => {
       lastClipBlob = blob;
       lastClipCapped = rec.hitCap;
     });
@@ -1093,9 +1156,75 @@ function onGameOver(): void {
   }
 }
 
+async function emitNativePlayGameOver(medal: string | null): Promise<void> {
+  if (lastClipReady) {
+    await lastClipReady.catch(() => {});
+    lastClipReady = null;
+  }
+  let sharePngBase64: string | null = null;
+  let clipBase64: string | null = null;
+  if (IS_NATIVE_PLAY && lastClipBlob && lastClipBlob.size < 12_000_000) {
+    clipBase64 = await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const s = String(reader.result ?? "");
+        const comma = s.indexOf(",");
+        resolve(comma >= 0 ? s.slice(comma + 1) : s);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(lastClipBlob as Blob);
+    });
+  }
+  if (runIsDaily && lastRunShare && !runRefunded) {
+    try {
+      const blob = await renderShareCardPng({
+        dayNumber: dailyNumber(),
+        score: lastRunShare.score,
+        time: lastRunShare.time,
+        maxMultiplier: lastRunShare.maxMultiplier,
+        rank: lastRunShare.rank,
+        attempt: lastRunShare.attempt,
+        mutatorNames: lastRunShare.mutatorNames,
+        medal: lastRunShare.medal,
+        preview: lastRunShare.preview,
+      });
+      if (blob) {
+        sharePngBase64 = await new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const s = String(reader.result ?? "");
+            const comma = s.indexOf(",");
+            resolve(comma >= 0 ? s.slice(comma + 1) : s);
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch {
+      sharePngBase64 = null;
+    }
+  }
+  postNativeGameOver({
+    score: Math.floor(world.score),
+    timeSurvived: world.time,
+    kills: world.kills,
+    medal,
+    sharePngBase64,
+    callsign: api.user?.callsign ?? null,
+    clipBase64,
+    clipBasename: lastClipBasename,
+    clipSidecar: lastClipSidecar ? JSON.stringify(lastClipSidecar) : null,
+    clipExt: lastClipBlob ? clipExtension(lastClipBlob) : null,
+  });
+}
+
 function showGameOverUi(): void {
   gameOverUiShown = true;
   if (runIsTraining) {
+    if (IS_NATIVE_PLAY) {
+      void emitNativePlayGameOver(null);
+      return;
+    }
     ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1);
     return;
   }
@@ -1141,6 +1270,11 @@ function showGameOverUi(): void {
       medal: dailyMedal?.tier,
       preview: PREVIEW_ACTIVE,
     };
+  }
+  if (IS_NATIVE_PLAY) {
+    if (!runIsTraining) submitRun();
+    void emitNativePlayGameOver(dailyMedal?.tier ?? null);
+    return;
   }
   ui.showGameOver({
     score: world.score,
@@ -1216,6 +1350,7 @@ function submitRun(): void {
     gameMode: runGameMode,
     platform: isTouchDevice() ? "touch" : "desktop",
     daily: (runIsDaily && !runRefunded) || undefined,
+    dailyDate: runIsDaily && NATIVE_PATROL_DATE ? NATIVE_PATROL_DATE : undefined,
   };
   if (!api.signedIn) {
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget
@@ -1261,7 +1396,19 @@ input.onPause = () => {
 };
 
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && state === "playing") pause();
+  if (document.hidden) {
+    if (state === "playing") pause();
+    audio.pauseMusic();
+    audio.setThrustLevel(0);
+  } else if (state === "menu" || state === "gameover" || state === "paused") {
+    if (!IS_NATIVE_PLAY) audio.resumeMusic();
+  }
+});
+
+window.addEventListener("orion-native-pause", () => {
+  if (state === "playing") pause();
+  audio.pauseMusic();
+  audio.setThrustLevel(0);
 });
 
 const handleResize = (): void => {
@@ -1356,10 +1503,10 @@ function drainEvents(w: World): void {
         break;
       case "graze":
         particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
+        particles.grazeArc(Math.atan2(e.y - world.ship.y, e.x - world.ship.x));
         audio.graze();
-        if (mutatorGrazePopups()) {
-          popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
-        }
+        void hapticGraze();
+        popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
         break;
       case "assembly": {
         // crowded drones just fused into a creature — name the threat
@@ -1465,6 +1612,7 @@ function drainEvents(w: World): void {
       case "death":
         particles.burst(e.x, e.y, [PALETTE.gold, PALETTE.redBright, PALETTE.white], 60, 9, 1.2, 0.18);
         audio.death();
+        void hapticDeath();
         break;
     }
   }
@@ -1643,7 +1791,9 @@ function skipDeathCinematic(): void {
   }
 }
 
-ui.showIntroGate(enterFromGate);
+if (!IS_NATIVE_PLAY) {
+  ui.showIntroGate(enterFromGate);
+}
 // keyboard players can enter with any key; any input after a short beat skips
 window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
@@ -1668,10 +1818,20 @@ window.addEventListener("pointerdown", () => {
 // server availability) so the community buttons appear/disappear correctly.
 void api.init().then(() => {
   applyCreatorAccess(api.clipInbox);
+  if (IS_NATIVE_PLAY) {
+    const training = NATIVE_PLAY === "training";
+    if (NATIVE_PATROL_DATE && NATIVE_PATROL_DATE > patrolDateStr() && !api.clipInbox) {
+      postNativeLeave();
+      return;
+    }
+    beginLaunch(!training, "classic", training);
+    return;
+  }
   if (state === "menu") showMenu();
 });
+if (!IS_NATIVE_PLAY) void bootNativeShell();
 
 // traffic beacon: who's arriving, from where (admin dashboard only)
-api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
+if (!IS_NATIVE_PLAY) api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
 
 requestAnimationFrame(frame);

@@ -32,10 +32,13 @@ import {
   nextAboveCombinedDailyWithBots,
 } from "./dailyBoard.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
+import { verifyAppleToken } from "./apple.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
 import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload, handleClipCutsPublic } from "./clip-inbox.mjs";
 import { applyCors, isCorsPreflight } from "./cors.mjs";
+import { userTier, resolveDailySubmit, clampMutatorRange, PREMIUM_PRODUCTS } from "./tier.mjs";
+import { verifyPremiumTransaction, sandboxTrustAllowed, entitlementFromPayload, decodeJws } from "./apple-iap.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -110,6 +113,27 @@ const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
 
 /** Today's patrol date, 'YYYY-MM-DD' (America/Los_Angeles) — the Daily Patrol board key. */
 const patrolToday = () => patrolDateStr();
+
+let mutatorScheduleCache = null;
+function loadMutatorSchedule() {
+  if (mutatorScheduleCache) return mutatorScheduleCache;
+  const candidates = [
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "mutator-schedule.json"),
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "ios", "App", "App", "Resources", "mutator-schedule.json"),
+  ];
+  for (const file of candidates) {
+    try {
+      if (fs.existsSync(file)) {
+        mutatorScheduleCache = JSON.parse(fs.readFileSync(file, "utf8"));
+        return mutatorScheduleCache;
+      }
+    } catch {
+      // try the next path
+    }
+  }
+  mutatorScheduleCache = {};
+  return mutatorScheduleCache;
+}
 
 /**
  * Board mode from a submitted run. Boards are per platform: desktop keyboard,
@@ -379,7 +403,7 @@ const routes = {
       // addition) must stay reachable by its own device secret; that
       // callsign is already masked from everyone else via
       // sanitizeCallsignForDisplay at every public read boundary.
-      if (existing.pass_hash || existing.google_sub || existing.clerk_sub)
+      if (existing.pass_hash || existing.google_sub || existing.clerk_sub || existing.apple_sub)
         return json(res, 409, { error: "that callsign belongs to a registered pilot" });
       if (existing.guest_secret_hash) {
         if (!guestSecretMatches(guestSecret, existing.guest_secret_hash))
@@ -451,6 +475,27 @@ const routes = {
     json(res, 200, { token: issueSession(user.id), user: publicUser(user), isNew });
   },
 
+  "POST /api/auth/apple": async (req, res) => {
+    if (!rateLimit(`apple:${clientIp(req)}`, 15)) return json(res, 429, { error: "slow down" });
+    const { identityToken, country = "", name = "" } = await readBody(req);
+    if (typeof identityToken !== "string") return json(res, 400, { error: "missing identityToken" });
+    const info = await verifyAppleToken(identityToken);
+    if (!info?.sub) return json(res, 401, { error: "apple token rejected" });
+
+    let user = store.getUserByAppleSub(info.sub);
+    let isNew = false;
+    if (!user) {
+      isNew = true;
+      const base = (typeof name === "string" && name.trim()) || info.email?.split("@")[0] || "Pilot";
+      user = store.createUser({
+        callsign: uniqueCallsign(base),
+        appleSub: info.sub,
+        country: COUNTRY_RE.test(country) ? country : "",
+      });
+    }
+    json(res, 200, { token: issueSession(user.id), user: publicUser(user), isNew });
+  },
+
   "POST /api/auth/clerk": async (req, res) => {
     if (!clerkEnabled()) return json(res, 400, { error: "clerk sign-in not configured" });
     if (!rateLimit(`clerk:${clientIp(req)}`, 15)) return json(res, 429, { error: "slow down" });
@@ -481,6 +526,7 @@ const routes = {
 
   "GET /api/me": (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
+    const t = userTier(user);
     json(res, 200, {
       user: publicUser(user),
       best: store.getUserBest(user.id),
@@ -490,8 +536,53 @@ const routes = {
       // patrol history calendar: bounds how far back "missed" can honestly
       // apply for this account (see src/dailyHistory.ts).
       joinedAt: user.created_at,
-      clipInbox: clipInboxAllowed(user),
+      clipInbox: t.clipInbox,
+      tier: t.tier,
+      premiumActive: t.premiumActive,
     });
+  },
+
+  // StoreKit 2: persist a verified Apple signed transaction. Unverified
+  // transaction ids are not trusted unless ORION_PREMIUM_SANDBOX=1.
+  "POST /api/me/premium": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!rateLimit(`premium:${user.id}`, 8)) return json(res, 429, { error: "slow down" });
+    const body = await readBody(req);
+    const signed = body.signedTransaction;
+    let ent = null;
+    if (typeof signed === "string" && signed.length > 20) {
+      const verified = verifyPremiumTransaction(signed);
+      if (verified.ok) ent = verified.entitlement;
+    }
+    if (!ent && sandboxTrustAllowed()) {
+      const decoded = typeof signed === "string" ? decodeJws(signed) : null;
+      const payload = decoded?.payload ?? body;
+      ent = entitlementFromPayload(payload);
+      if (!ent && typeof body.productId === "string" && Number(body.expiresDate) > Date.now()) {
+        if (PREMIUM_PRODUCTS.has(body.productId)) {
+          ent = {
+            productId: body.productId,
+            transactionId: String(body.transactionId ?? ""),
+            expiresDate: Number(body.expiresDate),
+            environment: "Sandbox",
+          };
+        }
+      }
+    }
+    if (!ent) {
+      return json(res, 400, {
+        error: "could not verify Apple transaction",
+        code: "VERIFY_UNAVAILABLE",
+      });
+    }
+    store.setUserPremium(user.id, {
+      until: ent.expiresDate,
+      productId: ent.productId,
+      transactionId: ent.transactionId,
+    });
+    const fresh = store.getUserById(user.id);
+    const t = userTier(fresh);
+    json(res, 200, { ok: true, tier: t.tier, premiumActive: t.premiumActive, premiumUntil: ent.expiresDate });
   },
 
   "PATCH /api/me": async (req, res, user) => {
@@ -549,9 +640,11 @@ const routes = {
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
 
-    // Daily Patrol: the server stamps the date itself (clients can't file
-    // scores onto past/future boards). Daily runs count all-time too.
-    const dailyDate = body.daily === true ? patrolToday() : null;
+    // Daily Patrol: today is always stampable. Past-day full scores need
+    // Patrol Archive (premium/admin). Future/rehearsal dates need Crew.
+    const dated = resolveDailySubmit(body, user, patrolToday());
+    if (dated.error) return json(res, dated.error.status, dated.error);
+    const dailyDate = dated.dailyDate;
     // The 3-attempts-per-day budget is enforced HERE, not just in the client's
     // localStorage — a forged client can't flood the daily board. (Refunded
     // <15s deaths never submit as daily, so legit players can't hit this.)
@@ -709,6 +802,32 @@ const routes = {
     json(res, 200, { entries: store.dailyHistoryForUser(user.id, { from, to: clampedTo }) });
   },
 
+  // Mutator names for the native Patrol Calendar. Free/premium stop at today.
+  // Admin may look 14 days ahead (same horizon as web Crew Rehearsal).
+  "GET /api/patrol-mutators": (req, res, user, url) => {
+    const from = url.searchParams.get("from") ?? "";
+    const to = url.searchParams.get("to") ?? "";
+    const today = patrolToday();
+    const t = userTier(user);
+    const range = clampMutatorRange({ from, to, today, admin: t.admin });
+    if (range.error) return json(res, 400, { error: range.error });
+    if (range.empty) return json(res, 200, { entries: [], today, horizon: t.admin ? 14 : 0 });
+    const schedule = loadMutatorSchedule();
+    const entries = [];
+    for (let d = range.from; d <= range.to; ) {
+      const rows = schedule[d] ?? [];
+      entries.push({
+        date: d,
+        name: rows[0]?.name ?? "CLASSIC",
+        subline: rows[0]?.subline ?? "",
+        names: rows.map((r) => r.name),
+      });
+      const [y, m, day] = d.split("-").map(Number);
+      d = new Date(Date.UTC(y, m - 1, day + 1)).toISOString().slice(0, 10);
+    }
+    json(res, 200, { entries, today, horizon: t.admin ? 14 : 0 });
+  },
+
   "POST /api/arenas": async (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
     if (!rateLimit(`arena:${user.id}`, 5)) return json(res, 429, { error: "slow down" });
@@ -790,6 +909,18 @@ const routes = {
 
   "GET /api/friends/leaderboard": (req, res, user, url) => {
     if (!user) return json(res, 401, { error: "not signed in" });
+    const date = url.searchParams.get("date") ?? "";
+    if (date) {
+      if (!isValidUtcDateStr(date)) return json(res, 400, { error: "invalid date" });
+      const today = patrolToday();
+      const t = userTier(user);
+      if (date > today && !t.admin) return json(res, 403, { error: "Crew rehearsal only", code: "CREW_REQUIRED" });
+      return json(res, 200, {
+        date,
+        entries: sanitizeEntries(store.friendsDailyBoard(user.id, date)),
+        me: null,
+      });
+    }
     const mode = url.searchParams.get("mode") ?? "desktop";
     if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
     const gameMode = queryGameMode(url);

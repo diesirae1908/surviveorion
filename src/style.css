@@ -1,3 +1,25 @@
+@font-face {
+  font-family: Rajdhani;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Rajdhani-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: Rajdhani;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/Rajdhani-700.ttf") format("truetype");
+}
+@font-face {
+  font-family: Rajdhani;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/Rajdhani-700.ttf") format("truetype");
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -733,6 +755,22 @@ button.launch {
 }
 
 /* quiet footer link from the daily lobby to the full arcade game */
+.lobby-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.daily-offline {
+  max-width: min(420px, 88vw);
+  color: var(--orion-alarm);
+  font-size: 13px;
+  letter-spacing: var(--orion-tracking-body);
+  text-align: center;
+  line-height: 1.45;
+}
+
 .full-game-link {
   background: none;
   border: none;
@@ -742,7 +780,8 @@ button.launch {
   letter-spacing: var(--orion-tracking-label);
   text-transform: uppercase;
   cursor: pointer;
-  padding: 6px 10px;
+  padding: 12px 14px;
+  min-height: 44px;
   transition: color 0.15s;
 }
 
@@ -1072,7 +1111,8 @@ a.share-btn:active {
   position: absolute;
   top: calc(14px + var(--safe-top));
   right: calc(14px + var(--safe-right));
-  min-width: 0;
+  min-width: 44px;
+  min-height: 44px;
   padding: 10px 14px;
   font-size: 20px;
   line-height: 1;
@@ -1428,7 +1468,8 @@ button.link-btn {
   border: none;
   background: none;
   min-width: 0;
-  padding: 4px;
+  min-height: 44px;
+  padding: 12px 8px;
   color: var(--orion-dust);
   font-size: 12px;
   letter-spacing: var(--orion-tracking-display);

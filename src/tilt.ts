@@ -11,6 +11,18 @@ export interface TiltReading {
   gamma: number; // left-right tilt, degrees
 }
 
+function nativeMotionBridge(): { postMessage: (m: unknown) => void } | undefined {
+  try {
+    return (
+      window as unknown as {
+        webkit?: { messageHandlers?: { orion?: { postMessage: (m: unknown) => void } } };
+      }
+    ).webkit?.messageHandlers?.orion;
+  } catch {
+    return undefined;
+  }
+}
+
 export class TiltControl {
   private reading: TiltReading | null = null;
   private neutral: TiltReading | null = null;
@@ -20,11 +32,12 @@ export class TiltControl {
   maxTiltDeg = TILT.maxTiltDeg;
 
   static supported(): boolean {
-    return typeof DeviceOrientationEvent !== "undefined";
+    return typeof DeviceOrientationEvent !== "undefined" || !!nativeMotionBridge();
   }
 
   /** iOS 13+ gates motion sensors behind an explicit permission dialog. */
   static needsPermission(): boolean {
+    if (nativeMotionBridge()) return true;
     return (
       TiltControl.supported() &&
       typeof (DeviceOrientationEvent as unknown as { requestPermission?: unknown })
@@ -44,6 +57,31 @@ export class TiltControl {
   /** Must be called from a user gesture on iOS; resolves true elsewhere. */
   async requestPermission(): Promise<boolean> {
     if (!TiltControl.supported()) return false;
+    const native = nativeMotionBridge();
+    if (native) {
+      this.granted = await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const done = (ok: boolean): void => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          window.removeEventListener("orion-native-motion", onNative as EventListener);
+          resolve(ok);
+        };
+        const onNative = (e: Event): void => {
+          const ev = e as CustomEvent<{ granted?: boolean }>;
+          done(!!ev.detail?.granted);
+        };
+        const timer = window.setTimeout(() => done(false), 20_000);
+        window.addEventListener("orion-native-motion", onNative as EventListener);
+        try {
+          native.postMessage({ type: "requestMotion" });
+        } catch {
+          done(false);
+        }
+      });
+      return this.granted;
+    }
     if (!TiltControl.needsPermission()) {
       this.granted = true;
       return true;
@@ -63,7 +101,28 @@ export class TiltControl {
     if (this.listening || !this.granted || !TiltControl.supported()) return;
     this.listening = true;
     window.addEventListener("deviceorientation", this.onOrientation);
+    window.addEventListener("oriontilt", this.onNativeTilt);
   }
+
+  /** Drop listeners and tell the native shell to stop Core Motion. */
+  stop(): void {
+    if (this.listening) {
+      this.listening = false;
+      window.removeEventListener("deviceorientation", this.onOrientation);
+      window.removeEventListener("oriontilt", this.onNativeTilt);
+    }
+    try {
+      nativeMotionBridge()?.postMessage({ type: "stopMotion" });
+    } catch {
+      // website, or the Swift bridge is not installed
+    }
+  }
+
+  private onNativeTilt = (e: Event): void => {
+    const ev = e as CustomEvent<TiltReading>;
+    if (typeof ev.detail?.beta !== "number" || typeof ev.detail?.gamma !== "number") return;
+    this.reading = { beta: ev.detail.beta, gamma: ev.detail.gamma };
+  };
 
   private onOrientation = (e: DeviceOrientationEvent): void => {
     // desktop browsers fire one event with nulls — ignore it
