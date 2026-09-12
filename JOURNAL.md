@@ -39,7 +39,7 @@ Lucas: "go for eeeeeverything." Isolated worktree `.worktrees/feat-ios-native` f
 4. Terms URL stub (Privacy works). Lifetime $49.99 omitted (not in ASC).
 5. Archive / TestFlight is Sam's.
 
-Commit pending (this push).
+Commit `98ed195`.
 
 ## 2026-09-11 PT: TestFlight 1.0 (4) tilt confirm, share, flags
 
