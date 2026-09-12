@@ -11,6 +11,8 @@ final class AppModel: ObservableObject {
     @Published var lastResult: GameResult?
     @Published var isSignedIn = false
     @Published var pendingPlay: PlayMode?
+    @Published var pendingSettings = false
+    @Published var pendingGameOver = false
 
     var mutators: [MutatorLine] { MutatorCatalog.today() }
     var topEntry: DailyBoardEntry? { board?.entries.first }

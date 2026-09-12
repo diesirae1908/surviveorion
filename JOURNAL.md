@@ -4,6 +4,32 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: iOS native chrome design pass
+
+Lucas rejected TestFlight 1.0 (2) Home / Settings / Game Over as stock Settings-app chrome. Visual restyle only, from spec `Sam/reports/orion-ios-native-design-spec-2026-09-12.md`. Isolated worktree `.worktrees/feat-ios-native` at `74bcc9d`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect.
+
+**Tokens / components** (`Theme.swift`): added `hullLine`, `flare`, `ingot`, `brass`, `risingRed`, `medalSilver`, `medalCopper` from `orion.tokens.json`. `goldPale` kept as an alias of `flare` for BoardView. Gold gradient uses stops 0 / 0.55 / 1. `ChamferedRectangle` (45-degree cuts, 0.22 cap), chamfered panels, Patrol Sight ring ported from `orion-mark.svg` arc math (r=37, four SVG endpoints), starfield from 52 of the 90 `orion-app-icon.svg` stars, custom chamfered toggle (28x16 track), gold bloom, attempt pips, `OrionButtonStyle` gold-gradient primary.
+
+**Screens:** Home is a mission briefing (wordmark + Patrol Sight, TODAY'S BRIEFING, glowing mutator card, diamond pips, PATROL COMPLETE at 0 attempts, pulsing Launch). Settings dropped `Form` for chamfered panels and the custom toggle. Game Over is a centered trophy (60pt gold score, ring watermark, gold bloom, horizontal stats, color medal badge). Two-column Home when regular-width or compact-height.
+
+**Approved copy:** `TODAY'S BRIEFING` overline. `PATROL COMPLETE` when `attemptsLeft == 0`.
+
+**Frozen:** play path, API, Keychain, notifications, WebView, BoardView layout. No web/`server/` edits.
+
+**QA hooks:** existing `-QAPlay` also accepts `settings` and `gameover` (fixture training result, silver medal) so screenshots do not need Simulator assistive taps.
+
+**Verify:** `npm run build` green. `npm test` green. Xcode 26.6, iPhone 17 Simulator (clean UDID `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`). No Swift compiler warnings in the changed files. Screenshots: `qa-evidence/design-pass/01-home.png`, `02-settings.png`, `03-gameover.png`, `04-training.png` (control picker), `05-home-regular-width.png` (iPad Air 11-inch, same two-column path as iPhone landscape).
+
+**Deviations (closest faithful, not a redesign):**
+- Rajdhani Medium/SemiBold are not in the bundled TTFs. Labels/data use Bold, body uses Regular, as the spec allowed.
+- Wordmark + Settings chip live in the scroll header, not the system nav bar. iOS 26 toolbar glass wrapped toolbar items in a pill, which the spec forbids.
+- iPhone landscape screenshot not captured: the already-booted iPhone 17 had a leftover SpringBoard notification alert (no assistive access to dismiss). Two-column layout verified on iPad regular-width instead.
+- Game Over shot is the `-QAPlay gameover` fixture, not a real Training death (taps blocked).
+- Optional CRT hairlines skipped (spec: skip if they muddy the starfield/glow).
+- THE PIT subline still says "arena". That string comes from the bundled mutator catalog, not this restyle.
+
+**Follow-ups:** Sam owns archive/upload. `npm run build` before `xcodebuild`.
+
 ## 2026-09-11 PT: SwiftUI host + bundled play canvas
 
 Lucas: not a Capacitor wrapper, a real iOS app. Isolated worktree

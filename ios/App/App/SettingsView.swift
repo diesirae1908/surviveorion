@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
     @State private var dailyOn = PreferencesStore.dailyNotification
     @State private var streakOn = PreferencesStore.streakAtRisk
     @State private var callsign = ""
@@ -11,62 +12,29 @@ struct SettingsView: View {
     @State private var message: String?
     @State private var confirmDelete = false
     @State private var showPrivacy = false
+    @State private var appeared = false
+
+    private var canSignIn: Bool { !busy && callsign.count >= 3 && password.count >= 6 }
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Daily Patrol reminder", isOn: $dailyOn)
-                    .tint(OrionColor.hullGold)
-                Toggle("Streak at risk (2 hours before midnight PT)", isOn: $streakOn)
-                    .tint(OrionColor.hullGold)
-            } header: {
-                Text("Notifications")
-            } footer: {
-                Text("Reminders fire at midnight America/Los_Angeles, not your local midnight.")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                settingsTopBar
+                notificationsSection
+                pilotSection
+                privacySection
             }
-
-            Section {
-                if model.isSignedIn, let name = model.callsign {
-                    Text("Signed in as \(name)")
-                        .foregroundStyle(OrionColor.starlight)
-                    Button("Sign out") {
-                        Task { await model.signOut() }
-                    }
-                    .frame(minHeight: OrionLayout.minTap)
-                    Button("Delete account", role: .destructive) {
-                        confirmDelete = true
-                    }
-                    .frame(minHeight: OrionLayout.minTap)
-                } else {
-                    TextField("Callsign", text: $callsign)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .frame(minHeight: OrionLayout.minTap)
-                    SecureField("Password", text: $password)
-                        .frame(minHeight: OrionLayout.minTap)
-                    Button("Sign in") {
-                        Task { await signIn() }
-                    }
-                    .disabled(busy || callsign.count < 3 || password.count < 6)
-                    .frame(minHeight: OrionLayout.minTap)
-                }
-                if let message {
-                    Text(message).foregroundStyle(OrionColor.alarm)
-                }
-            } header: {
-                Text("Pilot")
-            } footer: {
-                Text("Callsign plus password recovers a web account. A fresh install is a new guest until you sign in.")
-            }
-
-            Section {
-                Button("Privacy policy") { showPrivacy = true }
-                    .frame(minHeight: OrionLayout.minTap)
-            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
-        .scrollContentBackground(.hidden)
         .background(OrionColor.void.ignoresSafeArea())
-        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .opacity(appeared ? 1 : 0)
+        .onAppear {
+            withAnimation(OrionMotion.screen) { appeared = true }
+        }
         .onChange(of: dailyOn) { _, on in
             PreferencesStore.dailyNotification = on
             Task { await NotificationScheduler.reschedule() }
@@ -95,6 +63,138 @@ struct SettingsView: View {
         .sheet(isPresented: $showPrivacy) {
             SafariSheet(url: URL(string: "https://surviveorion.com/privacy.html")!)
         }
+    }
+
+    private var settingsTopBar: some View {
+        ZStack {
+            Text("Settings")
+                .font(OrionFont.display(28))
+                .foregroundStyle(OrionColor.starlight)
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(OrionColor.hullGold)
+                        .frame(width: OrionLayout.minTap, height: OrionLayout.minTap)
+                        .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 8))
+                        .overlay {
+                            ChamferedRectangle(chamfer: 8)
+                                .strokeBorder(OrionColor.hullLine, lineWidth: 1)
+                        }
+                }
+                .accessibilityLabel("Back")
+                Spacer()
+            }
+        }
+        .frame(minHeight: OrionLayout.minTap)
+    }
+
+    private var notificationsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("NOTIFICATIONS")
+                .font(OrionFont.body(13, weight: .bold))
+                .foregroundStyle(OrionColor.bronze)
+                .tracking(2)
+            ChamferedPanel(padding: 4) {
+                VStack(spacing: 0) {
+                    Toggle("Daily Patrol reminder", isOn: $dailyOn)
+                        .toggleStyle(OrionToggleStyle())
+                        .padding(.horizontal, 12)
+                    hairline
+                    Toggle("Streak at risk (2 hours before midnight PT)", isOn: $streakOn)
+                        .toggleStyle(OrionToggleStyle())
+                        .padding(.horizontal, 12)
+                }
+            }
+            Text("Reminders fire at midnight America/Los_Angeles, not your local midnight.")
+                .font(OrionFont.body(13))
+                .foregroundStyle(OrionColor.dust)
+        }
+    }
+
+    private var pilotSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("PILOT")
+                .font(OrionFont.body(13, weight: .bold))
+                .foregroundStyle(OrionColor.bronze)
+                .tracking(2)
+            ChamferedPanel {
+                VStack(alignment: .leading, spacing: 12) {
+                    if model.isSignedIn, let name = model.callsign {
+                        HStack(spacing: 8) {
+                            Text("Signed in as")
+                                .font(OrionFont.body(16))
+                                .foregroundStyle(OrionColor.starlight)
+                            Text(name.uppercased())
+                                .font(OrionFont.body(12, weight: .bold))
+                                .foregroundStyle(OrionColor.starlight)
+                                .tracking(2)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .overlay {
+                                    ChamferedRectangle(chamfer: 8)
+                                        .strokeBorder(OrionColor.bronze, lineWidth: 1)
+                                }
+                        }
+                        .frame(minHeight: OrionLayout.minTap)
+                        Button("Sign out") {
+                            Task { await model.signOut() }
+                        }
+                        .buttonStyle(OrionButtonStyle(kind: .secondary))
+                        Button("Delete account") {
+                            confirmDelete = true
+                        }
+                        .buttonStyle(OrionButtonStyle(kind: .destructive))
+                    } else {
+                        OrionField(title: "Callsign", text: $callsign)
+                        OrionField(title: "Password", text: $password, secure: true)
+                        Button("Sign in") {
+                            Task { await signIn() }
+                        }
+                        .buttonStyle(OrionButtonStyle(kind: .primary, enabled: canSignIn))
+                        .disabled(!canSignIn)
+                    }
+                    if let message {
+                        Text(message)
+                            .font(OrionFont.body(15))
+                            .foregroundStyle(OrionColor.alarm)
+                    }
+                }
+            }
+            Text("Callsign plus password recovers a web account. A fresh install is a new guest until you sign in.")
+                .font(OrionFont.body(13))
+                .foregroundStyle(OrionColor.dust)
+        }
+    }
+
+    private var privacySection: some View {
+        Button { showPrivacy = true } label: {
+            HStack {
+                Text("PRIVACY POLICY")
+                    .font(OrionFont.body(13, weight: .bold))
+                    .foregroundStyle(OrionColor.hullGold)
+                    .tracking(2)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(OrionColor.bronze)
+            }
+            .frame(minHeight: OrionLayout.minTap)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 12))
+        .overlay {
+            ChamferedRectangle(chamfer: 12)
+                .strokeBorder(OrionColor.hullLine, lineWidth: 1.5)
+        }
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(OrionColor.hullLine.opacity(0.40))
+            .frame(height: 1)
+            .padding(.horizontal, 12)
     }
 
     private func signIn() async {

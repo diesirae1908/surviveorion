@@ -23,6 +23,8 @@ struct OrionApp: App {
                 if let i = args.firstIndex(of: "-QAPlay"), args.indices.contains(i + 1) {
                     if args[i + 1] == "training" { model.pendingPlay = .training }
                     if args[i + 1] == "daily" { model.pendingPlay = .daily }
+                    if args[i + 1] == "settings" { model.pendingSettings = true }
+                    if args[i + 1] == "gameover" { model.pendingGameOver = true }
                 }
             }
             .onOpenURL { url in
