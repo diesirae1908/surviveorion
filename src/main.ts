@@ -78,12 +78,15 @@ import {
   type DailyDayLog,
   type KeyBindings,
 } from "./save";
-import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE } from "./share";
+import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE, renderShareCardPng } from "./share";
 import {
   bootNativeShell,
   hapticDeath,
   hapticGraze,
   isNativeApp,
+  isNativePlay,
+  parseNativePlay,
+  postNativeGameOver,
   setPlayChrome,
 } from "./native";
 import { TiltControl } from "./tilt";
@@ -115,6 +118,8 @@ const FULL_GAME =
   location.pathname.replace(/\/+$/, "") === "/fullgame" ||
   new URLSearchParams(location.search).has("fullgame");
 const DAILY_ONLY = !FULL_GAME;
+const NATIVE_PLAY = parseNativePlay(location.search);
+const IS_NATIVE_PLAY = NATIVE_PLAY !== null;
 
 if (DAILY_ONLY) document.title = "ORION Daily";
 
@@ -153,9 +158,10 @@ if (DAILY_ONLY) document.title = "ORION Daily";
  * falls back to today's real mutator(s).
  */
 const PREVIEW_ALLOWED_HOST =
-  location.hostname === "localhost" ||
-  location.hostname === "127.0.0.1" ||
-  location.hostname === "surviveorion-dev.onrender.com";
+  !isNativePlay() &&
+  (location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1" ||
+    location.hostname === "surviveorion-dev.onrender.com");
 try {
   localStorage.removeItem("orion.rehearsal");
 } catch {
@@ -590,6 +596,10 @@ const community = new CommunityUi(
 );
 
 function showMenu(): void {
+  if (IS_NATIVE_PLAY) {
+    ui.hideAll();
+    return;
+  }
   if (DAILY_ONLY) {
     const attempts = loadDailyAttempts();
     const mutatorsToday = todaysMutators();
@@ -1111,9 +1121,53 @@ function onGameOver(): void {
   }
 }
 
+async function emitNativePlayGameOver(medal: string | null): Promise<void> {
+  let sharePngBase64: string | null = null;
+  if (runIsDaily && lastRunShare && !runRefunded) {
+    try {
+      const blob = await renderShareCardPng({
+        dayNumber: dailyNumber(),
+        score: lastRunShare.score,
+        time: lastRunShare.time,
+        maxMultiplier: lastRunShare.maxMultiplier,
+        rank: lastRunShare.rank,
+        attempt: lastRunShare.attempt,
+        mutatorNames: lastRunShare.mutatorNames,
+        medal: lastRunShare.medal,
+        preview: lastRunShare.preview,
+      });
+      if (blob) {
+        sharePngBase64 = await new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const s = String(reader.result ?? "");
+            const comma = s.indexOf(",");
+            resolve(comma >= 0 ? s.slice(comma + 1) : s);
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch {
+      sharePngBase64 = null;
+    }
+  }
+  postNativeGameOver({
+    score: Math.floor(world.score),
+    timeSurvived: world.time,
+    kills: world.kills,
+    medal,
+    sharePngBase64,
+  });
+}
+
 function showGameOverUi(): void {
   gameOverUiShown = true;
   if (runIsTraining) {
+    if (IS_NATIVE_PLAY) {
+      void emitNativePlayGameOver(null);
+      return;
+    }
     ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1);
     return;
   }
@@ -1159,6 +1213,11 @@ function showGameOverUi(): void {
       medal: dailyMedal?.tier,
       preview: PREVIEW_ACTIVE,
     };
+  }
+  if (IS_NATIVE_PLAY) {
+    if (!runIsTraining) submitRun();
+    void emitNativePlayGameOver(dailyMedal?.tier ?? null);
+    return;
   }
   ui.showGameOver({
     score: world.score,
@@ -1668,7 +1727,9 @@ function skipDeathCinematic(): void {
   }
 }
 
-ui.showIntroGate(enterFromGate);
+if (!IS_NATIVE_PLAY) {
+  ui.showIntroGate(enterFromGate);
+}
 // keyboard players can enter with any key; any input after a short beat skips
 window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
@@ -1693,11 +1754,16 @@ window.addEventListener("pointerdown", () => {
 // server availability) so the community buttons appear/disappear correctly.
 void api.init().then(() => {
   applyCreatorAccess(api.clipInbox);
+  if (IS_NATIVE_PLAY) {
+    const training = NATIVE_PLAY === "training";
+    beginLaunch(!training, "classic", training);
+    return;
+  }
   if (state === "menu") showMenu();
 });
-void bootNativeShell();
+if (!IS_NATIVE_PLAY) void bootNativeShell();
 
 // traffic beacon: who's arriving, from where (admin dashboard only)
-api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
+if (!IS_NATIVE_PLAY) api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
 
 requestAnimationFrame(frame);

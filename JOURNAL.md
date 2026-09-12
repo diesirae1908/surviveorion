@@ -4,6 +4,63 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: SwiftUI host + bundled play canvas
+
+Lucas: not a Capacitor wrapper, a real iOS app. Isolated worktree
+`.worktrees/feat-ios-native` from `origin/feat/ios-shell` (`53d6d76`). Dirty
+main checkout untouched. Pushed `feat/ios-native` only.
+
+**Shell:** SwiftUI `HomeView` / `BoardView` / `SettingsView` / `PlayView`.
+Bundle id `com.surviveorion.app`, team `4R88D2NKUC`, project still
+`ios/App/App.xcodeproj`. CAPBridgeViewController is no longer the root.
+Capacitor sources stay on disk (never deleted) and are not compiled.
+
+**Play:** WKWebView loads bundled `dist/` only, never surviveorion.com as the
+page. Query `?nativePlay=daily|training` skips lobby chrome and auto-starts
+that mode. Website without the query is unchanged (`test:native-play`).
+JS bridge `window.webkit.messageHandlers.orion`: graze / death / gameOver /
+session. Native haptics on graze (light) and death (heavy). Session Bearer +
+guest secret live in Keychain and are injected into localStorage at
+documentStart so `src/api.ts` still submits scores.
+
+**WebView origin:** `capacitor://localhost` via `WKURLSchemeHandler` (scheme
+`capacitor`). That string is already on the live CORS allowlist
+(`capacitor://localhost`, `ionic://localhost`, `https://localhost`,
+`http://localhost`). No server change. `http`/`https` cannot be registered
+as custom schemes, so a local HTTP server on a high port would have sent
+`http://localhost:PORT` and failed the exact-origin check.
+
+**No `/api/daily` on the server.** Home uses `GET /api/leaderboard/daily?mode=all`
+plus a build-time `mutator-schedule.json` from `getMutatorsForDateStr` (App
+Store release still ships mutator updates).
+
+**Native chrome:** midnight America/Los_Angeles notifications (permission on
+the second process, not first launch). Streak-at-risk default off. Privacy
+in SFSafariViewController. Delete account calls `DELETE /api/me`. App icon
+is the existing flattened 1024 RGB PNG from `brand/assets/icon/png/`.
+Rajdhani 400/700 bundled. Launch screen: Void + gold ring.
+
+**Verify:** `npm run build` green. `npm test` green (includes new
+`test:native-play`). Xcode 26.6, iPhone 17 Simulator: Home loads live board
+(THE PIT, L33x 649253 on 2026-09-11 PT). Training Ground opens the bundled
+canvas (CHOOSE YOUR CONTROLS). Screenshots:
+`qa-evidence/01-home.png`, `qa-evidence/02-training.png`. No Daily Patrol
+attempt from the Simulator. Airplane mode not forced; offline path is
+`APIError.offline` on Home (Launch Patrol disabled, Training still offered).
+
+**Untested:** haptics (Simulator does not vibrate, not tested on device).
+Landscape rotation not visually flipped (Info.plist + AppDelegate allow
+all orientations). Native game-over sheet + share PNG not fully walked
+(could not tap FLY without Simulator assistive access). Notification
+permission dialog is second-session as designed; a leftover SpringBoard
+prompt overlayed some QA shots.
+
+**Follow-ups:** Sam owns archive/upload, App Store Connect, CORS if the
+origin ever changes. `npm run build` must run before `xcodebuild` (`dist/`
+is gitignored, folder-referenced by the Xcode project).
+
+Commit hash filled in the next journal line after this lands.
+
 ## 2026-09-11 PT: iOS Automatic signing team
 
 - App target Debug and Release now have `DEVELOPMENT_TEAM = 4R88D2NKUC` (App Store Connect seedId for `com.surviveorion.app`). `CODE_SIGN_STYLE` stays Automatic. Bundle id unchanged.

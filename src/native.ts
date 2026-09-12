@@ -10,6 +10,64 @@ export const LIVE_API_ORIGIN = "https://surviveorion.com";
 export const PRIVACY_URL = "https://surviveorion.com/privacy.html";
 export const BUNDLE_ID = "com.surviveorion.app";
 
+export type NativePlayMode = "daily" | "training";
+
+/** Query parser for the SwiftUI play WebView. Website: null when absent. */
+export function parseNativePlay(search: string): NativePlayMode | null {
+  const v = new URLSearchParams(search).get("nativePlay");
+  return v === "daily" || v === "training" ? v : null;
+}
+
+/** True only when this page was opened as a play-only native run. */
+export function isNativePlay(): boolean {
+  try {
+    if (typeof location === "undefined") return false;
+    return parseNativePlay(location.search) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function postNative(payload: Record<string, unknown>): void {
+  try {
+    const wk = (
+      window as unknown as {
+        webkit?: { messageHandlers?: { orion?: { postMessage: (m: unknown) => void } } };
+      }
+    ).webkit?.messageHandlers?.orion;
+    wk?.postMessage(payload);
+  } catch {
+    // website, or the Swift bridge is not installed
+  }
+}
+
+/** Push Bearer + guest secret back to the Swift Keychain after a run. */
+export function exportNativeSession(): void {
+  if (!isNativePlay()) return;
+  try {
+    postNative({
+      type: "session",
+      token: localStorage.getItem("orion.session"),
+      guestSecret: localStorage.getItem("orion.guestSecret"),
+      dailyAttempts: localStorage.getItem("orion.dailyAttempts"),
+    });
+  } catch {
+    // private mode
+  }
+}
+
+export function postNativeGameOver(payload: {
+  score: number;
+  timeSurvived: number;
+  kills: number;
+  medal?: string | null;
+  sharePngBase64?: string | null;
+}): void {
+  if (!isNativePlay()) return;
+  postNative({ type: "gameOver", ...payload });
+  exportNativeSession();
+}
+
 const SESSION_COUNT_KEY = "orion.nativeSessions";
 const NOTIF_DAILY_KEY = "orion.notifDaily";
 const NOTIF_STREAK_KEY = "orion.notifStreak";
@@ -40,7 +98,7 @@ export function isNativeApp(): boolean {
  * web pilot recovers history. No automatic identity migration.
  */
 export function apiBase(): string {
-  return isNativeApp() ? LIVE_API_ORIGIN : "";
+  return isNativeApp() || isNativePlay() ? LIVE_API_ORIGIN : "";
 }
 
 export interface NativeNotifPrefs {
@@ -68,6 +126,10 @@ export async function setNativeNotifStreak(on: boolean): Promise<void> {
 }
 
 export async function hapticGraze(): Promise<void> {
+  if (isNativePlay()) {
+    postNative({ type: "graze" });
+    return;
+  }
   if (!isNativeApp()) return;
   try {
     const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
@@ -78,6 +140,10 @@ export async function hapticGraze(): Promise<void> {
 }
 
 export async function hapticDeath(): Promise<void> {
+  if (isNativePlay()) {
+    postNative({ type: "death" });
+    return;
+  }
   if (!isNativeApp()) return;
   try {
     const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
