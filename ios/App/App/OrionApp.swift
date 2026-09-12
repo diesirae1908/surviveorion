@@ -17,7 +17,13 @@ struct OrionApp: App {
             .onAppear {
                 let args = ProcessInfo.processInfo.arguments
                 let qaPlay = args.contains("-QAPlay")
-                if !qaPlay {
+                let qaSession = qaPlay
+                    || args.contains("-QAPremium")
+                    || args.contains("-QAPatrolComplete")
+                if args.contains("-QAPatrolComplete") {
+                    model.attemptsLeft = 0
+                }
+                if !qaSession {
                     NotificationScheduler.requestIfSecondSession()
                 }
                 if let i = args.firstIndex(of: "-QAPlay"), args.indices.contains(i + 1) {
@@ -31,7 +37,7 @@ struct OrionApp: App {
                         model.pendingShare = true
                     }
                     if args[i + 1] == "calendar" { model.pendingCalendar = true }
-                    if args[i + 1] == "premium" { model.pendingPremium = .generic }
+                    if args[i + 1] == "premium" { model.pendingPremium = .calendar }
                     if args[i + 1] == "feedback" { model.pendingFeedback = true }
                     if args[i + 1] == "wingmates" { model.pendingWingmates = true }
                     if args[i + 1] == "analytics" { model.pendingAnalytics = true }

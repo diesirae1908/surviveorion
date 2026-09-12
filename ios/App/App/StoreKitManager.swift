@@ -69,6 +69,9 @@ final class StoreKitManager: ObservableObject {
         purchasing = true
         lastError = nil
         defer { purchasing = false }
+        if productsUnavailable {
+            await refresh()
+        }
         do {
             try await AppStore.sync()
             await updateEntitlement()
@@ -77,7 +80,9 @@ final class StoreKitManager: ObservableObject {
             }
             return entitled
         } catch {
-            lastError = "Restore failed."
+            lastError = productsUnavailable
+                ? "The App Store catalog isn't loaded yet. Check your connection and try again."
+                : "Couldn't restore this purchase. Check your Apple ID and try again."
             return false
         }
     }

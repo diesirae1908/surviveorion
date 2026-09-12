@@ -4,6 +4,28 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 PT: TestFlight 1.0 (6) Home nav, Archive upsell, prices
+
+Lucas TestFlight 1.0 (6) notes plus a mid-flight price drop. Isolated worktree `.worktrees/feat-ios-native` from `99c86ea`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.
+
+**1 Home nav:** Footer text links are now full-width secondary chamfer buttons in the Launch / Training stack: Patrol Calendar (free), Wingmates (lock glyph when Free, tap opens Patrol Archive with squadrons context), Feedback (free). Analytics stays in Settings only. Top-right: Settings stays; Free gets a compact ACTIVATE crown chip; Premium/Admin get a quiet PREMIUM/CREW badge instead.
+
+**2 PATROL COMPLETE:** Launch stays disabled. Free sees Unlock Patrol Archive (calendar-context sheet). Premium does not get a second calendar CTA (Patrol Calendar is already the next button).
+
+**3 Game Over:** Free gets Unlock Patrol Archive next to Feedback. Premium gets Analytics. Share / Done stay primary.
+
+**4 Paywall copy:** Calendar tagline is now "Missed a day? Fly it anytime." Restore is "Already subscribed? Restore" plus "Use this if you paid on another device or reinstalled." Failed restore no longer says only "Restore failed." Catalog-not-loaded vs generic restore get separate human lines.
+
+**5 Prices:** Hardcoded display is $1.99 / month and $14.99 / year (BEST VALUE, save 37% from 1.99*12 vs 14.99). Product IDs unchanged. ASC still Sam's.
+
+**QA:** DEBUG `-QAPatrolComplete` forces zero attempts without writing spend. `-QAPremium` / `-QAPatrolComplete` also skip the notification prompt. `-QAPlay premium` opens the calendar-context sheet.
+
+**Verify:** Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. iOS Debug build green. Training Ground not spent. Screenshots in `qa-evidence/tf-fixes-3/`: `01-home-free.png`, `02-home-patrol-complete.png`, `03-home-premium.png`, `04-premium-sheet.png`, `05-gameover-tease.png`.
+
+**Untested / device-only:** real StoreKit purchase and restore (catalog still unavailable in Simulator), live ASC prices.
+
+**Follow-ups:** Sam owns archive / TestFlight / ASC metadata.
+
 ## 2026-09-12 PT: Native Free / Premium / Admin + server gates
 
 Lucas: "go for eeeeeverything." Isolated worktree `.worktrees/feat-ios-native` from `17b84aa`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No Render deploy. No App Store Connect / archive.

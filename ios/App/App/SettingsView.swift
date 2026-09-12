@@ -197,7 +197,7 @@ struct SettingsView: View {
                     hairline
                     extraRow("Feedback") { showFeedback = true }
                     hairline
-                    extraRow("Restore Purchases") {
+                    extraRow("Already subscribed? Restore") {
                         Task {
                             _ = await model.store.restore()
                             restoreNote = model.store.lastError ?? (model.store.entitled ? "Patrol Archive active." : nil)
@@ -206,6 +206,9 @@ struct SettingsView: View {
                     }
                 }
             }
+            Text("Use this if you paid on another device or reinstalled.")
+                .font(OrionFont.body(12, weight: .regular))
+                .foregroundStyle(OrionColor.dust)
             if let restoreNote {
                 Text(restoreNote)
                     .font(OrionFont.body(13))

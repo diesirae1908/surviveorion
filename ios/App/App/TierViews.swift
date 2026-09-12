@@ -64,6 +64,31 @@ struct PremiumLockGlyph: View {
     }
 }
 
+struct ActivatePremiumChip: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 10, weight: .bold))
+                Text("ACTIVATE")
+                    .font(OrionFont.body(11, weight: .bold))
+                    .tracking(1)
+            }
+            .foregroundStyle(OrionColor.hullGold)
+            .padding(.horizontal, 10)
+            .frame(minHeight: OrionLayout.minTap)
+            .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 8))
+            .overlay {
+                ChamferedRectangle(chamfer: 8)
+                    .strokeBorder(OrionColor.hullGold.opacity(0.55), lineWidth: 1)
+            }
+        }
+        .accessibilityLabel("Activate Premium")
+    }
+}
+
 struct OrionEmptyState: View {
     var title: String
     var bodyText: String

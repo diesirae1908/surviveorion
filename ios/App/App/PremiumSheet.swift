@@ -41,14 +41,14 @@ struct PremiumSheet: View {
                     }
                     HStack(spacing: 12) {
                         planCard(
-                            title: "$4.99",
+                            title: "$1.99",
                             sub: "per month",
                             selected: !yearly,
                             featured: false
                         ) { yearly = false }
                         planCard(
-                            title: "$29.99",
-                            sub: "per year, save 50%",
+                            title: "$14.99",
+                            sub: "per year, save 37%",
                             selected: yearly,
                             featured: true
                         ) { yearly = true }
@@ -65,12 +65,16 @@ struct PremiumSheet: View {
                     }
                     .buttonStyle(OrionButtonStyle(kind: .primary, enabled: !model.store.purchasing && !model.store.productsUnavailable))
                     .disabled(model.store.purchasing || model.store.productsUnavailable)
-                    Button("Restore Purchases") {
+                    Button("Already subscribed? Restore") {
                         Task { await restore() }
                     }
                     .font(OrionFont.body(13, weight: .bold))
                     .foregroundStyle(OrionColor.bronze)
                     .frame(minHeight: OrionLayout.minTap)
+                    Text("Use this if you paid on another device or reinstalled.")
+                        .font(OrionFont.body(12, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .multilineTextAlignment(.center)
                     if let err = model.store.lastError, !err.isEmpty {
                         Text(err)
                             .font(OrionFont.body(13))

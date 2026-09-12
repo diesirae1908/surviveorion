@@ -11,7 +11,7 @@ enum PremiumContext: String, Identifiable {
 
     var subhead: String {
         switch self {
-        case .calendar: return "Every day you've flown, always open."
+        case .calendar: return "Missed a day? Fly it anytime."
         case .analytics: return "See your whole record, not just today."
         case .squadrons: return "Race your wingmates, not strangers."
         case .generic: return "Unlock the full patrol record."
@@ -76,6 +76,9 @@ final class AppModel: ObservableObject {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-QAPremium") {
             qaPremium = true
+        }
+        if ProcessInfo.processInfo.arguments.contains("-QAPatrolComplete") {
+            attemptsLeft = 0
         }
         #endif
         do {
