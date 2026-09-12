@@ -1,11 +1,15 @@
 import SwiftUI
+import UIKit
 
 struct GameOverView: View {
     let result: GameResult
+    var callsign: String? = nil
+    var autoShare = false
     var onDone: () -> Void
 
     @Environment(\.verticalSizeClass) private var vSize
     @State private var scoreLanded = false
+    @State private var sharePresented = false
 
     private var landscape: Bool { vSize == .compact }
     private var hasMedal: Bool {
@@ -34,10 +38,18 @@ struct GameOverView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
         }
+        .background {
+            ShareSheetHost(isPresented: $sharePresented, items: shareItems)
+        }
         .presentationDetents([.medium, .large])
         .onAppear {
             withAnimation(OrionMotion.gameOver) {
                 scoreLanded = true
+            }
+            if autoShare {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    sharePresented = true
+                }
             }
         }
     }
@@ -149,10 +161,8 @@ struct GameOverView: View {
 
     private var actionButtons: some View {
         VStack(spacing: 12) {
-            if result.sharePng != nil {
-                Button("Share") { share() }
-                    .buttonStyle(OrionButtonStyle(kind: .secondary))
-            }
+            Button("Share") { sharePresented = true }
+                .buttonStyle(OrionButtonStyle(kind: .secondary))
             Button("Done") { onDone() }
                 .buttonStyle(OrionButtonStyle(kind: .primary))
         }
@@ -164,14 +174,75 @@ struct GameOverView: View {
         return String(format: "%d:%02d", m, s)
     }
 
-    private func share() {
+    private func shareText() -> String {
+        var parts: [String] = []
+        parts.append(result.mode == .training ? "ORION Training Ground" : "ORION Daily Patrol")
+        parts.append("Score \(result.score.formatted())")
+        parts.append("Survived \(formatTime(result.timeSurvived))")
+        if let medal = result.medal, !medal.isEmpty {
+            parts.append("Medal \(medal)")
+        }
+        if let name = result.callsign ?? callsign, !name.isEmpty {
+            parts.append(name)
+        }
+        parts.append("surviveorion.com")
+        return parts.joined(separator: ". ")
+    }
+
+    private var shareItems: [Any] {
         var items: [Any] = []
         if let data = result.sharePng, let img = UIImage(data: data) {
             items.append(img)
         }
-        items.append("ORION Daily Patrol. Dodge the swarm. Three attempts.")
-        let av = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        scene?.keyWindow?.rootViewController?.present(av, animated: true)
+        items.append(shareText())
+        return items
+    }
+}
+
+/// Presents UIActivityViewController from a VC inside the game-over sheet.
+private struct ShareSheetHost: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    var items: [Any]
+
+    func makeUIViewController(context: Context) -> Host {
+        Host()
+    }
+
+    func updateUIViewController(_ host: Host, context: Context) {
+        host.items = items
+        if isPresented {
+            host.presentShare { isPresented = false }
+        }
+    }
+
+    final class Host: UIViewController {
+        var items: [Any] = []
+        private var presenting = false
+        private var attachTries = 0
+
+        func presentShare(onDismiss: @escaping () -> Void) {
+            guard !presenting, presentedViewController == nil else { return }
+            if viewIfLoaded?.window == nil {
+                attachTries += 1
+                guard attachTries < 40 else { return }
+                DispatchQueue.main.async { [weak self] in
+                    self?.presentShare(onDismiss: onDismiss)
+                }
+                return
+            }
+            attachTries = 0
+            presenting = true
+            let av = UIActivityViewController(activityItems: items, applicationActivities: nil)
+            av.completionWithItemsHandler = { [weak self] _, _, _, _ in
+                self?.presenting = false
+                onDismiss()
+            }
+            if let pop = av.popoverPresentationController {
+                pop.sourceView = view
+                pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 8, height: 8)
+                pop.permittedArrowDirections = []
+            }
+            present(av, animated: true)
+        }
     }
 }

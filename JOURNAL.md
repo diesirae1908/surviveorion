@@ -4,6 +4,24 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: TestFlight 1.0 (4) tilt confirm, share, flags
+
+Lucas TestFlight 1.0 (4) notes plus a chat ask for board flags. Isolated worktree `.worktrees/feat-ios-native` from `a4ab40e`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.
+
+**1 Tilt confirm + mid-run recalibrate / mode switch:** Tilt pick now shows HOLD YOUR POSITION (Confirm / Cancel) before Core Motion starts. Cancel returns to the control picker. Confirm captures neutral via the existing `enableTilt` / `requestMotion` path. Native pause menu (when `isNativePlay()`) adds Recalibrate tilt (already there when on tilt) plus Switch to touch / Switch to tilt. Switching TO tilt reuses the same confirm. Website pause is unchanged. Mid-run switch changes flight only: `runMode` stays whatever `startRun` captured, so it does not spend a Daily attempt or fork the board. `TiltControl.stop()` + `stopMotion` bridge when leaving tilt.
+
+**2 Share:** Game Over Share always shows (PNG + text, or text only). Text is score / survived / medal / callsign. Presented from a host VC inside the game-over sheet so the activity sheet is not swallowed. Copy is on the sheet. No third-party SDKs.
+
+**3 Country flags:** `OrionFormat.flag(country:)` builds a regional-indicator emoji from a 2-letter ISO code (empty/invalid → nothing). Home Today's Board and Full Board show the flag next to the callsign. Ghost rows use a flag only when `country` is present.
+
+**Tripwire:** mode switch does not restart, does not call `useDailyAttempt`, does not rewrite `runMode`.
+
+**Verify:** `npm run build` green. `npm test` green. Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. Training Ground only. Screenshots in `qa-evidence/tf-fixes-2/`.
+
+**Untested / device-only:** real Core Motion streaming and Motion permission sheet, mid-run tilt switch on a physical phone, Daily share PNG (fixture was Training text-only), Instagram/Messages shortcuts on device.
+
+**Follow-ups:** Sam owns archive / TestFlight.
+
 ## 2026-09-11 PT: TestFlight 1.0 (3) native play fixes
 
 Lucas filed 8 notes after TestFlight 1.0 (3). Isolated worktree `.worktrees/feat-ios-native` from `76f9296`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.

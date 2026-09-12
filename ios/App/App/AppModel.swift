@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     @Published var pendingSettings = false
     @Published var pendingBoard = false
     @Published var pendingGameOver = false
+    @Published var pendingShare = false
 
     var mutators: [MutatorLine] { MutatorCatalog.today() }
     var topEntry: DailyBoardEntry? { board?.entries.first }
@@ -110,6 +111,7 @@ struct GameResult: Equatable {
     var kills: Int
     var medal: String?
     var sharePng: Data?
+    var callsign: String?
 }
 
 enum PlayMode: String {

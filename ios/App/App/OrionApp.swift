@@ -26,6 +26,10 @@ struct OrionApp: App {
                     if args[i + 1] == "settings" { model.pendingSettings = true }
                     if args[i + 1] == "board" { model.pendingBoard = true }
                     if args[i + 1] == "gameover" { model.pendingGameOver = true }
+                    if args[i + 1] == "share" {
+                        model.pendingGameOver = true
+                        model.pendingShare = true
+                    }
                 }
             }
             .onOpenURL { url in

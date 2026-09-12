@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 enum OrionColor {
@@ -86,6 +87,26 @@ enum OrionFormat {
         case "tilt": return "Tilt"
         default: return row.mode?.capitalized ?? ""
         }
+    }
+
+    /// Regional-indicator flag from a 2-letter ISO country code. Empty/invalid → "".
+    static func flag(country: String) -> String {
+        let code = country.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard code.count == 2 else { return "" }
+        guard code.unicodeScalars.allSatisfy({ $0.isASCII && CharacterSet.uppercaseLetters.contains($0) }) else {
+            return ""
+        }
+        var scalars = String.UnicodeScalarView()
+        for scalar in code.unicodeScalars {
+            guard let flag = Unicode.Scalar(0x1F1A5 + scalar.value) else { return "" }
+            scalars.append(flag)
+        }
+        return String(scalars)
+    }
+
+    static func callsign(_ row: DailyBoardEntry) -> String {
+        let flag = flag(country: row.country)
+        return flag.isEmpty ? row.callsign : "\(flag) \(row.callsign)"
     }
 }
 

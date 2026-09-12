@@ -104,6 +104,20 @@ export class TiltControl {
     window.addEventListener("oriontilt", this.onNativeTilt);
   }
 
+  /** Drop listeners and tell the native shell to stop Core Motion. */
+  stop(): void {
+    if (this.listening) {
+      this.listening = false;
+      window.removeEventListener("deviceorientation", this.onOrientation);
+      window.removeEventListener("oriontilt", this.onNativeTilt);
+    }
+    try {
+      nativeMotionBridge()?.postMessage({ type: "stopMotion" });
+    } catch {
+      // website, or the Swift bridge is not installed
+    }
+  }
+
   private onNativeTilt = (e: Event): void => {
     const ev = e as CustomEvent<TiltReading>;
     if (typeof ev.detail?.beta !== "number" || typeof ev.detail?.gamma !== "number") return;

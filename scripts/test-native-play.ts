@@ -27,9 +27,21 @@ assert.equal(main.includes("showIntroGate(enterFromGate)") && main.includes("if 
 assert.match(main, /postNativeLeave/);
 assert.match(main, /orion-native-pause/);
 assert.match(main, /allow Motion & Fitness for ORION/);
+assert.match(main, /NATIVE_AUTO === "tiltconfirm"/);
+assert.match(main, /runMode \(the board this run files on\)/);
+assert.match(main, /input\.tilt\.stop\(\)/);
 
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");
 assert.equal(ui.includes("Tilt is our tribute to Tilt to Live"), false);
 assert.match(ui, /Hold your phone at your comfortable play angle before tapping/);
+assert.match(ui, /showTiltReadyConfirm/);
+assert.match(ui, /HOLD YOUR POSITION/);
+assert.match(ui, /Hold your phone at your comfortable play angle, then confirm/);
+assert.match(ui, /isNativePlay\(\)/);
+assert.match(ui, /Switch to touch/);
+assert.match(ui, /Switch to tilt/);
+
+const tilt = fs.readFileSync(path.join(ROOT, "src/tilt.ts"), "utf8");
+assert.match(tilt, /stopMotion/);
 
 console.log("PASS  nativePlay guard (website boot unchanged without the query)");

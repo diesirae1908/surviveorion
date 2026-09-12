@@ -132,6 +132,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         var q = "nativePlay=\(mode.rawValue)"
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-QAAutoStick") { q += "&nativeAuto=stick" }
+        if args.contains("-QATiltConfirm") { q += "&nativeAuto=tiltconfirm" }
         let url = URL(string: "\(BundleSchemeHandler.origin)/index.html?\(q)")!
         webView.load(URLRequest(url: url))
         if args.contains("-QAAutoLeave") {
@@ -266,6 +267,10 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             UINotificationFeedbackGenerator().notificationOccurred(.error)
         case "requestMotion":
             requestMotionFromUser()
+        case "stopMotion":
+            DispatchQueue.main.async { [weak self] in
+                self?.stopMotion()
+            }
         case "session":
             onSession?(
                 body["token"] as? String,
@@ -285,7 +290,8 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
                 timeSurvived: doubleValue(body["timeSurvived"]),
                 kills: intValue(body["kills"]),
                 medal: body["medal"] as? String,
-                sharePng: png
+                sharePng: png,
+                callsign: body["callsign"] as? String
             )
             finish(.finished(result))
         default:

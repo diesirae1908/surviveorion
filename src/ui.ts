@@ -26,6 +26,7 @@ import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } f
 import { RECORDING_MAX_SECONDS, recordingSupported, recordingUnavailableReason } from "./recorder";
 import {
   isNativeApp,
+  isNativePlay,
   nativeNotifPrefs,
   openPrivacyPolicy,
   setNativeNotifDaily,
@@ -1632,6 +1633,28 @@ export class Ui {
       recal.classList.add("small-btn");
       screen.appendChild(recal);
     }
+    // Native play only: switch Touch ↔ Tilt without restarting the run.
+    // Website pause stays as it was (recalibrate when already on tilt).
+    if (isNativePlay() && this.cb.getControls().tiltSupported) {
+      if (this.cb.getControls().mode === "tilt") {
+        const toTouch = this.button("Switch to touch", false, () => {
+          void this.cb.onControlModeChange("stick").then(() => this.showPause());
+        });
+        toTouch.classList.add("small-btn");
+        screen.appendChild(toTouch);
+      } else {
+        const toTilt = this.button("Switch to tilt", false, () => {
+          this.showTiltReadyConfirm(
+            () => {
+              void this.cb.onControlModeChange("tilt").then(() => this.showPause());
+            },
+            () => this.showPause(),
+          );
+        });
+        toTilt.classList.add("small-btn");
+        screen.appendChild(toTilt);
+      }
+    }
     this.root.appendChild(screen);
   }
 
@@ -1671,9 +1694,12 @@ export class Ui {
     const stick = this.button("Touch: drag anywhere to fly", current !== "tilt", () =>
       onPick("stick"),
     );
-    const tilt = this.button("Tilt: lean your phone to fly", current === "tilt", () =>
-      onPick("tilt"),
-    );
+    const tilt = this.button("Tilt: lean your phone to fly", current === "tilt", () => {
+      this.showTiltReadyConfirm(
+        () => onPick("tilt"),
+        () => this.showModeSelect(current, onPick),
+      );
+    });
     screen.appendChild(stick);
     screen.appendChild(tilt);
     screen.appendChild(
@@ -1683,6 +1709,31 @@ export class Ui {
         "Hold your phone at your comfortable play angle before tapping, that becomes neutral.",
       ),
     );
+    this.root.appendChild(screen);
+  }
+
+  /**
+   * Confirm comfortable play angle before starting motion / capturing neutral.
+   * Cancel returns to the caller (control picker or pause).
+   */
+  showTiltReadyConfirm(onConfirm: () => void, onCancel: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen", "");
+    screen.appendChild(this.el("div", "heading gold small", "HOLD YOUR POSITION"));
+    screen.appendChild(this.el("div", "divider", ""));
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Hold your phone at your comfortable play angle, then confirm. That becomes neutral.",
+      ),
+    );
+    screen.appendChild(this.button("Confirm", true, onConfirm));
+    const cancel = this.button("Cancel", false, onCancel);
+    cancel.classList.add("small-btn");
+    screen.appendChild(cancel);
     this.root.appendChild(screen);
   }
 

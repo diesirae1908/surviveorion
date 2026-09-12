@@ -13,7 +13,7 @@ struct BoardView: View {
                             .foregroundStyle(OrionColor.hullGold)
                             .frame(width: 32, alignment: .trailing)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(row.callsign)
+                            Text(OrionFormat.callsign(row))
                                 .font(OrionFont.body(17, weight: .bold))
                                 .foregroundStyle(OrionColor.starlight)
                             Text(OrionFormat.platform(row))

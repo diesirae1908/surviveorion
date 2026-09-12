@@ -453,6 +453,7 @@ function failTiltToStick(reason: TiltEnableResult): void {
 function setStickMode(): void {
   controls.mode = "stick";
   input.controlMode = "stick";
+  input.tilt.stop();
   saveControlPrefs(controls);
 }
 
@@ -521,6 +522,8 @@ const ui = new Ui(settings, {
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
   onPatrolCalendar: () => openPatrolCalendar(),
   onControlModeChange: async (mode) => {
+    // Flight only. runMode (the board this run files on) stays whatever
+    // startRun captured. Does not spend a Daily attempt or restart.
     if (mode === "tilt") {
       const r = await enableTilt();
       if (r !== "ok") failTiltToStick(r);
@@ -887,6 +890,13 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
     doLaunch();
     return;
   }
+  if (IS_NATIVE_PLAY && NATIVE_AUTO === "tiltconfirm") {
+    ui.showTiltReadyConfirm(
+      () => {},
+      () => ui.showModeSelect(controls.mode, () => {}),
+    );
+    return;
+  }
   if (isTouchDevice() && TiltControl.supported()) {
     ui.showModeSelect(controls.mode, (mode) => {
       if (mode === "tilt") {
@@ -1177,6 +1187,7 @@ async function emitNativePlayGameOver(medal: string | null): Promise<void> {
     kills: world.kills,
     medal,
     sharePngBase64,
+    callsign: api.user?.callsign ?? null,
   });
 }
 

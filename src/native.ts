@@ -62,6 +62,7 @@ export function postNativeGameOver(payload: {
   kills: number;
   medal?: string | null;
   sharePngBase64?: string | null;
+  callsign?: string | null;
 }): void {
   if (!isNativePlay()) return;
   postNative({ type: "gameOver", ...payload });

@@ -164,7 +164,14 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showGameOver) {
             if let result = model.lastResult {
-                GameOverView(result: result) { showGameOver = false }
+                GameOverView(
+                    result: result,
+                    callsign: model.callsign,
+                    autoShare: model.pendingShare
+                ) {
+                    showGameOver = false
+                    model.pendingShare = false
+                }
             }
         }
     }
@@ -341,7 +348,7 @@ struct HomeView: View {
                 .font(OrionFont.display(16, weight: .bold))
                 .foregroundStyle(OrionColor.hullGold)
                 .frame(width: 22, alignment: .trailing)
-            Text(row.callsign)
+            Text(OrionFormat.callsign(row))
                 .font(OrionFont.body(15, weight: .bold))
                 .foregroundStyle(OrionColor.starlight)
                 .lineLimit(1)
