@@ -59,7 +59,7 @@ prompt overlayed some QA shots.
 origin ever changes. `npm run build` must run before `xcodebuild` (`dist/`
 is gitignored, folder-referenced by the Xcode project).
 
-Commit hash filled in the next journal line after this lands.
+Commit `5da4cbc`.
 
 ## 2026-09-11 PT: iOS Automatic signing team
 
