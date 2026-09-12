@@ -26,6 +26,8 @@ Lucas TestFlight 1.0 (6) notes plus a mid-flight price drop. Isolated worktree `
 
 **Follow-ups:** Sam owns archive / TestFlight / ASC metadata.
 
+Commit `1d08c35`.
+
 ## 2026-09-12 PT: Native Free / Premium / Admin + server gates
 
 Lucas: "go for eeeeeverything." Isolated worktree `.worktrees/feat-ios-native` from `17b84aa`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No Render deploy. No App Store Connect / archive.
