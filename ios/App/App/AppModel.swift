@@ -12,6 +12,7 @@ final class AppModel: ObservableObject {
     @Published var isSignedIn = false
     @Published var pendingPlay: PlayMode?
     @Published var pendingSettings = false
+    @Published var pendingBoard = false
     @Published var pendingGameOver = false
 
     var mutators: [MutatorLine] { MutatorCatalog.today() }
@@ -47,10 +48,34 @@ final class AppModel: ObservableObject {
 
     func signIn(callsign: String, password: String) async throws {
         let r = try await APIClient.shared.login(callsign: callsign, password: password)
-        KeychainStore.token = r.token
-        self.callsign = r.user.callsign
-        isSignedIn = true
+        applyLogin(r)
         await refresh()
+    }
+
+    func signInWithGoogle(idToken: String) async throws {
+        let r = try await APIClient.shared.googleSignIn(idToken: idToken, country: guessCountry())
+        applyLogin(r)
+        await refresh()
+    }
+
+    func signInWithApple(identityToken: String, name: String?) async throws {
+        let r = try await APIClient.shared.appleSignIn(
+            identityToken: identityToken,
+            name: name,
+            country: guessCountry()
+        )
+        applyLogin(r)
+        await refresh()
+    }
+
+    private func applyLogin(_ r: LoginResponse) {
+        KeychainStore.token = r.token
+        callsign = r.user.callsign
+        isSignedIn = true
+    }
+
+    private func guessCountry() -> String {
+        Locale.current.region?.identifier ?? ""
     }
 
     func signOut() async {

@@ -477,35 +477,34 @@ export class AudioSystem {
     setTimeout(() => g.disconnect(), 500);
   }
 
-  /** Rising hyperspace surge for the launch warp. */
+  /** Rising hyperspace surge for the launch warp (stargate). Soft envelope. */
   warp(duration: number): void {
     if (!this.ctx || !this.sfxGain) return;
     const t0 = this.ctx.currentTime;
+    const fade = Math.min(0.28, duration * 0.22);
 
-    // swelling noise pushed through a rising bandpass
     const src = this.ctx.createBufferSource();
-    const len = Math.ceil(this.ctx.sampleRate * (duration + 0.5));
+    const len = Math.ceil(this.ctx.sampleRate * (duration + fade));
     const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.min(1, (i / len) * 1.6);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.min(1, (i / len) * 1.4);
     src.buffer = buffer;
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = "bandpass";
-    filter.Q.value = 1.1;
-    filter.frequency.setValueAtTime(180, t0);
-    filter.frequency.exponentialRampToValueAtTime(3400, t0 + duration);
+    filter.Q.value = 0.85;
+    filter.frequency.setValueAtTime(260, t0);
+    filter.frequency.exponentialRampToValueAtTime(2200, t0 + duration);
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.45, t0 + duration * 0.85);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration + 0.45);
+    gain.gain.exponentialRampToValueAtTime(0.16, t0 + duration * 0.7);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration + fade);
 
     src.connect(filter).connect(gain).connect(this.sfxGain);
     src.start(t0);
 
-    // deep riser underneath + a shimmer on top
-    this.tone(48, 340, duration, "sawtooth", 0.14);
-    this.tone(220, 1760, duration, "sine", 0.07, duration * 0.25);
+    this.tone(70, 280, duration * 0.85, "sine", 0.07);
+    this.tone(320, 1400, duration * 0.75, "sine", 0.045, duration * 0.2);
   }
 }

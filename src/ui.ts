@@ -1658,7 +1658,7 @@ export class Ui {
 
   /**
    * Pre-launch control picker (touch devices with a motion sensor): the
-   * default drag-anywhere stick, or tilt as the Tilt to Live tribute.
+   * default drag-anywhere stick, or phone tilt.
    */
   showModeSelect(current: ControlMode, onPick: (mode: ControlMode) => void): void {
     this.clear();
@@ -1680,8 +1680,7 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Tilt is our tribute to Tilt to Live. Hold your phone at your comfortable" +
-          " play angle before tapping, that becomes neutral.",
+        "Hold your phone at your comfortable play angle before tapping, that becomes neutral.",
       ),
     );
     this.root.appendChild(screen);

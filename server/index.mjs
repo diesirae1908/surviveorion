@@ -32,6 +32,7 @@ import {
   nextAboveCombinedDailyWithBots,
 } from "./dailyBoard.mjs";
 import { clerkEnabled, clerkPublishableKey, verifyClerkToken, clerkUserProfile } from "./clerk.mjs";
+import { verifyAppleToken } from "./apple.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
 import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload, handleClipCutsPublic } from "./clip-inbox.mjs";
@@ -379,7 +380,7 @@ const routes = {
       // addition) must stay reachable by its own device secret; that
       // callsign is already masked from everyone else via
       // sanitizeCallsignForDisplay at every public read boundary.
-      if (existing.pass_hash || existing.google_sub || existing.clerk_sub)
+      if (existing.pass_hash || existing.google_sub || existing.clerk_sub || existing.apple_sub)
         return json(res, 409, { error: "that callsign belongs to a registered pilot" });
       if (existing.guest_secret_hash) {
         if (!guestSecretMatches(guestSecret, existing.guest_secret_hash))
@@ -445,6 +446,27 @@ const routes = {
       user = store.createUser({
         callsign: uniqueCallsign(base),
         googleSub: info.sub,
+        country: COUNTRY_RE.test(country) ? country : "",
+      });
+    }
+    json(res, 200, { token: issueSession(user.id), user: publicUser(user), isNew });
+  },
+
+  "POST /api/auth/apple": async (req, res) => {
+    if (!rateLimit(`apple:${clientIp(req)}`, 15)) return json(res, 429, { error: "slow down" });
+    const { identityToken, country = "", name = "" } = await readBody(req);
+    if (typeof identityToken !== "string") return json(res, 400, { error: "missing identityToken" });
+    const info = await verifyAppleToken(identityToken);
+    if (!info?.sub) return json(res, 401, { error: "apple token rejected" });
+
+    let user = store.getUserByAppleSub(info.sub);
+    let isNew = false;
+    if (!user) {
+      isNew = true;
+      const base = (typeof name === "string" && name.trim()) || info.email?.split("@")[0] || "Pilot";
+      user = store.createUser({
+        callsign: uniqueCallsign(base),
+        appleSub: info.sub,
         country: COUNTRY_RE.test(country) ? country : "",
       });
     }

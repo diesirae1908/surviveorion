@@ -1,3 +1,4 @@
+import CoreMotion
 import SwiftUI
 import UIKit
 import WebKit
@@ -54,20 +55,28 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         case "svg": return "image/svg+xml"
         case "ttf": return "font/ttf"
         case "woff2": return "font/woff2"
+        case "mp3": return "audio/mpeg"
         case "map": return "application/json"
         default: return "application/octet-stream"
         }
     }
 }
 
+enum PlayExit {
+    case quit
+    case finished(GameResult)
+}
+
 final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate {
     var mode: PlayMode = .training
-    var onResult: ((GameResult) -> Void)?
+    var onExit: ((PlayExit) -> Void)?
     var onSession: ((String?, String?, String?) -> Void)?
 
     private var webView: WKWebView!
     private let handler = BundleSchemeHandler()
     private var finished = false
+    private let motion = CMMotionManager()
+    private var motionGranted = false
 
     override var prefersStatusBarHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
@@ -75,6 +84,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 10 / 255, green: 10 / 255, blue: 18 / 255, alpha: 1)
+        view.insetsLayoutMarginsFromSafeArea = false
         UIApplication.shared.isIdleTimerDisabled = true
 
         let config = WKWebViewConfiguration()
@@ -93,25 +103,127 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
 
         webView = WKWebView(frame: view.bounds, configuration: config)
         webView.navigationDelegate = self
-        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        webView.translatesAutoresizingMaskIntoConstraints = false
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.bounces = false
+        webView.scrollView.contentInset = .zero
+        webView.scrollView.scrollIndicatorInsets = .zero
+        if #available(iOS 16.4, *) {
+            webView.isInspectable = true
+        }
         view.addSubview(webView)
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: view.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
 
-        let url = URL(string: "\(BundleSchemeHandler.origin)/index.html?nativePlay=\(mode.rawValue)")!
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appWillResign),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+
+        var q = "nativePlay=\(mode.rawValue)"
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-QAAutoStick") { q += "&nativeAuto=stick" }
+        let url = URL(string: "\(BundleSchemeHandler.origin)/index.html?\(q)")!
         webView.load(URLRequest(url: url))
+        if args.contains("-QAAutoLeave") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
+                self?.finish(.quit)
+            }
+        }
+        if args.contains("-QALandscape") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+                self?.requestLandscape()
+            }
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        syncViewport()
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: { _ in
+            self.view.layoutIfNeeded()
+        }, completion: { _ in
+            self.syncViewport()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+                self?.syncViewport()
+            }
+        })
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         UIApplication.shared.isIdleTimerDisabled = false
+        if isBeingDismissed || isMovingFromParent {
+            teardown()
+        }
     }
 
     deinit {
-        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "orion")
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    func teardown() {
+        stopMotion()
+        UIApplication.shared.isIdleTimerDisabled = false
+        guard webView != nil else { return }
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "orion")
+        webView.loadHTMLString("", baseURL: nil)
+        webView.removeFromSuperview()
+        webView = nil
+    }
+
+    @objc private func appWillResign() {
+        guard !finished, webView != nil else { return }
+        webView.evaluateJavaScript("window.dispatchEvent(new Event('orion-native-pause'))", completionHandler: nil)
+    }
+
+    private func syncViewport() {
+        guard let webView, webView.bounds.width > 1, webView.bounds.height > 1 else { return }
+        let w = webView.bounds.width
+        let h = webView.bounds.height
+        let top = view.safeAreaInsets.top
+        let right = view.safeAreaInsets.right
+        let bottom = view.safeAreaInsets.bottom
+        let left = view.safeAreaInsets.left
+        let js = """
+        (function(){
+          window.__orionViewport = {w: \(w), h: \(h)};
+          var r = document.documentElement;
+          r.style.setProperty('--safe-top', '\(top)px');
+          r.style.setProperty('--safe-right', '\(right)px');
+          r.style.setProperty('--safe-bottom', '\(bottom)px');
+          r.style.setProperty('--safe-left', '\(left)px');
+          window.dispatchEvent(new Event('resize'));
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        syncViewport()
+    }
+
+    private func requestLandscape() {
+        guard let scene = view.window?.windowScene else { return }
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight)) { _ in }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.syncViewport()
+        }
     }
 
     private var sessionInjection: String {
@@ -152,15 +264,17 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         case "death":
             UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
             UINotificationFeedbackGenerator().notificationOccurred(.error)
+        case "requestMotion":
+            requestMotionFromUser()
         case "session":
             onSession?(
                 body["token"] as? String,
                 body["guestSecret"] as? String,
                 body["dailyAttempts"] as? String
             )
+        case "leave":
+            finish(.quit)
         case "gameOver":
-            guard !finished else { return }
-            finished = true
             var png: Data?
             if let b64 = body["sharePngBase64"] as? String, !b64.isEmpty {
                 png = Data(base64Encoded: b64)
@@ -173,12 +287,65 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
                 medal: body["medal"] as? String,
                 sharePng: png
             )
-            DispatchQueue.main.async { [weak self] in
-                self?.onResult?(result)
-            }
+            finish(.finished(result))
         default:
             break
         }
+    }
+
+    private func finish(_ exit: PlayExit) {
+        guard !finished else { return }
+        finished = true
+        stopMotion()
+        DispatchQueue.main.async { [weak self] in
+            self?.onExit?(exit)
+        }
+    }
+
+    private func requestMotionFromUser() {
+        DispatchQueue.main.async { [weak self] in
+            self?.startMotion()
+        }
+    }
+
+    private func startMotion() {
+        guard motion.isDeviceMotionAvailable else {
+            postMotionGranted(false)
+            return
+        }
+        motion.deviceMotionUpdateInterval = 1.0 / 60.0
+        motion.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: .main) { [weak self] data, error in
+            guard let self, let att = data?.attitude, error == nil else { return }
+            if !self.motionGranted {
+                self.motionGranted = true
+                self.postMotionGranted(true)
+            }
+            let beta = att.pitch * 180 / .pi
+            let gamma = att.roll * 180 / .pi
+            let js = """
+            window.dispatchEvent(new CustomEvent('oriontilt', {detail:{beta:\(beta),gamma:\(gamma)}}));
+            """
+            self.webView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self, !self.motionGranted else { return }
+            if self.motion.isDeviceMotionActive {
+                self.motionGranted = true
+                self.postMotionGranted(true)
+            } else {
+                self.postMotionGranted(false)
+            }
+        }
+    }
+
+    private func postMotionGranted(_ ok: Bool) {
+        let js = "window.dispatchEvent(new CustomEvent('orion-native-motion', {detail:{granted:\(ok ? "true" : "false")}}));"
+        webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    private func stopMotion() {
+        motion.stopDeviceMotionUpdates()
+        motionGranted = false
     }
 
     private func intValue(_ v: Any?) -> Int {
@@ -198,13 +365,13 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
 
 struct PlayView: UIViewControllerRepresentable {
     let mode: PlayMode
-    var onFinished: (GameResult) -> Void
+    var onExit: (PlayExit) -> Void
     @EnvironmentObject private var model: AppModel
 
     func makeUIViewController(context: Context) -> PlayWebController {
         let vc = PlayWebController()
         vc.mode = mode
-        vc.onResult = onFinished
+        vc.onExit = onExit
         vc.onSession = { token, secret, attempts in
             Task { @MainActor in
                 model.applyBridgeSession(token: token, guestSecret: secret, dailyAttempts: attempts)
@@ -214,4 +381,8 @@ struct PlayView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: PlayWebController, context: Context) {}
+
+    static func dismantleUIViewController(_ vc: PlayWebController, coordinator: ()) {
+        vc.teardown()
+    }
 }

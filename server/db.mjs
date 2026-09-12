@@ -18,6 +18,7 @@ db.exec(`
     pass_hash TEXT,
     google_sub TEXT UNIQUE,
     clerk_sub TEXT UNIQUE,
+    apple_sub TEXT UNIQUE,
     country TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
   );
@@ -131,6 +132,14 @@ try {
   // column already exists
 }
 
+// Sign in with Apple (native iOS). Additive, same pattern as clerk_sub.
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN apple_sub TEXT`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apple ON users(apple_sub)`);
+} catch {
+  // column already exists
+}
+
 // Migration for databases created before tilt controls (per-mode leaderboards).
 try {
   db.exec(`ALTER TABLE scores ADD COLUMN mode TEXT NOT NULL DEFAULT 'classic'`);
@@ -194,15 +203,27 @@ export function createUser({
   passHash = null,
   googleSub = null,
   clerkSub = null,
+  appleSub = null,
   country = "",
   guestSecretHash = null,
 }) {
   const r = db
     .prepare(
-      `INSERT INTO users (callsign, callsign_lower, pass_salt, pass_hash, google_sub, clerk_sub, country, guest_secret_hash, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (callsign, callsign_lower, pass_salt, pass_hash, google_sub, clerk_sub, apple_sub, country, guest_secret_hash, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(callsign, callsign.toLowerCase(), passSalt, passHash, googleSub, clerkSub, country, guestSecretHash, Date.now());
+    .run(
+      callsign,
+      callsign.toLowerCase(),
+      passSalt,
+      passHash,
+      googleSub,
+      clerkSub,
+      appleSub,
+      country,
+      guestSecretHash,
+      Date.now(),
+    );
   return getUserById(r.lastInsertRowid);
 }
 
@@ -213,6 +234,8 @@ export const getUserByGoogleSub = (sub) =>
   db.prepare(`SELECT * FROM users WHERE google_sub = ?`).get(sub);
 export const getUserByClerkSub = (sub) =>
   db.prepare(`SELECT * FROM users WHERE clerk_sub = ?`).get(sub);
+export const getUserByAppleSub = (sub) =>
+  db.prepare(`SELECT * FROM users WHERE apple_sub = ?`).get(sub);
 
 export function updateUser(id, { callsign, country, passSalt, passHash }) {
   if (callsign !== undefined) {

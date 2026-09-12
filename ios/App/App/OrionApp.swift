@@ -24,6 +24,7 @@ struct OrionApp: App {
                     if args[i + 1] == "training" { model.pendingPlay = .training }
                     if args[i + 1] == "daily" { model.pendingPlay = .daily }
                     if args[i + 1] == "settings" { model.pendingSettings = true }
+                    if args[i + 1] == "board" { model.pendingBoard = true }
                     if args[i + 1] == "gameover" { model.pendingGameOver = true }
                 }
             }

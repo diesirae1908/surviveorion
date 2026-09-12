@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SafariServices
 import SwiftUI
 
@@ -13,6 +14,9 @@ struct SettingsView: View {
     @State private var confirmDelete = false
     @State private var showPrivacy = false
     @State private var appeared = false
+    @State private var showGoogle = false
+    @State private var googleClientId = ""
+    @State private var appleCoordinator = AppleSignInCoordinator()
 
     private var canSignIn: Bool { !busy && callsign.count >= 3 && password.count >= 6 }
 
@@ -34,6 +38,25 @@ struct SettingsView: View {
         .opacity(appeared ? 1 : 0)
         .onAppear {
             withAnimation(OrionMotion.screen) { appeared = true }
+            appleCoordinator.onToken = { token, name in
+                Task { await signInApple(token: token, name: name) }
+            }
+            appleCoordinator.onError = { message = $0 }
+            Task {
+                if let cfg = try? await APIClient.shared.config() {
+                    googleClientId = cfg.googleClientId
+                }
+            }
+        }
+        .sheet(isPresented: $showGoogle) {
+            GoogleSignInHost(
+                clientId: googleClientId,
+                onToken: { token in
+                    showGoogle = false
+                    Task { await signInGoogle(token: token) }
+                },
+                onCancel: { showGoogle = false }
+            )
         }
         .onChange(of: dailyOn) { _, on in
             PreferencesStore.dailyNotification = on
@@ -146,6 +169,17 @@ struct SettingsView: View {
                         }
                         .buttonStyle(OrionButtonStyle(kind: .destructive))
                     } else {
+                        SignInWithAppleRepresentable {
+                            appleCoordinator.start()
+                        }
+                        .frame(height: 44)
+                        .frame(maxWidth: .infinity)
+                        if !googleClientId.isEmpty {
+                            Button("Sign in with Google") {
+                                showGoogle = true
+                            }
+                            .buttonStyle(OrionButtonStyle(kind: .secondary))
+                        }
                         OrionField(title: "Callsign", text: $callsign)
                         OrionField(title: "Password", text: $password, secure: true)
                         Button("Sign in") {
@@ -203,6 +237,28 @@ struct SettingsView: View {
         do {
             try await model.signIn(callsign: callsign.trimmingCharacters(in: .whitespaces), password: password)
             password = ""
+            message = nil
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    private func signInGoogle(token: String) async {
+        busy = true
+        defer { busy = false }
+        do {
+            try await model.signInWithGoogle(idToken: token)
+            message = nil
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    private func signInApple(token: String, name: String?) async {
+        busy = true
+        defer { busy = false }
+        do {
+            try await model.signInWithApple(identityToken: token, name: name)
             message = nil
         } catch {
             message = error.localizedDescription

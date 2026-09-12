@@ -52,6 +52,11 @@ struct MeResponse: Codable {
 struct LoginResponse: Codable {
     var token: String
     var user: UserInfo
+    var isNew: Bool?
+}
+
+struct AppConfig: Codable {
+    var googleClientId: String
 }
 
 actor APIClient {
@@ -71,6 +76,26 @@ actor APIClient {
             "callsign": callsign,
             "password": password,
         ])
+    }
+
+    func config() async throws -> AppConfig {
+        try await request("GET", "/api/config")
+    }
+
+    func googleSignIn(idToken: String, country: String) async throws -> LoginResponse {
+        try await request("POST", "/api/auth/google", body: [
+            "idToken": idToken,
+            "country": country,
+        ])
+    }
+
+    func appleSignIn(identityToken: String, name: String?, country: String) async throws -> LoginResponse {
+        var body: [String: String] = [
+            "identityToken": identityToken,
+            "country": country,
+        ]
+        if let name, !name.isEmpty { body["name"] = name }
+        return try await request("POST", "/api/auth/apple", body: body)
     }
 
     func logout() async {

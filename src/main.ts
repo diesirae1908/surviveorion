@@ -87,6 +87,7 @@ import {
   isNativePlay,
   parseNativePlay,
   postNativeGameOver,
+  postNativeLeave,
   setPlayChrome,
 } from "./native";
 import { TiltControl } from "./tilt";
@@ -120,6 +121,7 @@ const FULL_GAME =
 const DAILY_ONLY = !FULL_GAME;
 const NATIVE_PLAY = parseNativePlay(location.search);
 const IS_NATIVE_PLAY = NATIVE_PLAY !== null;
+const NATIVE_AUTO = new URLSearchParams(location.search).get("nativeAuto");
 
 if (DAILY_ONLY) document.title = "ORION Daily";
 
@@ -441,8 +443,8 @@ function failTiltToStick(reason: TiltEnableResult): void {
     reason === "no-data"
       ? "No motion data from this device. Flying with the touch stick."
       : "Motion access is blocked, so tilt can't steer. Flying with the touch stick. " +
-          (isNativeApp()
-            ? "To fix it: quit and reopen the app (or allow Motion & Orientation access in Settings), then pick Tilt again."
+          (isNativeApp() || isNativePlay()
+            ? "To fix it: allow Motion & Fitness for ORION in iOS Settings, then pick Tilt again."
             : "To fix it: quit and reopen your browser (or allow Motion & Orientation access" +
               " in its settings), then pick Tilt again."),
   );
@@ -597,7 +599,7 @@ const community = new CommunityUi(
 
 function showMenu(): void {
   if (IS_NATIVE_PLAY) {
-    ui.hideAll();
+    ui.clearScreens();
     return;
   }
   if (DAILY_ONLY) {
@@ -859,7 +861,7 @@ function renderPatrolCalendar(): void {
 
 /**
  * Launch entry point: on touch devices with a motion sensor, first offer the
- * choice between the default touch stick and tilt mode (Tilt to Live tribute).
+ * choice between the default touch stick and tilt mode.
  * Desktop has no sensor, so it goes straight in.
  */
 function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = false): void {
@@ -879,6 +881,11 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   if (!daily && !training) {
     pendingGameMode = gameMode;
     saveGameMode(gameMode); // the menu remembers the last mode flown
+  }
+  if (IS_NATIVE_PLAY && NATIVE_AUTO === "stick") {
+    setStickMode();
+    doLaunch();
+    return;
   }
   if (isTouchDevice() && TiltControl.supported()) {
     ui.showModeSelect(controls.mode, (mode) => {
@@ -1038,6 +1045,18 @@ function resume(): void {
 }
 
 function quitToMenu(): void {
+  if (IS_NATIVE_PLAY) {
+    audio.setThrustLevel(0);
+    audio.pauseMusic();
+    void setPlayChrome(false);
+    if (activeRecording) {
+      const rec = activeRecording;
+      activeRecording = null;
+      void rec.stop();
+    }
+    postNativeLeave();
+    return;
+  }
   state = "menu";
   fx = null;
   tutorial = null;
@@ -1343,8 +1362,14 @@ document.addEventListener("visibilitychange", () => {
     audio.pauseMusic();
     audio.setThrustLevel(0);
   } else if (state === "menu" || state === "gameover" || state === "paused") {
-    audio.resumeMusic();
+    if (!IS_NATIVE_PLAY) audio.resumeMusic();
   }
+});
+
+window.addEventListener("orion-native-pause", () => {
+  if (state === "playing") pause();
+  audio.pauseMusic();
+  audio.setThrustLevel(0);
 });
 
 const handleResize = (): void => {

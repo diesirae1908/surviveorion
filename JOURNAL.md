@@ -4,6 +4,34 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-11 PT: TestFlight 1.0 (3) native play fixes
+
+Lucas filed 8 notes after TestFlight 1.0 (3). Isolated worktree `.worktrees/feat-ios-native` from `76f9296`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.
+
+**1 Quit → Home:** pause Main menu now `postNativeLeave()` and tears down the play WKWebView. `showMenu()` in native play no longer calls `hideAll()` (that put the pause button back on an empty starfield). Game over dismisses the cover first, then the native sheet. Screenshot `qa-evidence/tf-fixes/07-quit-clean-home.png`.
+
+**2 Landscape / canvas:** play WebView is edge-pinned; `syncViewport` injects `__orionViewport` + safe-area CSS and fires resize on layout and rotation. `render.resize` prefers that, then `visualViewport`. Portrait Training fills the screen (`05-training-run.png`). Simulator rotation not captured (no assistive access, no simctl rotate).
+
+**3 Tilt:** Core Motion (`CMMotionManager`) on Tilt pick only, streamed as `oriontilt`. Blocked-motion copy uses iOS Motion & Fitness when `isNativePlay()`. Simulator: device-only (no Motion permission sheet).
+
+**4 Background pause:** `willResignActive` posts `orion-native-pause`. Run stays paused; no auto-resume on foreground. Native play also skips the web `visibilitychange` music resume.
+
+**5–6 Board:** Home shows top 5 with score + survived time. Full Board shows time and Desktop / Touch / Tilt / Ghost. API already returned `bestTime` + `mode` + `virtual`.
+
+**7 Controls copy:** dropped "Tilt is our tribute to Tilt to Live." Same string in `src/ui.ts` (website + native canvas). Tip that remains: hold the phone at a comfortable angle before tapping.
+
+**8 Home music:** loops bundled `public/music/empire-of-the-stars.mp3` (website menu bed) on Home / Board / Settings. Pauses when a run starts, restores when the play cover dismisses.
+
+**9 Stargate SFX:** same `audio.warp` visual; quieter sine envelope, shorter tail, less saw/rumble.
+
+**10 Auth:** native Settings has Sign in with Apple + Sign in with Google + callsign/password. Guest unchanged. Google: WKWebView OAuth against `accounts.google.com` only (never the live game, no Daily spend), then existing `POST /api/auth/google`. Apple: AuthenticationServices + `App.entitlements` + `POST /api/auth/apple`. Server adds additive `users.apple_sub` (same ALTER TABLE pattern as `clerk_sub`). Does not change Google / password / guest. **Not deployed.** TestFlight Apple will 404 against live surviveorion.com until Sam deploys this branch. No wildcard CORS.
+
+**Verify:** `npm run build` green. `npm test` green. Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. Training Ground only. Screenshots in `qa-evidence/tf-fixes/`.
+
+**Untested / device-only:** haptics, real Core Motion permission sheet, physical landscape rotate, Home music by ear, background-pause on a device, live Apple sign-in (needs deploy), Google OAuth if the live client redirect URI rejects `https://surviveorion.com/`.
+
+**Follow-ups:** Sam owns archive / TestFlight / whether to deploy `apple_sub` + `/api/auth/apple`.
+
 ## 2026-09-11 PT: iOS native chrome design pass
 
 Lucas rejected TestFlight 1.0 (2) Home / Settings / Game Over as stock Settings-app chrome. Visual restyle only, from spec `Sam/reports/orion-ios-native-design-spec-2026-09-12.md`. Isolated worktree `.worktrees/feat-ios-native` at `74bcc9d`. Dirty main checkout untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect.

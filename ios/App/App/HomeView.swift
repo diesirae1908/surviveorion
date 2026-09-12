@@ -6,8 +6,10 @@ struct HomeView: View {
     @Environment(\.verticalSizeClass) private var vSize
     @State private var now = Date()
     @State private var playMode: PlayMode?
+    @State private var pendingGameResult: GameResult?
     @State private var showGameOver = false
     @State private var showSettings = false
+    @State private var showBoard = false
     @State private var launchPulse = false
     @State private var appeared = false
 
@@ -70,6 +72,31 @@ struct HomeView: View {
         .onAppear {
             withAnimation(OrionMotion.screen) { appeared = true }
             syncLaunchPulse()
+            if playMode == nil { LobbyMusic.shared.play() }
+            if model.pendingSettings {
+                showSettings = true
+                model.pendingSettings = false
+            }
+            if model.pendingBoard {
+                showBoard = true
+                model.pendingBoard = false
+            }
+            if model.pendingGameOver {
+                model.lastResult = GameResult(
+                    mode: .training,
+                    score: 12840,
+                    timeSurvived: 93,
+                    kills: 27,
+                    medal: "silver",
+                    sharePng: nil
+                )
+                showGameOver = true
+                model.pendingGameOver = false
+            }
+            if let mode = model.pendingPlay {
+                startPlay(mode)
+                model.pendingPlay = nil
+            }
         }
         .onChange(of: canLaunchDaily) { _, _ in
             syncLaunchPulse()
@@ -77,9 +104,12 @@ struct HomeView: View {
         .navigationDestination(isPresented: $showSettings) {
             SettingsView()
         }
+        .navigationDestination(isPresented: $showBoard) {
+            BoardView()
+        }
         .onChange(of: model.pendingPlay) { _, mode in
             if let mode {
-                playMode = mode
+                startPlay(mode)
                 model.pendingPlay = nil
             }
         }
@@ -87,6 +117,12 @@ struct HomeView: View {
             if on {
                 showSettings = true
                 model.pendingSettings = false
+            }
+        }
+        .onChange(of: model.pendingBoard) { _, on in
+            if on {
+                showBoard = true
+                model.pendingBoard = false
             }
         }
         .onChange(of: model.pendingGameOver) { _, on in
@@ -104,20 +140,38 @@ struct HomeView: View {
             }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
-        .fullScreenCover(item: $playMode) { mode in
-            PlayView(mode: mode) { result in
-                playMode = nil
+        .fullScreenCover(item: $playMode, onDismiss: {
+            LobbyMusic.shared.play()
+            if let result = pendingGameResult {
                 model.lastResult = result
+                pendingGameResult = nil
                 showGameOver = true
-                Task { await model.refresh() }
+            }
+            Task { await model.refresh() }
+        }) { mode in
+            PlayView(mode: mode) { exit in
+                switch exit {
+                case .quit:
+                    pendingGameResult = nil
+                    playMode = nil
+                case .finished(let result):
+                    pendingGameResult = result
+                    playMode = nil
+                }
             }
             .environmentObject(model)
+            .ignoresSafeArea()
         }
         .sheet(isPresented: $showGameOver) {
             if let result = model.lastResult {
                 GameOverView(result: result) { showGameOver = false }
             }
         }
+    }
+
+    private func startPlay(_ mode: PlayMode) {
+        LobbyMusic.shared.pause()
+        playMode = mode
     }
 
     private func syncLaunchPulse() {
@@ -230,7 +284,7 @@ struct HomeView: View {
 
     private var launchButtons: some View {
         VStack(spacing: 12) {
-            Button("Launch Patrol") { playMode = .daily }
+            Button("Launch Patrol") { startPlay(.daily) }
                 .buttonStyle(OrionButtonStyle(kind: .primary, enabled: canLaunchDaily))
                 .disabled(!canLaunchDaily)
                 .background {
@@ -240,7 +294,7 @@ struct HomeView: View {
                             .blur(radius: 16)
                     }
                 }
-            Button("Training Ground") { playMode = .training }
+            Button("Training Ground") { startPlay(.training) }
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
         }
     }
@@ -261,8 +315,10 @@ struct HomeView: View {
                     .foregroundStyle(OrionColor.hullGold)
                     .frame(minHeight: OrionLayout.minTap)
                 }
-                if let top = model.topEntry {
-                    row(label: "Top", value: "\(top.callsign)  \(top.best.formatted())")
+                if let entries = model.board?.entries, !entries.isEmpty {
+                    ForEach(Array(entries.prefix(5).enumerated()), id: \.element.id) { idx, row in
+                        boardRow(rank: idx + 1, row: row)
+                    }
                 } else if !model.online {
                     Text("Board is offline.")
                         .font(OrionFont.body(15))
@@ -277,6 +333,31 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private func boardRow(rank: Int, row: DailyBoardEntry) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(rank)")
+                .font(OrionFont.display(16, weight: .bold))
+                .foregroundStyle(OrionColor.hullGold)
+                .frame(width: 22, alignment: .trailing)
+            Text(row.callsign)
+                .font(OrionFont.body(15, weight: .bold))
+                .foregroundStyle(OrionColor.starlight)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if let t = row.bestTime {
+                Text(OrionFormat.survived(t))
+                    .font(OrionFont.body(13))
+                    .foregroundStyle(OrionColor.bronze)
+                    .monospacedDigit()
+            }
+            Text(row.best.formatted())
+                .font(OrionFont.display(16, weight: .bold))
+                .foregroundStyle(OrionColor.starlight)
+                .monospacedDigit()
+        }
+        .frame(minHeight: 28)
     }
 
     private func row(label: String, value: String) -> some View {

@@ -68,6 +68,13 @@ export function postNativeGameOver(payload: {
   exportNativeSession();
 }
 
+/** Pause-quit / leave: dismiss the play WebView. No native game-over sheet. */
+export function postNativeLeave(): void {
+  if (!isNativePlay()) return;
+  postNative({ type: "leave" });
+  exportNativeSession();
+}
+
 const SESSION_COUNT_KEY = "orion.nativeSessions";
 const NOTIF_DAILY_KEY = "orion.notifDaily";
 const NOTIF_STREAK_KEY = "orion.notifStreak";

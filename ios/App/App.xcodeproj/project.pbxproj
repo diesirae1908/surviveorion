@@ -31,6 +31,11 @@
 		A1000016 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000016 /* WebKit.framework */; };
 		A1000017 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000017 /* UserNotifications.framework */; };
 		A1000018 /* SafariServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000018 /* SafariServices.framework */; };
+		A1000019 /* LobbyMusic.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100001B /* LobbyMusic.swift */; };
+		A100001A /* NativeAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100001C /* NativeAuth.swift */; };
+		A100001B /* empire-of-the-stars.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B100001D /* empire-of-the-stars.mp3 */; };
+		A100001C /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100001E /* AuthenticationServices.framework */; };
+		A100001D /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100001F /* CoreMotion.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +66,12 @@
 		B1000018 /* SafariServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SafariServices.framework; path = System/Library/Frameworks/SafariServices.framework; sourceTree = SDKROOT; };
 		B1000019 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B100001A /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		B100001B /* LobbyMusic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LobbyMusic.swift; sourceTree = "<group>"; };
+		B100001C /* NativeAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAuth.swift; sourceTree = "<group>"; };
+		B100001D /* empire-of-the-stars.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "empire-of-the-stars.mp3"; path = "../../public/music/empire-of-the-stars.mp3"; sourceTree = SOURCE_ROOT; };
+		B100001E /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
+		B100001F /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
+		B1000020 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +82,8 @@
 				A1000016 /* WebKit.framework in Frameworks */,
 				A1000017 /* UserNotifications.framework in Frameworks */,
 				A1000018 /* SafariServices.framework in Frameworks */,
+				A100001C /* AuthenticationServices.framework in Frameworks */,
+				A100001D /* CoreMotion.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -105,6 +118,10 @@
 				B100000D /* SettingsView.swift */,
 				B100000E /* GameOverView.swift */,
 				B100000F /* WebPlay.swift */,
+				B100001B /* LobbyMusic.swift */,
+				B100001C /* NativeAuth.swift */,
+				B1000020 /* App.entitlements */,
+				B100001D /* empire-of-the-stars.mp3 */,
 				B1000010 /* Assets.xcassets */,
 				B1000011 /* LaunchScreen.storyboard */,
 				B1000012 /* Rajdhani-400.ttf */,
@@ -122,6 +139,8 @@
 				B1000016 /* WebKit.framework */,
 				B1000017 /* UserNotifications.framework */,
 				B1000018 /* SafariServices.framework */,
+				B100001E /* AuthenticationServices.framework */,
+				B100001F /* CoreMotion.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -198,6 +217,7 @@
 				A1000013 /* Rajdhani-700.ttf in Resources */,
 				A1000014 /* mutator-schedule.json in Resources */,
 				A1000015 /* dist in Resources */,
+				A100001B /* empire-of-the-stars.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,6 +243,8 @@
 				A100000D /* SettingsView.swift in Sources */,
 				A100000E /* GameOverView.swift in Sources */,
 				A100000F /* WebPlay.swift in Sources */,
+				A1000019 /* LobbyMusic.swift in Sources */,
+				A100001A /* NativeAuth.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -273,6 +295,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4R88D2NKUC;
@@ -297,6 +320,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4R88D2NKUC;

@@ -16,14 +16,22 @@ struct BoardView: View {
                             Text(row.callsign)
                                 .font(OrionFont.body(17, weight: .bold))
                                 .foregroundStyle(OrionColor.starlight)
-                            Text(row.virtual == true ? "ghost" : (row.mode ?? ""))
+                            Text(OrionFormat.platform(row))
                                 .font(OrionFont.body(13))
                                 .foregroundStyle(OrionColor.bronze)
                         }
                         Spacer()
-                        Text(row.best.formatted())
-                            .font(OrionFont.display(18, weight: .bold))
-                            .foregroundStyle(OrionColor.goldPale)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(row.best.formatted())
+                                .font(OrionFont.display(18, weight: .bold))
+                                .foregroundStyle(OrionColor.goldPale)
+                            if let t = row.bestTime {
+                                Text(OrionFormat.survived(t))
+                                    .font(OrionFont.body(13))
+                                    .foregroundStyle(OrionColor.bronze)
+                                    .monospacedDigit()
+                            }
+                        }
                     }
                     .listRowBackground(OrionColor.deepSpace)
                     .frame(minHeight: OrionLayout.minTap)

@@ -71,6 +71,24 @@ enum OrionLayout {
     static let minTap: CGFloat = 44
 }
 
+enum OrionFormat {
+    static func survived(_ t: Double) -> String {
+        let m = Int(t) / 60
+        let s = Int(t) % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    static func platform(_ row: DailyBoardEntry) -> String {
+        if row.virtual == true { return "Ghost" }
+        switch row.mode {
+        case "desktop": return "Desktop"
+        case "touch": return "Touch"
+        case "tilt": return "Tilt"
+        default: return row.mode?.capitalized ?? ""
+        }
+    }
+}
+
 enum OrionMotion {
     static let screen = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.35)
     static let instant = Animation.easeInOut(duration: 0.12)

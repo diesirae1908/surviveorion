@@ -19,9 +19,17 @@ assert.equal(parseNativePlay("?nativePlay=training"), "training");
 assert.equal(parseNativePlay("?nativePlay=training&foo=1"), "training");
 
 assert.match(main, /IS_NATIVE_PLAY/);
+assert.match(main, /clearScreens\(\)/);
 assert.match(main, /ui\.showIntroGate/);
 assert.match(main, /if \(!IS_NATIVE_PLAY\) \{\s*ui\.showIntroGate/s);
 assert.match(main, /beginLaunch\(!training/);
 assert.equal(main.includes("showIntroGate(enterFromGate)") && main.includes("if (!IS_NATIVE_PLAY)"), true);
+assert.match(main, /postNativeLeave/);
+assert.match(main, /orion-native-pause/);
+assert.match(main, /allow Motion & Fitness for ORION/);
+
+const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");
+assert.equal(ui.includes("Tilt is our tribute to Tilt to Live"), false);
+assert.match(ui, /Hold your phone at your comfortable play angle before tapping/);
 
 console.log("PASS  nativePlay guard (website boot unchanged without the query)");

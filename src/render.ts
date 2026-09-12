@@ -86,8 +86,12 @@ export class Renderer {
   resize(): void {
     this.measureSafeArea();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.cssW = window.innerWidth;
-    this.cssH = window.innerHeight;
+    const injected = (
+      window as unknown as { __orionViewport?: { w: number; h: number } }
+    ).__orionViewport;
+    const vv = window.visualViewport;
+    this.cssW = injected?.w || vv?.width || window.innerWidth;
+    this.cssH = injected?.h || vv?.height || window.innerHeight;
     this.canvas.width = Math.round(this.cssW * dpr);
     this.canvas.height = Math.round(this.cssH * dpr);
     this.canvas.style.width = `${this.cssW}px`;
