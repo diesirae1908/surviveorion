@@ -9,6 +9,7 @@ enum PreferencesStore {
     private static let recordRunsKey = "orion.recordRuns"
     private static let localPremiumUntilKey = "orion.premiumUntil"
     private static let localPremiumProductKey = "orion.premiumProduct"
+    private static let previewTierKey = "orion.previewTier"
 
     static var sessionCount: Int {
         get { defaults.integer(forKey: sessionCountKey) }
@@ -78,6 +79,21 @@ enum PreferencesStore {
 
     static var localPremiumActive: Bool {
         localPremiumUntil > Date().timeIntervalSince1970
+    }
+
+    /// CREW QA only. Reset to CREW on every launch. Never a public API.
+    static var previewTier: AccountTier {
+        get {
+            guard let raw = defaults.string(forKey: previewTierKey),
+                  let t = AccountTier(rawValue: raw)
+            else { return .admin }
+            return t
+        }
+        set { defaults.set(newValue.rawValue, forKey: previewTierKey) }
+    }
+
+    static func resetPreviewTierToCrew() {
+        previewTier = .admin
     }
 
     static func applyWebAttemptsJSON(_ raw: String?) {

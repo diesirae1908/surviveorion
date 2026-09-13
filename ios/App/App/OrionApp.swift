@@ -20,6 +20,8 @@ struct OrionApp: App {
                 let qaSession = qaPlay
                     || args.contains("-QAPremium")
                     || args.contains("-QAPatrolComplete")
+                    || args.contains("-QACrew")
+                    || args.contains("-QAPreviewFree")
                 if args.contains("-QAPatrolComplete") {
                     model.attemptsLeft = 0
                 }
@@ -30,6 +32,11 @@ struct OrionApp: App {
                     if args[i + 1] == "training" { model.pendingPlay = .training }
                     if args[i + 1] == "daily" { model.pendingPlay = .daily }
                     if args[i + 1] == "settings" { model.pendingSettings = true }
+                    if args[i + 1] == "crew" {
+                        model.qaCrew = true
+                        model.pendingSettings = true
+                        model.pendingScrollCrew = true
+                    }
                     if args[i + 1] == "board" { model.pendingBoard = true }
                     if args[i + 1] == "gameover" { model.pendingGameOver = true }
                     if args[i + 1] == "share" {

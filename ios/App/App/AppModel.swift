@@ -38,6 +38,7 @@ final class AppModel: ObservableObject {
     @Published var pendingPlay: PlayMode?
     @Published var pendingPlayDate: String?
     @Published var pendingSettings = false
+    @Published var pendingScrollCrew = false
     @Published var pendingBoard = false
     @Published var pendingGameOver = false
     @Published var pendingShare = false
@@ -52,15 +53,34 @@ final class AppModel: ObservableObject {
     @Published var clipInbox = false
     @Published var premiumToast = false
     @Published var qaPremium = false
+    @Published var qaCrew = false
+    @Published var previewOverride: AccountTier = .admin
     @Published var store = StoreKitManager()
+
+    init() {
+        PreferencesStore.resetPreviewTierToCrew()
+        previewOverride = .admin
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-QACrew") { qaCrew = true }
+        if args.contains("-QAPremium") { qaPremium = true }
+        if args.contains("-QAPreviewFree") {
+            qaCrew = true
+            previewOverride = .free
+            PreferencesStore.previewTier = .free
+        }
+        #endif
+    }
 
     var mutators: [MutatorLine] { MutatorCatalog.today() }
     var topEntry: DailyBoardEntry? { board?.entries.first }
     var myBest: Int? { board?.me?.best }
     var myRank: Int? { board?.me?.rank }
 
+    var isRealCrew: Bool { serverTier == .admin || clipInbox || qaCrew }
+
     var tier: AccountTier {
-        if serverTier == .admin || clipInbox { return .admin }
+        if isRealCrew { return previewOverride }
         if serverTier == .premium || store.entitled || PreferencesStore.localPremiumActive || qaPremium {
             return .premium
         }
@@ -69,6 +89,16 @@ final class AppModel: ObservableObject {
 
     var isPremium: Bool { tier == .premium || tier == .admin }
     var isAdmin: Bool { tier == .admin }
+
+    func cyclePreviewTier() {
+        guard isRealCrew else { return }
+        switch previewOverride {
+        case .free: previewOverride = .premium
+        case .premium: previewOverride = .admin
+        case .admin: previewOverride = .free
+        }
+        PreferencesStore.previewTier = previewOverride
+    }
 
     func refresh() async {
         attemptsLeft = PreferencesStore.attemptsLeft()

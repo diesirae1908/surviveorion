@@ -4,6 +4,14 @@ enum AccountTier: String, Codable {
     case free
     case premium
     case admin
+
+    var accessibilityName: String {
+        switch self {
+        case .free: return "Free"
+        case .premium: return "Premium"
+        case .admin: return "CREW"
+        }
+    }
 }
 
 struct TierBadge: View {
@@ -60,7 +68,7 @@ struct PremiumLockGlyph: View {
                 .foregroundStyle(OrionColor.bronze)
         }
         .frame(width: 20, height: 20)
-        .accessibilityLabel("Patrol Archive locked")
+        .accessibilityLabel("Locked. Requires Gold Patrol.")
     }
 }
 

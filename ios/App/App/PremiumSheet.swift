@@ -27,7 +27,7 @@ struct PremiumSheet: View {
                         GoldBloom(diameter: vSize == .compact ? 90 : 140)
                         PatrolSightMark(size: vSize == .compact ? 48 : 72, showCore: true)
                     }
-                    Text("PATROL ARCHIVE")
+                    Text("GOLD PATROL")
                         .font(OrionFont.display(28))
                         .foregroundStyle(OrionColor.goldGradient)
                     Text(context.subhead)
@@ -60,7 +60,7 @@ struct PremiumSheet: View {
                             .font(OrionFont.body(13))
                             .foregroundStyle(OrionColor.alarm)
                     }
-                    Button(model.store.purchasing ? "Processing…" : "Start Patrol Archive") {
+                    Button(model.store.purchasing ? "Processing…" : "Start Gold Patrol") {
                         Task { await buy() }
                     }
                     .buttonStyle(OrionButtonStyle(kind: .primary, enabled: !model.store.purchasing && !model.store.productsUnavailable))

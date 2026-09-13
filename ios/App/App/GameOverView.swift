@@ -182,7 +182,7 @@ struct GameOverView: View {
                         onAnalytics?()
                     }
                 } else {
-                    Button("Unlock Patrol Archive") {
+                    Button("Unlock Gold Patrol") {
                         onUnlockArchive?()
                     }
                 }

@@ -237,7 +237,7 @@ struct HomeView: View {
         }
         .overlay(alignment: .top) {
             if model.premiumToast {
-                Text("Patrol Archive active.")
+                Text("Gold Patrol active.")
                     .font(OrionFont.body(14, weight: .bold))
                     .foregroundStyle(OrionColor.void)
                     .padding(.horizontal, 16)
@@ -420,7 +420,7 @@ struct HomeView: View {
             Button("Training Ground") { startPlay(.training) }
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
             if model.attemptsLeft == 0 && !model.isPremium {
-                Button("Unlock Patrol Archive") { premium = .calendar }
+                Button("Unlock Gold Patrol") { premium = .calendar }
                     .buttonStyle(OrionButtonStyle(kind: .secondary))
             }
             Button("Patrol Calendar") { openCalendar() }
@@ -439,7 +439,7 @@ struct HomeView: View {
                 }
             }
             .buttonStyle(OrionButtonStyle(kind: .secondary))
-            .accessibilityLabel(model.isPremium ? "Wingmates" : "Wingmates, Patrol Archive locked")
+            .accessibilityLabel(model.isPremium ? "Wingmates" : "Wingmates, Gold Patrol locked")
             Button("Feedback") { showFeedback = true }
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
         }

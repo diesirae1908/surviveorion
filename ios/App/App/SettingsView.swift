@@ -29,7 +29,16 @@ struct SettingsView: View {
 
     private var canSignIn: Bool { !busy && callsign.count >= 3 && password.count >= 6 }
 
+    private var previewChipLabel: String {
+        switch model.previewOverride {
+        case .free: return "PREVIEW · FREE"
+        case .premium: return "PREVIEW · PREMIUM"
+        case .admin: return "PREVIEW · CREW"
+        }
+    }
+
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 settingsTopBar
@@ -37,13 +46,24 @@ struct SettingsView: View {
                 notificationsSection
                 pilotSection
                 extrasSection
-                if model.isAdmin {
+                if model.isRealCrew {
                     crewSection
+                        .id("crewTools")
                 }
                 privacySection
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
+        }
+        .onAppear {
+            guard model.pendingScrollCrew else { return }
+            model.pendingScrollCrew = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                withAnimation(OrionMotion.screen) {
+                    proxy.scrollTo("crewTools", anchor: .top)
+                }
+            }
+        }
         }
         .background(OrionColor.void.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
@@ -200,7 +220,7 @@ struct SettingsView: View {
                     extraRow("Already subscribed? Restore") {
                         Task {
                             _ = await model.store.restore()
-                            restoreNote = model.store.lastError ?? (model.store.entitled ? "Patrol Archive active." : nil)
+                            restoreNote = model.store.lastError ?? (model.store.entitled ? "Gold Patrol active." : nil)
                             if model.store.entitled { model.showPremiumToast() }
                         }
                     }
@@ -229,6 +249,37 @@ struct SettingsView: View {
                         .toggleStyle(OrionToggleStyle())
                         .padding(.horizontal, 12)
                     Text("Captures gameplay video for clips and QA. Off by default.")
+                        .font(OrionFont.body(13, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
+                    hairline
+                    Button {
+                        model.cyclePreviewTier()
+                    } label: {
+                        HStack {
+                            Text("Preview as")
+                                .font(OrionFont.body(16))
+                                .foregroundStyle(OrionColor.starlight)
+                            Spacer()
+                            Text(previewChipLabel)
+                                .font(OrionFont.body(11, weight: .bold))
+                                .foregroundStyle(OrionColor.alarm)
+                                .tracking(1)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 6))
+                                .overlay {
+                                    ChamferedRectangle(chamfer: 6)
+                                        .strokeBorder(OrionColor.alarm.opacity(0.60), lineWidth: 1)
+                                }
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: OrionLayout.minTap)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Preview as \(model.previewOverride.accessibilityName)")
+                    Text("Preview only. Your account stays CREW.")
                         .font(OrionFont.body(13, weight: .regular))
                         .foregroundStyle(OrionColor.dust)
                         .padding(.horizontal, 12)

@@ -1,12 +1,13 @@
 /**
- * Patrol Archive gates: GET /api/me tier shape + past/future daily submit.
- * In-memory SQLite. No HTTP server.
+ * Gold Patrol / premium gates: GET /api/me tier shape + past/future daily submit
+ * + CREW boot-promote. In-memory SQLite. No HTTP server.
  * Run: node scripts/test-premium-gates.mjs
  */
 process.env.ORION_DB = ":memory:";
 process.env.CLIP_INBOX_CALLSIGN = "CrewPilot";
 
-const { createUser, setUserPremium, setUserRole } = await import("../server/db.mjs");
+const { createUser, setUserPremium, setUserRole, ensureCrewCallsigns, getUserByCallsign } =
+  await import("../server/db.mjs");
 const { userTier, resolveDailySubmit, clampMutatorRange, addCivilDays } = await import(
   "../server/tier.mjs"
 );
@@ -56,7 +57,9 @@ check("today with explicit date allowed for free", todayImplicit.dailyDate === t
 const pastFree = resolveDailySubmit({ daily: true, dailyDate: past }, free, today);
 check(
   "past-day submit blocked for free",
-  pastFree.error?.status === 403 && pastFree.error?.code === "PREMIUM_REQUIRED",
+  pastFree.error?.status === 403 &&
+    pastFree.error?.code === "PREMIUM_REQUIRED" &&
+    pastFree.error?.error === "Gold Patrol required to file a past-day score.",
   JSON.stringify(pastFree.error),
 );
 
@@ -84,8 +87,23 @@ check("mutator range clamps free to today", rangeFree.to === today && !rangeFree
 const rangeAdmin = clampMutatorRange({ from: today, to: "2026-12-01", today, admin: true, horizon: 14 });
 check("mutator range admin horizon is +14", rangeAdmin.to === addCivilDays(today, 14));
 
+const luciux = createUser({ callsign: "LUCIUX" });
+check("luciux starts free", (luciux.role ?? "free") === "free");
+const keepPrem = createUser({ callsign: "KeepPrem" });
+setUserRole(keepPrem.id, "premium");
+const logs = [];
+ensureCrewCallsigns({ CREW_CALLSIGNS: "luciux" }, { log: (m) => logs.push(m) });
+check("luciux boot-promoted to admin", getUserByCallsign("luciux").role === "admin");
+check("promote logs once", logs.length === 1 && String(logs[0]).includes("luciux"));
+ensureCrewCallsigns({ CREW_CALLSIGNS: "luciux" }, { log: (m) => logs.push(m) });
+check("promote is idempotent", logs.length === 1 && getUserByCallsign("luciux").role === "admin");
+check("other premium role not wiped", getUserByCallsign("KeepPrem").role === "premium");
+const missingLogs = [];
+ensureCrewCallsigns({ CREW_CALLSIGNS: "nobody-here" }, { log: (m) => missingLogs.push(m) });
+check("missing callsign is a no-op", missingLogs.length === 0);
+
 if (failures) {
   console.log(`\n${failures} check(s) failed`);
   process.exit(1);
 }
-console.log("PASS  premium / admin daily gates + me.tier");
+console.log("PASS  premium / admin daily gates + me.tier + crew promote");

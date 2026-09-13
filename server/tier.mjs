@@ -38,7 +38,7 @@ export function resolveDailySubmit(body, user, today) {
     return {
       error: {
         status: 403,
-        error: "Patrol Archive required to file a past-day score",
+        error: "Gold Patrol required to file a past-day score.",
         code: "PREMIUM_REQUIRED",
       },
     };
