@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: TestFlight 1.0 (8) uploaded (Gold Patrol tip)
+
+Archived + uploaded from `.worktrees/feat-ios-native` tip `e70a7e7` (Gold Patrol `1d7e3bb`). `npm run build`, then `xcodebuild archive` with `CURRENT_PROJECT_VERSION=8` CLI override (no repo version edit). Manual signing team `4R88D2NKUC`, Apple Distribution, profile "ORION App Store". IPA via `/tmp/orion-ios/ExportOptions.plist`. `altool --upload-app` delivery/build `aebe5490-4523-4bb4-8d47-afad9d78e8e5`. `usesNonExemptEncryption:false`. Added to Internal group `1c4f517b`: `IN_BETA_TESTING`. Artifacts `/tmp/orion-ios-native/`. Pushed `feat/ios-native` only. No `dev`/`main`.
+
 ## 2026-09-12 evening PT: Gold Patrol rename, CREW preview, luciux boot, IAP chain
 
 Lucas: rename Patrol Archive to Gold Patrol; flag CREW + Preview as for QA; ASC/IAP/listing follow-through is Sam's (code side here). Isolated worktree `.worktrees/feat-ios-native`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No ASC upload.
