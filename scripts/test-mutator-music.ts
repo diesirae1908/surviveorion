@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   DEFAULT_GAME_TRACK,
+  GAMEOVER_TRACK,
   MUTATOR_GAME_TRACK,
   musicBedForActiveMutators,
   musicBedForMutator,
@@ -86,6 +87,9 @@ const beds = new Set<string>([DEFAULT_GAME_TRACK, ...Object.values(SPEC)]);
 for (const file of beds) {
   assert.equal(fs.existsSync(path.join(MUSIC, file)), true, `missing ${file}`);
 }
+
+assert.equal(GAMEOVER_TRACK, "imperial-procession.mp3");
+assert.equal(fs.existsSync(path.join(MUSIC, GAMEOVER_TRACK)), true, `missing ${GAMEOVER_TRACK}`);
 
 const lighthouse = getMutatorById("the-lighthouse");
 const wall = getMutatorById("great-wall");

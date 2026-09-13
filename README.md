@@ -357,5 +357,5 @@ Music (Suno-generated, from the project's inspiration assets), one looping track
 
 - Menu: `public/music/empire-of-the-stars.mp3`
 - Gameplay: `public/music/empire-of-the-stars-battle.mp3` (alternate take of the same theme)
-- Game over: `public/music/fallen-honor.mp3`
+- Game over: `public/music/imperial-procession.mp3`
 - Tutorial: synthesized live in `src/audio.ts` (chill ambient pads, no file)

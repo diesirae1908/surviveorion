@@ -14,6 +14,8 @@ type StaticFileTrack = "menu" | "gameover";
 export type TrackName = StaticFileTrack | "game" | "tutorial";
 
 export const GAME_BED_VOLUME = 0.35;
+export const GAMEOVER_TRACK = "imperial-procession.mp3";
+export const GAMEOVER_VOLUME = 0.4;
 
 /**
  * Procedural Web Audio SFX + per-screen looping music tracks. Everything
@@ -42,7 +44,7 @@ export class AudioSystem {
   constructor() {
     this.tracks = {
       menu: this.loadAudio("empire-of-the-stars.mp3", 0.45),
-      gameover: this.loadAudio("fallen-honor.mp3", 0.4),
+      gameover: this.loadAudio(GAMEOVER_TRACK, GAMEOVER_VOLUME),
     };
   }
 

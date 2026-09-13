@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Game-over music → Imperial Procession
+
+Lucas: replace fallen-honor with the new Suno master `Imperial Procession_game over.m4a`. Isolated `.worktrees/feat-gameover-music` from `origin/main` (`fd4c62f`, mutator beds already live). Dirty parent checkout untouched. Downloads original copied only (opus-in-mp4 → 160k stereo mp3). Did not delete the Downloads file or `fallen-honor.mp3`.
+
+`audio.ts` gameover track is now `imperial-procession.mp3`. Menu stays empire-of-the-stars. Mutator game beds / `MUTATOR_GAME_TRACK` unchanged. Volume left at 0.4: new master I = -16.2 LUFS vs fallen-honor -12.0 LUFS (4.2 LU quieter, same ~4 LU gap as the Daily beds vs battle). Not wildly hot/quiet, so no gain nudge. Duration 2:43.61. `test-mutator-music` asserts the filename + file exists.
+
+No mutator math / scoring / CORS / Gold Patrol / auth / StoreKit changes.
+
+Verify: `npm test` + `npm run build`. Pushed `feat/gameover-music` only, then promote.
+
 ## 2026-09-12 evening PT: Daily mutator music beds LIVE
 
 - Lucas: promote the five Suno Daily beds to live.
