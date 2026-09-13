@@ -4,6 +4,32 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Gold Patrol rename, CREW preview, luciux boot, IAP chain
+
+Lucas: rename Patrol Archive to Gold Patrol; flag CREW + Preview as for QA; ASC/IAP/listing follow-through is Sam's (code side here). Isolated worktree `.worktrees/feat-ios-native`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No ASC upload.
+
+**Copy (pilot-facing only):** Patrol Archive → Gold Patrol. Code/analytics ids stay `premium`. Tier chips stay PREMIUM / CREW.
+- Paywall: GOLD PATROL / Start Gold Patrol
+- Toast + restore note: Gold Patrol active.
+- Lock a11y: Locked. Requires Gold Patrol.
+- Unlock CTAs: Unlock Gold Patrol
+- Server `PREMIUM_REQUIRED`: `Gold Patrol required to file a past-day score.`
+
+**CREW Preview as:** Settings → CREW TOOLS (below Record runs). Chip PREVIEW · FREE / PREMIUM / CREW (alarm tint). Cycles Free → Premium → CREW → Free. Caption: Preview only. Your account stays CREW. Local `PreferencesStore` only when real role is admin / clipInbox / DEBUG `-QACrew`. Reset to CREW on every launch. UI gates use effective `model.tier`. No public API to become free. Real server role unchanged. CREW TOOLS stays visible via `isRealCrew` so the switcher cannot hide itself.
+
+**luciux boot-promote:** `ensureCrewCallsigns()` in `server/db.mjs` (runs on module load, so the web service hits `/data` SQLite). `CREW_CALLSIGNS` comma list, default `luciux`. `UPDATE users SET role='admin' WHERE callsign_lower=?` if not already admin. Logs once. Idempotent. Does not wipe other roles. One-off Render jobs that do not mount `/data` cannot do this; boot on the web service can.
+
+**IAP harden:** `server/apple-iap.mjs` now walks x5c to bundled Apple Root CA - G3 (`server/certs/AppleRootCA-G3.pem`, SHA-256 `63:34:3A:BF:…:91:79`). Leaf signature + cert dates + Apple issuer + productId / bundle / exp / environment / revocationDate. Zero extra deps. `ORION_PREMIUM_SANDBOX=1` still allows the unverified fallback. Product-id checks not loosened.
+- Residual: no intermediate fetch. Leaf-only tokens fail closed (real StoreKit JWS includes the chain). No OCSP/CRL. Not the App Store Server Library. Sandbox/TestFlight still need a verified Apple JWS or the sandbox flag.
+
+**QA:** DEBUG `-QACrew`, `-QAPreviewFree`, `-QAPlay crew` (Settings scrolled to CREW TOOLS). Screenshots `qa-evidence/gold-patrol/`: `01-gold-patrol-paywall.png`, `02-settings-crew-preview.png`, `03-home-preview-free.png`.
+
+**Verify:** `npm test` green (incl. `test:apple-iap` forged-leaf reject). `npm run build` green. Xcode 26, iPhone 17 Simulator `46C65C1F-E94F-4E27-AF8B-80F5F4659E62`. Simulator catalog still "Premium unavailable".
+
+**Follow-ups:** Sam owns ASC / TestFlight / listing. Set `CREW_CALLSIGNS` on Render if luciux is not enough. Deploy this branch before live `/api/me/premium` uses the stricter chain.
+
+Commit `1d7e3bb`.
+
 ## 2026-09-12 PT: TestFlight 1.0 (6) Home nav, Archive upsell, prices
 
 Lucas TestFlight 1.0 (6) notes plus a mid-flight price drop. Isolated worktree `.worktrees/feat-ios-native` from `99c86ea`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No App Store Connect / archive.
