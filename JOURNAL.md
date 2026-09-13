@@ -4,9 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 night PT: Gold Patrol unlimited Daily LIVE
+
+- Lucas: product truth on the site. Promoted `feat/gold-unlimited` (`cd95309`) to `origin/main`. Did not reset `origin/dev` (still `9fbd3fd`).
+- Render `surviveorion` deploy `dep-daj2diuk1f9s73ffto6g` is live. Bundle `assets/main-C9IMnnZe.js` contains `unlimited Daily runs`. Old archive-only wink gone.
+- Unlimited enforced on **client and server**: web `api.goldPatrolUnlimited` + native `isPremium`/`isAdmin` unlock Launch; `POST /api/scores` skips the 3-score Daily cap when `userTier().premiumActive`.
+- Tripwire still 200: patrol-complete sting, training-ground, imperial-procession, empire-of-the-stars. CORS allowlist unchanged.
+
 ## 2026-09-12 night PT: Gold Patrol includes unlimited Daily runs
 
-- Lucas product correction (~9:25 PM PT): Gold Patrol is unlimited Daily runs **plus** every past patrol, not archive-only. Isolated `.worktrees/feat-gold-unlimited` from `origin/main` (`bde6ee9`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Lucas product correction (~9:25 PM PT): Gold Patrol is unlimited Daily runs **plus** every past patrol, not archive-only. Isolated `.worktrees/feat-gold-unlimited` from `origin/main` (`bde6ee9`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `cd95309`.
 - Popup (web + native PatrolComplete sheet): title PATROL COMPLETE. Body 1 unchanged. Body 2 now `Gold Patrol: unlimited Daily runs, plus every past patrol.` Buttons unchanged. Premium/admin never see the popup (they do not hit the free cap).
 - Native: `canLaunchDaily` is online && (attempts left or `isPremium`/`isAdmin`). Attempt row shows "Unlimited today" + infinity, not fake 3-left. PremiumSheet benefit: `infinity` / Unlimited Daily Patrol runs today. Calendar + generic paywall subheads name both unlimited Daily and archive.
 - Web: `api.goldPatrolUnlimited` (premiumActive / premium / admin) plus native `?goldPatrol=1` bypass the lobby lock, game-over retry lock, and `beginLaunch`/`doLaunch` gates. Pips say Unlimited today. Local `used` still increments (no longer clamped at 3) so stats stay honest.
