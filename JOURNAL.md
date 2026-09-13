@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 midday PT: Fly missed past days LIVE
+
+- Promoted `feat/past-day-fly` (`5e5f6fb` / journal `5cb5790`) to `origin/main`. Did not reset `origin/dev`.
+- Render `surviveorion` deploy `dep-dajfe795efls739mulhg` is live. Bundle `assets/main-B2Am7ELx.js` contains `Fly this Patrol` / `Replay this Patrol`. `/api/config` 200. Music beds 200: empire-of-the-stars, imperial-procession, patrol-complete, training-ground.
+- Native Fly CTA / dated game-over ship in this web bundle for the WKWebView path; Swift calendar sheet needs a later TestFlight.
+
 ## 2026-09-13 midday PT: Fly missed past days + archive game-over date
 
 - Isolated `.worktrees/feat-past-day-fly` from `origin/main` (`7a006fb`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `5e5f6fb`.
