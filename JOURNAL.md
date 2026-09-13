@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Game-over music LIVE
+
+- Lucas: promote Imperial Procession as the live game-over bed.
+- Isolated `.worktrees/sam-promote-gameover-music` from `origin/main` (`fd4c62f`). Dirty parent checkout untouched. Fast-forwarded `origin/feat/gameover-music` (`b1b9111`). Did not reset `origin/dev`.
+- Live CORS allowlist unchanged. Gold Patrol strings unchanged. Mutator music map unchanged (`MUTATOR_GAME_TRACK` / `musicBedForMutator`). Menu bed unchanged. `fallen-honor.mp3` still on disk, no longer referenced from `audio.ts`.
+- Live now: `GET /music/imperial-procession.mp3`. Volume 0.4. I = -16.2 LUFS vs fallen-honor -12.0 (4.2 LU quieter). Duration 2:43.61.
+- Tests: `npm test` PASS (incl. `test:mutator-music` gameover filename + 32/27 map). `npm run build` green.
+- This journal commit is the tip pushed to `main`. Watch Render `surviveorion`.
+- Did not merge to `origin/dev`: histories diverged (`origin/dev` at `9fbd3fd`). Left diverged on purpose.
+
 ## 2026-09-12 evening PT: Game-over music → Imperial Procession
 
 Lucas: replace fallen-honor with the new Suno master `Imperial Procession_game over.m4a`. Isolated `.worktrees/feat-gameover-music` from `origin/main` (`fd4c62f`, mutator beds already live). Dirty parent checkout untouched. Downloads original copied only (opus-in-mp4 → 160k stereo mp3). Did not delete the Downloads file or `fallen-honor.mp3`.
