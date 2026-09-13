@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Patrol Complete + Training Ground LIVE
+
+- Lucas: promote the PATROL COMPLETE popup and Training Ground bed.
+- Isolated `.worktrees/sam-promote-patrol-complete` from `origin/main` (`ffb1b58`). Dirty parent checkout untouched. Fast-forwarded `feat/patrol-complete` (`f06a724`). Did not reset `origin/dev` (still `9fbd3fd`).
+- Live CORS allowlist unchanged. Gold Patrol paywall strings unchanged. Mutator music map unchanged. Menu stays empire-of-the-stars. Game over stays imperial-procession.
+- Live now: `GET /music/patrol-complete.mp3` 200 (243129 bytes). `GET /music/training-ground.mp3` 200 (3089529 bytes). Imperial Procession still 200.
+- Render `surviveorion` deploy `dep-daj28n4s728c73b03ftg` (commit `f06a724`) is live.
+- Training Ground vibe is a bit Hercule / clouds; shipped anyway. training-ground I = -16.8 LUFS at volume 0.35. patrol-complete I = -18.5 LUFS at 0.5 so the sting reads over the looping bed.
+- This journal commit is the tip pushed to `main`.
+
 ## 2026-09-12 evening PT: Patrol Complete popup + Training Ground bed
 
 Lucas: ship the PATROL COMPLETE overlay (corrected copy: Gold Patrol does **not** remove the 3-attempt Daily cap) plus two Suno masters. Isolated `.worktrees/feat-patrol-complete` from `origin/main` (`ffb1b58`). Dirty parent checkout untouched. Downloads originals copied only (opus-in-mp4 → 160k stereo mp3). Did not delete the Downloads files.
