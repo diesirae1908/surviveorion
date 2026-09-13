@@ -4,6 +4,20 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Daily mutator music beds
+
+Lucas: five Suno masters on in-run Daily music by style. Default battle bed stays for unmapped mutators, Training, and no-mutator. Menu stays empire-of-the-stars. Game over stays fallen-honor.
+
+Isolated `.worktrees/feat-mutator-music` from `origin/main` (`9ba90ed`). Dirty parent checkout untouched. Downloads originals copied only (ffmpeg opus-in-mp4 → 160k stereo mp3). Did not re-encode the three existing masters.
+
+Sunday pairs: first active id (the day's primary pick from `getMutatorsForDateStr`). `playTrack("game")` reads `getActiveMutators()[0]`. `?mutator=` rehearsal switches beds because `todaysMutators()` is set before play. Beds load on first use and cache. Volume 0.35 on every game bed. New masters sit ~4 LU quieter than empire-of-the-stars-battle (-16.1 to -16.8 vs -12.3 LUFS). None were wildly louder, so no per-file gain. Map lives in `mutators.ts` (`MUTATOR_GAME_TRACK` / `musicBedForMutator`) so the id-literal leak test stays green. Audio-only: no math change. `audio.ts` re-exports the helpers.
+
+Map: quietfog (`blackout`, `cloak-day`, `singularity`); imperial-swarm (`the-flood`, `hunting-party`, `red-alert`, `ram-raid`, `menagerie`, `year-of-the-serpent`, `graze-protocol`, `howlers-day`, `giants`); imperial-tempest (`solar-wind`, `iron-barrage`, `overcharge`, `demolition-day`, `starfall`, `ion-day`, `minefield`); frost-and-thunder (`cryo-winter`, `thunder-day`); radiant-beam (`the-lighthouse`, `gold-dash`, `razor-day`, `lancer-doctrine`, `arsenal`, `bait-shot`); default battle (`great-wall`, `wheelhouse`, `the-pit`, `titanfall`, `magnetic-field`, anything else).
+
+No mutator math / scoring / CORS / auth / StoreKit changes. Native iOS still bundles `dist/`.
+
+Verify: `npm test` (incl. `test:mutator-music` + unchanged mutator snapshot) and `npm run build`. Pushed `feat/mutator-music` only. Sam promotes after review.
+
 ## 2026-09-12 evening PT: Gold Patrol / CREW / IAP harden LIVE
 
 - Lucas: promote Gold Patrol rename, CREW preview, luciux boot-promote, and Apple Root CA G3 IAP chain to live.

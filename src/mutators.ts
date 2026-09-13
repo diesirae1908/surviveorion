@@ -1086,6 +1086,57 @@ export function getActiveMutators(): Mutator[] {
   return active;
 }
 
+/** In-run Daily music file. Unmapped / Training / no-mutator keep the battle master. */
+export const DEFAULT_GAME_TRACK = "empire-of-the-stars-battle.mp3";
+
+/**
+ * Audio routing only (not mutator math). Sunday pairs use the first
+ * active id, which is the day's primary pick.
+ */
+export const MUTATOR_GAME_TRACK: Readonly<Record<string, string>> = {
+  blackout: "quietfog.mp3",
+  "cloak-day": "quietfog.mp3",
+  singularity: "quietfog.mp3",
+  "the-flood": "imperial-swarm.mp3",
+  "hunting-party": "imperial-swarm.mp3",
+  "red-alert": "imperial-swarm.mp3",
+  "ram-raid": "imperial-swarm.mp3",
+  menagerie: "imperial-swarm.mp3",
+  "year-of-the-serpent": "imperial-swarm.mp3",
+  "graze-protocol": "imperial-swarm.mp3",
+  "howlers-day": "imperial-swarm.mp3",
+  giants: "imperial-swarm.mp3",
+  "solar-wind": "imperial-tempest.mp3",
+  "iron-barrage": "imperial-tempest.mp3",
+  overcharge: "imperial-tempest.mp3",
+  "demolition-day": "imperial-tempest.mp3",
+  starfall: "imperial-tempest.mp3",
+  "ion-day": "imperial-tempest.mp3",
+  minefield: "imperial-tempest.mp3",
+  "cryo-winter": "frost-and-thunder.mp3",
+  "thunder-day": "frost-and-thunder.mp3",
+  "the-lighthouse": "radiant-beam.mp3",
+  "gold-dash": "radiant-beam.mp3",
+  "razor-day": "radiant-beam.mp3",
+  "lancer-doctrine": "radiant-beam.mp3",
+  arsenal: "radiant-beam.mp3",
+  "bait-shot": "radiant-beam.mp3",
+};
+
+export function musicBedForMutator(id: string | undefined | null): string {
+  if (!id) return DEFAULT_GAME_TRACK;
+  return MUTATOR_GAME_TRACK[id] ?? DEFAULT_GAME_TRACK;
+}
+
+/** Sunday pairs: first active id is the primary pick. Empty list → default. */
+export function musicBedForMutators(ids: readonly string[]): string {
+  return musicBedForMutator(ids[0]);
+}
+
+export function musicBedForActiveMutators(): string {
+  return musicBedForMutator(getActiveMutators()[0]?.id);
+}
+
 function scaleOf(pick: (o: MutatorOverrides) => number | undefined): number {
   let result = 1;
   for (const m of active) {
