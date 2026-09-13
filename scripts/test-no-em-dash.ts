@@ -37,6 +37,7 @@ const FILES: FileSpec[] = [
   { file: "server/validate.mjs" },
   { file: "server/clip-inbox.mjs" },
   { file: "server/notion-clips.mjs" },
+  { file: "public/updates.json" },
   // server/db.mjs deliberately excluded: it's SQL schema/query code with no
   // player-facing response strings (no json(res, ...) calls), and its one
   // em dash lives in a SQL "--" comment this script's stripper doesn't

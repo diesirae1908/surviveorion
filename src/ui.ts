@@ -36,6 +36,14 @@ import {
   setNativeNotifDaily,
   setNativeNotifStreak,
 } from "./native";
+import {
+  fetchUpdates,
+  hasUnreadUpdate,
+  latestUpdate,
+  loadLastSeenUpdateId,
+  saveLastSeenUpdateId,
+  type GameUpdate,
+} from "./updates";
 import { APP_STORE_URL } from "./webGate";
 
 /** Flip false to hide the App Store CTA. Listing: apps.apple.com/app/id6811113450 */
@@ -365,6 +373,9 @@ export class Ui {
    * rendered by ANOTHER class sharing this same #ui root (CommunityUi) can't
    * cause this Escape listener to fire a stale action on top of it. */
   private submenuBackScreen: HTMLElement | null = null;
+  /** Latest updates.json entry for the lobby bell / FIELD UPDATE popup. */
+  private latestLobbyUpdate: GameUpdate | null = null;
+  private lobbyUpdatesGen = 0;
 
   constructor(
     private settings: Settings,
@@ -405,6 +416,7 @@ export class Ui {
     this.dailyBoardFull = null;
     this.dailyBoardPinned = null;
     this.dailyBoardSearchQuery = "";
+    this.lobbyUpdatesGen += 1;
   }
 
   /**
@@ -655,6 +667,152 @@ export class Ui {
     return btn;
   }
 
+  private static readonly LOBBY_ICON: Record<"bell" | "speaker" | "gear", string> = {
+    bell:
+      `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+      `<path d="M6.2 9.2a5.8 5.8 0 0 1 11.6 0c0 3.6.9 5.4 1.6 6.4H4.6c.7-1 1.6-2.8 1.6-6.4Z" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `<path d="M10 18.2a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `</svg>`,
+    speaker:
+      `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+      `<path d="M4.5 9.2h3.4L13 5.8v12.4l-5.1-3.4H4.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>` +
+      `<path d="M16.2 9.4a3.6 3.6 0 0 1 0 5.2" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `<path d="M18.2 7.4a6.4 6.4 0 0 1 0 9.2" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `</svg>`,
+    gear:
+      `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+      `<circle cx="12" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `<path d="M12 4.4v2.2M12 17.4v2.2M4.4 12h2.2M17.4 12h2.2M6.6 6.6l1.6 1.6M15.8 15.8l1.6 1.6M17.4 6.6l-1.6 1.6M8.2 15.8l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>` +
+      `</svg>`,
+  };
+
+  private lobbyIconBtn(
+    kind: "bell" | "speaker" | "gear",
+    title: string,
+    onClick: () => void,
+  ): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `lobby-icon-btn chamfer lobby-icon-${kind}`;
+    btn.title = title;
+    btn.setAttribute("aria-label", title);
+    btn.innerHTML = Ui.LOBBY_ICON[kind];
+    if (kind === "bell") {
+      const pill = this.el("span", "update-pill", "");
+      pill.hidden = true;
+      btn.appendChild(pill);
+    }
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  private paintUpdatePill(): void {
+    const pill = this.root.querySelector(".lobby-icon-bell .update-pill") as HTMLElement | null;
+    if (!pill) return;
+    const unread = hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId());
+    pill.hidden = !unread;
+  }
+
+  hideFieldUpdate(): void {
+    document.getElementById("field-update-catcher")?.remove();
+  }
+
+  /**
+   * Non-blocking FIELD UPDATE overlay. Writes lastSeen on dismiss so the
+   * same id never auto-fires again. Bell re-opens the latest entry anytime.
+   */
+  showFieldUpdate(update: GameUpdate, opts?: { persistOnDismiss?: boolean; clearPillNow?: boolean }): void {
+    this.hideFieldUpdate();
+    if (opts?.clearPillNow) {
+      const pill = this.root.querySelector(".lobby-icon-bell .update-pill") as HTMLElement | null;
+      if (pill) pill.hidden = true;
+    }
+    const catcher = this.el("div", "field-update-catcher", "");
+    catcher.id = "field-update-catcher";
+    const card = this.el("div", "field-update-modal chamfer", "");
+    card.appendChild(this.el("div", "heading gold", "FIELD UPDATE"));
+    card.appendChild(this.el("div", "field-update-date", escapeHtml(update.date)));
+    card.appendChild(this.el("div", "field-update-title", escapeHtml(update.title)));
+    const list = document.createElement("ul");
+    list.className = "field-update-body";
+    for (const line of update.body) {
+      const item = document.createElement("li");
+      item.textContent = line;
+      list.appendChild(item);
+    }
+    card.appendChild(list);
+    if (update.link) {
+      const more = document.createElement("a");
+      more.className = "field-update-more";
+      more.href = update.link;
+      more.target = "_blank";
+      more.rel = "noopener";
+      more.textContent = "See more →";
+      card.appendChild(more);
+    }
+    const dismiss = (): void => {
+      if (opts?.persistOnDismiss !== false) saveLastSeenUpdateId(update.id);
+      this.hideFieldUpdate();
+      this.paintUpdatePill();
+    };
+    const gotIt = this.button("GOT IT", true, dismiss);
+    gotIt.classList.add("chamfer");
+    card.appendChild(gotIt);
+    catcher.appendChild(card);
+    this.root.appendChild(catcher);
+  }
+
+  private bootLobbyUpdates(): void {
+    const gen = ++this.lobbyUpdatesGen;
+    void fetchUpdates()
+      .then((list) => {
+        if (gen !== this.lobbyUpdatesGen) return;
+        if (!this.root.querySelector(".daily-lobby")) return;
+        this.latestLobbyUpdate = latestUpdate(list);
+        this.paintUpdatePill();
+        const latest = this.latestLobbyUpdate;
+        if (latest && hasUnreadUpdate(latest.id, loadLastSeenUpdateId())) {
+          this.showFieldUpdate(latest, { persistOnDismiss: true, clearPillNow: true });
+        }
+      })
+      .catch(() => {});
+  }
+
+  private openLatestFieldUpdate(): void {
+    const show = (update: GameUpdate): void => {
+      this.showFieldUpdate(update, { persistOnDismiss: true, clearPillNow: true });
+    };
+    if (this.latestLobbyUpdate) {
+      show(this.latestLobbyUpdate);
+      return;
+    }
+    void fetchUpdates()
+      .then((list) => {
+        this.latestLobbyUpdate = latestUpdate(list);
+        if (this.latestLobbyUpdate) show(this.latestLobbyUpdate);
+      })
+      .catch(() => {});
+  }
+
+  private appStoreBadge(): HTMLElement {
+    const wrap = this.el("div", "lobby-app-store", "");
+    const store = document.createElement("a");
+    store.className = "app-store-badge";
+    store.href = APP_STORE_URL;
+    store.target = "_blank";
+    store.rel = "noopener";
+    store.setAttribute("aria-label", "Download on the App Store");
+    const img = document.createElement("img");
+    img.src = "/app-store-badge.svg";
+    img.alt = "Download on the App Store";
+    img.width = 180;
+    img.height = 60;
+    store.appendChild(img);
+    wrap.appendChild(store);
+    wrap.appendChild(this.el("div", "app-store-hint", "Daily reminder on your phone"));
+    return wrap;
+  }
+
   private lobbyStackButton(
     label: string,
     onClick: () => void,
@@ -897,10 +1055,10 @@ export class Ui {
   }
 
   /**
-   * Daily-only site lobby: Launch, Training Ground, How to play, Powers,
-   * today's board. A profile chip opens sign-in or the pilot record
-   * (country, wingmates). Unsigned players can still join the board via
-   * the game-over guest prompt.
+   * Daily-only site lobby: Launch, Training Ground, then Calendar /
+   * Wingmates / How to Play / Powers. Board + App Store badge on the
+   * right. Header is Bell, Feedback, Settings. Unsigned players can
+   * still join the board via the game-over guest prompt.
    */
   showDailyLobby(info: DailyLobbyInfo): void {
     this.clear();
@@ -909,8 +1067,13 @@ export class Ui {
     const screen = this.el("div", "screen menu daily-lobby", "");
     const header = this.el("div", "lobby-header", "");
     header.appendChild(this.wordmarkTitle());
-    header.appendChild(
-      this.settingsChip(() =>
+    const icons = this.el("div", "lobby-header-icons", "");
+    icons.appendChild(this.lobbyIconBtn("bell", "Updates", () => this.openLatestFieldUpdate()));
+    icons.appendChild(
+      this.lobbyIconBtn("speaker", "Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
+    );
+    icons.appendChild(
+      this.lobbyIconBtn("gear", "Settings", () =>
         this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
           callsign: info.callsign,
           pendingFriends: info.pendingFriends,
@@ -918,6 +1081,7 @@ export class Ui {
         }),
       ),
     );
+    header.appendChild(icons);
     screen.appendChild(header);
 
     const left = this.el("div", "lobby-col-left", "");
@@ -1019,6 +1183,19 @@ export class Ui {
       `<span class="daily-sub">free practice, unlimited</span>`;
     training.addEventListener("click", () => this.cb.onTraining());
     left.appendChild(training);
+
+    const util = this.el("div", "lobby-util-grid", "");
+    util.appendChild(this.lobbyStackButton("Patrol Calendar", () => this.cb.onPatrolCalendar()));
+    util.appendChild(
+      this.lobbyStackButton("Wingmates", () => this.cb.onFriends(), {
+        notif: (info.pendingFriends ?? 0) > 0,
+      }),
+    );
+    util.appendChild(this.lobbyStackButton("How to Play", () => this.cb.onTutorial()));
+    util.appendChild(
+      this.lobbyStackButton("Powers", () => this.showPowers(() => this.showDailyLobby(info))),
+    );
+    left.appendChild(util);
     screen.appendChild(left);
 
     const right = this.el("div", "lobby-col-right", "");
@@ -1047,40 +1224,8 @@ export class Ui {
       right.appendChild(boardWrap);
     }
 
-    const stack = this.el("div", "lobby-stack", "");
-    stack.appendChild(
-      this.lobbyStackButton("Patrol Calendar", () => this.cb.onPatrolCalendar()),
-    );
-    stack.appendChild(
-      this.lobbyStackButton("Wingmates", () => this.cb.onFriends(), {
-        notif: (info.pendingFriends ?? 0) > 0,
-      }),
-    );
-    if (APP_STORE_LIVE) {
-      const store = document.createElement("a");
-      store.className = "menu-mode-btn training lobby-stack-btn chamfer app-store-cta";
-      store.href = APP_STORE_URL;
-      store.target = "_blank";
-      store.rel = "noopener";
-      store.innerHTML =
-        `<span class="daily-name">Get ORION on iPhone</span>` +
-        `<span class="daily-sub">Daily reminder on your phone</span>`;
-      stack.appendChild(store);
-    }
-    stack.appendChild(
-      this.lobbyStackButton("Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
-    );
-    right.appendChild(stack);
+    if (APP_STORE_LIVE) right.appendChild(this.appStoreBadge());
     screen.appendChild(right);
-
-    const learnRow = this.el("div", "menu-row lobby-learn", "");
-    const howTo = this.button("How to play", false, () => this.cb.onTutorial());
-    howTo.classList.add("small-btn", "chamfer");
-    learnRow.appendChild(howTo);
-    const powers = this.button("Powers", false, () => this.showPowers(() => this.showDailyLobby(info)));
-    powers.classList.add("small-btn", "chamfer");
-    learnRow.appendChild(powers);
-    screen.appendChild(learnRow);
 
     // Privacy stays footer-tier (legal, not a promoted action).
     const footer = this.el("div", "lobby-footer", "");
@@ -1090,6 +1235,7 @@ export class Ui {
     screen.appendChild(footer);
 
     this.root.appendChild(screen);
+    this.bootLobbyUpdates();
   }
 
   /**

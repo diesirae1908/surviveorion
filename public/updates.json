@@ -1,0 +1,26 @@
+{
+  "updates": [
+    {
+      "id": "2026-09-13-lobby-refresh",
+      "date": "2026-09-13",
+      "title": "Lobby got a refit",
+      "body": [
+        "Calendar and Wingmates moved under Launch Patrol, easier reach",
+        "How to Play and Powers now match the rest of the buttons",
+        "Feedback moved to the speaker icon up top, next to Settings"
+      ],
+      "link": null
+    },
+    {
+      "id": "2026-09-13-past-day-fly",
+      "date": "2026-09-13",
+      "title": "Gold Patrol: fly any past day",
+      "body": [
+        "Gold Patrol can fly any past calendar day",
+        "Missed and untracked days get Fly this Patrol",
+        "Played days keep Replay this Patrol"
+      ],
+      "link": null
+    }
+  ]
+}
