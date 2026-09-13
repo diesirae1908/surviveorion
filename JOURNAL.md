@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Gold Patrol / CREW / IAP harden LIVE
+
+- Lucas: promote Gold Patrol rename, CREW preview, luciux boot-promote, and Apple Root CA G3 IAP chain to live.
+- Isolated `.worktrees/sam-promote-gold-patrol` from `origin/main` (`e4b1caf`). Dirty main checkout untouched. Merged `origin/feat/ios-native` (`e70a7e7`). Only JOURNAL conflicted; both histories kept (Gold Patrol + TestFlight 6, then web-lobby LIVE + tiers LIVE).
+- Live CORS allowlist unchanged: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No `*`. Web lobby App Store CTA kept (`APP_STORE_LIVE = true`, `apps.apple.com/app/id6811113450`).
+- Live now: Gold Patrol copy (ids stay `premium`), CREW Preview as (local, CREW account unchanged), `ensureCrewCallsigns()` default `luciux`, `POST /api/me/premium` walks x5c to bundled Apple Root CA - G3. `ORION_PREMIUM_SANDBOX` not set on live.
+- Tests: `npm test` PASS (cors-origins, premium-gates Gold Patrol copy + luciux boot-promote, apple-iap forged-leaf reject). `npm run build` green.
+- Merge `72be3f6`. This journal commit is the tip pushed to `main`. Watch Render `surviveorion`.
+- Did not merge to `origin/dev`: histories diverged (`origin/dev` at `9fbd3fd`, CORS-only promote; not an ancestor of this tip). Left diverged on purpose.
+- Residual: TestFlight / App Store binary still needs a separate Xcode archive. Simulator catalog still "Premium unavailable". No OCSP/CRL. Leaf-only tokens fail closed.
+
 ## 2026-09-12 evening PT: Gold Patrol rename, CREW preview, luciux boot, IAP chain
 
 Lucas: rename Patrol Archive to Gold Patrol; flag CREW + Preview as for QA; ASC/IAP/listing follow-through is Sam's (code side here). Isolated worktree `.worktrees/feat-ios-native`. Dirty main untouched. Pushed `feat/ios-native` only. No `dev`/`main` merge. No ASC upload.
