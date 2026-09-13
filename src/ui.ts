@@ -414,6 +414,48 @@ export class Ui {
     }
   }
 
+  hasPatrolComplete(): boolean {
+    return !!document.getElementById("patrol-complete-catcher");
+  }
+
+  hidePatrolComplete(): void {
+    document.getElementById("patrol-complete-catcher")?.remove();
+  }
+
+  /**
+   * Chamfered PATROL COMPLETE overlay. Does not wipe the screen underneath
+   * (lobby or game-over). Primary dismisses. Secondary is the App Store CTA.
+   */
+  showPatrolComplete(): void {
+    this.hidePatrolComplete();
+    const catcher = this.el("div", "patrol-complete-catcher", "");
+    catcher.id = "patrol-complete-catcher";
+    const card = this.el("div", "patrol-complete-modal chamfer", "");
+    card.appendChild(this.el("div", "heading gold", "PATROL COMPLETE"));
+    card.appendChild(
+      this.el(
+        "div",
+        "patrol-complete-body",
+        `<p>Zero attempts remain. See you tomorrow, pilot.</p>` +
+          `<p>Missed a day? Gold Patrol opens every past patrol.</p>`,
+      ),
+    );
+    const primary = this.button("See You Tomorrow", true, () => this.hidePatrolComplete());
+    primary.classList.add("chamfer");
+    card.appendChild(primary);
+    if (APP_STORE_LIVE) {
+      const store = document.createElement("a");
+      store.className = "patrol-complete-store chamfer";
+      store.href = APP_STORE_URL;
+      store.target = "_blank";
+      store.rel = "noopener";
+      store.textContent = "Get ORION on iPhone";
+      card.appendChild(store);
+    }
+    catcher.appendChild(card);
+    this.root.appendChild(catcher);
+  }
+
   private toggleRow(keys: Array<[BooleanSetting, string]>): HTMLElement {
     const row = document.createElement("div");
     row.className = "toggles";

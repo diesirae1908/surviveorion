@@ -1,6 +1,6 @@
 import "./style.css";
 import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type SubmitResult } from "./api";
-import { AudioSystem } from "./audio";
+import { AudioSystem, PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
 import { FIXED_DT, DIRECT_CRUISE, PALETTE, POWERS, POWER_COLORS, POWER_HINTS, POWER_NAMES, TILT_MAX_DEG, type GameMode } from "./config";
@@ -63,6 +63,7 @@ import {
   saveControlPrefs,
   saveKeyBindings,
   saveSettings,
+  consumePatrolCompletePopup,
   dailyAttemptsLeft,
   dailyBestScoreToday,
   loadDailyAttempts,
@@ -635,6 +636,7 @@ function showMenu(): void {
     });
     fillDailyHint();
     fillDailyBoard();
+    maybeShowPatrolComplete(false);
     return;
   }
   bestScore = loadBestScore(pendingGameMode);
@@ -989,7 +991,7 @@ function startRun(): void {
   accumulator = 0;
   state = "playing";
   ui.hideAll();
-  audio.playTrack("game");
+  audio.playTrack(runIsTraining ? "training" : "game");
   // opt-in local recording (settings toggle + browser support gate both live
   // in recorder.ts); starts fresh every run, previous clip discarded. Training
   // Ground never reaches the game-over screen (no save-clip button to use it),
@@ -1019,7 +1021,7 @@ function startTutorial(): void {
   accumulator = 0;
   fx = null;
   state = "tutorial";
-  audio.playTrack("tutorial"); // generated chill-epic loop, not the battle track
+  audio.playTrack("tutorial"); // training-ground.mp3, not the battle track
   ui.showTutorialHud(() => quitToMenu());
   tutorial = new Tutorial(
     world,
@@ -1305,6 +1307,16 @@ function showGameOverUi(): void {
     clipInbox: api.clipInbox,
   });
   submitRun();
+  maybeShowPatrolComplete(true);
+}
+
+/** Once-per-day PATROL COMPLETE overlay. Game-over path only after a daily that spent the last attempt. */
+function maybeShowPatrolComplete(fromGameOver: boolean): void {
+  if (!DAILY_ONLY || PREVIEW_ACTIVE || IS_NATIVE_PLAY) return;
+  if (fromGameOver && (!runIsDaily || runRefunded || runIsTraining)) return;
+  if (!consumePatrolCompletePopup(dailyAttemptsLeft())) return;
+  audio.playOneShot(PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME);
+  ui.showPatrolComplete();
 }
 
 /** Paint the rank line + badge celebration from a score-submit response. */
@@ -1804,6 +1816,7 @@ window.addEventListener("keydown", (e) => {
   } else if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_SKIP_AFTER) {
     endIntro();
   } else if (state === "gameover" && gameOverUiShown && (e.code === "Space" || e.code === "Enter")) {
+    if (ui.hasPatrolComplete()) return;
     doLaunch(true); // instant retry without reaching for the mouse
   } else {
     skipDeathCinematic();

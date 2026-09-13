@@ -270,6 +270,31 @@ export function refundDailyAttempt(): void {
   saveDailyAttempts(state);
 }
 
+// Patrol Complete popup: once per Pacific patrol day, the first time
+// Daily attempts hit 0. Key matches the spec: patrolCompleteShown:{YYYY-MM-DD}.
+
+export function patrolCompleteShownKey(date = patrolDayString()): string {
+  return `patrolCompleteShown:${date}`;
+}
+
+export function hasShownPatrolComplete(date = patrolDayString()): boolean {
+  return localStorage.getItem(patrolCompleteShownKey(date)) === "1";
+}
+
+export function markPatrolCompleteShown(date = patrolDayString()): void {
+  localStorage.setItem(patrolCompleteShownKey(date), "1");
+}
+
+/** True if the popup should fire now. Marks the day as shown. */
+export function consumePatrolCompletePopup(
+  attemptsLeft: number,
+  date = patrolDayString(),
+): boolean {
+  if (attemptsLeft > 0 || hasShownPatrolComplete(date)) return false;
+  markPatrolCompleteShown(date);
+  return true;
+}
+
 /** Record a finished daily run if it beats (or first sets) today's best. */
 export function recordDailyResult(result: Omit<DailyBestResult, "attempt">): DailyBestResult {
   const state = loadDailyAttempts();

@@ -2155,6 +2155,82 @@ button.link-btn:active {
   transition: opacity 0.6s ease-out;
 }
 
+/* PATROL COMPLETE: chamfered overlay over lobby or game-over */
+.patrol-complete-catcher {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: rgba(5, 5, 10, 0.72);
+}
+
+.patrol-complete-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(440px, 94vw);
+  padding: 32px 28px 24px;
+  text-align: center;
+  background: rgba(10, 10, 18, 0.96);
+  border: 1.5px solid rgba(255, 215, 0, 0.45);
+  animation: modalPop 0.35s ease-out;
+}
+
+.patrol-complete-modal .heading {
+  font-size: clamp(22px, 6vw, 34px);
+  margin-right: 0;
+  line-height: 1.15;
+  max-width: 100%;
+}
+
+.patrol-complete-body {
+  color: var(--orion-flare);
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: var(--orion-tracking-body);
+}
+
+.patrol-complete-body p {
+  margin: 0 0 10px;
+}
+
+.patrol-complete-body p:last-child {
+  margin-bottom: 0;
+  color: var(--orion-bronze);
+}
+
+.patrol-complete-modal button.primary {
+  width: 100%;
+  min-width: 0;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.patrol-complete-store {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  color: var(--orion-gold);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: var(--orion-tracking-label);
+  text-align: center;
+  text-decoration: none;
+  background: rgba(26, 26, 42, 0.9);
+  border: 1px solid var(--orion-gold);
+  box-sizing: border-box;
+}
+
+.patrol-complete-store:hover,
+.patrol-complete-store:active {
+  background: rgba(42, 42, 58, 0.95);
+}
+
 .tutorial-modal .tap-continue {
   margin-top: 16px;
   color: var(--orion-gold);

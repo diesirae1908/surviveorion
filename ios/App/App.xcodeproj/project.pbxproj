@@ -46,6 +46,8 @@
 		A1000028 /* ClipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000028 /* ClipStore.swift */; };
 		A1000029 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000029 /* StoreKit.framework */; };
 		A100002A /* Photos.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100002A /* Photos.framework */; };
+		A100002B /* patrol-complete.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B100002B /* patrol-complete.mp3 */; };
+		A100002C /* PatrolCompleteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100002C /* PatrolCompleteSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -92,6 +94,8 @@
 		B1000028 /* ClipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipStore.swift; sourceTree = "<group>"; };
 		B1000029 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		B100002A /* Photos.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Photos.framework; path = System/Library/Frameworks/Photos.framework; sourceTree = SDKROOT; };
+		B100002B /* patrol-complete.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "patrol-complete.mp3"; path = "../../public/music/patrol-complete.mp3"; sourceTree = SOURCE_ROOT; };
+		B100002C /* PatrolCompleteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatrolCompleteSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -150,8 +154,10 @@
 				B1000026 /* SquadronsView.swift */,
 				B1000027 /* FeedbackView.swift */,
 				B1000028 /* ClipStore.swift */,
+				B100002C /* PatrolCompleteSheet.swift */,
 				B1000020 /* App.entitlements */,
 				B100001D /* empire-of-the-stars.mp3 */,
+				B100002B /* patrol-complete.mp3 */,
 				B1000010 /* Assets.xcassets */,
 				B1000011 /* LaunchScreen.storyboard */,
 				B1000012 /* Rajdhani-400.ttf */,
@@ -250,6 +256,7 @@
 				A1000014 /* mutator-schedule.json in Resources */,
 				A1000015 /* dist in Resources */,
 				A100001B /* empire-of-the-stars.mp3 in Resources */,
+				A100002B /* patrol-complete.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,6 +292,7 @@
 				A1000026 /* SquadronsView.swift in Sources */,
 				A1000027 /* FeedbackView.swift in Sources */,
 				A1000028 /* ClipStore.swift in Sources */,
+				A100002C /* PatrolCompleteSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

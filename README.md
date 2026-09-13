@@ -356,6 +356,7 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 Music (Suno-generated, from the project's inspiration assets), one looping track per screen:
 
 - Menu: `public/music/empire-of-the-stars.mp3`
-- Gameplay: `public/music/empire-of-the-stars-battle.mp3` (alternate take of the same theme)
+- Gameplay: `public/music/empire-of-the-stars-battle.mp3` (alternate take of the same theme; Daily mutators can swap beds)
 - Game over: `public/music/imperial-procession.mp3`
-- Tutorial: synthesized live in `src/audio.ts` (chill ambient pads, no file)
+- Training Ground / How to play: `public/music/training-ground.mp3`
+- Patrol complete sting (one-shot): `public/music/patrol-complete.mp3`

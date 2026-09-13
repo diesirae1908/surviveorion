@@ -7,6 +7,7 @@ final class LobbyMusic {
     static let shared = LobbyMusic()
 
     private var player: AVAudioPlayer?
+    private var sting: AVAudioPlayer?
     private var shouldPlay = true
 
     func prepare() {
@@ -45,5 +46,24 @@ final class LobbyMusic {
         }
         prepare()
         player?.play()
+    }
+
+    /// One-shot PATROL COMPLETE sting. Home bed keeps looping underneath.
+    func playSting() {
+        guard let url = Bundle.main.url(forResource: "patrol-complete", withExtension: "mp3") else {
+            return
+        }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            let p = try AVAudioPlayer(contentsOf: url)
+            p.numberOfLoops = 0
+            p.volume = 0.5
+            p.prepareToPlay()
+            sting = p
+            p.play()
+        } catch {
+            sting = nil
+        }
     }
 }

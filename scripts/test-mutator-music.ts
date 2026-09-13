@@ -8,6 +8,8 @@ import path from "node:path";
 import {
   DEFAULT_GAME_TRACK,
   GAMEOVER_TRACK,
+  PATROL_COMPLETE_TRACK,
+  TRAINING_TRACK,
   MUTATOR_GAME_TRACK,
   musicBedForActiveMutators,
   musicBedForMutator,
@@ -90,6 +92,10 @@ for (const file of beds) {
 
 assert.equal(GAMEOVER_TRACK, "imperial-procession.mp3");
 assert.equal(fs.existsSync(path.join(MUSIC, GAMEOVER_TRACK)), true, `missing ${GAMEOVER_TRACK}`);
+assert.equal(TRAINING_TRACK, "training-ground.mp3");
+assert.equal(fs.existsSync(path.join(MUSIC, TRAINING_TRACK)), true, `missing ${TRAINING_TRACK}`);
+assert.equal(PATROL_COMPLETE_TRACK, "patrol-complete.mp3");
+assert.equal(fs.existsSync(path.join(MUSIC, PATROL_COMPLETE_TRACK)), true, `missing ${PATROL_COMPLETE_TRACK}`);
 
 const lighthouse = getMutatorById("the-lighthouse");
 const wall = getMutatorById("great-wall");

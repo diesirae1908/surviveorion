@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var launchPulse = false
     @State private var appeared = false
     @State private var recPulse = false
+    @State private var showPatrolComplete = false
 
     private var midnight: Date { PatrolDate.nextMidnight(after: now) }
     private var canLaunchDaily: Bool { model.online && model.attemptsLeft > 0 }
@@ -74,7 +75,10 @@ struct HomeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
         .opacity(appeared ? 1 : 0)
-        .task { await model.refresh() }
+        .task {
+            await model.refresh()
+            considerPatrolComplete()
+        }
         .onAppear {
             withAnimation(OrionMotion.screen) { appeared = true }
             syncLaunchPulse()
@@ -183,6 +187,9 @@ struct HomeView: View {
                 model.pendingBoard = false
             }
         }
+        .onChange(of: showGameOver) { _, on in
+            if !on { considerPatrolComplete() }
+        }
         .onChange(of: model.pendingGameOver) { _, on in
             if on {
                 model.lastResult = GameResult(
@@ -205,7 +212,10 @@ struct HomeView: View {
                 pendingGameResult = nil
                 showGameOver = true
             }
-            Task { await model.refresh() }
+            Task {
+                await model.refresh()
+                considerPatrolComplete()
+            }
         }) { launch in
             ZStack(alignment: .topLeading) {
                 PlayView(launch: launch) { exit in
@@ -246,6 +256,17 @@ struct HomeView: View {
                     .padding(.top, 12)
             }
         }
+        .overlay {
+            if showPatrolComplete {
+                PatrolCompleteSheet(
+                    onDismiss: { showPatrolComplete = false },
+                    onGoldPatrol: {
+                        showPatrolComplete = false
+                        premium = .calendar
+                    }
+                )
+            }
+        }
         .sheet(isPresented: $showGameOver) {
             if let result = model.lastResult {
                 GameOverView(
@@ -257,6 +278,7 @@ struct HomeView: View {
                     onDone: {
                         showGameOver = false
                         model.pendingShare = false
+                        considerPatrolComplete()
                     },
                     onFeedback: {
                         showGameOver = false
@@ -273,6 +295,13 @@ struct HomeView: View {
                 )
             }
         }
+    }
+
+    private func considerPatrolComplete() {
+        guard !showGameOver else { return }
+        guard PreferencesStore.consumePatrolCompletePopup(attemptsLeft: model.attemptsLeft) else { return }
+        showPatrolComplete = true
+        LobbyMusic.shared.playSting()
     }
 
     private func startPlay(_ mode: PlayMode, date: String? = nil) {

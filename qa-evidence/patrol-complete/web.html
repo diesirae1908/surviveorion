@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QA Patrol Complete</title>
+  <style>
+    @font-face {
+      font-family: Rajdhani;
+      font-style: normal;
+      font-weight: 700;
+      src: url("http://127.0.0.1:4173/fonts/Rajdhani-700.ttf") format("truetype");
+    }
+    @font-face {
+      font-family: Rajdhani;
+      font-style: normal;
+      font-weight: 400;
+      src: url("http://127.0.0.1:4173/fonts/Rajdhani-400.ttf") format("truetype");
+    }
+    :root {
+      --orion-void: #0a0a12;
+      --orion-gold: #ffd700;
+      --orion-flare: #ffee88;
+      --orion-bronze: #aa8844;
+      --orion-chamfer-lg: 12px;
+      --orion-tracking-display: 0.06em;
+      --orion-tracking-label: 0.14em;
+      --orion-tracking-body: 0;
+      --orion-gradient-gold: linear-gradient(180deg, #ffee88 0%, #ffd700 55%, #cc8800 100%);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #0a0a12;
+      font-family: Rajdhani, system-ui, sans-serif;
+    }
+    .fake-lobby {
+      padding: 28px 20px;
+      color: #aa8844;
+      letter-spacing: 0.14em;
+      font-weight: 700;
+    }
+    .chamfer {
+      --c: var(--orion-chamfer-lg);
+      clip-path: polygon(
+        var(--c) 0, calc(100% - var(--c)) 0,
+        100% var(--c), 100% calc(100% - var(--c)),
+        calc(100% - var(--c)) 100%, var(--c) 100%,
+        0 calc(100% - var(--c)), 0 var(--c)
+      );
+    }
+    .patrol-complete-catcher {
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(5, 5, 10, 0.72);
+    }
+    .patrol-complete-modal {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      width: min(440px, 94vw);
+      padding: 32px 28px 24px;
+      text-align: center;
+      background: rgba(10, 10, 18, 0.96);
+      border: 1.5px solid rgba(255, 215, 0, 0.45);
+    }
+    .heading.gold {
+      font-size: clamp(22px, 6vw, 34px);
+      letter-spacing: var(--orion-tracking-display);
+      font-weight: bold;
+      color: var(--orion-gold);
+      text-shadow: 0 0 40px rgba(255, 215, 0, 0.35);
+      line-height: 1.15;
+      max-width: 100%;
+    }
+    .patrol-complete-body {
+      color: var(--orion-flare);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+    .patrol-complete-body p { margin: 0 0 10px; }
+    .patrol-complete-body p:last-child { margin-bottom: 0; color: var(--orion-bronze); }
+    button.primary {
+      width: 100%;
+      min-width: 0;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      border: 1px solid var(--orion-gold);
+      background: var(--orion-gradient-gold);
+      color: #1a1208;
+      font-size: 17px;
+      letter-spacing: var(--orion-tracking-label);
+      padding: 14px 16px;
+      text-transform: uppercase;
+    }
+    .patrol-complete-store {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      color: var(--orion-gold);
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: var(--orion-tracking-label);
+      text-align: center;
+      text-decoration: none;
+      background: rgba(26, 26, 42, 0.9);
+      border: 1px solid var(--orion-gold);
+    }
+  </style>
+</head>
+<body>
+  <div class="fake-lobby">DAILY PATROL</div>
+  <div class="patrol-complete-catcher" id="patrol-complete-catcher">
+    <div class="patrol-complete-modal chamfer">
+      <div class="heading gold">PATROL COMPLETE</div>
+      <div class="patrol-complete-body">
+        <p>Zero attempts remain. See you tomorrow, pilot.</p>
+        <p>Missed a day? Gold Patrol opens every past patrol.</p>
+      </div>
+      <button class="primary chamfer" type="button">See You Tomorrow</button>
+      <a class="patrol-complete-store chamfer" href="https://apps.apple.com/app/id6811113450">Get ORION on iPhone</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -102,4 +102,26 @@ enum PreferencesStore {
         else { return }
         saveAttempts(parsed)
     }
+
+    private static func patrolCompleteKey(today: String) -> String {
+        "patrolCompleteShown:\(today)"
+    }
+
+    static func hasShownPatrolComplete(today: String = PatrolDate.dateString()) -> Bool {
+        defaults.bool(forKey: patrolCompleteKey(today: today))
+    }
+
+    static func markPatrolCompleteShown(today: String = PatrolDate.dateString()) {
+        defaults.set(true, forKey: patrolCompleteKey(today: today))
+    }
+
+    /// True if the PATROL COMPLETE sheet should fire now. Marks the day as shown.
+    static func consumePatrolCompletePopup(
+        attemptsLeft: Int,
+        today: String = PatrolDate.dateString()
+    ) -> Bool {
+        guard attemptsLeft == 0, !hasShownPatrolComplete(today: today) else { return false }
+        markPatrolCompleteShown(today: today)
+        return true
+    }
 }

@@ -4,6 +4,20 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Patrol Complete popup + Training Ground bed
+
+Lucas: ship the PATROL COMPLETE overlay (corrected copy: Gold Patrol does **not** remove the 3-attempt Daily cap) plus two Suno masters. Isolated `.worktrees/feat-patrol-complete` from `origin/main` (`ffb1b58`). Dirty parent checkout untouched. Downloads originals copied only (opus-in-mp4 → 160k stereo mp3). Did not delete the Downloads files.
+
+Web: chamfered modal once per Pacific day (`patrolCompleteShown:{YYYY-MM-DD}` in localStorage) when Daily attempts first hit 0. Fires from lobby mount and from game-over when that run spent the last attempt. Primary: See You Tomorrow. Secondary: Get ORION on iPhone (existing App Store URL). Sting via `playOneShot` (not in the looping FileTrack set). Training Ground and How to play play `training-ground.mp3` instead of the synthesized tutorial bed / default battle bed. Menu stays empire-of-the-stars. Game over stays imperial-procession. Mutator map unchanged.
+
+Native (same branch): same copy overlay on Home when attempts hit 0 (once per day, PreferencesStore). Secondary opens the existing Gold Patrol Premium sheet (`.calendar`). Sting via AVAudioPlayer from the bundled `public/music/patrol-complete.mp3` (same file-ref pattern as empire-of-the-stars). Training bed is the web PlayView path.
+
+Volumes: training-ground I = -16.8 LUFS, same ~4 LU gap vs battle as the Daily beds, left at 0.35. patrol-complete I = -18.5 LUFS (quieter than imperial-procession -16.2), element volume 0.5 so the sting reads over the looping bed. Duration 12.09s (sting) / 2:34.41 (training). Training Ground vibe is a bit Hercule / clouds; shipped anyway per Lucas.
+
+No mutator math / scoring / CORS / Gold Patrol paywall copy / StoreKit changes. No Suno warp/SFX this pass.
+
+Verify: `npm test` (incl. `test:mutator-music` snapshot + new `test:patrol-complete`) and `npm run build`. Push `feat/patrol-complete` only, then promote.
+
 ## 2026-09-12 evening PT: Game-over music LIVE
 
 - Lucas: promote Imperial Procession as the live game-over bed.
