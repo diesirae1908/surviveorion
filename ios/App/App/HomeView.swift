@@ -21,7 +21,7 @@ struct HomeView: View {
     @State private var showPatrolComplete = false
 
     private var midnight: Date { PatrolDate.nextMidnight(after: now) }
-    private var canLaunchDaily: Bool { model.online && model.attemptsLeft > 0 }
+    private var canLaunchDaily: Bool { model.online && (model.attemptsLeft > 0 || model.isPremium) }
     private var twoColumn: Bool { hSize == .regular || vSize == .compact }
 
     var body: some View {
@@ -299,6 +299,7 @@ struct HomeView: View {
 
     private func considerPatrolComplete() {
         guard !showGameOver else { return }
+        guard !model.isPremium else { return }
         guard PreferencesStore.consumePatrolCompletePopup(attemptsLeft: model.attemptsLeft) else { return }
         showPatrolComplete = true
         LobbyMusic.shared.playSting()
@@ -370,7 +371,9 @@ struct HomeView: View {
                 .font(OrionFont.body(13, weight: .bold))
                 .foregroundStyle(OrionColor.bronze)
                 .tracking(2)
-            Text("Dodge the swarm. Three attempts. Same run for every pilot.")
+            Text(model.isPremium
+                 ? "Dodge the swarm. Unlimited Daily runs today. Same run for every pilot."
+                 : "Dodge the swarm. Three attempts. Same run for every pilot.")
                 .font(OrionFont.body(16))
                 .foregroundStyle(OrionColor.starlight)
             Text("Next patrol in \(PatrolDate.countdown(to: midnight, now: now)) PT")
@@ -417,13 +420,22 @@ struct HomeView: View {
 
     private var attemptRow: some View {
         HStack(spacing: 8) {
-            ForEach(0..<3, id: \.self) { i in
-                AttemptPip(available: i < model.attemptsLeft)
+            if model.isPremium {
+                Image(systemName: "infinity")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(OrionColor.hullGold)
+                Text("Unlimited today")
+                    .font(OrionFont.body(16, weight: .bold))
+                    .foregroundStyle(OrionColor.starlight)
+            } else {
+                ForEach(0..<3, id: \.self) { i in
+                    AttemptPip(available: i < model.attemptsLeft)
+                }
+                Text(model.attemptsLeft > 0 ? "\(model.attemptsLeft) left today" : "PATROL COMPLETE")
+                    .font(OrionFont.body(16, weight: .bold))
+                    .foregroundStyle(model.attemptsLeft > 0 ? OrionColor.starlight : OrionColor.alarm)
+                    .tracking(model.attemptsLeft > 0 ? 0 : 2)
             }
-            Text(model.attemptsLeft > 0 ? "\(model.attemptsLeft) left today" : "PATROL COMPLETE")
-                .font(OrionFont.body(16, weight: .bold))
-                .foregroundStyle(model.attemptsLeft > 0 ? OrionColor.starlight : OrionColor.alarm)
-                .tracking(model.attemptsLeft > 0 ? 0 : 2)
             Spacer()
             if let name = model.callsign {
                 Text(name)

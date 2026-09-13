@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 night PT: Gold Patrol includes unlimited Daily runs
+
+- Lucas product correction (~9:25 PM PT): Gold Patrol is unlimited Daily runs **plus** every past patrol, not archive-only. Isolated `.worktrees/feat-gold-unlimited` from `origin/main` (`bde6ee9`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Popup (web + native PatrolComplete sheet): title PATROL COMPLETE. Body 1 unchanged. Body 2 now `Gold Patrol: unlimited Daily runs, plus every past patrol.` Buttons unchanged. Premium/admin never see the popup (they do not hit the free cap).
+- Native: `canLaunchDaily` is online && (attempts left or `isPremium`/`isAdmin`). Attempt row shows "Unlimited today" + infinity, not fake 3-left. PremiumSheet benefit: `infinity` / Unlimited Daily Patrol runs today. Calendar + generic paywall subheads name both unlimited Daily and archive.
+- Web: `api.goldPatrolUnlimited` (premiumActive / premium / admin) plus native `?goldPatrol=1` bypass the lobby lock, game-over retry lock, and `beginLaunch`/`doLaunch` gates. Pips say Unlimited today. Local `used` still increments (no longer clamped at 3) so stats stay honest.
+- Server: `POST /api/scores` still caps free at 3 filed Daily scores per day. `dailyAttemptBlocked` lets `userTier().premiumActive` (premium + admin) through. Free 429 copy unchanged.
+- Free users unchanged: 3 attempts, popup once/day.
+- Tripwire: CORS allowlist, mutator music map, empire-of-the-stars menu, imperial-procession game-over, patrol-complete sting wiring all untouched.
+- Tests: `test-patrol-complete` (unlimited skip + new body), `test-premium-gates` (cap bypass), `test-native-play` (`goldPatrol=1`). `npm test` + `npm run build`.
+
 ## 2026-09-12 evening PT: Patrol Complete + Training Ground LIVE
 
 - Lucas: promote the PATROL COMPLETE popup and Training Ground bed.

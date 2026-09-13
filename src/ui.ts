@@ -19,6 +19,9 @@ import {
   DAILY_FREE_DEATH_SECONDS,
   KEY_ACTION_LABELS,
   KEY_ACTIONS,
+  PATROL_COMPLETE_BODY_1,
+  PATROL_COMPLETE_BODY_GOLD,
+  PATROL_COMPLETE_TITLE,
   formatKeyList,
 } from "./save";
 import type { ShareOutcome } from "./share";
@@ -220,6 +223,8 @@ export interface DailyLobbyInfo {
   callsign?: string;
   country?: string;
   pendingFriends?: number;
+  /** Gold Patrol / admin: Daily launch stays open after the free 3-attempt cap. */
+  unlimitedDaily?: boolean;
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -431,13 +436,12 @@ export class Ui {
     const catcher = this.el("div", "patrol-complete-catcher", "");
     catcher.id = "patrol-complete-catcher";
     const card = this.el("div", "patrol-complete-modal chamfer", "");
-    card.appendChild(this.el("div", "heading gold", "PATROL COMPLETE"));
+    card.appendChild(this.el("div", "heading gold", PATROL_COMPLETE_TITLE));
     card.appendChild(
       this.el(
         "div",
         "patrol-complete-body",
-        `<p>Zero attempts remain. See you tomorrow, pilot.</p>` +
-          `<p>Missed a day? Gold Patrol opens every past patrol.</p>`,
+        `<p>${PATROL_COMPLETE_BODY_1}</p>` + `<p>${PATROL_COMPLETE_BODY_GOLD}</p>`,
       ),
     );
     const primary = this.button("See You Tomorrow", true, () => this.hidePatrolComplete());
@@ -914,6 +918,10 @@ export class Ui {
       screen.appendChild(
         this.el("div", "attempt-pips", `<span class="pips-label">unlimited attempts, not scored</span>`),
       );
+    } else if (info.unlimitedDaily) {
+      screen.appendChild(
+        this.el("div", "attempt-pips", `<span class="pips-label">Unlimited today</span>`),
+      );
     } else {
       const pipsRow = this.el("div", "attempt-pips", "");
       for (let i = 0; i < info.maxAttempts; i++) {
@@ -939,11 +947,11 @@ export class Ui {
       screen.appendChild(
         this.el("div", "daily-locked", "Daily Patrol is offline."),
       );
-    } else if (info.preview || info.attemptsLeft > 0) {
+    } else if (info.preview || info.unlimitedDaily || info.attemptsLeft > 0) {
       const launch = this.button("Launch Patrol", true, () => this.cb.onDaily());
       launch.classList.add("launch", "chamfer");
       screen.appendChild(launch);
-      if (!info.preview && info.attemptsLeft === 1) {
+      if (!info.preview && !info.unlimitedDaily && info.attemptsLeft === 1) {
         screen.appendChild(
           this.el("div", "field-hint center last-attempt-hint", "Last patrol today. Make it count."),
         );

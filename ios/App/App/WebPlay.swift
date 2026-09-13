@@ -71,6 +71,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
     var mode: PlayMode = .training
     var patrolDate: String? = nil
     var recordRuns = false
+    var goldPatrol = false
     var onExit: ((PlayExit) -> Void)?
     var onSession: ((String?, String?, String?) -> Void)?
 
@@ -135,6 +136,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         if let patrolDate, !patrolDate.isEmpty {
             q += "&date=\(patrolDate)"
         }
+        if goldPatrol { q += "&goldPatrol=1" }
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-QAAutoStick") { q += "&nativeAuto=stick" }
         if args.contains("-QATiltConfirm") { q += "&nativeAuto=tiltconfirm" }
@@ -398,6 +400,7 @@ struct PlayView: UIViewControllerRepresentable {
         vc.mode = launch.mode
         vc.patrolDate = launch.date
         vc.recordRuns = model.isAdmin && PreferencesStore.recordRuns
+        vc.goldPatrol = model.isPremium
         vc.onExit = onExit
         vc.onSession = { token, secret, attempts in
             Task { @MainActor in

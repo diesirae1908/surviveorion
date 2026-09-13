@@ -18,6 +18,11 @@ export function parseNativePlay(search: string): NativePlayMode | null {
   return v === "daily" || v === "training" ? v : null;
 }
 
+/** Native Home already authorized an unlimited Daily launch (Gold Patrol / admin). */
+export function parseNativeGoldPatrol(search: string): boolean {
+  return new URLSearchParams(search).get("goldPatrol") === "1";
+}
+
 /** Optional patrol date for native Daily (past replay or Crew rehearsal). */
 export function parseNativePlayDate(search: string): string | null {
   const raw = new URLSearchParams(search).get("date");

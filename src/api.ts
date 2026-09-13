@@ -169,6 +169,11 @@ export class Api {
     return !!this.token && !!this.user;
   }
 
+  /** Gold Patrol IAP or admin/CREW: Daily launch stays open after the free cap. */
+  get goldPatrolUnlimited(): boolean {
+    return this.premiumActive || this.tier === "premium" || this.tier === "admin";
+  }
+
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["Content-Type"] = "application/json";

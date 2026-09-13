@@ -11,10 +11,10 @@ enum PremiumContext: String, Identifiable {
 
     var subhead: String {
         switch self {
-        case .calendar: return "Missed a day? Fly it anytime."
+        case .calendar: return "Unlimited Daily runs today, plus every past patrol."
         case .analytics: return "See your whole record, not just today."
         case .squadrons: return "Race your wingmates, not strangers."
-        case .generic: return "Unlock the full patrol record."
+        case .generic: return "Unlimited Daily runs today, plus every past patrol."
         }
     }
 }

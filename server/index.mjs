@@ -38,7 +38,7 @@ import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
 import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload, handleClipCutsPublic } from "./clip-inbox.mjs";
 import { applyCors, isCorsPreflight } from "./cors.mjs";
-import { userTier, resolveDailySubmit, clampMutatorRange, PREMIUM_PRODUCTS } from "./tier.mjs";
+import { userTier, resolveDailySubmit, clampMutatorRange, dailyAttemptBlocked, PREMIUM_PRODUCTS } from "./tier.mjs";
 import { verifyPremiumTransaction, sandboxTrustAllowed, entitlementFromPayload, decodeJws } from "./apple-iap.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -646,10 +646,11 @@ const routes = {
     const dated = resolveDailySubmit(body, user, patrolToday());
     if (dated.error) return json(res, dated.error.status, dated.error);
     const dailyDate = dated.dailyDate;
-    // The 3-attempts-per-day budget is enforced HERE, not just in the client's
-    // localStorage — a forged client can't flood the daily board. (Refunded
-    // <15s deaths never submit as daily, so legit players can't hit this.)
-    if (dailyDate && store.countDailyScores(user.id, dailyDate) >= DAILY_MAX_ATTEMPTS)
+    // The 3-attempts-per-day budget is enforced HERE for free pilots, not just
+    // in the client's localStorage — a forged client can't flood the daily board.
+    // Gold Patrol / admin skip the cap (unlimited Daily runs today). Refunded
+    // <15s deaths never submit as daily, so legit free players can't hit this.
+    if (dailyDate && dailyAttemptBlocked(user, store.countDailyScores(user.id, dailyDate), DAILY_MAX_ATTEMPTS))
       return json(res, 429, { error: "daily attempt limit reached, next patrol at midnight Pacific" });
 
     store.insertScore(user.id, { ...run, dailyDate });

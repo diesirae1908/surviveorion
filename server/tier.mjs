@@ -23,9 +23,15 @@ export function userTier(user) {
   return { tier, admin, premiumActive, clipInbox };
 }
 
+/** Free pilots stop at `max` filed Daily scores that day. Gold Patrol / admin do not. */
+export function dailyAttemptBlocked(user, filedCount, max = 3) {
+  if (!Number.isFinite(filedCount) || filedCount < max) return false;
+  return !userTier(user).premiumActive;
+}
+
 /**
  * Daily score date for POST /api/scores.
- * Today always allowed (existing 3-attempt rules apply later).
+ * Today always allowed for Gold Patrol / admin. Free still hits the 3-attempt cap later.
  * Past dates require premium/admin. Future dates require admin.
  */
 export function resolveDailySubmit(body, user, today) {

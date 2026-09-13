@@ -86,6 +86,7 @@ import {
   hapticGraze,
   isNativeApp,
   isNativePlay,
+  parseNativeGoldPatrol,
   parseNativePlay,
   parseNativePlayDate,
   postNativeGameOver,
@@ -126,6 +127,22 @@ const IS_NATIVE_PLAY = NATIVE_PLAY !== null;
 const NATIVE_AUTO = new URLSearchParams(location.search).get("nativeAuto");
 const NATIVE_PATROL_DATE = IS_NATIVE_PLAY && NATIVE_PLAY === "daily" ? parseNativePlayDate(location.search) : null;
 const NATIVE_ARCHIVE = !!(NATIVE_PATROL_DATE && NATIVE_PATROL_DATE !== patrolDateStr());
+const NATIVE_GOLD = IS_NATIVE_PLAY && parseNativeGoldPatrol(location.search);
+
+function unlimitedDailyRuns(): boolean {
+  return NATIVE_GOLD || api.goldPatrolUnlimited;
+}
+
+/** Free pilots hit the local 3-attempt lock. Gold Patrol / admin do not. */
+function dailyLaunchBlocked(): boolean {
+  return (
+    DAILY_ONLY &&
+    !PREVIEW_ACTIVE &&
+    !NATIVE_ARCHIVE &&
+    dailyAttemptsLeft() <= 0 &&
+    !unlimitedDailyRuns()
+  );
+}
 
 if (DAILY_ONLY) document.title = "ORION Daily";
 
@@ -633,6 +650,7 @@ function showMenu(): void {
       callsign: api.user?.callsign,
       country: api.user?.country,
       pendingFriends: api.pendingFriends,
+      unlimitedDaily: unlimitedDailyRuns(),
     });
     fillDailyHint();
     fillDailyBoard();
@@ -882,7 +900,7 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   }
   // daily-only site: out of attempts → back to the lobby (shows the countdown).
   // Preview runs don't spend attempts, so they never hit this lockout.
-  if (DAILY_ONLY && daily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE && dailyAttemptsLeft() <= 0) {
+  if (daily && !training && dailyLaunchBlocked()) {
     quitToMenu();
     return;
   }
@@ -925,7 +943,7 @@ function doLaunch(quick = false): void {
   if (state === "launching") return;
   // daily-only retry path (Fly again / Space): the attempt budget still
   // rules, except for a preview run, which never spends one.
-  if (DAILY_ONLY && pendingDaily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE && dailyAttemptsLeft() <= 0) {
+  if (pendingDaily && dailyLaunchBlocked()) {
     quitToMenu();
     return;
   }
@@ -1295,7 +1313,8 @@ function showGameOverUi(): void {
     touchDevice: isTouchDevice(),
     // a preview run's retry never draws from the real budget — same
     // "uncapped" retry-button styling Classic/Iron Rain use
-    attemptsLeft: cappedDaily && !PREVIEW_ACTIVE ? dailyAttemptsLeft() : undefined,
+    attemptsLeft:
+      cappedDaily && !PREVIEW_ACTIVE && !unlimitedDailyRuns() ? dailyAttemptsLeft() : undefined,
     showShare: cappedDaily && !runRefunded,
     refunded: runRefunded,
     mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
@@ -1314,7 +1333,7 @@ function showGameOverUi(): void {
 function maybeShowPatrolComplete(fromGameOver: boolean): void {
   if (!DAILY_ONLY || PREVIEW_ACTIVE || IS_NATIVE_PLAY) return;
   if (fromGameOver && (!runIsDaily || runRefunded || runIsTraining)) return;
-  if (!consumePatrolCompletePopup(dailyAttemptsLeft())) return;
+  if (!consumePatrolCompletePopup(dailyAttemptsLeft(), undefined, unlimitedDailyRuns())) return;
   audio.playOneShot(PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME);
   ui.showPatrolComplete();
 }

@@ -35,6 +35,7 @@ struct PremiumSheet: View {
                         .foregroundStyle(OrionColor.starlight)
                         .multilineTextAlignment(.center)
                     VStack(alignment: .leading, spacing: 10) {
+                        benefit("infinity", "Unlimited Daily Patrol runs today")
                         benefit("clock.arrow.circlepath", "Replay any past Daily Patrol with full scores")
                         benefit("chart.bar.fill", "Track your history: attempts, medals, streaks, survival trends")
                         benefit("person.2.fill", "Squadrons: friends-only boards for you and your wingmates")

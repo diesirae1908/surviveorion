@@ -18,7 +18,7 @@ struct PatrolCompleteSheet: View {
                     Text("Zero attempts remain. See you tomorrow, pilot.")
                         .font(OrionFont.body(16))
                         .foregroundStyle(OrionColor.starlight)
-                    Text("Missed a day? Gold Patrol opens every past patrol.")
+                    Text("Gold Patrol: unlimited Daily runs, plus every past patrol.")
                         .font(OrionFont.body(16))
                         .foregroundStyle(OrionColor.bronze)
                 }

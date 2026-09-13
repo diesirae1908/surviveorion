@@ -164,7 +164,7 @@ struct CalendarView: View {
                         Spacer(minLength: 0)
                     }
                     .padding(5)
-                    if cell.kind == .today && model.attemptsLeft > 0 {
+                    if cell.kind == .today && (model.attemptsLeft > 0 || model.isPremium) {
                         Circle()
                             .fill(OrionColor.hullGold)
                             .frame(width: 5, height: 5)
@@ -215,8 +215,12 @@ struct CalendarView: View {
 
     private func tap(_ cell: CalendarDay) {
         if cell.kind == .today {
-            onPlay?(.daily, nil)
-            dismiss()
+            if model.attemptsLeft > 0 || model.isPremium {
+                onPlay?(.daily, nil)
+                dismiss()
+            } else {
+                premium = .calendar
+            }
             return
         }
         if cell.date < today && !model.isPremium {

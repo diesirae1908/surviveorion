@@ -8,9 +8,8 @@ process.env.CLIP_INBOX_CALLSIGN = "CrewPilot";
 
 const { createUser, setUserPremium, setUserRole, ensureCrewCallsigns, getUserByCallsign } =
   await import("../server/db.mjs");
-const { userTier, resolveDailySubmit, clampMutatorRange, addCivilDays } = await import(
-  "../server/tier.mjs"
-);
+const { userTier, resolveDailySubmit, clampMutatorRange, addCivilDays, dailyAttemptBlocked } =
+  await import("../server/tier.mjs");
 
 let failures = 0;
 function check(name, ok, detail = "") {
@@ -47,6 +46,12 @@ check("clip-inbox allowlist is admin", crewT.tier === "admin" && crewT.premiumAc
 
 const roleT = userTier((await import("../server/db.mjs")).getUserById(roleAdmin.id));
 check("users.role=admin is admin without clip env match", roleT.tier === "admin" && roleT.premiumActive === true);
+
+check("free hits Daily cap at 3", dailyAttemptBlocked(free, 3) === true);
+check("free under cap is open", dailyAttemptBlocked(free, 2) === false);
+check("premium skips Daily cap", dailyAttemptBlocked(premFresh, 3) === false);
+check("admin skips Daily cap", dailyAttemptBlocked(crew, 9) === false);
+check("unsigned hits Daily cap", dailyAttemptBlocked(null, 3) === true);
 
 const todayFree = resolveDailySubmit({ daily: true }, free, today);
 check("today daily allowed for free", todayFree.dailyDate === today && !todayFree.error);

@@ -125,10 +125,17 @@ export function bumpRunCount(): void {
 // --- Daily-only site: attempt budget (client-side, per patrol day) ---
 //
 // The daily variant allows DAILY_MAX_ATTEMPTS Daily Patrol launches per UTC
-// day (the same day boundary as the daily seed). Purely local — incognito
-// resets it, and that's accepted (Wordle model).
+// day (the same day boundary as the daily seed) for free pilots. Gold Patrol
+// / admin skip the launch lock (client + server). The used counter still
+// increments so stats stay honest. Purely local — incognito resets it, and
+// that's accepted (Wordle model).
 
 export const DAILY_MAX_ATTEMPTS = 3;
+
+export const PATROL_COMPLETE_TITLE = "PATROL COMPLETE";
+export const PATROL_COMPLETE_BODY_1 = "Zero attempts remain. See you tomorrow, pilot.";
+export const PATROL_COMPLETE_BODY_GOLD =
+  "Gold Patrol: unlimited Daily runs, plus every past patrol.";
 
 /** Daily deaths inside this window don't count — the attempt is returned. */
 export const DAILY_FREE_DEATH_SECONDS = 15;
@@ -258,7 +265,7 @@ export function dailyAttemptsLeft(): number {
 /** Consume one attempt (called when a daily run actually starts). */
 export function useDailyAttempt(): DailyAttempts {
   const state = loadDailyAttempts();
-  state.used = Math.min(DAILY_MAX_ATTEMPTS, state.used + 1);
+  state.used += 1;
   saveDailyAttempts(state);
   return state;
 }
@@ -285,12 +292,13 @@ export function markPatrolCompleteShown(date = patrolDayString()): void {
   localStorage.setItem(patrolCompleteShownKey(date), "1");
 }
 
-/** True if the popup should fire now. Marks the day as shown. */
+/** True if the popup should fire now. Marks the day as shown. Gold Patrol / admin never see it. */
 export function consumePatrolCompletePopup(
   attemptsLeft: number,
   date = patrolDayString(),
+  unlimited = false,
 ): boolean {
-  if (attemptsLeft > 0 || hasShownPatrolComplete(date)) return false;
+  if (unlimited || attemptsLeft > 0 || hasShownPatrolComplete(date)) return false;
   markPatrolCompleteShown(date);
   return true;
 }

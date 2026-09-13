@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { parseNativePlay, parseNativePlayDate } from "../src/native.ts";
+import { parseNativeGoldPatrol, parseNativePlay, parseNativePlayDate } from "../src/native.ts";
 
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
 const main = fs.readFileSync(path.join(ROOT, "src/main.ts"), "utf8");
@@ -22,6 +22,9 @@ assert.equal(parseNativePlayDate("?nativePlay=daily"), null);
 assert.equal(parseNativePlayDate("?nativePlay=daily&date=2026-09-01"), "2026-09-01");
 assert.equal(parseNativePlayDate("?date=not-a-date"), null);
 assert.equal(parseNativePlayDate("?date=2026-13-40"), null);
+assert.equal(parseNativeGoldPatrol(""), false);
+assert.equal(parseNativeGoldPatrol("?nativePlay=daily"), false);
+assert.equal(parseNativeGoldPatrol("?nativePlay=daily&goldPatrol=1"), true);
 
 assert.match(main, /IS_NATIVE_PLAY/);
 assert.match(main, /clearScreens\(\)/);
