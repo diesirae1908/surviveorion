@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 midday PT: Lobby header icons + FIELD UPDATE copy LIVE
+
+- Promoted `feat/lobby-icons` (`6ed977d` / journal `8496b02`) to `origin/main`. Did not reset `origin/dev`.
+- Render `surviveorion` deploy `dep-dajfpoojo6nc73ccckfg` is live. Bundle `assets/main-CS1XjR6K.js` contains `FIELD UPDATE`, cog path, chat bubble (`M5.4 7.4`), `Get on iPhone`, `orion_web_override`, `Download on the App Store`. `/updates.json` 200 (`2026-09-13-lobby-refit` Lobby Refit first of 2). `/app-store-badge.svg` 200. `/api/config` 200. CORS `capacitor://localhost` still 204. Music beds 200: empire-of-the-stars, imperial-procession, patrol-complete, training-ground.
+
 ## 2026-09-13 midday PT: Lobby header icons + FIELD UPDATE copy
 
 - Isolated `.worktrees/feat-lobby-icons` from `origin/main` (`aadbd5d`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `6ed977d`.
