@@ -6,7 +6,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 ## 2026-09-13 afternoon PT: Recording mode header icon
 
-- Isolated `.worktrees/feat-record-icon` from `origin/main` (`7bd45e2`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Isolated `.worktrees/feat-record-icon` from `origin/main` (`7bd45e2`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `359da7d`.
 - CREW / clipInbox lobby: leftmost header rec disc toggles `settings.recordingMode` via `onToggle("recordingMode")`. ON is Alarm red + REC pill + aria "Recording mode on". Free/Premium never see it. Settings "Recording mode" row stays. Record runs untouched.
 - Native Home top bar: CREW (`isAdmin`) `record.circle` button toggles `PreferencesStore.recordingMode` for parity (capture still web-only).
 - Tripwire: phone landing gate, CORS allowlist, FIELD UPDATE / updates.json, App Store badge / `APP_STORE_LIVE` untouched.
