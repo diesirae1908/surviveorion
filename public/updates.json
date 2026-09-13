@@ -1,24 +1,22 @@
 {
   "updates": [
     {
-      "id": "2026-09-13-lobby-refresh",
+      "id": "2026-09-13-lobby-refit",
       "date": "2026-09-13",
-      "title": "Lobby got a refit",
+      "title": "Lobby Refit",
       "body": [
-        "Calendar and Wingmates moved under Launch Patrol, easier reach",
-        "How to Play and Powers now match the rest of the buttons",
-        "Feedback moved to the speaker icon up top, next to Settings"
+        "Cockpit leaner: controls tightened into a denser grid.",
+        "WIP iPhone and Android apps being built in the shipyard.",
+        "Feedback sits up top now, next to Settings."
       ],
       "link": null
     },
     {
       "id": "2026-09-13-past-day-fly",
       "date": "2026-09-13",
-      "title": "Gold Patrol: fly any past day",
+      "title": "Old Skies, Reopened",
       "body": [
-        "Gold Patrol can fly any past calendar day",
-        "Missed and untracked days get Fly this Patrol",
-        "Played days keep Replay this Patrol"
+        "Gold Patrol: yesterday's flight path is back on the board."
       ],
       "link": null
     }

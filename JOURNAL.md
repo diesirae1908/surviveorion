@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 midday PT: Lobby header icons + FIELD UPDATE copy
+
+- Isolated `.worktrees/feat-lobby-icons` from `origin/main` (`aadbd5d`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Settings icon is a toothed cog outline (the radiating-line gear read as a sun). Feedback kind renamed `speaker` → `chat` (bubble + two lines). Aria-label stays "Feedback". Bell unchanged.
+- `public/updates.json` newest-first: `2026-09-13-lobby-refit` (Lobby Refit) so the popup re-fires, then rewritten `2026-09-13-past-day-fly` (Old Skies, Reopened). Dropped the micro-copy `2026-09-13-lobby-refresh` entry from the array.
+- Tripwire: phone landing gate, CORS allowlist, App Store badge / `APP_STORE_LIVE` untouched.
+
 ## 2026-09-13 midday PT: Desktop lobby chrome + updates bell LIVE
 
 - Promoted `feat/lobby-chrome` (`a2a0df7` / journal `c28a953`) to `origin/main`. Did not reset `origin/dev`.

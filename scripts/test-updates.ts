@@ -40,31 +40,40 @@ const updates = parseUpdates(file);
 
 assert.equal(UPDATES_URL, "/updates.json");
 assert.equal(LAST_SEEN_UPDATE_KEY, "orion.lastSeenUpdateId");
-assert.ok(updates.length >= 1, "at least the lobby-refresh entry");
-assert.equal(updates[0]?.id, "2026-09-13-lobby-refresh");
+assert.ok(updates.length >= 1, "at least the lobby-refit entry");
+assert.equal(updates[0]?.id, "2026-09-13-lobby-refit");
 assert.equal(updates[0]?.date, "2026-09-13");
-assert.equal(updates[0]?.title, "Lobby got a refit");
+assert.equal(updates[0]?.title, "Lobby Refit");
 assert.equal(updates[0]?.link, null);
 assert.equal(updates[0]?.body.length, 3);
 assert.ok(
   updates.some((u) => u.id === "2026-09-13-past-day-fly"),
   "past-day Gold Patrol note is in the file",
 );
+assert.equal(
+  updates.find((u) => u.id === "2026-09-13-past-day-fly")?.title,
+  "Old Skies, Reopened",
+);
+assert.ok(
+  !updates.some((u) => u.id === "2026-09-13-lobby-refresh"),
+  "micro-copy lobby-refresh is off the feed",
+);
 
 assert.deepEqual(parseUpdates(null), []);
 assert.deepEqual(parseUpdates({}), []);
 assert.deepEqual(parseUpdates({ updates: [{ id: "x" }] }), []);
 assert.equal(latestUpdate([]), null);
-assert.equal(latestUpdate(updates)?.id, "2026-09-13-lobby-refresh");
+assert.equal(latestUpdate(updates)?.id, "2026-09-13-lobby-refit");
 
 assert.equal(hasUnreadUpdate(null, null), false);
-assert.equal(hasUnreadUpdate("2026-09-13-lobby-refresh", null), true);
-assert.equal(hasUnreadUpdate("2026-09-13-lobby-refresh", "2026-09-13-lobby-refresh"), false);
-assert.equal(hasUnreadUpdate("2026-09-13-lobby-refresh", "older"), true);
+assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", null), true);
+assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refit"), false);
+assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refresh"), true);
+assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "older"), true);
 
 assert.equal(loadLastSeenUpdateId(), null);
-saveLastSeenUpdateId("2026-09-13-lobby-refresh");
-assert.equal(loadLastSeenUpdateId(), "2026-09-13-lobby-refresh");
+saveLastSeenUpdateId("2026-09-13-lobby-refit");
+assert.equal(loadLastSeenUpdateId(), "2026-09-13-lobby-refit");
 assert.equal(hasUnreadUpdate(latestUpdate(updates)?.id ?? null, loadLastSeenUpdateId()), false);
 
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");
@@ -76,7 +85,8 @@ assert.equal(ui.includes("Get ORION on iPhone"), true, "patrol-complete CTA copy
 assert.match(ui, /Daily reminder on your phone/);
 assert.doesNotMatch(ui, /lobby-learn/);
 assert.doesNotMatch(ui, /lobbyStackButton\("Feedback"/);
-assert.match(ui, /speaker/);
+assert.match(ui, /lobbyIconBtn\("chat", "Feedback"/);
+assert.doesNotMatch(ui, /lobbyIconBtn\("speaker"/);
 
 const css = fs.readFileSync(path.join(ROOT, "src/style.css"), "utf8");
 assert.match(css, /lobby-util-grid/);

@@ -667,27 +667,26 @@ export class Ui {
     return btn;
   }
 
-  private static readonly LOBBY_ICON: Record<"bell" | "speaker" | "gear", string> = {
+  private static readonly LOBBY_ICON: Record<"bell" | "chat" | "gear", string> = {
     bell:
       `<svg viewBox="0 0 24 24" aria-hidden="true">` +
       `<path d="M6.2 9.2a5.8 5.8 0 0 1 11.6 0c0 3.6.9 5.4 1.6 6.4H4.6c.7-1 1.6-2.8 1.6-6.4Z" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
       `<path d="M10 18.2a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
       `</svg>`,
-    speaker:
+    chat:
       `<svg viewBox="0 0 24 24" aria-hidden="true">` +
-      `<path d="M4.5 9.2h3.4L13 5.8v12.4l-5.1-3.4H4.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>` +
-      `<path d="M16.2 9.4a3.6 3.6 0 0 1 0 5.2" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
-      `<path d="M18.2 7.4a6.4 6.4 0 0 1 0 9.2" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `<path d="M5.4 7.4a1.6 1.6 0 0 1 1.6-1.6h11.6a1.6 1.6 0 0 1 1.6 1.6v7.6a1.6 1.6 0 0 1-1.6 1.6H9.2L5.4 19.2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>` +
+      `<path d="M8.4 9.6h7.2M8.4 12.6h4.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>` +
       `</svg>`,
     gear:
       `<svg viewBox="0 0 24 24" aria-hidden="true">` +
-      `<circle cx="12" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
-      `<path d="M12 4.4v2.2M12 17.4v2.2M4.4 12h2.2M17.4 12h2.2M6.6 6.6l1.6 1.6M15.8 15.8l1.6 1.6M17.4 6.6l-1.6 1.6M8.2 15.8l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>` +
+      `<path d="M10.46 6.05L10.88 3.52L13.12 3.52L13.54 6.05L15.12 6.7L17.2 5.22L18.78 6.8L17.3 8.88L17.95 10.46L20.48 10.88L20.48 13.12L17.95 13.54L17.3 15.12L18.78 17.2L17.2 18.78L15.12 17.3L13.54 17.95L13.12 20.48L10.88 20.48L10.46 17.95L8.88 17.3L6.8 18.78L5.22 17.2L6.7 15.12L6.05 13.54L3.52 13.12L3.52 10.88L6.05 10.46L6.7 8.88L5.22 6.8L6.8 5.22L8.88 6.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>` +
+      `<circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
       `</svg>`,
   };
 
   private lobbyIconBtn(
-    kind: "bell" | "speaker" | "gear",
+    kind: "bell" | "chat" | "gear",
     title: string,
     onClick: () => void,
   ): HTMLButtonElement {
@@ -1070,7 +1069,7 @@ export class Ui {
     const icons = this.el("div", "lobby-header-icons", "");
     icons.appendChild(this.lobbyIconBtn("bell", "Updates", () => this.openLatestFieldUpdate()));
     icons.appendChild(
-      this.lobbyIconBtn("speaker", "Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
+      this.lobbyIconBtn("chat", "Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
     );
     icons.appendChild(
       this.lobbyIconBtn("gear", "Settings", () =>
