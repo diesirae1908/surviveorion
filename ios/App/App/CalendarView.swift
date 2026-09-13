@@ -63,9 +63,9 @@ struct CalendarView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task { await boot() }
         .sheet(item: $detail) { day in
-            DayDetailSheet(day: day, isAdmin: model.isAdmin) { replay in
+            DayDetailSheet(day: day, isAdmin: model.isAdmin) { launch in
                 detail = nil
-                if replay {
+                if launch {
                     onPlay?(.daily, day.date == today ? nil : day.date)
                     dismiss()
                 }
@@ -311,6 +311,12 @@ struct CalendarView: View {
             ))
         }
         days = cells
+        if model.pendingQaDayDetail {
+            model.pendingQaDayDetail = false
+            if let first = cells.first(where: { $0.kind == .missed || $0.kind == .untracked }) {
+                detail = first
+            }
+        }
     }
 
     private func medal(for score: Int?) -> String? {
@@ -371,8 +377,12 @@ struct DayDetailSheet: View {
                     title: "No record",
                     bodyText: "No record for this device, and you weren't signed in yet"
                 )
+                Button("Fly this Patrol") { onClose(true) }
+                    .buttonStyle(OrionButtonStyle(kind: .primary))
             } else {
                 OrionEmptyState(title: "No patrol flown.", bodyText: "This day has no submitted Daily score.")
+                Button("Fly this Patrol") { onClose(true) }
+                    .buttonStyle(OrionButtonStyle(kind: .primary))
             }
         }
         .padding(24)

@@ -392,7 +392,7 @@ export class Api {
     /** Which board the run files on (classic / ironrain). */
     gameMode: GameMode;
     platform: string;
-    /** true for Daily Patrol runs (server files it on today's board too). */
+    /** true for Daily Patrol runs (server files on `dailyDate` or today). */
     daily?: boolean;
     /** Past-day / rehearsal Daily (server gates: premium for past, admin for future). */
     dailyDate?: string;

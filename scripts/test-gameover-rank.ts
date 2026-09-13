@@ -62,6 +62,17 @@ function baseInput(overrides: Partial<GameOverRankInput> = {}): GameOverRankInpu
   });
   check("daily run: primary label is Daily Patrol", r.primaryLabel === "Daily Patrol");
   check("daily run: primary rank is the daily rank, not world", r.primaryRank === 3);
+  check("today daily: no archive board caption", r.boardCaption == null);
+}
+
+{
+  const r = deriveGameOverRank(baseInput({ dailyRank: 4, worldRank: 42 }), {
+    ...rankOpts({ isDaily: true, country: "ca" }),
+    archiveDate: "2026-09-08",
+  });
+  check("archive run: primary label names the date", r.primaryLabel === "Sep 8 Patrol");
+  check("archive run: board caption is that date's board", r.boardCaption === "Sep 8 board");
+  check("archive run: still uses daily rank", r.primaryRank === 4);
 }
 
 {
@@ -135,5 +146,5 @@ if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);
   process.exit(1);
 } else {
-  console.log("ALL CHECKS PASSED: game-over rank slot (null-rank bug, single primary rank, country rank, wingmate/stranger/no target, this-run score on me row, callsign masking).");
+  console.log("ALL CHECKS PASSED: game-over rank slot (null-rank bug, single primary rank, archive date label, country rank, wingmate/stranger/no target, this-run score on me row, callsign masking).");
 }

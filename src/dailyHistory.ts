@@ -19,6 +19,12 @@ import { medalForScore, medalThresholdsForDate, type MedalTier } from "./medals"
 import { getMutatorsForDate, type Mutator } from "./mutators";
 import type { DailyDayLog } from "./save";
 
+/** GET /api/me/daily-history rejects a wider inclusive span (server: 62). */
+export const DAILY_HISTORY_MAX_SPAN_DAYS = 62;
+
+export const FLY_THIS_PATROL = "Fly this Patrol";
+export const REPLAY_THIS_PATROL = "Replay this Patrol";
+
 /** One patrol day's confirmed server result (GET /api/me/daily-history). */
 export interface ServerDayEntry {
   date: string;

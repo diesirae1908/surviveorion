@@ -7,6 +7,7 @@ struct AnalyticsView: View {
     @Environment(\.verticalSizeClass) private var vSize
     @State private var history: [DailyHistoryEntry] = []
     @State private var loaded = false
+    @State private var loadFailed = false
 
     private var twoCol: Bool { hSize == .regular || vSize == .compact }
 
@@ -14,7 +15,12 @@ struct AnalyticsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 OrionScreenBar(title: "ANALYTICS") { dismiss() }
-                if twoCol {
+                if loadFailed {
+                    OrionEmptyState(
+                        title: "Couldn't load your record",
+                        bodyText: "Patrol command didn't answer. Your patrols are still on the board."
+                    )
+                } else if twoCol {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         streakCard
                         attemptsCard
@@ -156,9 +162,18 @@ struct AnalyticsView: View {
 
     private func load() async {
         let today = PatrolDate.dateString()
-        let from = PatrolDate.addCivilDays(today, -400)
-        if let r = try? await APIClient.shared.dailyHistory(from: from, to: today) {
+        let from = PatrolDate.addCivilDays(today, -APIClient.dailyHistoryMaxSpanDays)
+        loadFailed = false
+        do {
+            let r = try await APIClient.shared.dailyHistory(from: from, to: today)
             history = r.entries
+        } catch APIError.unauthorized {
+            history = []
+        } catch {
+            if model.isSignedIn {
+                loadFailed = true
+            }
+            history = []
         }
         loaded = true
     }

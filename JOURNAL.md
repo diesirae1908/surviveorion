@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 midday PT: Fly missed past days + archive game-over date
+
+- Isolated `.worktrees/feat-past-day-fly` from `origin/main` (`7a006fb`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Lucas (2026-09-13 ~12:10 PM PT): Premium can always try to beat any previous calendar day. Missed / untracked past days now get **Fly this Patrol** (played days keep **Replay this Patrol**). Free still hits the Gold Patrol paywall. Future days unchanged (Free/Premium blocked, Admin/CREW rehearsal).
+- Native `DayDetailSheet` + website calendar (Gold Patrol / admin only). Website launch uses session `webArchiveDate` + the same `dailyDate` submit path as `?nativePlay=daily&date=`. Archive runs do not spend today's local 3-attempt budget. Server still 403s past-day submits for Free.
+- Archive game-over names the file: tag **PATROL · Sep 8**, rank label **Sep 8 Patrol**, caption **Sep 8 board**. Today's Daily copy unchanged (`DAILY PATROL` / `Daily Patrol`).
+- Analytics history request clamped to the live API max (62 days). Signed-in fetch failure shows "Couldn't load your record" instead of a fake 0-patrol empty.
+- QA: `-QAPlay calendar-day` opens an untracked day sheet. `-QAPlay gameover-archive` opens a dated game-over. Shots in `qa-evidence/past-day-fly/`. App terminated after shots.
+- `npm test` + `npm run build` green. Native needs a later TestFlight. Web calendar / game-over strings ship with this promote.
+
 ## 2026-09-13 late morning PT: Desktop lobby + phone App Store gate LIVE
 
 - Promoted `feat/desktop-mobile-gate` (`00b0c7d`) to `origin/main`. Did not reset `origin/dev`.

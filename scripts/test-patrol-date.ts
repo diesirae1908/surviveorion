@@ -3,6 +3,9 @@
  * Run: npx tsx scripts/test-patrol-date.ts
  */
 import {
+  archivePatrolBoardLabel,
+  archivePatrolTag,
+  formatPatrolShort,
   nextPatrolMidnight,
   patrolDateStr,
   patrolDayStartMs,
@@ -79,6 +82,11 @@ check(
   "client/server patrolDayStartMs agree for 2026-08-27",
   patrolDayStartMs("2026-08-27") === patrolDayStartMsServer("2026-08-27"),
 );
+
+check("formatPatrolShort Sep 8", formatPatrolShort("2026-09-08") === "Sep 8");
+check("formatPatrolShort Jan 1", formatPatrolShort("2026-01-01") === "Jan 1");
+check("archive tag names the date", archivePatrolTag("2026-09-08") === "PATROL · Sep 8");
+check("archive board label", archivePatrolBoardLabel("2026-09-08") === "Sep 8 Patrol");
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

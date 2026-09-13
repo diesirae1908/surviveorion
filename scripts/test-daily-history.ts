@@ -2,7 +2,12 @@
  * Headless unit tests for the patrol history calendar's day-status logic
  * (no DOM needed). Run: npx tsx scripts/test-daily-history.ts
  */
+import fs from "node:fs";
+import path from "node:path";
 import {
+  DAILY_HISTORY_MAX_SPAN_DAYS,
+  FLY_THIS_PATROL,
+  REPLAY_THIS_PATROL,
   dayInfoFor,
   daysInMonth,
   leadingPadding,
@@ -13,6 +18,7 @@ import {
   utcDateStr,
   type DayInfoOpts,
 } from "../src/dailyHistory";
+import { archivePatrolTag, formatPatrolShort } from "../src/patrolDate";
 import type { DailyDayLog } from "../src/save";
 
 let failures = 0;
@@ -184,6 +190,23 @@ check(
   "monthLabel reads as a plain month/year string",
   monthLabel(2026, 7) === "AUGUST 2026",
 );
+
+check("history API max span matches the live server", DAILY_HISTORY_MAX_SPAN_DAYS === 62);
+check("Fly CTA copy", FLY_THIS_PATROL === "Fly this Patrol");
+check("Replay CTA copy", REPLAY_THIS_PATROL === "Replay this Patrol");
+check("archive game-over tag", archivePatrolTag("2026-09-08") === "PATROL · Sep 8");
+check("formatPatrolShort drops the leading zero", formatPatrolShort("2026-09-08") === "Sep 8");
+
+const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
+const calendarSwift = fs.readFileSync(path.join(ROOT, "ios/App/App/CalendarView.swift"), "utf8");
+check("native missed/untracked offers Fly this Patrol", calendarSwift.includes("Fly this Patrol"));
+check("native played day still offers Replay this Patrol", calendarSwift.includes("Replay this Patrol"));
+const analyticsSwift = fs.readFileSync(path.join(ROOT, "ios/App/App/AnalyticsView.swift"), "utf8");
+check("analytics no longer requests 400 days", !analyticsSwift.includes("-400"));
+check("analytics clamps to the server max span", analyticsSwift.includes("dailyHistoryMaxSpanDays"));
+check("analytics distinguishes a load failure", analyticsSwift.includes("Couldn't load your record"));
+const gameOverSwift = fs.readFileSync(path.join(ROOT, "ios/App/App/GameOverView.swift"), "utf8");
+check("native archive game-over names the date", gameOverSwift.includes("PATROL ·"));
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

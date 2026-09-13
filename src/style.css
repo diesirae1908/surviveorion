@@ -1095,6 +1095,11 @@ button.launch:disabled {
   text-transform: uppercase;
 }
 
+.cal-detail-fly {
+  margin-top: 8px;
+  align-self: stretch;
+}
+
 @media (max-width: 380px) {
   .calendar-grid,
   .calendar-nav,

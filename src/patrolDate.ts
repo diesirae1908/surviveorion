@@ -61,3 +61,38 @@ export function nextPatrolMidnight(now: Date = new Date()): Date {
   const tomorrow = addCivilDays(patrolDateStr(now), 1);
   return new Date(patrolDayStartMs(tomorrow));
 }
+
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/** Compact civil label for an archive patrol date ("Sep 8"). */
+export function formatPatrolShort(dateStr: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!m) return dateStr;
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12) return dateStr;
+  return `${SHORT_MONTHS[month - 1]} ${day}`;
+}
+
+/** Game-over tag for a past Daily file. Today's Daily stays "DAILY PATROL". */
+export function archivePatrolTag(dateStr: string): string {
+  return `PATROL · ${formatPatrolShort(dateStr)}`;
+}
+
+/** Rank / board name for a Daily file. Today stays "Daily Patrol". */
+export function archivePatrolBoardLabel(dateStr: string): string {
+  return `${formatPatrolShort(dateStr)} Patrol`;
+}

@@ -4,7 +4,8 @@ import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameM
 import type { DayInfo, DayStatus } from "./dailyHistory";
 import { isTypingTarget } from "./input";
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
-import { nextPatrolMidnight } from "./patrolDate";
+import { archivePatrolTag, formatPatrolShort, nextPatrolMidnight, patrolDateStr } from "./patrolDate";
+import { FLY_THIS_PATROL, REPLAY_THIS_PATROL } from "./dailyHistory";
 import type { Mutator } from "./mutators";
 import type {
   BooleanSetting,
@@ -62,6 +63,8 @@ export interface UiCallbacks {
   onProfile: () => void;
   /** Daily lobby: open the patrol history calendar (see showPatrolCalendar). */
   onPatrolCalendar: () => void;
+  /** Gold Patrol / admin: launch a past Daily from the calendar (YYYY-MM-DD). */
+  onPlayArchiveDay: (date: string) => void;
   /** Switch control scheme; resolves with the mode actually in effect (tilt may be denied). */
   onControlModeChange: (mode: ControlMode) => Promise<ControlMode>;
   /** Re-capture the current phone attitude as tilt neutral. */
@@ -121,6 +124,8 @@ export interface GameOverStats {
   refunded?: boolean;
   /** Daily-only site: today's mutator name(s), for the "DAILY PATROL" tag. */
   mutatorNames?: string[];
+  /** Past Daily file (YYYY-MM-DD). Today's Daily omits this. */
+  patrolDate?: string;
   /** Daily-only site: best-of-day medal (by score) + next-tier hint. */
   dailyMedal?: { tier: MedalTier | null; hint: string | null };
   /** This run used the ?mutator= preview override — not submitted anywhere. */
@@ -148,6 +153,8 @@ export interface GameOverRankResult {
   country: { code: string; rank: number } | null;
   target: { callsign: string; score: number; isWingmate: boolean } | null;
   me: { callsign: string; score: number; country: string };
+  /** Archive files only: names the date's board so rank is not read as today. */
+  boardCaption?: string | null;
 }
 
 /** Minimal slice of SubmitResult that the rank-slot decision needs (kept
@@ -171,12 +178,25 @@ export interface GameOverRankInput {
  */
 export function deriveGameOverRank(
   r: GameOverRankInput,
-  opts: { isDaily: boolean; callsign: string; country: string; runScore: number },
+  opts: {
+    isDaily: boolean;
+    callsign: string;
+    country: string;
+    runScore: number;
+    /** Past Daily file. Today / omitted keeps the "Daily Patrol" label. */
+    archiveDate?: string | null;
+  },
 ): GameOverRankResult {
-  // Daily Patrol is the relevant board on a daily run (the same board
-  // TODAY'S BOARD shows) — World rank otherwise. One primary number, not
-  // both stacked, which was the "too much information" complaint.
-  const primaryLabel = opts.isDaily ? "Daily Patrol" : "World rank";
+  // Daily files rank on that date's board. Today keeps "Daily Patrol".
+  // A past date names the file so the slot cannot be read as today's board.
+  // World rank otherwise. One primary number, not both stacked.
+  const today = patrolDateStr();
+  const archive = opts.isDaily && opts.archiveDate && opts.archiveDate !== today ? opts.archiveDate : null;
+  const primaryLabel = !opts.isDaily
+    ? "World rank"
+    : archive
+      ? `${formatPatrolShort(archive)} Patrol`
+      : "Daily Patrol";
   const primaryRank = opts.isDaily ? (r.dailyRank ?? null) : r.worldRank;
   // gap-to-goal: the next pilot to hunt (a wingmate beats a stranger)
   const nextUp = r.nextWingmate ?? r.nextAbove;
@@ -195,6 +215,7 @@ export function deriveGameOverRank(
     // the account's own raw callsign passed straight from main.ts, so it
     // needs the same display-time masking here (2026-08-17 review finding).
     me: { callsign: sanitizeCallsignForDisplay(opts.callsign), score: opts.runScore, country: opts.country },
+    boardCaption: archive ? `${formatPatrolShort(archive)} board` : null,
   };
 }
 
@@ -279,6 +300,8 @@ export interface PatrolCalendarMonth {
    * fallback as loading=false but says so instead of looking like a clean
    * signed-in read. */
   serverUnavailable: boolean;
+  /** Gold Patrol / admin: past-day Fly / Replay CTAs are live. Free: no launch. */
+  canFlyArchive?: boolean;
 }
 
 const SENSE_LABEL: Record<SenseLevel, string> = {
@@ -1138,7 +1161,12 @@ export class Ui {
 
   /** One calendar grid cell: day number, status ring, medal/mutator hints.
    * Tapping fills `detail` with the full breakdown (mobile has no hover). */
-  private calendarDayCell(day: DayInfo & { dayOfMonth: number }, detail: HTMLElement): HTMLElement {
+  private calendarDayCell(
+    day: DayInfo & { dayOfMonth: number },
+    detail: HTMLElement,
+    handlers: { onPlayDay?: (date: string) => void },
+    canFlyArchive: boolean,
+  ): HTMLElement {
     const cell = document.createElement("button");
     cell.className = `calendar-day ${day.status}`;
     cell.type = "button";
@@ -1168,7 +1196,7 @@ export class Ui {
           ?.querySelectorAll(".calendar-day.selected")
           .forEach((el) => el.classList.remove("selected"));
         cell.classList.add("selected");
-        detail.innerHTML = this.dayDetailHtml(day);
+        this.fillCalendarDayDetail(detail, day, handlers, canFlyArchive);
       });
     } else {
       cell.disabled = true;
@@ -1246,6 +1274,28 @@ export class Ui {
     return parts.join("");
   }
 
+  private fillCalendarDayDetail(
+    detail: HTMLElement,
+    day: DayInfo & { dayOfMonth: number },
+    handlers: { onPlayDay?: (date: string) => void },
+    canFlyArchive: boolean,
+  ): void {
+    detail.innerHTML = this.dayDetailHtml(day);
+    const past =
+      day.status === "completed" ||
+      day.status === "completed-local-only" ||
+      day.status === "attempted" ||
+      day.status === "missed" ||
+      day.status === "untracked";
+    if (!past || !canFlyArchive || !handlers.onPlayDay) return;
+    const replayed = day.status === "completed" || day.status === "completed-local-only";
+    const btn = this.button(replayed ? REPLAY_THIS_PATROL : FLY_THIS_PATROL, true, () =>
+      handlers.onPlayDay!(day.date),
+    );
+    btn.classList.add("launch", "cal-detail-fly");
+    detail.appendChild(btn);
+  }
+
   /**
    * Patrol history calendar: a month at a time, Sunday-start grid, tap a
    * day for its mutator(s) and result. Reached from the daily lobby's
@@ -1253,7 +1303,12 @@ export class Ui {
    */
   showPatrolCalendar(
     month: PatrolCalendarMonth,
-    handlers: { onBack: () => void; onPrevMonth: () => void; onNextMonth: () => void },
+    handlers: {
+      onBack: () => void;
+      onPrevMonth: () => void;
+      onNextMonth: () => void;
+      onPlayDay?: (date: string) => void;
+    },
   ): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -1280,7 +1335,11 @@ export class Ui {
     const detail = this.el("div", "calendar-detail", "");
     for (const week of month.weeks) {
       for (const day of week) {
-        grid.appendChild(day ? this.calendarDayCell(day, detail) : this.el("div", "calendar-day empty", ""));
+        grid.appendChild(
+          day
+            ? this.calendarDayCell(day, detail, handlers, !!month.canFlyArchive)
+            : this.el("div", "calendar-day empty", ""),
+        );
       }
     }
     screen.appendChild(grid);
@@ -1997,7 +2056,13 @@ export class Ui {
     const screen = this.el("div", "screen gameover-screen", "");
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
     if (stats.daily) {
-      const label = stats.preview ? "DAILY PATROL PREVIEW" : "DAILY PATROL";
+      const today = patrolDateStr();
+      const archive = stats.patrolDate && stats.patrolDate !== today ? stats.patrolDate : null;
+      const label = stats.preview
+        ? "DAILY PATROL PREVIEW"
+        : archive
+          ? archivePatrolTag(archive)
+          : "DAILY PATROL";
       const tag =
         stats.mutatorNames && stats.mutatorNames.length > 0
           ? `${label} &nbsp;·&nbsp; ${escapeHtml(stats.mutatorNames.join(" + "))}`
@@ -2232,7 +2297,7 @@ export class Ui {
   /**
    * Fill the game-over rank slot once the score submission returns: a
    * gap-to-goal sentence plus a 2-row mini comparison board reusing the
-   * exact TODAY'S BOARD row markup (`.board-row`, `.me`, rank/flag/name/
+   * same board-row markup the lobby uses (`.board-row`, `.me`, rank/flag/name/
    * points columns) — the pilot you're chasing stacked directly above your
    * own highlighted row, so the gap reads as a fast visual comparison
    * instead of a parsed sentence. `primaryRank` is nullable because a rank
@@ -2241,12 +2306,16 @@ export class Ui {
    * case. Country rank isn't rendered here any more (see
    * setGameOverCountryRank): it's all-time, secondary chrome that belongs
    * in the demoted details panel, not stacked on top of the score.
+   * Archive files set `boardCaption` so this slot cannot be read as today's board.
    */
   setGameOverRank(data: GameOverRankResult): void {
     const line = document.getElementById("rank-line");
     if (!line) return;
     line.innerHTML = "";
     this.setGameOverCountryRank(data.country);
+    if (data.boardCaption) {
+      line.appendChild(this.el("div", "field-hint center dim", escapeHtml(data.boardCaption)));
+    }
 
     if (data.target && data.me.score < data.target.score) {
       const gap = Math.max(1, Math.floor(data.target.score - data.me.score + 1)).toLocaleString();

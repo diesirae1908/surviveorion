@@ -39,11 +39,28 @@ struct OrionApp: App {
                     }
                     if args[i + 1] == "board" { model.pendingBoard = true }
                     if args[i + 1] == "gameover" { model.pendingGameOver = true }
+                    if args[i + 1] == "gameover-archive" {
+                        model.lastResult = GameResult(
+                            mode: .daily,
+                            score: 12840,
+                            timeSurvived: 93,
+                            kills: 27,
+                            medal: "silver",
+                            sharePng: nil,
+                            patrolDate: PatrolDate.addCivilDays(PatrolDate.dateString(), -5)
+                        )
+                        model.pendingGameOverArchive = true
+                        model.pendingGameOver = true
+                    }
                     if args[i + 1] == "share" {
                         model.pendingGameOver = true
                         model.pendingShare = true
                     }
                     if args[i + 1] == "calendar" { model.pendingCalendar = true }
+                    if args[i + 1] == "calendar-day" {
+                        model.pendingCalendar = true
+                        model.pendingQaDayDetail = true
+                    }
                     if args[i + 1] == "premium" { model.pendingPremium = .calendar }
                     if args[i + 1] == "feedback" { model.pendingFeedback = true }
                     if args[i + 1] == "wingmates" { model.pendingWingmates = true }

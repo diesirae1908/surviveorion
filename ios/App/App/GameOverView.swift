@@ -24,6 +24,13 @@ struct GameOverView: View {
         if let medal = result.medal, !medal.isEmpty { return true }
         return false
     }
+    private var headerLabel: String {
+        if result.mode == .training { return "TRAINING" }
+        if let date = result.patrolDate, date != PatrolDate.dateString() {
+            return "PATROL · \(PatrolDate.shortLabel(date))"
+        }
+        return "PATROL OVER"
+    }
 
     var body: some View {
         NavigationStack {
@@ -64,7 +71,7 @@ struct GameOverView: View {
 
     private var portraitBody: some View {
         VStack(spacing: 0) {
-            Text(result.mode == .training ? "TRAINING" : "PATROL OVER")
+            Text(headerLabel)
                 .font(OrionFont.body(13, weight: .bold))
                 .foregroundStyle(OrionColor.bronze)
                 .tracking(2)
@@ -82,7 +89,7 @@ struct GameOverView: View {
         VStack(spacing: 16) {
             HStack(alignment: .center, spacing: 20) {
                 VStack(spacing: 8) {
-                    Text(result.mode == .training ? "TRAINING" : "PATROL OVER")
+                    Text(headerLabel)
                         .font(OrionFont.body(13, weight: .bold))
                         .foregroundStyle(OrionColor.bronze)
                         .tracking(2)
@@ -259,7 +266,13 @@ struct GameOverView: View {
 
     private func shareText() -> String {
         var parts: [String] = []
-        parts.append(result.mode == .training ? "ORION Training Ground" : "ORION Daily Patrol")
+        if result.mode == .training {
+            parts.append("ORION Training Ground")
+        } else if let date = result.patrolDate, date != PatrolDate.dateString() {
+            parts.append("ORION \(PatrolDate.shortLabel(date)) Patrol")
+        } else {
+            parts.append("ORION Daily Patrol")
+        }
         parts.append("Score \(result.score.formatted())")
         parts.append("Survived \(formatTime(result.timeSurvived))")
         if let medal = result.medal, !medal.isEmpty {

@@ -134,6 +134,8 @@ const IS_NATIVE_PLAY = NATIVE_PLAY !== null;
 const NATIVE_AUTO = new URLSearchParams(location.search).get("nativeAuto");
 const NATIVE_PATROL_DATE = IS_NATIVE_PLAY && NATIVE_PLAY === "daily" ? parseNativePlayDate(location.search) : null;
 const NATIVE_ARCHIVE = !!(NATIVE_PATROL_DATE && NATIVE_PATROL_DATE !== patrolDateStr());
+/** Website Gold Patrol calendar: past Daily file for this session (cleared on lobby). */
+let webArchiveDate: string | null = null;
 const NATIVE_GOLD = IS_NATIVE_PLAY && parseNativeGoldPatrol(location.search);
 const WEB_OVERRIDE = consumeWebOverride(location.search);
 const PHONE_LANDING = shouldShowPhoneLanding({
@@ -151,12 +153,23 @@ function unlimitedDailyRuns(): boolean {
   return NATIVE_GOLD || api.goldPatrolUnlimited;
 }
 
+/** Past Daily file in play (native `?date=` or website calendar). Not today. */
+function archivePatrolDate(): string | null {
+  const d = NATIVE_PATROL_DATE ?? webArchiveDate;
+  if (!d || d === patrolDateStr()) return null;
+  return d;
+}
+
+function isArchiveRun(): boolean {
+  return NATIVE_ARCHIVE || archivePatrolDate() !== null;
+}
+
 /** Free pilots hit the local 3-attempt lock. Gold Patrol / admin do not. */
 function dailyLaunchBlocked(): boolean {
   return (
     DAILY_ONLY &&
     !PREVIEW_ACTIVE &&
-    !NATIVE_ARCHIVE &&
+    !isArchiveRun() &&
     dailyAttemptsLeft() <= 0 &&
     !unlimitedDailyRuns()
   );
@@ -310,9 +323,9 @@ if (PREVIEW_ACTIVE) {
   console.log(`Valid mutator ids: ${MUTATOR_POOL.map((m) => m.id).join(", ")}`);
 }
 
-/** Patrol date label for preview/rehearsal runs (today's PT date otherwise). */
+/** Patrol date label for preview/rehearsal / archive runs (today's PT date otherwise). */
 function currentPatrolDateStr(): string {
-  return NATIVE_PATROL_DATE ?? PREVIEW_REHEARSAL_DATE ?? patrolDateStr();
+  return NATIVE_PATROL_DATE ?? webArchiveDate ?? PREVIEW_REHEARSAL_DATE ?? patrolDateStr();
 }
 
 /** UTC date whose shared daily script preview/rehearsal runs use (today otherwise). */
@@ -325,6 +338,7 @@ function todaysMutators(): Mutator[] {
   if (PREVIEW_MUTATORS.length > 0) return PREVIEW_MUTATORS;
   if (PREVIEW_ACTIVE && PREVIEW_DAY) return getMutatorsForDate(PREVIEW_DAY);
   if (NATIVE_PATROL_DATE) return getMutatorsForDateStr(NATIVE_PATROL_DATE);
+  if (webArchiveDate) return getMutatorsForDateStr(webArchiveDate);
   return getMutatorsForDateStr(patrolDateStr());
 }
 
@@ -613,6 +627,7 @@ const ui = new Ui(settings, {
   onFriends: () => community.showFriends(),
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
   onPatrolCalendar: () => openPatrolCalendar(),
+  onPlayArchiveDay: (date) => playArchiveDay(date),
   onControlModeChange: async (mode) => {
     // Flight only. runMode (the board this run files on) stays whatever
     // startRun captured. Does not spend a Daily attempt or restart.
@@ -867,7 +882,12 @@ function openPatrolCalendar(): void {
   renderPatrolCalendar();
 }
 
-function calendarHandlers(): { onBack: () => void; onPrevMonth: () => void; onNextMonth: () => void } {
+function calendarHandlers(): {
+  onBack: () => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  onPlayDay: (date: string) => void;
+} {
   return {
     onBack: () => {
       calendarMonth = null;
@@ -883,7 +903,24 @@ function calendarHandlers(): { onBack: () => void; onPrevMonth: () => void; onNe
       calendarMonth = nextMonthOf(calendarMonth);
       renderPatrolCalendar();
     },
+    onPlayDay: (date) => playArchiveDay(date),
   };
+}
+
+/** Gold Patrol / admin: fly a past Daily from the website calendar. Free cannot. */
+function playArchiveDay(date: string): void {
+  const today = patrolDateStr();
+  if (date > today) return;
+  if (date === today) {
+    webArchiveDate = null;
+    calendarMonth = null;
+    beginLaunch(true);
+    return;
+  }
+  if (!unlimitedDailyRuns()) return;
+  webArchiveDate = date;
+  calendarMonth = null;
+  beginLaunch(true);
 }
 
 /** Build one month's grid from whatever data is available right now (local
@@ -931,6 +968,7 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
     signedIn: api.signedIn,
     loading,
     serverUnavailable,
+    canFlyArchive: unlimitedDailyRuns(),
   };
 }
 
@@ -1053,7 +1091,7 @@ function startRun(): void {
   runGameMode = runIsDaily || runIsTraining ? "classic" : pendingGameMode;
   // an attempt is spent the moment a daily run starts (quitting mid-run
   // counts) — a preview run is sandboxed from the budget entirely
-  if (DAILY_ONLY && runIsDaily && !PREVIEW_ACTIVE && !NATIVE_ARCHIVE) useDailyAttempt();
+  if (DAILY_ONLY && runIsDaily && !PREVIEW_ACTIVE && !isArchiveRun()) useDailyAttempt();
   runRefunded = false;
   // PBs are per game mode — the NEW RECORD beat compares like-for-like
   bestScore = loadBestScore(runGameMode);
@@ -1160,6 +1198,7 @@ function resume(): void {
 }
 
 function quitToMenu(): void {
+  webArchiveDate = null;
   if (IS_NATIVE_PLAY) {
     audio.setThrustLevel(0);
     audio.pauseMusic();
@@ -1405,6 +1444,7 @@ function showGameOverUi(): void {
     clipReady: lastClipBlob !== null || sessionRecording !== null,
     clipCapped: lastClipCapped,
     clipInbox: api.clipInbox,
+    patrolDate: archivePatrolDate() ?? undefined,
   });
   submitRun();
   maybeShowPatrolComplete(true);
@@ -1440,6 +1480,7 @@ function renderRankResult(r: SubmitResult): void {
       callsign: api.user?.callsign ?? "You",
       country: api.user?.country ?? "",
       runScore: Math.floor(world.score),
+      archiveDate: archivePatrolDate(),
     }),
   );
   const earned = (r.newBadges ?? [])
@@ -1462,7 +1503,7 @@ function submitRun(): void {
     gameMode: runGameMode,
     platform: isTouchDevice() ? "touch" : "desktop",
     daily: (runIsDaily && !runRefunded) || undefined,
-    dailyDate: runIsDaily && NATIVE_PATROL_DATE ? NATIVE_PATROL_DATE : undefined,
+    dailyDate: runIsDaily ? (NATIVE_PATROL_DATE ?? webArchiveDate ?? undefined) : undefined,
   };
   if (!api.signedIn) {
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget

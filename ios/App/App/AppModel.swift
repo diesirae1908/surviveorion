@@ -41,8 +41,10 @@ final class AppModel: ObservableObject {
     @Published var pendingScrollCrew = false
     @Published var pendingBoard = false
     @Published var pendingGameOver = false
+    @Published var pendingGameOverArchive = false
     @Published var pendingShare = false
     @Published var pendingCalendar = false
+    @Published var pendingQaDayDetail = false
     @Published var pendingPremium: PremiumContext?
     @Published var pendingFeedback = false
     @Published var pendingWingmates = false
@@ -233,6 +235,7 @@ struct GameResult: Equatable {
     var clipBasename: String? = nil
     var clipSidecar: String? = nil
     var clipExt: String? = nil
+    var patrolDate: String? = nil
 }
 
 enum PlayMode: String {

@@ -89,6 +89,13 @@ enum PatrolDate {
         return cal.range(of: .day, in: .month, for: d)?.count ?? 30
     }
 
+    static func shortLabel(_ dateStr: String) -> String {
+        let parts = dateStr.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3, (1...12).contains(parts[1]) else { return dateStr }
+        let names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return "\(names[parts[1] - 1]) \(parts[2])"
+    }
+
     static func monthTitle(year: Int, month: Int) -> String {
         let names = [
             "", "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",

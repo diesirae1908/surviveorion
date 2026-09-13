@@ -185,6 +185,9 @@ actor APIClient {
         try await requestEmpty("DELETE", "/api/me")
     }
 
+    /// Inclusive civil-day span the live API accepts (wider → 400 range too wide).
+    static let dailyHistoryMaxSpanDays = 62
+
     func dailyHistory(from: String, to: String) async throws -> DailyHistoryResponse {
         try await request("GET", "/api/me/daily-history?from=\(from)&to=\(to)")
     }

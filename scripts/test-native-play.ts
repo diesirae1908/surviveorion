@@ -43,9 +43,14 @@ assert.match(main, /runMode \(the board this run files on\)/);
 assert.match(main, /NATIVE_PATROL_DATE/);
 assert.match(main, /parseNativePlayDate/);
 assert.match(main, /dailyDate/);
+assert.match(main, /webArchiveDate/);
+assert.match(main, /isArchiveRun/);
+assert.match(main, /playArchiveDay/);
 assert.match(main, /input\.tilt\.stop\(\)/);
 
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");
+assert.match(ui, /FLY_THIS_PATROL|Fly this Patrol/);
+assert.match(ui, /archivePatrolTag/);
 assert.equal(ui.includes("Tilt is our tribute to Tilt to Live"), false);
 assert.match(ui, /Hold your phone at your comfortable play angle before tapping/);
 assert.match(ui, /showTiltReadyConfirm/);

@@ -92,16 +92,10 @@ struct HomeView: View {
                 model.pendingBoard = false
             }
             if model.pendingGameOver {
-                model.lastResult = GameResult(
-                    mode: .training,
-                    score: 12840,
-                    timeSurvived: 93,
-                    kills: 27,
-                    medal: "silver",
-                    sharePng: nil
-                )
+                if model.lastResult == nil { model.lastResult = qaGameResult() }
                 showGameOver = true
                 model.pendingGameOver = false
+                model.pendingGameOverArchive = false
             }
             if model.pendingCalendar {
                 showCalendar = true
@@ -192,16 +186,10 @@ struct HomeView: View {
         }
         .onChange(of: model.pendingGameOver) { _, on in
             if on {
-                model.lastResult = GameResult(
-                    mode: .training,
-                    score: 12840,
-                    timeSurvived: 93,
-                    kills: 27,
-                    medal: "silver",
-                    sharePng: nil
-                )
+                if model.lastResult == nil { model.lastResult = qaGameResult() }
                 showGameOver = true
                 model.pendingGameOver = false
+                model.pendingGameOverArchive = false
             }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
@@ -303,6 +291,18 @@ struct HomeView: View {
         guard PreferencesStore.consumePatrolCompletePopup(attemptsLeft: model.attemptsLeft) else { return }
         showPatrolComplete = true
         LobbyMusic.shared.playSting()
+    }
+
+    private func qaGameResult() -> GameResult {
+        GameResult(
+            mode: model.pendingGameOverArchive ? .daily : .training,
+            score: 12840,
+            timeSurvived: 93,
+            kills: 27,
+            medal: "silver",
+            sharePng: nil,
+            patrolDate: model.pendingGameOverArchive ? PatrolDate.addCivilDays(PatrolDate.dateString(), -5) : nil
+        )
     }
 
     private func startPlay(_ mode: PlayMode, date: String? = nil) {
