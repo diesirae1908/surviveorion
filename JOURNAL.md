@@ -6,7 +6,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 ## 2026-09-13 midday PT: Fly missed past days + archive game-over date
 
-- Isolated `.worktrees/feat-past-day-fly` from `origin/main` (`7a006fb`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Isolated `.worktrees/feat-past-day-fly` from `origin/main` (`7a006fb`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `5e5f6fb`.
 - Lucas (2026-09-13 ~12:10 PM PT): Premium can always try to beat any previous calendar day. Missed / untracked past days now get **Fly this Patrol** (played days keep **Replay this Patrol**). Free still hits the Gold Patrol paywall. Future days unchanged (Free/Premium blocked, Admin/CREW rehearsal).
 - Native `DayDetailSheet` + website calendar (Gold Patrol / admin only). Website launch uses session `webArchiveDate` + the same `dailyDate` submit path as `?nativePlay=daily&date=`. Archive runs do not spend today's local 3-attempt budget. Server still 403s past-day submits for Free.
 - Archive game-over names the file: tag **PATROL · Sep 8**, rank label **Sep 8 Patrol**, caption **Sep 8 board**. Today's Daily copy unchanged (`DAILY PATROL` / `Daily Patrol`).
