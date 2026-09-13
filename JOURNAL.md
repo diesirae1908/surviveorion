@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 evening PT: Daily mutator music beds LIVE
+
+- Lucas: promote the five Suno Daily beds to live.
+- Isolated `.worktrees/sam-promote-mutator-music` from `origin/main` (`9ba90ed`). Dirty parent checkout untouched. Merged `origin/feat/mutator-music` (`8fbc2e3`). Clean merge, no conflicts. Did not reset `origin/dev`.
+- Live CORS allowlist unchanged: `capacitor://localhost`, `ionic://localhost`, `https://localhost`, `http://localhost`. No `*`. Gold Patrol server strings unchanged. App Store CTA and IAP harden stayed on main (feat did not touch them).
+- Live now: `public/music/` has quietfog, imperial-swarm, imperial-tempest, frost-and-thunder, radiant-beam plus the three empire/fallen masters. Map in `mutators.ts` (`MUTATOR_GAME_TRACK` / `musicBedForMutator`).
+- Tests: `npm test` PASS (incl. `test:mutator-music` 32 pool ids / 27 mapped, mutator snapshot unchanged, cors-origins, premium-gates Gold Patrol copy). `npm run build` green.
+- Merge `cfc03c9`. This journal commit is the tip pushed to `main`. Watch Render `surviveorion`.
+
 ## 2026-09-12 evening PT: Daily mutator music beds
 
 Lucas: five Suno masters on in-run Daily music by style. Default battle bed stays for unmapped mutators, Training, and no-mutator. Menu stays empire-of-the-stars. Game over stays fallen-honor.
