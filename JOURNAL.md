@@ -6,7 +6,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 ## 2026-09-13 midday PT: Lobby header icons + FIELD UPDATE copy
 
-- Isolated `.worktrees/feat-lobby-icons` from `origin/main` (`aadbd5d`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Isolated `.worktrees/feat-lobby-icons` from `origin/main` (`aadbd5d`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `6ed977d`.
 - Settings icon is a toothed cog outline (the radiating-line gear read as a sun). Feedback kind renamed `speaker` → `chat` (bubble + two lines). Aria-label stays "Feedback". Bell unchanged.
 - `public/updates.json` newest-first: `2026-09-13-lobby-refit` (Lobby Refit) so the popup re-fires, then rewritten `2026-09-13-past-day-fly` (Old Skies, Reopened). Dropped the micro-copy `2026-09-13-lobby-refresh` entry from the array.
 - Tripwire: phone landing gate, CORS allowlist, App Store badge / `APP_STORE_LIVE` untouched.
