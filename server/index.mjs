@@ -12,6 +12,7 @@
 //   CLIP_INBOX_DIR=...               # override disk path (default /data/clip-inbox)
 //   NOTION_TOKEN=...                 # optional: Grok cuts + (later) feedback -> Notion
 //   NOTION_CLIPS_DATABASE_ID=...     # optional override; default is Praetor Lab Clips
+//   CREW_CALLSIGNS=luciux            # boot-promote these callsigns to role=admin
 //
 // Environment can also come from server/.env (KEY=value lines, not committed).
 
@@ -641,7 +642,7 @@ const routes = {
     if (err) return json(res, 422, { error: err });
 
     // Daily Patrol: today is always stampable. Past-day full scores need
-    // Patrol Archive (premium/admin). Future/rehearsal dates need Crew.
+    // Gold Patrol (premium/admin). Future/rehearsal dates need Crew.
     const dated = resolveDailySubmit(body, user, patrolToday());
     if (dated.error) return json(res, dated.error.status, dated.error);
     const dailyDate = dated.dailyDate;

@@ -140,7 +140,7 @@ try {
   // column already exists
 }
 
-// Account tier (native Patrol Archive). Additive. role is free|premium|admin.
+// Account tier (native Gold Patrol / premium). Additive. role is free|premium|admin.
 // premium_until is a StoreKit expiry (ms). Admin allowlist still wins via
 // clip-inbox / role='admin' and does not need a receipt.
 try {
@@ -294,6 +294,29 @@ export function setUserRole(id, role) {
   db.prepare(`UPDATE users SET role = ? WHERE id = ?`).run(next, id);
   return getUserById(id);
 }
+
+/**
+ * One-off Render jobs do not mount /data SQLite. Promote named callsigns
+ * to CREW (role=admin) on every web-service boot. Idempotent. Does not
+ * wipe other accounts. Default: luciux. Override: CREW_CALLSIGNS=a,b
+ */
+export function ensureCrewCallsigns(env = process.env, logger = console) {
+  const raw = env.CREW_CALLSIGNS ?? "luciux";
+  const names = String(raw)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  for (const name of names) {
+    const row = db.prepare(`SELECT role FROM users WHERE callsign_lower = ?`).get(name);
+    if (!row) continue;
+    const role = typeof row.role === "string" ? row.role.toLowerCase() : "";
+    if (role === "admin") continue;
+    db.prepare(`UPDATE users SET role = 'admin' WHERE callsign_lower = ?`).run(name);
+    logger.log(`[orion] promoted ${name} to CREW (role=admin)`);
+  }
+}
+
+ensureCrewCallsigns();
 
 /** Bind a guest device secret to a pre-migration guest account (one-time). */
 export function setGuestSecretHash(id, hash) {

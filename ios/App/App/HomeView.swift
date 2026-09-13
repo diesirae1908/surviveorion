@@ -38,7 +38,6 @@ struct HomeView: View {
                             VStack(alignment: .leading, spacing: 20) {
                                 launchButtons
                                 boardSummary
-                                homeFooter
                             }
                         }
                     }
@@ -50,7 +49,6 @@ struct HomeView: View {
                         attemptRow
                         launchButtons
                         boardSummary
-                        homeFooter
                     }
                 }
             }
@@ -239,7 +237,7 @@ struct HomeView: View {
         }
         .overlay(alignment: .top) {
             if model.premiumToast {
-                Text("Patrol Archive active.")
+                Text("Gold Patrol active.")
                     .font(OrionFont.body(14, weight: .bold))
                     .foregroundStyle(OrionColor.void)
                     .padding(.horizontal, 16)
@@ -254,14 +252,25 @@ struct HomeView: View {
                     result: result,
                     callsign: model.callsign,
                     autoShare: model.pendingShare,
-                    isAdmin: model.isAdmin
-                ) {
-                    showGameOver = false
-                    model.pendingShare = false
-                } onFeedback: {
-                    showGameOver = false
-                    showFeedback = true
-                }
+                    isAdmin: model.isAdmin,
+                    isPremium: model.isPremium,
+                    onDone: {
+                        showGameOver = false
+                        model.pendingShare = false
+                    },
+                    onFeedback: {
+                        showGameOver = false
+                        showFeedback = true
+                    },
+                    onAnalytics: {
+                        showGameOver = false
+                        showAnalytics = true
+                    },
+                    onUnlockArchive: {
+                        showGameOver = false
+                        premium = .analytics
+                    }
+                )
             }
         }
     }
@@ -301,6 +310,11 @@ struct HomeView: View {
                 .foregroundStyle(OrionColor.goldGradient)
                 .tracking(1)
             Spacer(minLength: 8)
+            if model.tier == .free {
+                ActivatePremiumChip { premium = .generic }
+            } else {
+                TierBadge(tier: model.tier)
+            }
             NavigationLink {
                 SettingsView()
             } label: {
@@ -405,6 +419,29 @@ struct HomeView: View {
                 }
             Button("Training Ground") { startPlay(.training) }
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
+            if model.attemptsLeft == 0 && !model.isPremium {
+                Button("Unlock Gold Patrol") { premium = .calendar }
+                    .buttonStyle(OrionButtonStyle(kind: .secondary))
+            }
+            Button("Patrol Calendar") { openCalendar() }
+                .buttonStyle(OrionButtonStyle(kind: .secondary))
+            Button(action: openWingmates) {
+                HStack(spacing: 8) {
+                    Text("Wingmates")
+                    if !model.isPremium {
+                        PremiumLockGlyph()
+                    }
+                    if model.pendingFriends > 0 {
+                        Circle()
+                            .fill(OrionColor.alarm)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+            }
+            .buttonStyle(OrionButtonStyle(kind: .secondary))
+            .accessibilityLabel(model.isPremium ? "Wingmates" : "Wingmates, Gold Patrol locked")
+            Button("Feedback") { showFeedback = true }
+                .buttonStyle(OrionButtonStyle(kind: .secondary))
         }
     }
 
@@ -467,30 +504,6 @@ struct HomeView: View {
                 .monospacedDigit()
         }
         .frame(minHeight: 28)
-    }
-
-    private var homeFooter: some View {
-        HStack(spacing: 16) {
-            footerLink("Patrol Calendar") { openCalendar() }
-            footerLink("Wingmates") { openWingmates() }
-                .overlay(alignment: .topTrailing) {
-                    if model.pendingFriends > 0 {
-                        Circle().fill(OrionColor.alarm).frame(width: 8, height: 8)
-                    }
-                }
-            footerLink("Feedback") { showFeedback = true }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func footerLink(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(OrionFont.body(14, weight: .bold))
-                .foregroundStyle(OrionColor.hullGold)
-                .frame(minHeight: OrionLayout.minTap)
-        }
-        .buttonStyle(.plain)
     }
 
     private func row(label: String, value: String) -> some View {

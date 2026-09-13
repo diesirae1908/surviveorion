@@ -4,6 +4,14 @@ enum AccountTier: String, Codable {
     case free
     case premium
     case admin
+
+    var accessibilityName: String {
+        switch self {
+        case .free: return "Free"
+        case .premium: return "Premium"
+        case .admin: return "CREW"
+        }
+    }
 }
 
 struct TierBadge: View {
@@ -60,7 +68,32 @@ struct PremiumLockGlyph: View {
                 .foregroundStyle(OrionColor.bronze)
         }
         .frame(width: 20, height: 20)
-        .accessibilityLabel("Patrol Archive locked")
+        .accessibilityLabel("Locked. Requires Gold Patrol.")
+    }
+}
+
+struct ActivatePremiumChip: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 10, weight: .bold))
+                Text("ACTIVATE")
+                    .font(OrionFont.body(11, weight: .bold))
+                    .tracking(1)
+            }
+            .foregroundStyle(OrionColor.hullGold)
+            .padding(.horizontal, 10)
+            .frame(minHeight: OrionLayout.minTap)
+            .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 8))
+            .overlay {
+                ChamferedRectangle(chamfer: 8)
+                    .strokeBorder(OrionColor.hullGold.opacity(0.55), lineWidth: 1)
+            }
+        }
+        .accessibilityLabel("Activate Premium")
     }
 }
 

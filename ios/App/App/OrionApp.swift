@@ -17,13 +17,26 @@ struct OrionApp: App {
             .onAppear {
                 let args = ProcessInfo.processInfo.arguments
                 let qaPlay = args.contains("-QAPlay")
-                if !qaPlay {
+                let qaSession = qaPlay
+                    || args.contains("-QAPremium")
+                    || args.contains("-QAPatrolComplete")
+                    || args.contains("-QACrew")
+                    || args.contains("-QAPreviewFree")
+                if args.contains("-QAPatrolComplete") {
+                    model.attemptsLeft = 0
+                }
+                if !qaSession {
                     NotificationScheduler.requestIfSecondSession()
                 }
                 if let i = args.firstIndex(of: "-QAPlay"), args.indices.contains(i + 1) {
                     if args[i + 1] == "training" { model.pendingPlay = .training }
                     if args[i + 1] == "daily" { model.pendingPlay = .daily }
                     if args[i + 1] == "settings" { model.pendingSettings = true }
+                    if args[i + 1] == "crew" {
+                        model.qaCrew = true
+                        model.pendingSettings = true
+                        model.pendingScrollCrew = true
+                    }
                     if args[i + 1] == "board" { model.pendingBoard = true }
                     if args[i + 1] == "gameover" { model.pendingGameOver = true }
                     if args[i + 1] == "share" {
@@ -31,7 +44,7 @@ struct OrionApp: App {
                         model.pendingShare = true
                     }
                     if args[i + 1] == "calendar" { model.pendingCalendar = true }
-                    if args[i + 1] == "premium" { model.pendingPremium = .generic }
+                    if args[i + 1] == "premium" { model.pendingPremium = .calendar }
                     if args[i + 1] == "feedback" { model.pendingFeedback = true }
                     if args[i + 1] == "wingmates" { model.pendingWingmates = true }
                     if args[i + 1] == "analytics" { model.pendingAnalytics = true }

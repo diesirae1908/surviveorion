@@ -31,6 +31,7 @@ const srcFiles: FileSpec[] = fs
 const FILES: FileSpec[] = [
   { file: "index.html" },
   { file: "server/index.mjs" },
+  { file: "server/tier.mjs" },
   { file: "server/nickname.mjs" },
   { file: "server/badges.mjs" },
   { file: "server/validate.mjs" },

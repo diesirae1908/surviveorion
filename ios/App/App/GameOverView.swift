@@ -6,8 +6,11 @@ struct GameOverView: View {
     var callsign: String? = nil
     var autoShare = false
     var isAdmin = false
+    var isPremium = false
     var onDone: () -> Void
     var onFeedback: (() -> Void)? = nil
+    var onAnalytics: (() -> Void)? = nil
+    var onUnlockArchive: (() -> Void)? = nil
 
     @Environment(\.verticalSizeClass) private var vSize
     @State private var scoreLanded = false
@@ -170,8 +173,19 @@ struct GameOverView: View {
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
             Button("Done") { onDone() }
                 .buttonStyle(OrionButtonStyle(kind: .primary))
-            Button("Feedback") {
-                if let onFeedback { onFeedback() } else { showFeedback = true }
+            HStack(spacing: 16) {
+                Button("Feedback") {
+                    if let onFeedback { onFeedback() } else { showFeedback = true }
+                }
+                if isPremium {
+                    Button("Analytics") {
+                        onAnalytics?()
+                    }
+                } else {
+                    Button("Unlock Gold Patrol") {
+                        onUnlockArchive?()
+                    }
+                }
             }
             .font(OrionFont.body(13, weight: .bold))
             .foregroundStyle(OrionColor.bronze)
