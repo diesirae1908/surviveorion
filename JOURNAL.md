@@ -6,7 +6,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 ## 2026-09-13 midday PT: Desktop lobby chrome + updates bell
 
-- Isolated `.worktrees/feat-lobby-chrome` from `origin/main` (`1a005a0`, already included past-day Fly). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Isolated `.worktrees/feat-lobby-chrome` from `origin/main` (`1a005a0`, already included past-day Fly). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `a2a0df7`.
 - Desktop ≥900px: Calendar / Wingmates / How to Play / Powers sit in a half-height 2×2 under Launch + Training. Right column keeps Today's Board; official black App Store badge + "Daily reminder on your phone" sit below it (not chamfered). Phone stays single-column. Phone landing / `?web=1` / nativePlay / CREW rehearsal untouched.
 - Header cluster is Bell | Speaker (feedback) | Settings. Bell shows an Alarm-red pill when `updates.json` has a new `id`. FIELD UPDATE popup fires once per unseen id; lastSeen is `orion.lastSeenUpdateId` in localStorage. Sam maintains `public/updates.json` (served at `/updates.json`). First entry `2026-09-13-lobby-refresh`; second notes Gold Patrol can fly any past calendar day.
 - Official Apple badge at `public/app-store-badge.svg`, link `https://apps.apple.com/app/id6811113450`. Same-origin fetch only (no CORS change). Music beds and Gold Patrol strings untouched.
