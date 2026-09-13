@@ -1,7 +1,19 @@
+import { musicBedForActiveMutators } from "./mutators";
+
+export {
+  DEFAULT_GAME_TRACK,
+  MUTATOR_GAME_TRACK,
+  musicBedForActiveMutators,
+  musicBedForMutator,
+  musicBedForMutators,
+} from "./mutators";
+
 /** Music tracks backed by looping audio files. */
-type FileTrack = "menu" | "game" | "gameover";
+type StaticFileTrack = "menu" | "gameover";
 /** "tutorial" is synthesized live (chill ambient loop), the rest are files. */
-export type TrackName = FileTrack | "tutorial";
+export type TrackName = StaticFileTrack | "game" | "tutorial";
+
+export const GAME_BED_VOLUME = 0.35;
 
 /**
  * Procedural Web Audio SFX + per-screen looping music tracks. Everything
@@ -12,7 +24,10 @@ export class AudioSystem {
   private master: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private thrustGain: GainNode | null = null;
-  private tracks: Record<FileTrack, HTMLAudioElement>;
+  private tracks: Record<StaticFileTrack, HTMLAudioElement>;
+  /** Lazy cache: only the beds this session actually plays. */
+  private gameBeds = new Map<string, HTMLAudioElement>();
+  private currentGameFile: string | null = null;
   private current: TrackName | null = null;
   // generated tutorial music (independent of the SFX chain so the Sound
   // toggle doesn't mute it — it obeys the Music toggle like the file tracks)
@@ -25,18 +40,40 @@ export class AudioSystem {
   musicEnabled = true;
 
   constructor() {
-    const load = (file: string, volume: number): HTMLAudioElement => {
-      const a = new Audio(`${import.meta.env.BASE_URL}music/${file}`);
-      a.loop = true;
-      a.volume = volume;
-      a.preload = "auto";
-      return a;
-    };
     this.tracks = {
-      menu: load("empire-of-the-stars.mp3", 0.45),
-      game: load("empire-of-the-stars-battle.mp3", 0.35),
-      gameover: load("fallen-honor.mp3", 0.4),
+      menu: this.loadAudio("empire-of-the-stars.mp3", 0.45),
+      gameover: this.loadAudio("fallen-honor.mp3", 0.4),
     };
+  }
+
+  private loadAudio(file: string, volume: number): HTMLAudioElement {
+    const a = new Audio(`${import.meta.env.BASE_URL}music/${file}`);
+    a.loop = true;
+    a.volume = volume;
+    a.preload = "auto";
+    return a;
+  }
+
+  private gameElement(file: string): HTMLAudioElement {
+    let el = this.gameBeds.get(file);
+    if (!el) {
+      el = this.loadAudio(file, GAME_BED_VOLUME);
+      this.gameBeds.set(file, el);
+    }
+    return el;
+  }
+
+  private pauseFileTracks(): void {
+    for (const t of Object.values(this.tracks)) t.pause();
+    for (const t of this.gameBeds.values()) t.pause();
+  }
+
+  private currentFileEl(): HTMLAudioElement | null {
+    if (this.current === "menu" || this.current === "gameover") return this.tracks[this.current];
+    if (this.current === "game" && this.currentGameFile) {
+      return this.gameBeds.get(this.currentGameFile) ?? null;
+    }
+    return null;
   }
 
   /** Must be called from a user gesture (browser autoplay policy). */
@@ -61,7 +98,7 @@ export class AudioSystem {
   setMusic(on: boolean): void {
     this.musicEnabled = on;
     if (!on) {
-      for (const t of Object.values(this.tracks)) t.pause();
+      this.pauseFileTracks();
       this.stopTutorialMusic();
     } else {
       this.resumeMusic();
@@ -70,10 +107,27 @@ export class AudioSystem {
 
   /** Switch to a screen's track (restarts it unless it's already current). */
   playTrack(name: TrackName): void {
+    if (name === "game") {
+      const file = musicBedForActiveMutators();
+      const same = this.current === "game" && this.currentGameFile === file;
+      if (!same) {
+        this.pauseFileTracks();
+        this.stopTutorialMusic();
+        const el = this.gameElement(file);
+        el.currentTime = 0;
+        this.currentGameFile = file;
+        this.current = "game";
+      }
+      this.resumeMusic();
+      return;
+    }
     if (this.current !== name) {
-      for (const t of Object.values(this.tracks)) t.pause();
+      this.pauseFileTracks();
       this.stopTutorialMusic();
-      if (name !== "tutorial") this.tracks[name].currentTime = 0;
+      if (name !== "tutorial") {
+        this.tracks[name].currentTime = 0;
+        this.currentGameFile = null;
+      }
       this.current = name;
     }
     this.resumeMusic();
@@ -83,12 +137,12 @@ export class AudioSystem {
   resumeMusic(): void {
     if (!this.musicEnabled || !this.current) return;
     if (this.current === "tutorial") this.startTutorialMusic();
-    else void this.tracks[this.current].play().catch(() => {});
+    else void this.currentFileEl()?.play().catch(() => {});
   }
 
   pauseMusic(): void {
     if (this.current === "tutorial") this.stopTutorialMusic();
-    else if (this.current) this.tracks[this.current].pause();
+    else this.currentFileEl()?.pause();
   }
 
   private applySoundSetting(): void {
