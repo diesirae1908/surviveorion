@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-12 night PT: TestFlight 1.0 (9) uploaded (origin/main tip)
+
+Archived + uploaded from `.worktrees/tf-build-9` on `chore/tf-9` at `1725f91` (includes `cd95309` unlimited Daily, Patrol Complete, Training Ground, mutator beds, Imperial Procession, CREW preview). Dirty main checkout untouched. `npm run build` then `xcodebuild archive` with `CURRENT_PROJECT_VERSION=9` CLI override (no repo version edit). Manual signing team `4R88D2NKUC`, Apple Distribution, profile "ORION App Store". First codesign hung on login-keychain prompt for `orion-dist`; retried with a session keychain imported from `~/.private_keys/orion-apple-distribution.key` (login search list restored after). IPA via `/tmp/orion-ios/ExportOptions.plist`. `altool --upload-app` delivery/build `4e033771-29ed-4a26-8a37-c32da9756003`. `usesNonExemptEncryption:false`. Added to Internal group `1c4f517b`: `IN_BETA_TESTING`. Processing `VALID`. Artifacts `/tmp/orion-ios-native/`. Pushed `chore/tf-9` journal only. No `dev`/`main`.
+
 ## 2026-09-12 night PT: Gold Patrol unlimited Daily LIVE
 
 - Lucas: product truth on the site. Promoted `feat/gold-unlimited` (`cd95309`) to `origin/main`. Did not reset `origin/dev` (still `9fbd3fd`).
