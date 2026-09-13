@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 afternoon PT: Recording mode header icon LIVE
+
+- Promoted `feat/record-icon` (`359da7d` / journal `9054d2e`) to `origin/main`. Did not reset `origin/dev`.
+- Render `surviveorion` deploy `dep-dajggv2jnfac73f1emr0` is live. Bundle `assets/main-Czsdd35u.js` contains `Recording mode on`, `lobby-icon-rec`, `has-rec`, `FIELD UPDATE`, `Get on iPhone`, `orion_web_override`, `Download on the App Store`. `/updates.json` 200 (`2026-09-13-lobby-refit` Lobby Refit first of 2). `/app-store-badge.svg` 200. `/api/config` 200. CORS `capacitor://localhost` still 204. Music beds 200: empire-of-the-stars, imperial-procession, patrol-complete, training-ground.
+
 ## 2026-09-13 afternoon PT: Recording mode header icon
 
 - Isolated `.worktrees/feat-record-icon` from `origin/main` (`7bd45e2`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `359da7d`.
