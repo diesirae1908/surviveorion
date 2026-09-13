@@ -87,12 +87,18 @@ assert.doesNotMatch(ui, /lobby-learn/);
 assert.doesNotMatch(ui, /lobbyStackButton\("Feedback"/);
 assert.match(ui, /lobbyIconBtn\("chat", "Feedback"/);
 assert.doesNotMatch(ui, /lobbyIconBtn\("speaker"/);
+assert.match(ui, /recordingModeIconBtn/);
+assert.match(ui, /info\.creator[\s\S]{0,180}recordingModeIconBtn/);
+assert.match(ui, /onToggle\("recordingMode"\)/);
+assert.match(ui, /toggleRow\(\[\["recordingMode", "Recording mode"\]\]\)/);
+assert.match(ui, /Recording mode on/);
 
 const css = fs.readFileSync(path.join(ROOT, "src/style.css"), "utf8");
 assert.match(css, /lobby-util-grid/);
 assert.match(css, /app-store-badge/);
 assert.match(css, /field-update-modal/);
 assert.match(css, /\.update-pill\s*\{[^}]*#ff4455/s, "unread pill uses Alarm red");
+assert.match(css, /\.lobby-icon-btn\.rec-on/);
 
 const badge = fs.readFileSync(path.join(ROOT, "public/app-store-badge.svg"), "utf8");
 assert.match(badge, /Download_on_the_App_Store_Badge/);

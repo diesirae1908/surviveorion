@@ -73,6 +73,12 @@ check("leftover recordRuns does not record for a stranger", !startRecordingAllow
 check("luciux with Record on starts a clip", startRecordingAllowed(true, true, false));
 check("training never records", !startRecordingAllowed(true, true, true));
 
+function recordingHeaderVisible(clipInbox: boolean): boolean {
+  return clipInbox;
+}
+check("crew lobby shows recording header icon", recordingHeaderVisible(true));
+check("free and premium never see recording header icon", !recordingHeaderVisible(false));
+
 // Seed path is the same function the client uses at run start for a rehearsed day.
 {
   const d = "2026-09-20";

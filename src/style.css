@@ -2332,6 +2332,10 @@ button.link-btn:active {
   .daily-lobby .title .wordmark-svg {
     width: min(240px, calc(100vw - 168px));
   }
+
+  .daily-lobby.has-rec .title .wordmark-svg {
+    width: min(240px, calc(100vw - 228px));
+  }
 }
 
 .lobby-icon-btn {
@@ -2358,6 +2362,28 @@ button.link-btn:active {
 .lobby-icon-btn:hover {
   color: var(--orion-gold);
   border-color: rgba(170, 136, 68, 0.55);
+}
+
+.lobby-icon-btn.rec-on {
+  color: var(--orion-alarm);
+  border-color: var(--orion-alarm);
+}
+
+.lobby-icon-btn.rec-on:hover {
+  color: var(--orion-alarm);
+  border-color: var(--orion-alarm);
+}
+
+.rec-mode-pill {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 6px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: #ff4455;
+  pointer-events: none;
 }
 
 .update-pill {

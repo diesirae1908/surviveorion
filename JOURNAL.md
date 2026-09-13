@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 afternoon PT: Recording mode header icon
+
+- Isolated `.worktrees/feat-record-icon` from `origin/main` (`7bd45e2`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- CREW / clipInbox lobby: leftmost header rec disc toggles `settings.recordingMode` via `onToggle("recordingMode")`. ON is Alarm red + REC pill + aria "Recording mode on". Free/Premium never see it. Settings "Recording mode" row stays. Record runs untouched.
+- Native Home top bar: CREW (`isAdmin`) `record.circle` button toggles `PreferencesStore.recordingMode` for parity (capture still web-only).
+- Tripwire: phone landing gate, CORS allowlist, FIELD UPDATE / updates.json, App Store badge / `APP_STORE_LIVE` untouched.
+- `npm test` + `npm run build` green. Bundle `assets/main-Czsdd35u.js`. Static header off/on fixture in `qa-evidence/record-icon/`.
+
 ## 2026-09-13 midday PT: Lobby header icons + FIELD UPDATE copy LIVE
 
 - Promoted `feat/lobby-icons` (`6ed977d` / journal `8496b02`) to `origin/main`. Did not reset `origin/dev`.

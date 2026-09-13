@@ -667,7 +667,7 @@ export class Ui {
     return btn;
   }
 
-  private static readonly LOBBY_ICON: Record<"bell" | "chat" | "gear", string> = {
+  private static readonly LOBBY_ICON: Record<"bell" | "chat" | "gear" | "rec", string> = {
     bell:
       `<svg viewBox="0 0 24 24" aria-hidden="true">` +
       `<path d="M6.2 9.2a5.8 5.8 0 0 1 11.6 0c0 3.6.9 5.4 1.6 6.4H4.6c.7-1 1.6-2.8 1.6-6.4Z" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
@@ -682,6 +682,11 @@ export class Ui {
       `<svg viewBox="0 0 24 24" aria-hidden="true">` +
       `<path d="M10.46 6.05L10.88 3.52L13.12 3.52L13.54 6.05L15.12 6.7L17.2 5.22L18.78 6.8L17.3 8.88L17.95 10.46L20.48 10.88L20.48 13.12L17.95 13.54L17.3 15.12L18.78 17.2L17.2 18.78L15.12 17.3L13.54 17.95L13.12 20.48L10.88 20.48L10.46 17.95L8.88 17.3L6.8 18.78L5.22 17.2L6.7 15.12L6.05 13.54L3.52 13.12L3.52 10.88L6.05 10.46L6.7 8.88L5.22 6.8L6.8 5.22L8.88 6.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>` +
       `<circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `</svg>`,
+    rec:
+      `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+      `<circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `<circle class="rec-disc" cx="12" cy="12" r="3.6" fill="currentColor"/>` +
       `</svg>`,
   };
 
@@ -702,6 +707,31 @@ export class Ui {
       btn.appendChild(pill);
     }
     btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  /** CREW / clipInbox only. Same toggle as Settings "Recording mode". */
+  private recordingModeIconBtn(): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "lobby-icon-btn chamfer lobby-icon-rec";
+    btn.innerHTML = Ui.LOBBY_ICON.rec;
+    const pill = this.el("span", "rec-mode-pill", "REC");
+    btn.appendChild(pill);
+    const paint = (): void => {
+      const on = this.settings.recordingMode;
+      btn.classList.toggle("rec-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      const label = on ? "Recording mode on" : "Recording mode";
+      btn.setAttribute("aria-label", label);
+      btn.title = label;
+      pill.hidden = !on;
+    };
+    paint();
+    btn.addEventListener("click", () => {
+      this.cb.onToggle("recordingMode");
+      paint();
+    });
     return btn;
   }
 
@@ -1056,17 +1086,20 @@ export class Ui {
   /**
    * Daily-only site lobby: Launch, Training Ground, then Calendar /
    * Wingmates / How to Play / Powers. Board + App Store badge on the
-   * right. Header is Bell, Feedback, Settings. Unsigned players can
-   * still join the board via the game-over guest prompt.
+   * right. Header is Rec (CREW) / Bell / Feedback / Settings. Unsigned
+   * players can still join the board via the game-over guest prompt.
    */
   showDailyLobby(info: DailyLobbyInfo): void {
     this.clear();
     this.pauseBtn.style.display = "none";
 
-    const screen = this.el("div", "screen menu daily-lobby", "");
+    const screen = this.el("div", `screen menu daily-lobby${info.creator ? " has-rec" : ""}`, "");
     const header = this.el("div", "lobby-header", "");
     header.appendChild(this.wordmarkTitle());
     const icons = this.el("div", "lobby-header-icons", "");
+    if (info.creator) {
+      icons.appendChild(this.recordingModeIconBtn());
+    }
     icons.appendChild(this.lobbyIconBtn("bell", "Updates", () => this.openLatestFieldUpdate()));
     icons.appendChild(
       this.lobbyIconBtn("chat", "Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),

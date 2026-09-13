@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Recording mode header icon</title>
+<style>
+  body { margin: 24px; background: #05070b; color: #cfc6a8; font: 14px/1.4 sans-serif; }
+  h1 { font-size: 16px; color: #ffd700; }
+  .row { display: flex; gap: 8px; margin: 16px 0 32px; }
+  .lobby-icon-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    border: 1px solid rgba(170, 136, 68, 0.45);
+    background: #0b1020;
+    color: #ffd700;
+  }
+  .lobby-icon-btn svg { width: 20px; height: 20px; display: block; }
+  .lobby-icon-btn.rec-on { color: #ff4455; border-color: #ff4455; }
+  .rec-mode-pill {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 6px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    color: #ff4455;
+  }
+</style>
+<h1>OFF (muted gold)</h1>
+<div class="row">
+  <button class="lobby-icon-btn lobby-icon-rec" aria-label="Recording mode" aria-pressed="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle class="rec-disc" cx="12" cy="12" r="3.6" fill="currentColor"/></svg>
+  </button>
+</div>
+<h1>ON (Alarm red + REC pill)</h1>
+<div class="row">
+  <button class="lobby-icon-btn lobby-icon-rec rec-on" aria-label="Recording mode on" aria-pressed="true">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle class="rec-disc" cx="12" cy="12" r="3.6" fill="currentColor"/></svg>
+    <span class="rec-mode-pill">REC</span>
+  </button>
+</div>

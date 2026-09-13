@@ -19,6 +19,7 @@ struct HomeView: View {
     @State private var appeared = false
     @State private var recPulse = false
     @State private var showPatrolComplete = false
+    @State private var recordingMode = PreferencesStore.recordingMode
 
     private var midnight: Date { PatrolDate.nextMidnight(after: now) }
     private var canLaunchDaily: Bool { model.online && (model.attemptsLeft > 0 || model.isPremium) }
@@ -80,6 +81,7 @@ struct HomeView: View {
             considerPatrolComplete()
         }
         .onAppear {
+            recordingMode = PreferencesStore.recordingMode
             withAnimation(OrionMotion.screen) { appeared = true }
             syncLaunchPulse()
             if playLaunch == nil { LobbyMusic.shared.play() }
@@ -344,6 +346,23 @@ struct HomeView: View {
                 ActivatePremiumChip { premium = .generic }
             } else {
                 TierBadge(tier: model.tier)
+            }
+            if model.isAdmin {
+                Button {
+                    PreferencesStore.recordingMode.toggle()
+                    recordingMode = PreferencesStore.recordingMode
+                } label: {
+                    Image(systemName: recordingMode ? "record.circle.fill" : "record.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(recordingMode ? OrionColor.alarm : OrionColor.hullGold)
+                        .frame(minWidth: OrionLayout.minTap, minHeight: OrionLayout.minTap)
+                        .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 8))
+                        .overlay {
+                            ChamferedRectangle(chamfer: 8)
+                                .strokeBorder(recordingMode ? OrionColor.alarm : OrionColor.hullLine, lineWidth: 1)
+                        }
+                }
+                .accessibilityLabel(recordingMode ? "Recording mode on" : "Recording mode")
             }
             NavigationLink {
                 SettingsView()
