@@ -38,6 +38,9 @@ export class AudioSystem {
   private current: TrackName | null = null;
   /** Boot-cinematic score bus, so skipping the intro can silence it at once. */
   private introGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private captureDest: MediaStreamAudioDestinationNode | null = null;
+  private routedMedia = new WeakSet<HTMLAudioElement>();
 
   soundEnabled = true;
   musicEnabled = true;
@@ -63,6 +66,7 @@ export class AudioSystem {
     if (!el) {
       el = this.loadAudio(file, GAME_BED_VOLUME);
       this.gameBeds.set(file, el);
+      this.routeMedia(el);
     }
     return el;
   }
@@ -88,12 +92,38 @@ export class AudioSystem {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
       this.master.connect(this.ctx.destination);
+      this.captureDest = this.ctx.createMediaStreamDestination();
+      this.master.connect(this.captureDest);
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.connect(this.master);
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.connect(this.master);
       this.buildThrustLoop();
       this.applySoundSetting();
+      this.routeAllFileTracks();
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
+  }
+
+  /** Mixed SFX + routed music beds for MediaRecorder. Null before unlock. */
+  captureStream(): MediaStream | null {
+    return this.captureDest?.stream ?? null;
+  }
+
+  private routeMedia(el: HTMLAudioElement): void {
+    if (!this.ctx || !this.musicGain || this.routedMedia.has(el)) return;
+    try {
+      const src = this.ctx.createMediaElementSource(el);
+      src.connect(this.musicGain);
+      this.routedMedia.add(el);
+    } catch {
+      // CORS or already connected
+    }
+  }
+
+  private routeAllFileTracks(): void {
+    for (const t of Object.values(this.tracks)) this.routeMedia(t);
+    for (const t of this.gameBeds.values()) this.routeMedia(t);
   }
 
   setSound(on: boolean): void {
@@ -145,6 +175,7 @@ export class AudioSystem {
     a.loop = false;
     a.volume = volume;
     a.preload = "auto";
+    this.routeMedia(a);
     void a.play().catch(() => {});
   }
 

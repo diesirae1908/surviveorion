@@ -129,24 +129,26 @@ export interface RecordingHandle {
   readonly hitCap: boolean;
 }
 
-/**
- * Start recording the given canvas. Returns null immediately (no-op) if the
- * browser lacks captureStream/MediaRecorder, or if starting throws for any
- * reason (some browsers reject captureStream on a canvas with no draws yet,
- * or on an unsupported GPU path) — callers should treat null as "just don't
- * offer a clip this run", never as an error to surface to the player.
- */
-export function startRecording(
-  canvas: HTMLCanvasElement,
-  opts?: { preferMp4?: boolean },
+function mixAudio(video: MediaStream, audio: MediaStream | null | undefined): MediaStream {
+  const out = new MediaStream(video.getVideoTracks());
+  const audioTracks = audio?.getAudioTracks() ?? [];
+  for (const t of audioTracks) out.addTrack(t);
+  return out;
+}
+
+function recordStream(
+  stream: MediaStream,
+  opts?: { preferMp4?: boolean; ownedTracks?: MediaStreamTrack[] },
 ): RecordingHandle | null {
-  if (!recordingSupported()) return null;
   try {
-    const stream = (canvas as CaptureCanvas).captureStream(CAPTURE_FPS);
     const mimeType = pickMimeType(opts?.preferMp4 === true);
     let recorder: MediaRecorder;
     try {
-      recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: BITRATE_BPS });
+      recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: BITRATE_BPS,
+        audioBitsPerSecond: 128_000,
+      });
     } catch {
       // some MediaRecorder implementations (older Safari point releases)
       // reject a bitrate hint paired with certain codecs; retry with just
@@ -181,7 +183,8 @@ export function startRecording(
 
     const cleanup = (): void => {
       clearTimeout(autoStopTimer);
-      for (const track of stream.getTracks()) track.stop();
+      const owned = opts?.ownedTracks ?? stream.getVideoTracks();
+      for (const track of owned) track.stop();
     };
 
     return {
@@ -209,6 +212,76 @@ export function startRecording(
           }
         }),
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Start recording the given canvas. Returns null immediately (no-op) if the
+ * browser lacks captureStream/MediaRecorder, or if starting throws for any
+ * reason (some browsers reject captureStream on a canvas with no draws yet,
+ * or on an unsupported GPU path) — callers should treat null as "just don't
+ * offer a clip this run", never as an error to surface to the player.
+ * Pass `audioStream` (AudioSystem.captureStream) so the download has music + SFX.
+ */
+export function startRecording(
+  canvas: HTMLCanvasElement,
+  opts?: { preferMp4?: boolean; audioStream?: MediaStream | null },
+): RecordingHandle | null {
+  if (!recordingSupported()) return null;
+  try {
+    const video = (canvas as CaptureCanvas).captureStream(CAPTURE_FPS);
+    return recordStream(mixAudio(video, opts?.audioStream), {
+      preferMp4: opts?.preferMp4,
+      ownedTracks: video.getVideoTracks(),
+    });
+  } catch {
+    return null;
+  }
+}
+
+export function displayCaptureSupported(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getDisplayMedia === "function" &&
+    typeof window !== "undefined" &&
+    typeof window.MediaRecorder === "function" &&
+    pickMimeType() !== undefined
+  );
+}
+
+/**
+ * CREW recording mode: one-gesture tab capture so lobby + game-over stay
+ * in the clip. Desktop Chrome. Falls back to null if the picker is cancelled.
+ */
+export async function startDisplayRecording(opts?: {
+  preferMp4?: boolean;
+  audioStream?: MediaStream | null;
+}): Promise<RecordingHandle | null> {
+  if (!displayCaptureSupported()) return null;
+  try {
+    const display = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true,
+      preferCurrentTab: true,
+      selfBrowserSurface: "include",
+      surfaceSwitching: "exclude",
+      systemAudio: "include",
+      monitorTypeSurfaces: "exclude",
+    } as DisplayMediaStreamOptions);
+    const hasDisplayAudio = display.getAudioTracks().length > 0;
+    const mixed = hasDisplayAudio ? display : mixAudio(display, opts?.audioStream);
+    const handle = recordStream(mixed, {
+      preferMp4: opts?.preferMp4,
+      ownedTracks: display.getTracks(),
+    });
+    const video = display.getVideoTracks()[0];
+    video?.addEventListener("ended", () => {
+      void handle?.stop();
+    });
+    return handle;
   } catch {
     return null;
   }

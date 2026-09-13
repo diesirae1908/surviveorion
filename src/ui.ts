@@ -35,10 +35,10 @@ import {
   setNativeNotifDaily,
   setNativeNotifStreak,
 } from "./native";
+import { APP_STORE_URL } from "./webGate";
 
 /** Flip false to hide the App Store CTA. Listing: apps.apple.com/app/id6811113450 */
 const APP_STORE_LIVE = true;
-const APP_STORE_URL = "https://apps.apple.com/app/id6811113450";
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -598,9 +598,9 @@ export class Ui {
   }
 
   /** Combined mark + wordmark (`brand/assets/logo/orion-logo-horizontal-gold.svg`). */
-  private wordmarkTitle(): HTMLElement {
+  private wordmarkTitle(extraClass = ""): HTMLElement {
     const wrap = document.createElement("div");
-    wrap.className = "title";
+    wrap.className = extraClass ? `title ${extraClass}` : "title";
     wrap.innerHTML =
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 603 128" role="img" aria-label="ORION" class="wordmark-svg">` +
       `<g transform="translate(0,0) scale(1.28)">` +
@@ -883,13 +883,26 @@ export class Ui {
     this.clear();
     this.pauseBtn.style.display = "none";
 
-    const screen = this.el("div", "screen menu", "");
-    screen.appendChild(this.wordmarkTitle());
-    screen.appendChild(this.el("div", "subtitle", "Daily Patrol"));
-    screen.appendChild(this.el("div", "divider", ""));
-    screen.appendChild(this.lobbyPilotBadge(info));
+    const screen = this.el("div", "screen menu daily-lobby", "");
+    const header = this.el("div", "lobby-header", "");
+    header.appendChild(this.wordmarkTitle());
+    header.appendChild(
+      this.settingsChip(() =>
+        this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
+          callsign: info.callsign,
+          pendingFriends: info.pendingFriends,
+          clipInbox: info.creator,
+        }),
+      ),
+    );
+    screen.appendChild(header);
+
+    const left = this.el("div", "lobby-col-left", "");
+    left.appendChild(this.el("div", "subtitle", "Daily Patrol"));
+    left.appendChild(this.el("div", "divider", ""));
+    left.appendChild(this.lobbyPilotBadge(info));
     if (!info.online) {
-      screen.appendChild(
+      left.appendChild(
         this.el(
           "div",
           "daily-offline",
@@ -898,28 +911,28 @@ export class Ui {
       );
     }
 
-    screen.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
+    left.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
     // pre-launch-gate days carry no mutators and no thresholds (see
     // mutators.ts MUTATORS_START_DATE): skip the card entirely so the lobby
     // looks exactly like it did before this feature shipped.
     if (info.mutators.length > 0 && info.medalThresholds) {
-      screen.appendChild(
+      left.appendChild(
         this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview, info.previewDate),
       );
     }
 
     if (info.creator && info.upcomingDays && info.upcomingDays.length > 0) {
-      screen.appendChild(this.rehearsalDayPicker(info));
+      left.appendChild(this.rehearsalDayPicker(info));
     }
 
     // attempt pips: one per daily try, spent ones dimmed. A preview run
     // never spends one, so its row says so instead of counting down.
     if (info.preview) {
-      screen.appendChild(
+      left.appendChild(
         this.el("div", "attempt-pips", `<span class="pips-label">unlimited attempts, not scored</span>`),
       );
     } else if (info.unlimitedDaily) {
-      screen.appendChild(
+      left.appendChild(
         this.el("div", "attempt-pips", `<span class="pips-label">Unlimited today</span>`),
       );
     } else {
@@ -934,37 +947,37 @@ export class Ui {
           info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "Patrol complete",
         ),
       );
-      screen.appendChild(pipsRow);
+      left.appendChild(pipsRow);
     }
 
     // today's leader, filled in async via setMenuDailyHint
     const hint = this.el("div", "daily-hint lobby-hint", "");
     hint.id = "daily-hint";
-    screen.appendChild(hint);
+    left.appendChild(hint);
 
     // preview ignores the real attempt budget entirely: Launch always shows
     if (!info.online && !info.preview) {
-      screen.appendChild(
+      left.appendChild(
         this.el("div", "daily-locked", "Daily Patrol is offline."),
       );
     } else if (info.preview || info.unlimitedDaily || info.attemptsLeft > 0) {
       const launch = this.button("Launch Patrol", true, () => this.cb.onDaily());
       launch.classList.add("launch", "chamfer");
-      screen.appendChild(launch);
+      left.appendChild(launch);
       if (!info.preview && !info.unlimitedDaily && info.attemptsLeft === 1) {
-        screen.appendChild(
+        left.appendChild(
           this.el("div", "field-hint center last-attempt-hint", "Last patrol today. Make it count."),
         );
       }
     } else {
-      screen.appendChild(
+      left.appendChild(
         this.el("div", "daily-locked", `Patrol <b>#${info.dayNumber}</b> complete.`),
       );
-      screen.appendChild(
+      left.appendChild(
         this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`),
       );
       if (info.best) {
-        screen.appendChild(
+        left.appendChild(
           this.el(
             "div",
             "daily-best-line",
@@ -973,14 +986,22 @@ export class Ui {
               (info.best.rank !== null ? ` · #${info.best.rank}` : ""),
           ),
         );
-        screen.appendChild(this.shareButton());
+        left.appendChild(this.shareButton());
       }
     }
 
+    const training = this.el("button", "menu-mode-btn training chamfer", "");
+    training.innerHTML =
+      `<span class="daily-name">✦ Training Ground</span>` +
+      `<span class="daily-sub">free practice, unlimited</span>`;
+    training.addEventListener("click", () => this.cb.onTraining());
+    left.appendChild(training);
+    screen.appendChild(left);
+
+    const right = this.el("div", "lobby-col-right", "");
     // Inline leaderboard: one merged ranking (all devices) for today's
     // Daily Patrol, scrollable, filled in async via setDailyBoard once it
-    // loads. Placed before utility buttons so it's reachable without deep
-    // scrolling on mobile.
+    // loads.
     if (info.online) {
       const boardWrap = this.el("div", "daily-board-wrap chamfer", "");
       boardWrap.id = "daily-lobby-board-wrap";
@@ -1000,20 +1021,14 @@ export class Ui {
       const list = this.el("div", "board", `<div class="field-hint center">Loading…</div>`);
       list.id = "daily-lobby-board";
       boardWrap.appendChild(list);
-      screen.appendChild(boardWrap);
+      right.appendChild(boardWrap);
     }
 
-    const training = this.el("button", "menu-mode-btn training chamfer", "");
-    training.innerHTML =
-      `<span class="daily-name">✦ Training Ground</span>` +
-      `<span class="daily-sub">free practice, unlimited</span>`;
-    training.addEventListener("click", () => this.cb.onTraining());
-    screen.appendChild(training);
-
-    screen.appendChild(
+    const stack = this.el("div", "lobby-stack", "");
+    stack.appendChild(
       this.lobbyStackButton("Patrol Calendar", () => this.cb.onPatrolCalendar()),
     );
-    screen.appendChild(
+    stack.appendChild(
       this.lobbyStackButton("Wingmates", () => this.cb.onFriends(), {
         notif: (info.pendingFriends ?? 0) > 0,
       }),
@@ -1027,13 +1042,15 @@ export class Ui {
       store.innerHTML =
         `<span class="daily-name">Get ORION on iPhone</span>` +
         `<span class="daily-sub">Daily reminder on your phone</span>`;
-      screen.appendChild(store);
+      stack.appendChild(store);
     }
-    screen.appendChild(
+    stack.appendChild(
       this.lobbyStackButton("Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
     );
+    right.appendChild(stack);
+    screen.appendChild(right);
 
-    const learnRow = this.el("div", "menu-row", "");
+    const learnRow = this.el("div", "menu-row lobby-learn", "");
     const howTo = this.button("How to play", false, () => this.cb.onTutorial());
     howTo.classList.add("small-btn", "chamfer");
     learnRow.appendChild(howTo);
@@ -1049,15 +1066,60 @@ export class Ui {
     footer.append(privacy);
     screen.appendChild(footer);
 
+    this.root.appendChild(screen);
+  }
+
+  /**
+   * Phone-class App Store landing. No lobby, no launch, no board.
+   * Crew/QA escape is `?web=1` (sessionStorage override).
+   */
+  showPhoneLanding(): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const screen = this.el("div", "screen phone-landing", "");
+    screen.appendChild(this.wordmarkTitle("landing-mark"));
+    screen.appendChild(this.el("h1", "landing-headline", "ORION is on iPhone."));
     screen.appendChild(
-      this.settingsChip(() =>
-        this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
-          callsign: info.callsign,
-          pendingFriends: info.pendingFriends,
-          clipInbox: info.creator,
-        }),
-      ),
+      this.el("p", "landing-subline", "One patrol a day. Same swarm for every pilot."),
     );
+
+    const cta = document.createElement("a");
+    cta.className = "landing-cta chamfer";
+    cta.href = APP_STORE_URL;
+    cta.target = "_blank";
+    cta.rel = "noopener";
+    cta.textContent = "Get on iPhone";
+    screen.appendChild(cta);
+
+    const more = this.el("div", "landing-more", "");
+    const expand = this.el("button", "landing-expand", "What is Daily Patrol?");
+    const blurb = this.el(
+      "p",
+      "landing-blurb",
+      "One short run a day, same for every pilot. Dodge the swarm, beat your best, climb the board.",
+    );
+    blurb.hidden = true;
+    expand.addEventListener("click", () => {
+      const open = blurb.hidden;
+      blurb.hidden = !open;
+      expand.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    expand.setAttribute("aria-expanded", "false");
+    more.append(expand, blurb);
+    screen.appendChild(more);
+
+    const footer = this.el("div", "landing-footer", "");
+    const crew = document.createElement("a");
+    crew.className = "landing-crew";
+    crew.textContent = "Crew: open in browser";
+    const dest = new URL(location.href);
+    dest.searchParams.set("web", "1");
+    crew.href = `${dest.pathname}${dest.search}${dest.hash}`;
+    const privacy = this.el("button", "full-game-link", "Privacy");
+    privacy.addEventListener("click", () => openPrivacyPolicy());
+    footer.append(crew, privacy);
+    screen.appendChild(footer);
 
     this.root.appendChild(screen);
   }
@@ -1444,6 +1506,14 @@ export class Ui {
         screen.appendChild(row);
         screen.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
       }
+      screen.appendChild(this.toggleRow([["recordingMode", "Recording mode"]]));
+      screen.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Capture menus and game over, not just the run. Desktop Chrome: pick this tab when asked.",
+        ),
+      );
     }
 
     const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
@@ -2000,6 +2070,7 @@ export class Ui {
     const capped = stats.attemptsLeft !== undefined;
     const canRetry = !capped || stats.attemptsLeft! > 0;
 
+    const actions = this.el("div", "gameover-actions", "");
     if (canRetry) {
       // retries keep the mode picked at launch, so say which run comes next
       const retryLabel = capped
@@ -2009,33 +2080,39 @@ export class Ui {
           : stats.gameMode === "ironrain"
             ? "Fly again: Iron Rain"
             : "Fly again";
-      screen.appendChild(this.button(retryLabel, true, () => this.cb.onRestart()));
+      const retry = this.button(retryLabel, true, () => this.cb.onRestart());
+      retry.classList.add("gameover-primary");
+      actions.appendChild(retry);
     } else {
-      screen.appendChild(
+      actions.appendChild(
         this.el("div", "daily-locked", "All patrols complete."),
       );
-      screen.appendChild(
+      actions.appendChild(
         this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`),
       );
     }
-    screen.appendChild(
-      this.button(capped ? "Back to base" : "Main menu", false, () => this.cb.onQuitToMenu()),
-    );
+    const navRow = this.el("div", "gameover-row", "");
+    const menuBtn = this.button(capped ? "Back to base" : "Main menu", false, () => this.cb.onQuitToMenu());
+    menuBtn.classList.add("small-btn", "chamfer");
+    navRow.appendChild(menuBtn);
+    if (stats.showShare) {
+      const share = this.shareButton();
+      share.classList.add("small-btn");
+      navRow.appendChild(share);
+    }
+    actions.appendChild(navRow);
     if (!stats.touchDevice && canRetry) {
-      screen.appendChild(this.el("div", "field-hint center", "Space to fly again"));
+      actions.appendChild(this.el("div", "field-hint center gameover-space-hint", "Space to fly again"));
     }
 
-    if (stats.showShare) {
-      screen.appendChild(this.shareButton());
-    }
     if (stats.clipInbox) {
       if (stats.clipReady) {
-        const clipRow = this.el("div", "clip-save-row", "");
+        const clipRow = this.el("div", "clip-save-row gameover-row", "");
         clipRow.appendChild(this.saveClipButton());
         clipRow.appendChild(this.sendInboxButton());
-        screen.appendChild(clipRow);
+        actions.appendChild(clipRow);
         if (stats.clipCapped) {
-          screen.appendChild(
+          actions.appendChild(
             this.el(
               "div",
               "field-hint center",
@@ -2044,7 +2121,7 @@ export class Ui {
           );
         }
       } else if (recordingSupported()) {
-        screen.appendChild(this.recordNextRunControl());
+        actions.appendChild(this.recordNextRunControl());
       }
     }
 
@@ -2052,12 +2129,13 @@ export class Ui {
     // all-time best, peak multiplier, kills, the score breakdown, the
     // PB-time comparison, country rank. Demoted behind one toggle so none
     // of it competes with the score above; one tap gets it back.
-    screen.appendChild(this.gameOverDetailsToggle(stats));
+    actions.appendChild(this.gameOverDetailsToggle(stats));
 
     // feedback CTA: post-run is when testers actually have something to say
     const feedback = this.el("button", "link-btn", "Found a bug? Send feedback");
     feedback.addEventListener("click", () => this.showFeedback(null));
-    screen.appendChild(feedback);
+    actions.appendChild(feedback);
+    screen.appendChild(actions);
 
     this.root.appendChild(screen);
   }

@@ -25,6 +25,7 @@ struct SettingsView: View {
     @State private var showManageSub = false
     @State private var photosStatus = ClipStore.photosStatus()
     @State private var recordRuns = PreferencesStore.recordRuns
+    @State private var recordingMode = PreferencesStore.recordingMode
     @State private var restoreNote: String?
 
     private var canSignIn: Bool { !busy && callsign.count >= 3 && password.count >= 6 }
@@ -132,6 +133,9 @@ struct SettingsView: View {
         .navigationDestination(isPresented: $showFeedback) { FeedbackView() }
         .onChange(of: recordRuns) { _, on in
             PreferencesStore.recordRuns = on
+        }
+        .onChange(of: recordingMode) { _, on in
+            PreferencesStore.recordingMode = on
         }
     }
 
@@ -249,6 +253,15 @@ struct SettingsView: View {
                         .toggleStyle(OrionToggleStyle())
                         .padding(.horizontal, 12)
                     Text("Captures gameplay video for clips and QA. Off by default.")
+                        .font(OrionFont.body(13, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
+                    hairline
+                    Toggle("Recording mode", isOn: $recordingMode)
+                        .toggleStyle(OrionToggleStyle())
+                        .padding(.horizontal, 12)
+                    Text("Capture menus and game over, not just the run.")
                         .font(OrionFont.body(13, weight: .regular))
                         .foregroundStyle(OrionColor.dust)
                         .padding(.horizontal, 12)

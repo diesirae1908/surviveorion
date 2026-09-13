@@ -251,6 +251,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             attemptsJSON = "null"
         }
         let record = recordRuns ? "true" : "false"
+        let recMode = PreferencesStore.recordingMode ? "true" : "false"
         return """
         (function(){
           try {
@@ -264,6 +265,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             var s = {};
             try { s = raw ? JSON.parse(raw) : {}; } catch (e) { s = {}; }
             s.recordRuns = \(record);
+            s.recordingMode = \(recMode);
             localStorage.setItem('orion.settings', JSON.stringify(s));
           } catch (e) {}
         })();

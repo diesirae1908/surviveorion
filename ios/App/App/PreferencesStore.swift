@@ -7,6 +7,7 @@ enum PreferencesStore {
     private static let streakNotifKey = "orion.notifStreak"
     private static let attemptsKey = "orion.dailyAttempts"
     private static let recordRunsKey = "orion.recordRuns"
+    private static let recordingModeKey = "orion.recordingMode"
     private static let localPremiumUntilKey = "orion.premiumUntil"
     private static let localPremiumProductKey = "orion.premiumProduct"
     private static let previewTierKey = "orion.previewTier"
@@ -65,6 +66,11 @@ enum PreferencesStore {
     static var recordRuns: Bool {
         get { defaults.bool(forKey: recordRunsKey) }
         set { defaults.set(newValue, forKey: recordRunsKey) }
+    }
+
+    static var recordingMode: Bool {
+        get { defaults.bool(forKey: recordingModeKey) }
+        set { defaults.set(newValue, forKey: recordingModeKey) }
     }
 
     static var localPremiumUntil: TimeInterval {

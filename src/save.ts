@@ -4,7 +4,7 @@ import { patrolDateStr } from "./patrolDate";
 
 export type { ControlMode, SenseLevel };
 
-export type BooleanSetting = "sound" | "music" | "screenShake" | "inertia" | "recordRuns";
+export type BooleanSetting = "sound" | "music" | "screenShake" | "inertia" | "recordRuns" | "recordingMode";
 
 export type KeyAction = "up" | "down" | "left" | "right" | "pause";
 
@@ -50,6 +50,11 @@ export interface Settings {
    * browser with no effect (recordingSupported() gates the actual capture).
    */
   recordRuns: boolean;
+  /**
+   * CREW only. Capture lobby / game-over chrome, not just the run.
+   * Desktop Chrome uses getDisplayMedia (this tab). Persist like recordRuns.
+   */
+  recordingMode: boolean;
 }
 
 /** Mobile control preference + tilt calibration (separate from the boolean toggles). */
@@ -343,6 +348,7 @@ export function loadSettings(): Settings {
     tiltSensitivity: "med",
     directSpeed: "med",
     recordRuns: false,
+    recordingMode: false,
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);

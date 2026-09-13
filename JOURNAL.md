@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 late morning PT: Desktop lobby + phone App Store gate
+
+- Isolated `.worktrees/feat-desktop-mobile-gate` from `origin/main` (`1725f91`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Desktop ≥900px: two-column lobby (briefing + launch left, board + stack right). Phone-class browsers on the website get an App Store landing (no playable web game). iPad / Android tablets keep the webapp. Escape: `?web=1` plus sessionStorage `orion_web_override`. `?nativePlay=` and capacitor/ionic origins never hit the gate.
+- Desktop play letterboxes ultrawide to 16:9 (camera/view only, mutator physics unchanged). Game-over action stack is denser (Fly again, compact Main menu / Share / clip row). Save clip mixes Web Audio SFX + routed music beds into MediaRecorder.
+- CREW Recording mode: Settings toggle persisted like recordRuns. Desktop Chrome uses one-gesture getDisplayMedia (this tab) plus a REC badge so menus and game over stay in the clip. Native Settings has the same toggle. ReplayKit / WKWebView display capture is residual.
+- `npm test` + `npm run build` green. Screenshots in `qa-evidence/desktop-mobile-gate/` (desktop two-column, phone landing, `?web=1` lobby).
+- Tripwire: CORS allowlist, scoring, mutators, Gold Patrol, music beds, patrol-complete sting all untouched.
+
 ## 2026-09-12 night PT: Gold Patrol unlimited Daily LIVE
 
 - Lucas: product truth on the site. Promoted `feat/gold-unlimited` (`cd95309`) to `origin/main`. Did not reset `origin/dev` (still `9fbd3fd`).

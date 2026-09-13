@@ -45,7 +45,13 @@ import {
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
-import { clipExtension, saveClipToDevice, startRecording, type RecordingHandle } from "./recorder";
+import {
+  clipExtension,
+  saveClipToDevice,
+  startDisplayRecording,
+  startRecording,
+  type RecordingHandle,
+} from "./recorder";
 import {
   loadBestScore,
   loadBestTime,
@@ -97,6 +103,7 @@ import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
 import { deriveGameOverRank, Ui, type CalendarCell, type PatrolCalendarMonth } from "./ui";
+import { consumeWebOverride, shouldShowPhoneLanding } from "./webGate";
 
 type AppState =
   | "gate" // tap-to-enter splash (unlocks audio for the intro)
@@ -128,6 +135,17 @@ const NATIVE_AUTO = new URLSearchParams(location.search).get("nativeAuto");
 const NATIVE_PATROL_DATE = IS_NATIVE_PLAY && NATIVE_PLAY === "daily" ? parseNativePlayDate(location.search) : null;
 const NATIVE_ARCHIVE = !!(NATIVE_PATROL_DATE && NATIVE_PATROL_DATE !== patrolDateStr());
 const NATIVE_GOLD = IS_NATIVE_PLAY && parseNativeGoldPatrol(location.search);
+const WEB_OVERRIDE = consumeWebOverride(location.search);
+const PHONE_LANDING = shouldShowPhoneLanding({
+  search: location.search,
+  ua: navigator.userAgent,
+  protocol: location.protocol,
+  nativePlay: IS_NATIVE_PLAY,
+  nativeApp: isNativeApp(),
+  coarsePointer: window.matchMedia("(pointer: coarse)").matches,
+  innerWidth: window.innerWidth,
+  sessionOverride: WEB_OVERRIDE,
+});
 
 function unlimitedDailyRuns(): boolean {
   return NATIVE_GOLD || api.goldPatrolUnlimited;
@@ -348,6 +366,8 @@ let runIsTraining = false;
 let runRefunded = false;
 /** Opt-in local recording of the run in progress (see recorder.ts), if any. */
 let activeRecording: RecordingHandle | null = null;
+/** CREW recording mode: tab capture that keeps running through menus / game over. */
+let sessionRecording: RecordingHandle | null = null;
 /** Finished clip for the run that just ended, ready to download from the result screen. */
 let lastClipBlob: Blob | null = null;
 let lastClipReady: Promise<void> | null = null;
@@ -358,6 +378,51 @@ let lastClipSidecar: ClipSidecar | null = null;
 let lastClipBasename: string | null = null;
 /** Power pickups this run (world.time), snapshotted into the sidecar. */
 let clipPowerLog: ClipSidecarPower[] = [];
+
+function setRecBadge(on: boolean): void {
+  let el = document.getElementById("orion-rec");
+  if (on) {
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "orion-rec";
+      el.textContent = "REC";
+      document.body.appendChild(el);
+    }
+    return;
+  }
+  el?.remove();
+}
+
+function clipAudioStream(): MediaStream | null {
+  return audio.captureStream();
+}
+
+/** User-gesture entry (Settings toggle or Launch). */
+function ensureSessionRecording(): void {
+  if (sessionRecording || !settings.recordingMode || !api.clipInbox || IS_NATIVE_PLAY) return;
+  audio.unlock();
+  void startDisplayRecording({
+    preferMp4: isIosWebKit(),
+    audioStream: clipAudioStream(),
+  }).then((handle) => {
+    if (!handle) return;
+    sessionRecording = handle;
+    setRecBadge(true);
+  });
+}
+
+async function stopSessionRecording(keepBlob: boolean): Promise<Blob | null> {
+  if (!sessionRecording) return lastClipBlob;
+  const rec = sessionRecording;
+  sessionRecording = null;
+  setRecBadge(false);
+  const blob = await rec.stop();
+  if (keepBlob && blob) {
+    lastClipBlob = blob;
+    lastClipCapped = rec.hitCap;
+  }
+  return blob;
+}
 /** Share card for the daily run that just ended (rank fills in on submit). */
 let lastRunShare: {
   score: number;
@@ -531,6 +596,10 @@ const ui = new Ui(settings, {
     if (key === "music") audio.setMusic(settings.music);
     // inertia is a flavor setting — it doesn't change which board the run ranks on
     if (key === "inertia") input.inertia = settings.inertia;
+    if (key === "recordingMode") {
+      if (settings.recordingMode) ensureSessionRecording();
+      else void stopSessionRecording(true);
+    }
   },
   onCycleSense: (key) => {
     settings[key] = nextSenseLevel(settings[key]);
@@ -566,8 +635,13 @@ const ui = new Ui(settings, {
     await api.sendFeedback(message, email);
   },
   onSaveClip: async () => {
-    if (!lastClipBlob || !lastClipBasename) return false;
-    const filename = `${lastClipBasename}.${clipExtension(lastClipBlob)}`;
+    if (sessionRecording) {
+      if (!lastClipSidecar) snapshotClipSidecar();
+      await stopSessionRecording(true);
+    }
+    if (!lastClipBlob) return false;
+    const name = lastClipBasename ?? `orion-clip-${Date.now()}`;
+    const filename = `${name}.${clipExtension(lastClipBlob)}`;
     const outcome = await saveClipToDevice(lastClipBlob, filename, { ios: isIosWebKit() });
     return outcome !== "failed";
   },
@@ -624,6 +698,10 @@ const community = new CommunityUi(
 );
 
 function showMenu(): void {
+  if (PHONE_LANDING) {
+    ui.showPhoneLanding();
+    return;
+  }
   if (IS_NATIVE_PLAY) {
     ui.clearScreens();
     return;
@@ -893,6 +971,7 @@ function renderPatrolCalendar(): void {
  * Desktop has no sensor, so it goes straight in.
  */
 function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = false): void {
+  ensureSessionRecording();
   if (state === "launching") return;
   if (daily && !training && !api.online) {
     ui.toast("Can't reach patrol command. Training Ground is open offline.");
@@ -1021,8 +1100,8 @@ function startRun(): void {
   lastClipBasename = null;
   clipPowerLog = [];
   activeRecording =
-    settings.recordRuns && api.clipInbox && !runIsTraining
-      ? startRecording(canvas, { preferMp4: isIosWebKit() })
+    !sessionRecording && settings.recordRuns && api.clipInbox && !runIsTraining
+      ? startRecording(canvas, { preferMp4: isIosWebKit(), audioStream: clipAudioStream() })
       : null;
   // dev-only console handle for manual playtesting (never in prod builds)
   if (import.meta.env.DEV) (window as unknown as { orionWorld: World }).orionWorld = world;
@@ -1147,7 +1226,9 @@ function onGameOver(): void {
   // (MediaRecorder flush) overlaps the death cinematic instead of adding a
   // delay before the result screen appears. Snapshot sidecar fields first so
   // a later Save clip cannot read a reset world.
-  if (activeRecording) {
+  if (sessionRecording) {
+    snapshotClipSidecar();
+  } else if (activeRecording) {
     snapshotClipSidecar();
     const rec = activeRecording;
     activeRecording = null;
@@ -1321,7 +1402,7 @@ function showGameOverUi(): void {
     dailyMedal,
     preview: cappedDaily && PREVIEW_ACTIVE,
     closestCallLabel: closestCallLabel(world.closestCall),
-    clipReady: lastClipBlob !== null,
+    clipReady: lastClipBlob !== null || sessionRecording !== null,
     clipCapped: lastClipCapped,
     clipInbox: api.clipInbox,
   });
@@ -1823,13 +1904,14 @@ function skipDeathCinematic(): void {
 }
 
 if (!IS_NATIVE_PLAY) {
-  ui.showIntroGate(enterFromGate);
+  if (PHONE_LANDING) ui.showPhoneLanding();
+  else ui.showIntroGate(enterFromGate);
 }
 // keyboard players can enter with any key; any input after a short beat skips
 window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
   if (isTypingTarget(e.target)) return; // don't hijack keys typed into a form field
-  if (state === "gate") {
+  if (state === "gate" && !PHONE_LANDING) {
     ui.clearScreens();
     enterFromGate();
   } else if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_SKIP_AFTER) {
@@ -1859,6 +1941,7 @@ void api.init().then(() => {
     beginLaunch(!training, "classic", training);
     return;
   }
+  if (PHONE_LANDING) return;
   if (state === "menu") showMenu();
 });
 if (!IS_NATIVE_PLAY) void bootNativeShell();

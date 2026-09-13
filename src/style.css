@@ -128,7 +128,8 @@ button.launch,
 .lobby-stack-btn,
 .share-btn,
 .small-btn,
-.corner-btn.settings-chip {
+.corner-btn.settings-chip,
+.landing-cta {
   --c: var(--orion-chamfer-lg);
   clip-path: polygon(
     var(--c) 0, calc(100% - var(--c)) 0,
@@ -161,6 +162,7 @@ body {
   display: block;
   touch-action: none;
   -webkit-touch-callout: none; /* no long-press callout over the game */
+  /* JS recenters when desktop play letterboxes to 16:9 */
 }
 
 #ui {
@@ -222,6 +224,14 @@ body {
 .screen.gameover-screen {
   background: none;
   animation: fadeIn 1.6s ease-out;
+  gap: 6px;
+  padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom))
+    calc(16px + var(--safe-left));
+}
+
+.screen.gameover-screen::before,
+.screen.gameover-screen::after {
+  flex: 0.25 0 0;
 }
 
 /* daily lobby: tighter base gap — zone breathing is handled per-element */
@@ -335,7 +345,7 @@ body {
 }
 
 .result-score {
-  font-size: clamp(52px, 15vw, 88px);
+  font-size: clamp(40px, 10vw, 64px);
   font-weight: bold;
   line-height: 1;
   background: linear-gradient(180deg, var(--orion-flare) 0%, var(--orion-gold) 45%, var(--orion-ingot) 100%);
@@ -2286,5 +2296,270 @@ button.link-btn:active {
   }
   50% {
     opacity: 1;
+  }
+}
+
+/* --- daily lobby two-column (≥900) + phone landing --- */
+
+.lobby-header,
+.lobby-col-left,
+.lobby-col-right,
+.lobby-stack,
+.lobby-learn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .screen.menu.daily-lobby {
+    display: grid;
+    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+    grid-template-areas:
+      "header header"
+      "left right"
+      "learn learn"
+      "footer footer";
+    align-content: start;
+    align-items: start;
+    justify-items: stretch;
+    max-width: 1160px;
+    width: 100%;
+    margin-inline: auto;
+    column-gap: var(--orion-space-5);
+    row-gap: var(--orion-space-3);
+    padding-left: calc(var(--orion-space-4) + var(--safe-left));
+    padding-right: calc(var(--orion-space-4) + var(--safe-right));
+  }
+
+  .screen.menu.daily-lobby::before,
+  .screen.menu.daily-lobby::after {
+    content: none;
+    display: none;
+    flex: none;
+  }
+
+  .daily-lobby .lobby-header {
+    grid-area: header;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .daily-lobby .lobby-header .title {
+    justify-content: flex-start;
+  }
+
+  .daily-lobby .corner-btn.settings-chip {
+    position: static;
+  }
+
+  .daily-lobby .lobby-col-left {
+    grid-area: left;
+  }
+
+  .daily-lobby .lobby-col-right {
+    grid-area: right;
+  }
+
+  .daily-lobby .lobby-learn {
+    grid-area: learn;
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .daily-lobby .lobby-footer {
+    grid-area: footer;
+  }
+
+  .daily-lobby .daily-board-wrap,
+  .daily-lobby .lobby-stack-btn,
+  .daily-lobby .menu-mode-btn.training,
+  .daily-lobby .mutator-card-wrap,
+  .daily-lobby .creator-days {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.screen.phone-landing {
+  justify-content: center;
+  gap: var(--orion-space-3);
+  padding: calc(var(--orion-space-4) + var(--safe-top)) calc(var(--orion-space-4) + var(--safe-right))
+    calc(var(--orion-space-4) + var(--safe-bottom)) calc(var(--orion-space-4) + var(--safe-left));
+}
+
+.screen.phone-landing > * {
+  max-width: 420px;
+  width: 100%;
+}
+
+.screen.phone-landing::before,
+.screen.phone-landing::after {
+  flex: 0.6 0 0;
+}
+
+.phone-landing .landing-mark .wordmark-svg {
+  width: clamp(300px, 84vw, 560px);
+}
+
+.landing-headline {
+  margin: 0;
+  font-size: clamp(28px, 8vw, 36px);
+  font-weight: var(--orion-weight-display);
+  letter-spacing: var(--orion-tracking-display);
+  line-height: 1.1;
+  background: var(--orion-gradient-gold);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.landing-subline {
+  margin: 0;
+  color: var(--orion-starlight);
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: var(--orion-tracking-body);
+}
+
+.landing-cta {
+  --c: var(--orion-chamfer-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 20px;
+  background: var(--orion-gradient-gold);
+  color: #1a1208;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: var(--orion-weight-display);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 1px solid var(--orion-gold);
+}
+
+.landing-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.landing-expand {
+  background: none;
+  border: none;
+  color: var(--orion-bronze);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: var(--orion-tracking-body);
+  text-transform: none;
+  min-width: 0;
+  padding: 4px 8px;
+}
+
+.landing-blurb {
+  margin: 0;
+  color: var(--orion-brass);
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 34em;
+}
+
+.landing-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-crew {
+  color: var(--orion-dust);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.landing-crew:hover {
+  color: var(--orion-bronze);
+}
+
+.gameover-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(420px, 92vw);
+}
+
+.gameover-actions button,
+.gameover-actions .share-btn {
+  min-width: 0;
+  width: 100%;
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.gameover-actions button.primary.gameover-primary {
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+.gameover-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+
+.gameover-row > * {
+  flex: 1 1 140px;
+}
+
+.gameover-space-hint {
+  margin: 0;
+}
+
+#orion-rec {
+  position: fixed;
+  top: calc(10px + var(--safe-top));
+  left: calc(10px + var(--safe-left));
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--orion-deep-space);
+  border: 1px solid var(--orion-alarm);
+  color: var(--orion-alarm);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--orion-weight-label);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
+}
+
+#orion-rec::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--orion-alarm);
+  animation: recPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes recPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
   }
 }

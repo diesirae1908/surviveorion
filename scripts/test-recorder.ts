@@ -8,6 +8,8 @@
 //
 //   npx tsx scripts/test-recorder.ts
 
+import fs from "node:fs";
+import path from "node:path";
 import {
   clipExtension,
   pickMimeType,
@@ -224,6 +226,11 @@ if (worstCaseMB < 20) {
   // clip quality is being sacrificed more than necessary.
   console.log(`(worst-case recording size ${worstCaseMB.toFixed(1)}MB, well under the 40MB budget)`);
 }
+
+const recorderSrc = fs.readFileSync(path.resolve(new URL(".", import.meta.url).pathname, "../src/recorder.ts"), "utf8");
+check("startRecording accepts an audioStream mix-in", recorderSrc.includes("audioStream?: MediaStream | null"), true);
+check("display recording helper exists for CREW recording mode", recorderSrc.includes("export async function startDisplayRecording"), true);
+check("canvas mix does not stop shared Web Audio tracks", recorderSrc.includes("ownedTracks: video.getVideoTracks()"), true);
 
 if (failures > 0) {
   console.error(`\n${failures} recorder check(s) FAILED.`);

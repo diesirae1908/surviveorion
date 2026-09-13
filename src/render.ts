@@ -1,4 +1,5 @@
 import { ASSEMBLY, BLACKOUT, MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP, VIEW_MIN, type PowerId } from "./config";
+import { playViewport } from "./playView";
 import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
@@ -82,7 +83,7 @@ export class Renderer {
     probe.remove();
   }
 
-  /** Fit canvas to window; shorter axis spans VIEW_MIN world units. */
+  /** Fit canvas to the play frame; shorter axis spans VIEW_MIN world units. */
   resize(): void {
     this.measureSafeArea();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -90,12 +91,19 @@ export class Renderer {
       window as unknown as { __orionViewport?: { w: number; h: number } }
     ).__orionViewport;
     const vv = window.visualViewport;
-    this.cssW = injected?.w || vv?.width || window.innerWidth;
-    this.cssH = injected?.h || vv?.height || window.innerHeight;
+    const winW = injected?.w || vv?.width || window.innerWidth;
+    const winH = injected?.h || vv?.height || window.innerHeight;
+    const play = playViewport(winW, winH);
+    this.cssW = play.w;
+    this.cssH = play.h;
     this.canvas.width = Math.round(this.cssW * dpr);
     this.canvas.height = Math.round(this.cssH * dpr);
     this.canvas.style.width = `${this.cssW}px`;
     this.canvas.style.height = `${this.cssH}px`;
+    this.canvas.style.left = `${(winW - this.cssW) / 2}px`;
+    this.canvas.style.top = `${(winH - this.cssH) / 2}px`;
+    this.canvas.style.right = "auto";
+    this.canvas.style.bottom = "auto";
 
     const aspect = this.cssW / this.cssH;
     if (aspect >= 1) {
