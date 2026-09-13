@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 midday PT: Desktop lobby chrome + updates bell LIVE
+
+- Promoted `feat/lobby-chrome` (`a2a0df7` / journal `c28a953`) to `origin/main`. Did not reset `origin/dev`.
+- Render `surviveorion` deploy `dep-dajfk5lckfvc739prv70` is live. Bundle `assets/main-DuLF_4eG.js` contains `FIELD UPDATE`, `lobby-util-grid`, `How to Play`, `Download on the App Store`. `/updates.json` 200 (`2026-09-13-lobby-refresh` first of 2). `/app-store-badge.svg` 200. `/api/config` 200. CORS `capacitor://localhost` still 204. Music beds 200: empire-of-the-stars, imperial-procession, patrol-complete, training-ground. Gold Patrol / Fly this Patrol / CREW REHEARSAL still in the bundle. Phone landing gate still present (`Get on iPhone`, `orion_web_override`).
+
 ## 2026-09-13 midday PT: Desktop lobby chrome + updates bell
 
 - Isolated `.worktrees/feat-lobby-chrome` from `origin/main` (`1a005a0`, already included past-day Fly). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `a2a0df7`.
