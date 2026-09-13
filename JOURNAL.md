@@ -4,9 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 late morning PT: Desktop lobby + phone App Store gate LIVE
+
+- Promoted `feat/desktop-mobile-gate` (`00b0c7d`) to `origin/main`. Did not reset `origin/dev`.
+- Render `surviveorion` deploy `dep-dajevogae00c73e53s40` is live. Bundle `assets/main-DctzwlYV.js` contains `Get on iPhone` and `orion_web_override`. `/api/config` 200. CORS `capacitor://localhost` still 204. Music beds 200: empire-of-the-stars, imperial-procession, patrol-complete, training-ground. Gold Patrol copy still in the bundle.
+
 ## 2026-09-13 late morning PT: Desktop lobby + phone App Store gate
 
-- Isolated `.worktrees/feat-desktop-mobile-gate` from `origin/main` (`1725f91`). Dirty parent checkout untouched. Did not reset `origin/dev`.
+- Isolated `.worktrees/feat-desktop-mobile-gate` from `origin/main` (`1725f91`). Dirty parent checkout untouched. Did not reset `origin/dev`. Commit `00b0c7d`.
 - Desktop ≥900px: two-column lobby (briefing + launch left, board + stack right). Phone-class browsers on the website get an App Store landing (no playable web game). iPad / Android tablets keep the webapp. Escape: `?web=1` plus sessionStorage `orion_web_override`. `?nativePlay=` and capacitor/ionic origins never hit the gate.
 - Desktop play letterboxes ultrawide to 16:9 (camera/view only, mutator physics unchanged). Game-over action stack is denser (Fly again, compact Main menu / Share / clip row). Save clip mixes Web Audio SFX + routed music beds into MediaRecorder.
 - CREW Recording mode: Settings toggle persisted like recordRuns. Desktop Chrome uses one-gesture getDisplayMedia (this tab) plus a REC badge so menus and game over stay in the clip. Native Settings has the same toggle. ReplayKit / WKWebView display capture is residual.
