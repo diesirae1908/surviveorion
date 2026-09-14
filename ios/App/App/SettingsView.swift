@@ -48,6 +48,9 @@ struct SettingsView: View {
                         .id("crewTools")
                 }
                 privacySection
+                if model.isSignedIn {
+                    deleteAccountFooter
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -100,7 +103,7 @@ struct SettingsView: View {
             Task { await NotificationScheduler.reschedule() }
         }
         .confirmationDialog(
-            "Delete this account and its scores?",
+            "Delete this account permanently? Your account and all scores will be removed and cannot be recovered.",
             isPresented: $confirmDelete,
             titleVisibility: .visible
         ) {
@@ -354,10 +357,6 @@ struct SettingsView: View {
                             Task { await model.signOut() }
                         }
                         .buttonStyle(OrionButtonStyle(kind: .secondary))
-                        Button("Delete account") {
-                            confirmDelete = true
-                        }
-                        .buttonStyle(OrionButtonStyle(kind: .destructive))
                     } else {
                         SignInWithAppleRepresentable {
                             appleCoordinator.start()
@@ -389,6 +388,19 @@ struct SettingsView: View {
                 .font(OrionFont.body(13))
                 .foregroundStyle(OrionColor.dust)
         }
+    }
+
+    private var deleteAccountFooter: some View {
+        Button {
+            confirmDelete = true
+        } label: {
+            Text("Delete account")
+                .font(OrionFont.body(13))
+                .foregroundStyle(OrionColor.dust)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 32)
     }
 
     private var privacySection: some View {

@@ -1,4 +1,5 @@
 import AuthenticationServices
+import CryptoKit
 import SwiftUI
 import UIKit
 
@@ -60,6 +61,7 @@ final class GoogleSignInController: UIViewController, ASWebAuthenticationPresent
     private var finished = false
     private var session: ASWebAuthenticationSession?
     private let nonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+    private var codeVerifier = ""
 
     private var effectiveClientId: String {
         if let iosClientId, !iosClientId.isEmpty { return iosClientId }
@@ -94,13 +96,17 @@ final class GoogleSignInController: UIViewController, ASWebAuthenticationPresent
             return
         }
         let redirectUri = "\(scheme):/oauth2redirect"
+        codeVerifier = Self.makeCodeVerifier()
+        let challenge = Self.codeChallenge(from: codeVerifier)
         var comps = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
         comps.queryItems = [
             URLQueryItem(name: "client_id", value: effectiveClientId),
             URLQueryItem(name: "redirect_uri", value: redirectUri),
-            URLQueryItem(name: "response_type", value: "id_token"),
+            URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "scope", value: "openid email profile"),
             URLQueryItem(name: "nonce", value: nonce),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "prompt", value: "select_account"),
         ]
         guard let url = comps.url else {
@@ -109,8 +115,8 @@ final class GoogleSignInController: UIViewController, ASWebAuthenticationPresent
         }
         let session = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme) { [weak self] callbackURL, error in
             guard let self else { return }
-            if let callbackURL, let token = self.idToken(from: callbackURL) {
-                self.finish(token: token)
+            if let callbackURL, let code = self.authCode(from: callbackURL) {
+                self.exchangeCode(code, redirectUri: redirectUri)
                 return
             }
             self.cancelTapped()
@@ -134,21 +140,75 @@ final class GoogleSignInController: UIViewController, ASWebAuthenticationPresent
         onCancel?()
     }
 
-    private func idToken(from url: URL) -> String? {
-        let blob = (url.fragment ?? "") + "&" + (url.query ?? "")
-        for part in blob.split(separator: "&") {
-            let kv = part.split(separator: "=", maxSplits: 1).map(String.init)
-            if kv.count == 2, kv[0] == "id_token" {
-                return kv[1].removingPercentEncoding
+    private static let pkceChars = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+
+    private static func makeCodeVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 64)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return String(bytes.map { pkceChars[Int($0) % pkceChars.count] })
+    }
+
+    private static func codeChallenge(from verifier: String) -> String {
+        let hash = SHA256.hash(data: Data(verifier.utf8))
+        return Data(hash).base64URLEncodedString()
+    }
+
+    private func authCode(from url: URL) -> String? {
+        guard let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
+        return items.first(where: { $0.name == "code" })?.value
+    }
+
+    private func exchangeCode(_ code: String, redirectUri: String) {
+        var req = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
+        req.httpMethod = "POST"
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let body = [
+            "client_id": effectiveClientId,
+            "code": code,
+            "code_verifier": codeVerifier,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirectUri,
+        ]
+        req.httpBody = body
+            .map { key, value in
+                let k = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+                let v = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
+                return "\(k)=\(v)"
             }
-        }
-        return nil
+            .joined(separator: "&")
+            .data(using: .utf8)
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if error != nil {
+                    self.cancelTapped()
+                    return
+                }
+                guard let data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let token = json["id_token"] as? String
+                else {
+                    self.cancelTapped()
+                    return
+                }
+                self.finish(token: token)
+            }
+        }.resume()
     }
 
     private func finish(token: String) {
         guard !finished else { return }
         finished = true
         onToken?(token)
+    }
+}
+
+private extension Data {
+    func base64URLEncodedString() -> String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }
 

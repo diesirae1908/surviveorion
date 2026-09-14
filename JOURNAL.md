@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-14 morning PT: Build 11 — Google PKCE sign-in, delete-account placement (TF11)
+
+- Branch `fix/google-pkce` from `origin/main` (`6d4c553`). TestFlight build 10 feedback: Google sign-in Error 400 `unsupported_response_type` (implicit `id_token` flow on iOS OAuth client); delete account sat under Sign out with destructive button weight.
+- **Google PKCE (`NativeAuth.swift`):** Switched `ASWebAuthenticationSession` to authorization code + PKCE (`response_type=code`, `code_challenge`/`S256` via CryptoKit, random `code_verifier`). Callback reads `code`, POSTs `https://oauth2.googleapis.com/token` with `client_id`, `code_verifier`, `grant_type=authorization_code`, `redirect_uri` (no client secret), parses `id_token`, then same `/api/auth/google` path as before. Apple Sign-In and server untouched.
+- **Delete account (`SettingsView.swift`):** Removed destructive button from under Sign out; added small centered Dust text link at the very bottom of Settings (32pt gap above Privacy). Confirmation dialog now states account and all scores are deleted permanently. API flow unchanged.
+- Verify: `xcodebuild ... -destination 'platform=iOS Simulator,name=iPhone 17' build` → **BUILD SUCCEEDED**. Screenshot `~/Documents/Sam/tmp/orion-aso/qa-evidence/tf11/settings-delete-account-bottom.png` (Settings via `-QAPlay settings`; signed-in footer requires session — confirm on device after TF11). Skipped `npm test` (native-only; `npm run build` run once for simulator `dist` copy only).
+- Follow-up: TF11 archive/upload/Internal/ASC attach entry below once complete.
+
 ## 2026-09-13 night PT: TestFlight 1.0 (10) uploaded + attached to ASC 1.0
 
 - Commit `1026418` on `origin/main`. Render `surviveorion` deploy `dep-dajp517qj5pc73beaccg` live. `/api/config` serves `googleIosClientId`. `/api/patrol-mutators` returns real mutator names (e.g. GOLD DASH for 2026-09-13).
