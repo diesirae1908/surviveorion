@@ -97,6 +97,8 @@ import {
   parseNativePlayDate,
   postNativeGameOver,
   postNativeLeave,
+  postNativeOpenAnalytics,
+  postNativePremium,
   setPlayChrome,
 } from "./native";
 import { TiltControl } from "./tilt";
@@ -681,6 +683,8 @@ const ui = new Ui(settings, {
       showMenu();
     }),
   onPilot: (callsign) => community.showPilot(callsign, showMenu),
+  onUnlockGoldPatrol: () => postNativePremium("calendar"),
+  onNativeAnalytics: () => postNativeOpenAnalytics(),
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
   onRebind: (action, code) => {
@@ -1277,10 +1281,7 @@ function onGameOver(): void {
     });
   }
   // Training Ground runs are unscored: no PBs, no run count, no submission
-  if (runIsTraining) {
-    if (IS_NATIVE_PLAY) showGameOverUi();
-    return;
-  }
+  if (runIsTraining) return;
   // instant wipeouts are free: a daily death inside the grace window hands
   // the attempt back so a botched start doesn't burn the day's budget
   runRefunded = DAILY_ONLY && runIsDaily && world.time < DAILY_FREE_DEATH_SECONDS;
@@ -1297,7 +1298,6 @@ function onGameOver(): void {
     bestTime = world.time;
     saveBestTime(bestTime, runGameMode);
   }
-  if (IS_NATIVE_PLAY) showGameOverUi();
 }
 
 async function emitNativePlayGameOver(medal: string | null): Promise<void> {
@@ -1369,11 +1369,8 @@ async function emitNativePlayGameOver(medal: string | null): Promise<void> {
 function showGameOverUi(): void {
   gameOverUiShown = true;
   if (runIsTraining) {
-    if (IS_NATIVE_PLAY) {
-      void emitNativePlayGameOver(null);
-      return;
-    }
     ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1);
+    if (IS_NATIVE_PLAY) void emitNativePlayGameOver(null);
     return;
   }
   const cappedDaily = DAILY_ONLY && runIsDaily;
@@ -1419,11 +1416,6 @@ function showGameOverUi(): void {
       preview: PREVIEW_ACTIVE,
     };
   }
-  if (IS_NATIVE_PLAY) {
-    if (!runIsTraining) submitRun();
-    void emitNativePlayGameOver(dailyMedal?.tier ?? null);
-    return;
-  }
   ui.showGameOver({
     score: world.score,
     scoreKills: world.scoreKills,
@@ -1453,9 +1445,12 @@ function showGameOverUi(): void {
     clipCapped: lastClipCapped,
     clipInbox: api.clipInbox,
     patrolDate: archivePatrolDate() ?? undefined,
+    showGoldPatrolCta: IS_NATIVE_PLAY && !unlimitedDailyRuns(),
+    showAnalyticsLink: IS_NATIVE_PLAY && unlimitedDailyRuns(),
   });
   submitRun();
-  maybeShowPatrolComplete(true);
+  if (IS_NATIVE_PLAY) void emitNativePlayGameOver(dailyMedal?.tier ?? null);
+  else maybeShowPatrolComplete(true);
 }
 
 /** Once-per-day PATROL COMPLETE overlay. Game-over path only after a daily that spent the last attempt. */

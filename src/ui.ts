@@ -94,6 +94,10 @@ export interface UiCallbacks {
   onCrewSignIn: () => void;
   /** Open a public pilot record (daily board rows, with wingmate actions). */
   onPilot: (callsign: string) => void;
+  /** Native play: open the Gold Patrol paywall sheet. */
+  onUnlockGoldPatrol?: () => void;
+  /** Native play: leave play and open native Analytics. */
+  onNativeAnalytics?: () => void;
 }
 
 export interface MenuCommunity {
@@ -146,6 +150,10 @@ export interface GameOverStats {
   clipCapped?: boolean;
   /** Lucas-only: Record / Save clip / Send to inbox (GET /api/me.clipInbox). */
   clipInbox?: boolean;
+  /** Native play: pitch Gold Patrol on the web game-over overlay. */
+  showGoldPatrolCta?: boolean;
+  /** Native play: premium pilots can jump to native Analytics. */
+  showAnalyticsLink?: boolean;
 }
 
 /**
@@ -2373,6 +2381,28 @@ export class Ui {
     // PB-time comparison, country rank. Demoted behind one toggle so none
     // of it competes with the score above; one tap gets it back.
     actions.appendChild(this.gameOverDetailsToggle(stats));
+
+    if (stats.showGoldPatrolCta) {
+      const pitch = this.el("div", "gameover-gold-pitch", "");
+      pitch.appendChild(this.el("div", "gameover-gold-title", "GOLD PATROL"));
+      pitch.appendChild(this.el("div", "gameover-gold-headline", "Fly every patrol."));
+      pitch.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Unlimited Daily runs today, every past patrol, full analytics, wingmates.",
+        ),
+      );
+      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());
+      unlock.classList.add("small-btn", "chamfer");
+      pitch.appendChild(unlock);
+      actions.appendChild(pitch);
+    }
+    if (stats.showAnalyticsLink && this.cb.onNativeAnalytics) {
+      const analytics = this.el("button", "link-btn", "View Analytics");
+      analytics.addEventListener("click", () => this.cb.onNativeAnalytics?.());
+      actions.appendChild(analytics);
+    }
 
     // feedback CTA: post-run is when testers actually have something to say
     const feedback = this.el("button", "link-btn", "Found a bug? Send feedback");

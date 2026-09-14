@@ -96,6 +96,25 @@ export function postNativeLeave(): void {
   exportNativeSession();
 }
 
+/** Present the native Gold Patrol paywall over the play WebView. */
+export function postNativePremium(context: "calendar" | "generic" = "calendar"): void {
+  if (!isNativePlay()) return;
+  postNative({ type: "premium", context });
+}
+
+/** Native share sheet from the play WebView (WKWebView share is weak). */
+export function postNativeShare(text: string, pngBase64?: string | null): void {
+  if (!isNativePlay()) return;
+  postNative({ type: "share", text, pngBase64: pngBase64 ?? null });
+}
+
+/** Leave play and open native Analytics from the home stack. */
+export function postNativeOpenAnalytics(): void {
+  if (!isNativePlay()) return;
+  postNative({ type: "openAnalytics" });
+  exportNativeSession();
+}
+
 const SESSION_COUNT_KEY = "orion.nativeSessions";
 const NOTIF_DAILY_KEY = "orion.notifDaily";
 const NOTIF_STREAK_KEY = "orion.notifStreak";

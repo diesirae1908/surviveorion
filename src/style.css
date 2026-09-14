@@ -2725,6 +2725,31 @@ button.link-btn:active {
   font-size: 16px;
 }
 
+.gameover-gold-pitch {
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--orion-hull-line);
+  background: rgba(20, 18, 28, 0.72);
+  text-align: center;
+}
+
+.gameover-gold-title {
+  color: var(--orion-dust);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+}
+
+.gameover-gold-headline {
+  color: var(--orion-gold);
+  font-family: var(--orion-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
 .gameover-row {
   display: flex;
   flex-wrap: wrap;

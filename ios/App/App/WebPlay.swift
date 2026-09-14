@@ -3,6 +3,12 @@ import SwiftUI
 import UIKit
 import WebKit
 
+@MainActor
+protocol PlayWebControllerDelegate: AnyObject {
+    func playWebControllerDidUpdateResult(_ result: GameResult)
+    func playWebControllerDidRequestAnalytics()
+}
+
 /// Serves bundled dist/ at capacitor://localhost so live CORS already allows API calls.
 final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "capacitor"
@@ -74,6 +80,8 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
     var goldPatrol = false
     var onExit: ((PlayExit) -> Void)?
     var onSession: ((String?, String?, String?) -> Void)?
+    var delegate: PlayWebControllerDelegate?
+    var appModel: AppModel?
 
     private var webView: WKWebView!
     private let handler = BundleSchemeHandler()
@@ -318,7 +326,35 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
                 patrolDate: patrolDate,
                 shareText: body["shareText"] as? String
             )
-            finish(.finished(result))
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.playWebControllerDidUpdateResult(result)
+            }
+        case "premium":
+            let raw = body["context"] as? String ?? "calendar"
+            let ctx = PremiumContext(rawValue: raw) ?? .calendar
+            DispatchQueue.main.async { [weak self] in
+                self?.presentPremium(ctx)
+            }
+        case "share":
+            let text = body["text"] as? String ?? ""
+            var items: [Any] = [text]
+            if let b64 = body["pngBase64"] as? String, let data = Data(base64Encoded: b64), let img = UIImage(data: data) {
+                items.append(img)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let av = UIActivityViewController(activityItems: items, applicationActivities: nil)
+                if let pop = av.popoverPresentationController {
+                    pop.sourceView = self.view
+                    pop.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+                }
+                self.present(av, animated: true)
+            }
+        case "openAnalytics":
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.playWebControllerDidRequestAnalytics()
+                self?.finish(.quit)
+            }
         default:
             break
         }
@@ -331,6 +367,18 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         DispatchQueue.main.async { [weak self] in
             self?.onExit?(exit)
         }
+    }
+
+    private func presentPremium(_ context: PremiumContext) {
+        guard presentedViewController == nil, let appModel else { return }
+        let host = UIHostingController(
+            rootView: PremiumSheet(context: context) { [weak self] in
+                self?.dismiss(animated: true)
+            }
+            .environmentObject(appModel)
+        )
+        host.modalPresentationStyle = .pageSheet
+        present(host, animated: true)
     }
 
     private func requestMotionFromUser() {
@@ -405,6 +453,8 @@ struct PlayView: UIViewControllerRepresentable {
         vc.patrolDate = launch.date
         vc.recordRuns = model.isAdmin && PreferencesStore.recordRuns
         vc.goldPatrol = model.isPremium
+        vc.appModel = model
+        vc.delegate = PlayViewDelegate(model: model)
         vc.onExit = onExit
         vc.onSession = { token, secret, attempts in
             Task { @MainActor in
@@ -418,5 +468,22 @@ struct PlayView: UIViewControllerRepresentable {
 
     static func dismantleUIViewController(_ vc: PlayWebController, coordinator: ()) {
         vc.teardown()
+    }
+}
+
+@MainActor
+private final class PlayViewDelegate: NSObject, PlayWebControllerDelegate {
+    private let model: AppModel
+
+    init(model: AppModel) {
+        self.model = model
+    }
+
+    func playWebControllerDidUpdateResult(_ result: GameResult) {
+        model.lastResult = result
+    }
+
+    func playWebControllerDidRequestAnalytics() {
+        model.pendingAnalytics = true
     }
 }

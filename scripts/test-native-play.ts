@@ -36,6 +36,15 @@ assert.match(main, /nativePlay: IS_NATIVE_PLAY/);
 assert.match(main, /beginLaunch\(!training/);
 assert.equal(main.includes("showIntroGate(enterFromGate)") && main.includes("if (!IS_NATIVE_PLAY)"), true);
 assert.match(main, /postNativeLeave/);
+assert.match(main, /postNativePremium/);
+assert.match(main, /DEATH_UI_AT/);
+assert.equal(
+  /onGameOver\(\)[\s\S]*?if \(IS_NATIVE_PLAY\) showGameOverUi\(\)/.test(main),
+  false,
+  "native play must not skip the death veil timing",
+);
+assert.match(main, /ui\.showGameOver\(/);
+assert.match(main, /ui\.showTrainingEnd/);
 assert.match(main, /orion-native-pause/);
 assert.match(main, /allow Motion & Fitness for ORION/);
 assert.match(main, /NATIVE_AUTO === "tiltconfirm"/);

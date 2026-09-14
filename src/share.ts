@@ -2,7 +2,7 @@
 // Native share sheet on phones, clipboard on desktop.
 
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalTier } from "./medals";
-import { isNativeApp, nativeShare } from "./native";
+import { isNativeApp, isNativePlay, nativeShare, postNativeShare } from "./native";
 import { patrolDateStr } from "./patrolDate";
 import { DAILY_MAX_ATTEMPTS } from "./save";
 
@@ -142,7 +142,25 @@ export function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
  * Native share sheet where it makes sense (phones), clipboard otherwise.
  * A user-cancelled share sheet still counts as "shared" — no error toast.
  */
+async function pngToBase64(png: Blob | null | undefined): Promise<string | null> {
+  if (!png) return null;
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result ?? "");
+      const comma = s.indexOf(",");
+      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(png);
+  });
+}
+
 export async function shareText(text: string, preferNative: boolean, png?: Blob | null): Promise<ShareOutcome> {
+  if (isNativePlay()) {
+    postNativeShare(text, await pngToBase64(png));
+    return "shared";
+  }
   if (isNativeApp()) {
     const ok = await nativeShare(text, png);
     if (ok) return "shared";

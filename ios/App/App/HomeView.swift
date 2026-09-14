@@ -195,9 +195,7 @@ struct HomeView: View {
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
         .fullScreenCover(item: $playLaunch, onDismiss: {
-            if !showGameOver {
-                LobbyMusic.shared.play()
-            }
+            LobbyMusic.shared.play()
             Task {
                 await model.refresh()
                 considerPatrolComplete()
@@ -205,12 +203,7 @@ struct HomeView: View {
         }) { launch in
             ZStack(alignment: .topLeading) {
                 PlayView(launch: launch) { exit in
-                    switch exit {
-                    case .quit:
-                        playLaunch = nil
-                    case .finished(let result):
-                        model.lastResult = result
-                        showGameOver = true
+                    if case .quit = exit {
                         playLaunch = nil
                     }
                 }

@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-14 evening PT: Build 13 — cinematic web game-over on native (TF13)
+
+- Branch `fix/gameover-cinematic` from `origin/main` (`45dc13c`). Lucas rejected Build 12's native `GameOverView` sheet pop-on: wants the crimson death veil + dancing drones, web HTML game-over on top, imperial-procession track, no separate sheet.
+- **Approach A (`main.ts`):** Reverted immediate `showGameOverUi()` on `onGameOver()` for `IS_NATIVE_PLAY`; `DEATH_UI_AT` timing restored. `showGameOverUi()` now calls `ui.showGameOver()` / `ui.showTrainingEnd()` like web, then `emitNativePlayGameOver()` for metadata only (no early return). `postNativeLeave` still dismisses play on Back to base.
+- **Bridge (`WebPlay.swift`):** `gameOver` message updates `AppModel.lastResult` only, does not `finish(.finished)`. Added `premium` (present `PremiumSheet` over play), `share` (`UIActivityViewController`), `openAnalytics` (leave play + `pendingAnalytics`). `leave` unchanged.
+- **Home (`HomeView.swift`):** Normal runs no longer dismiss play cover on game-over; lobby music on `onDismiss` only when leaving play. QA `-QAPlay gameover` still opens native `GameOverView` sheet.
+- **Web UI (`ui.ts`, `style.css`):** Gold Patrol pitch + Unlock CTA on native game-over for free pilots; Analytics link for premium. `share.ts` routes native play share through bridge.
+- **PATROL COMPLETE:** Swift `considerPatrolComplete()` on play-cover dismiss (unchanged); web path still skips `IS_NATIVE_PLAY`.
+- Verify: `npm test` pass, `npm run build` pass, `xcodebuild ... iPhone 17 Simulator` **BUILD SUCCEEDED**. Device TF proof for veil + overlay feel.
+
 ## 2026-09-14 afternoon PT: Build 12 — game-over flash fix (TF12)
 
 - Branch `fix/gameover-flash` from `origin/main` (`61590b3`). iOS end-of-run felt clunky: crimson death veil (~2.4s), brief home lobby flash (empire-of-the-stars), then GameOver sheet + game-over song.
