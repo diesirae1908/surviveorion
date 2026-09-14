@@ -228,6 +228,15 @@ export const WAVE2_AVAILABLE_FROM = "2026-08-29";
 export const SPELL_DIET_FROM = "2026-08-31";
 
 /**
+ * From this Sunday on, a hold-one pickup day (GOLD DASH, RAM RAID: the whole
+ * run is freeze, aim, dash) never pairs with an evolution-shaping day
+ * ("assembly-kind": TITANFALL, MENAGERIE, the forced-creature days). Lucas,
+ * TestFlight 9, on GOLD DASH + TITANFALL: "these 2 mutators don't really make
+ * sense together." Dated so every Sunday already flown keeps its pair.
+ */
+export const HOLD_ONE_PAIR_RULE_FROM = "2026-09-14";
+
+/**
  * Shared pickup-drop slowdown for the choreography days (2026-08-12 mid-ramp
  * densify). Daily Patrol runs the whole drop schedule at
  * PICKUPS.dailyIntervalScale (0.7x intervals) because it has no refill floor;
@@ -800,6 +809,15 @@ function shareTag(a: Mutator, b: Mutator): boolean {
   return a.tags.some((t) => b.tags.includes(t));
 }
 
+function isHoldOne(m: Mutator): boolean {
+  return m.overrides.pickupHoldOne === true;
+}
+
+/** Hold-one pickup day paired with an evolution-shaping day (either order). */
+function holdOneClash(a: Mutator, b: Mutator): boolean {
+  return (isHoldOne(a) && b.tags.includes("assembly-kind")) || (isHoldOne(b) && a.tags.includes("assembly-kind"));
+}
+
 function poolIndex(seedKey: string, length: number): number {
   return hashString(seedKey) % length;
 }
@@ -903,6 +921,7 @@ function pickSecond(dateStr: string, first: Mutator, pool: Mutator[], allowRestr
     const idx = (start + step) % eligible.length;
     const candidate = eligible[idx];
     if (candidate.id === first.id || shareTag(candidate, first)) continue;
+    if (dateStr >= HOLD_ONE_PAIR_RULE_FROM && holdOneClash(candidate, first)) continue;
     if (idx === yesterdayIdx && step === 0) continue; // try the next slot first
     // If a restricted Sunday is not allowed, do not let a full-spell first
     // pick get a monopower partner. If first is already monopower the day
@@ -913,7 +932,11 @@ function pickSecond(dateStr: string, first: Mutator, pool: Mutator[], allowRestr
   // unreachable with the current pool (always >=2 mutually-compatible
   // entries), but keep a safe, always-compatible fallback just in case.
   const fallback = eligible.find(
-    (m) => m.id !== first.id && !shareTag(m, first) && (allowRestricted || !isSpellRestricted(m)),
+    (m) =>
+      m.id !== first.id &&
+      !shareTag(m, first) &&
+      !(dateStr >= HOLD_ONE_PAIR_RULE_FROM && holdOneClash(m, first)) &&
+      (allowRestricted || !isSpellRestricted(m)),
   );
   return fallback ?? first;
 }
