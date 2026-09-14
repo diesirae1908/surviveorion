@@ -13,6 +13,8 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Web UI (`ui.ts`, `style.css`):** Gold Patrol pitch + Unlock CTA on native game-over for free pilots; Analytics link for premium. `share.ts` routes native play share through bridge.
 - **PATROL COMPLETE:** Swift `considerPatrolComplete()` on play-cover dismiss (unchanged); web path still skips `IS_NATIVE_PLAY`.
 - Verify: `npm test` pass, `npm run build` pass, `xcodebuild ... iPhone 17 Simulator` **BUILD SUCCEEDED**. Device TF proof for veil + overlay feel.
+- Commit `2594e08` on `fix/gameover-cinematic`. **Push blocked:** `gh` token invalid + global `url.https://.insteadof=git@` breaks SSH; `git push origin` needs Lucas re-auth. **TF13 archive blocked:** `/tmp/orion-ios-native/tf12.keychain-db` unlock failed (pw in `tf12-kc.pw` rejected); recreate session keychain before archive.
+- Remaining for Lucas: `git push origin fix/gameover-cinematic && git checkout main && git merge --ff-only fix/gameover-cinematic && git push origin main`; then archive with `CURRENT_PROJECT_VERSION=13` + tf12 keychain.
 
 ## 2026-09-14 afternoon PT: Build 12 — game-over flash fix (TF12)
 
