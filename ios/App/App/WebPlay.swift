@@ -315,7 +315,8 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
                 clipBasename: body["clipBasename"] as? String,
                 clipSidecar: body["clipSidecar"] as? String,
                 clipExt: body["clipExt"] as? String,
-                patrolDate: patrolDate
+                patrolDate: patrolDate,
+                shareText: body["shareText"] as? String
             )
             finish(.finished(result))
         default:

@@ -56,8 +56,12 @@ struct GameOverView: View {
         .background {
             ShareSheetHost(isPresented: $sharePresented, items: shareItems)
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
+        .onDisappear {
+            LobbyMusic.shared.play()
+        }
         .onAppear {
+            LobbyMusic.shared.playGameOver()
             withAnimation(OrionMotion.gameOver) {
                 scoreLanded = true
             }
@@ -71,36 +75,100 @@ struct GameOverView: View {
 
     private var portraitBody: some View {
         VStack(spacing: 0) {
-            Text(headerLabel)
-                .font(OrionFont.body(13, weight: .bold))
-                .foregroundStyle(OrionColor.bronze)
-                .tracking(2)
-                .frame(maxWidth: .infinity)
-            scoreTrophy
-                .padding(.top, 12)
-            statRow
-                .padding(.top, 24)
-            Spacer(minLength: 16)
-            actionButtons
-        }
-    }
-
-    private var landscapeBody: some View {
-        VStack(spacing: 16) {
-            HStack(alignment: .center, spacing: 20) {
-                VStack(spacing: 8) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
                     Text(headerLabel)
                         .font(OrionFont.body(13, weight: .bold))
                         .foregroundStyle(OrionColor.bronze)
                         .tracking(2)
+                        .frame(maxWidth: .infinity)
                     scoreTrophy
+                        .padding(.top, 12)
+                    statRow
+                        .padding(.top, 24)
+                    extras
+                        .padding(.top, 24)
                 }
-                .frame(maxWidth: .infinity)
-                statColumn
-                    .frame(maxWidth: .infinity)
             }
-            Spacer(minLength: 8)
             actionButtons
+                .padding(.top, 12)
+        }
+    }
+
+    private var landscapeBody: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 8) {
+                Text(headerLabel)
+                    .font(OrionFont.body(13, weight: .bold))
+                    .foregroundStyle(OrionColor.bronze)
+                    .tracking(2)
+                scoreTrophy
+                statColumn
+            }
+            .frame(maxWidth: .infinity)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    extras
+                    actionButtons
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// Fills the space under the stats: the website share card, then the Gold Patrol
+    /// pitch for free pilots (Lucas, TestFlight 9: "good place to add info about premium").
+    @ViewBuilder
+    private var extras: some View {
+        VStack(spacing: 16) {
+            if let data = result.sharePng, let img = UIImage(data: data) {
+                Button { sharePresented = true } label: {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200)
+                        .clipShape(ChamferedRectangle(chamfer: 10))
+                        .overlay {
+                            ChamferedRectangle(chamfer: 10)
+                                .strokeBorder(OrionColor.hullLine, lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Share card. Tap to share.")
+            }
+            if !isPremium {
+                goldPitch
+            }
+        }
+    }
+
+    private var goldPitch: some View {
+        ChamferedPanel(goldBorder: true, padding: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(OrionColor.hullGold)
+                    Text("GOLD PATROL")
+                        .font(OrionFont.body(12, weight: .bold))
+                        .foregroundStyle(OrionColor.bronze)
+                        .tracking(2)
+                }
+                Text("Fly every patrol.")
+                    .font(OrionFont.display(22))
+                    .foregroundStyle(OrionColor.goldGradient)
+                Text("Unlimited Daily runs today, every past patrol, full analytics, wingmates. $1.99 a month or $14.99 a year.")
+                    .font(OrionFont.body(14, weight: .regular))
+                    .foregroundStyle(OrionColor.starlight)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Unlock Gold Patrol") { onUnlockArchive?() }
+                    .buttonStyle(OrionButtonStyle(kind: .secondary))
+                    .padding(.top, 4)
+            }
+        }
+        .background {
+            GoldBloom(diameter: 180)
+                .offset(y: 10)
         }
     }
 
@@ -187,10 +255,6 @@ struct GameOverView: View {
                 if isPremium {
                     Button("Analytics") {
                         onAnalytics?()
-                    }
-                } else {
-                    Button("Unlock Gold Patrol") {
-                        onUnlockArchive?()
                     }
                 }
             }
@@ -290,7 +354,8 @@ struct GameOverView: View {
         if let data = result.sharePng, let img = UIImage(data: data) {
             items.append(img)
         }
-        items.append(shareText())
+        // Daily runs carry the website's pasteable block; Training falls back to a one-liner.
+        items.append(result.shareText ?? shareText())
         return items
     }
 }

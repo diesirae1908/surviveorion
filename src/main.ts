@@ -85,7 +85,7 @@ import {
   type DailyDayLog,
   type KeyBindings,
 } from "./save";
-import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE, renderShareCardPng } from "./share";
+import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE, renderShareCardPng, buildShareText } from "./share";
 import {
   bootNativeShell,
   hapticDeath,
@@ -1302,6 +1302,7 @@ async function emitNativePlayGameOver(medal: string | null): Promise<void> {
     lastClipReady = null;
   }
   let sharePngBase64: string | null = null;
+  let shareText: string | null = null;
   let clipBase64: string | null = null;
   if (IS_NATIVE_PLAY && lastClipBlob && lastClipBlob.size < 12_000_000) {
     clipBase64 = await new Promise<string | null>((resolve) => {
@@ -1316,18 +1317,20 @@ async function emitNativePlayGameOver(medal: string | null): Promise<void> {
     });
   }
   if (runIsDaily && lastRunShare && !runRefunded) {
+    const stats = {
+      dayNumber: dailyNumber(),
+      score: lastRunShare.score,
+      time: lastRunShare.time,
+      maxMultiplier: lastRunShare.maxMultiplier,
+      rank: lastRunShare.rank,
+      attempt: lastRunShare.attempt,
+      mutatorNames: lastRunShare.mutatorNames,
+      medal: lastRunShare.medal,
+      preview: lastRunShare.preview,
+    };
+    shareText = buildShareText(stats);
     try {
-      const blob = await renderShareCardPng({
-        dayNumber: dailyNumber(),
-        score: lastRunShare.score,
-        time: lastRunShare.time,
-        maxMultiplier: lastRunShare.maxMultiplier,
-        rank: lastRunShare.rank,
-        attempt: lastRunShare.attempt,
-        mutatorNames: lastRunShare.mutatorNames,
-        medal: lastRunShare.medal,
-        preview: lastRunShare.preview,
-      });
+      const blob = await renderShareCardPng(stats);
       if (blob) {
         sharePngBase64 = await new Promise<string | null>((resolve) => {
           const reader = new FileReader();
@@ -1350,6 +1353,7 @@ async function emitNativePlayGameOver(medal: string | null): Promise<void> {
     kills: world.kills,
     medal,
     sharePngBase64,
+    shareText,
     callsign: api.user?.callsign ?? null,
     clipBase64,
     clipBasename: lastClipBasename,

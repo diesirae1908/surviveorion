@@ -292,7 +292,6 @@ struct HomeView: View {
         guard !model.isPremium else { return }
         guard PreferencesStore.consumePatrolCompletePopup(attemptsLeft: model.attemptsLeft) else { return }
         showPatrolComplete = true
-        LobbyMusic.shared.playSting()
     }
 
     private func qaGameResult() -> GameResult {

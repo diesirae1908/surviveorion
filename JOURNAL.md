@@ -72,6 +72,22 @@ why, commit hash, follow-ups), committed together with the work. See
 - `npm test` + `npm run build` green. Screenshots in `qa-evidence/desktop-mobile-gate/` (desktop two-column, phone landing, `?web=1` lobby).
 - Tripwire: CORS allowlist, scoring, mutators, Gold Patrol, music beds, patrol-complete sting all untouched.
 
+## 2026-09-13 night PT: TestFlight 9 feedback fixes (feat/tf9-feedback, not merged)
+
+Lucas filed 11 TestFlight notes on build 9 (Sep 13, 9:15 AM and 6:20 to 9:40 PM PT). Isolated `.worktrees/tf9-feedback` from `origin/main` (`8720412`). Dirty parent checkout untouched. Nothing deleted.
+
+- **Calendar all CLASSIC (signed in):** live `/api/patrol-mutators` answers CLASSIC for every day because the runtime Docker image only copies `dist/` and `server/`, so `loadMutatorSchedule()` finds no `mutator-schedule.json`. `Dockerfile` now copies the exported schedule into `server/` (deploy needed, confirm-first). Client also stops trusting a remote CLASSIC: bundled `MutatorCatalog` wins whenever it knows the day.
+- **Calendar rework (Lucas: bigger, weekly, teasing, lock if not gold):** `CalendarView` is now a weekly list, newest first. Each day is a full-width tile: weekday + number, mutator name(s) in gold, subline, and a status column (TODAY chip + attempts, score + medal, GOLD lock, MISSED / NO RECORD, REHEARSAL for crew). Free pilots get a Gold Patrol strip at the top. `DayDetailSheet` shows the subline and allows `.large`.
+- **Stuck on the calendar in landscape:** the grid overflowed a plain VStack and pushed the back chip off screen. Top bar is now fixed, everything else scrolls.
+- **Rehearsal launch drew the game in a corner:** the play cover was presented while the day sheet was dismissing and the calendar was popping. Launches are now queued: sheet `onDismiss` pops the screen, `onDisappear` fires `onPlay`. New DEBUG arg `-QAPlay calendar-launch` drives that exact path.
+- **Settings duplicates:** Wingmates / Patrol Calendar / Analytics / Feedback rows removed (Home has them). `Already subscribed? Restore` moved into the ACCOUNT panel, hidden for crew.
+- **Photos access:** `PhotosAccess` gained `notAsked`. The crew row now requests `.addOnly` on first tap (iOS only lists ORION under Photos after that prompt), opens system Settings only when denied, refreshes on foreground.
+- **PATROL COMPLETE double music:** native popup no longer plays the sting over the Home bed. Web popup untouched.
+- **Game over:** sheet is `.large` only. Plays `imperial-procession.mp3` (new bundle resource) while shown, Home bed resumes on dismiss. Empty space now holds the website share card (tap to share) and, for free pilots, a GOLD PATROL pitch with the Unlock button. Share text for Daily runs is the website block (`buildShareText`, new `shareText` in the `gameOver` bridge payload).
+- **Not changed, for Lucas:** Gold Dash + Titanfall pairing (tag exclusions are hash-wide, changing them rewrites past Sundays; needs a dated rule if wanted). "Data saved across builds": Keychain + UserDefaults persist across TestFlight installs and sessions last 30 days; could not reproduce, need what was lost.
+
+Verify: `npm run build` + `npm test` green (289 PASS). Xcode Debug build on iPhone 17 simulator, no warnings in touched files. Screens in `qa-evidence/tf9-feedback/` (calendar free/crew, game over free/crew, settings crew/free, calendar-launch to play). Not merged, not deployed, no TestFlight upload.
+
 ## 2026-09-12 night PT: Gold Patrol unlimited Daily LIVE
 
 - Lucas: product truth on the site. Promoted `feat/gold-unlimited` (`cd95309`) to `origin/main`. Did not reset `origin/dev` (still `9fbd3fd`).

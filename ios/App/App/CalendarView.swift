@@ -1,7 +1,6 @@
 import SwiftUI
 
 enum CalendarDayKind {
-    case empty
     case today
     case played
     case missed
@@ -13,68 +12,113 @@ struct CalendarDay: Identifiable {
     var date: String
     var day: Int
     var kind: CalendarDayKind
+    /// Mutator names joined with " + " (Sundays fly two).
     var mutator: String
+    var lines: [MutatorLine] = []
     var score: Int?
     var time: Double?
     var rank: Int?
     var medal: String?
 
-    var id: String { date.isEmpty ? "e-\(day)" : date }
+    var id: String { date }
 }
 
+/// One Sunday-to-Saturday strip of the month, newest day first.
+struct CalendarWeek: Identifiable {
+    var sunday: String
+    var days: [CalendarDay]
+
+    var id: String { sunday }
+}
+
+/// Weekly list of past patrols: big tiles with the mutator name and its subline so
+/// free pilots see what they missed, a lock on every past day until Gold Patrol.
+/// Lucas, TestFlight 9: "more teasing with bigger tiles, a weekly calendar with tiles
+/// explaining each previous mutator and a lock on it if you're not gold."
 struct CalendarView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.verticalSizeClass) private var vSize
     @State private var year = 0
     @State private var month = 0
-    @State private var days: [CalendarDay] = []
+    @State private var weeks: [CalendarWeek] = []
     @State private var footnote = ""
     @State private var detail: CalendarDay?
     @State private var premium: PremiumContext?
+    /// Play request parked until this screen has fully left the stack. Presenting the
+    /// play cover while the pop (and the day sheet) were still animating left the WebView
+    /// sized to a fraction of the screen on device (TestFlight 9 "rehearsal" report).
+    @State private var queued: PlayLaunch?
+    @State private var queuedAfterSheet: PlayLaunch?
     var onPlay: ((PlayMode, String?) -> Void)?
 
     private var today: String { PatrolDate.dateString() }
-    private var landscape: Bool { vSize == .compact }
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
             OrionScreenBar(title: "PATROL CALENDAR") { dismiss() }
-            monthNav
-            weekdayHeader
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
-                ForEach(Array(days.enumerated()), id: \.offset) { _, cell in
-                    dayCell(cell)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    monthNav
+                    if !model.isPremium {
+                        goldStrip
+                    }
+                    ForEach(weeks) { week in
+                        weekHeader(week)
+                        ForEach(week.days) { day in
+                            dayTile(day)
+                        }
+                    }
+                    if weeks.isEmpty {
+                        OrionEmptyState(title: "No patrols yet", bodyText: "Daily Patrol starts on the first day of this month's schedule.")
+                    }
+                    if !footnote.isEmpty {
+                        Text(footnote)
+                            .font(OrionFont.body(13, weight: .regular))
+                            .foregroundStyle(OrionColor.dust)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 32)
             }
-            if !footnote.isEmpty {
-                Text(footnote)
-                    .font(OrionFont.body(13, weight: .regular))
-                    .foregroundStyle(OrionColor.dust)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
         .background(OrionColor.void.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .task { await boot() }
-        .sheet(item: $detail) { day in
+        .onDisappear {
+            if let q = queued {
+                queued = nil
+                onPlay?(q.mode, q.date)
+            }
+        }
+        .sheet(item: $detail, onDismiss: {
+            if let q = queuedAfterSheet {
+                queuedAfterSheet = nil
+                launch(q)
+            }
+        }) { day in
             DayDetailSheet(day: day, isAdmin: model.isAdmin) { launch in
-                detail = nil
                 if launch {
-                    onPlay?(.daily, day.date == today ? nil : day.date)
-                    dismiss()
+                    queuedAfterSheet = PlayLaunch(mode: .daily, date: day.date == today ? nil : day.date)
                 }
+                detail = nil
             }
         }
         .sheet(item: $premium) { ctx in
             PremiumSheet(context: ctx) { premium = nil }
                 .environmentObject(model)
         }
+    }
+
+    /// Pop this screen; `onDisappear` fires the play request once the stack is idle.
+    private func launch(_ l: PlayLaunch) {
+        queued = l
+        dismiss()
     }
 
     private var monthNav: some View {
@@ -99,10 +143,10 @@ struct CalendarView: View {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(OrionColor.hullGold)
-                .frame(width: 32, height: 32)
-                .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 6))
+                .frame(width: OrionLayout.minTap, height: OrionLayout.minTap)
+                .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 8))
                 .overlay {
-                    ChamferedRectangle(chamfer: 6)
+                    ChamferedRectangle(chamfer: 8)
                         .strokeBorder(OrionColor.hullLine, lineWidth: 1)
                 }
                 .opacity(enabled ? 1 : 0.25)
@@ -110,83 +154,190 @@ struct CalendarView: View {
         .disabled(!enabled)
     }
 
-    private var weekdayHeader: some View {
-        HStack(spacing: 4) {
-            ForEach(["SU", "M", "T", "W", "TH", "F", "SA"], id: \.self) { d in
-                Text(d)
-                    .font(OrionFont.body(11, weight: .bold))
+    private var goldStrip: some View {
+        Button { premium = .calendar } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(OrionColor.hullGold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("GOLD PATROL")
+                        .font(OrionFont.body(11, weight: .bold))
+                        .foregroundStyle(OrionColor.bronze)
+                        .tracking(2)
+                    Text("Every past patrol, one tap away.")
+                        .font(OrionFont.body(14, weight: .bold))
+                        .foregroundStyle(OrionColor.starlight)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(OrionColor.bronze)
-                    .tracking(1)
-                    .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 52)
+            .frame(maxWidth: .infinity)
+            .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 10))
+            .overlay {
+                ChamferedRectangle(chamfer: 10)
+                    .strokeBorder(OrionColor.hullGold.opacity(0.35), lineWidth: 1.5)
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Gold Patrol. Every past patrol, one tap away.")
+    }
+
+    private func weekHeader(_ week: CalendarWeek) -> some View {
+        let containsToday = week.days.contains { $0.date == today }
+        let label = containsToday ? "THIS WEEK" : "WEEK OF \(PatrolDate.shortLabel(week.sunday).uppercased())"
+        return HStack(spacing: 10) {
+            Text(label)
+                .font(OrionFont.body(11, weight: .bold))
+                .foregroundStyle(OrionColor.bronze)
+                .tracking(2)
+            Rectangle()
+                .fill(OrionColor.hullLine.opacity(0.6))
+                .frame(height: 1)
+        }
+        .padding(.top, 6)
+    }
+
+    private func dayTile(_ day: CalendarDay) -> some View {
+        Button {
+            tap(day)
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(spacing: 0) {
+                    Text(weekdayAbbrev(day.date))
+                        .font(OrionFont.body(10, weight: .bold))
+                        .foregroundStyle(OrionColor.bronze)
+                        .tracking(1)
+                    Text("\(day.day)")
+                        .font(OrionFont.display(24, weight: .bold))
+                        .foregroundStyle(day.kind == .today ? OrionColor.hullGold : OrionColor.starlight)
+                        .monospacedDigit()
+                }
+                .frame(width: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(day.mutator)
+                        .font(OrionFont.display(17))
+                        .foregroundStyle(OrionColor.goldGradient)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Text(subline(day))
+                        .font(OrionFont.body(12, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                status(day)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 10))
+            .overlay {
+                ChamferedRectangle(chamfer: 10)
+                    .strokeBorder(stroke(day), lineWidth: day.kind == .today ? 1.5 : 1)
+            }
+            .opacity(day.kind == .missed || day.kind == .untracked ? 0.92 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibility(day))
     }
 
     @ViewBuilder
-    private func dayCell(_ cell: CalendarDay) -> some View {
-        if cell.kind == .empty {
-            Color.clear
-                .aspectRatio(landscape ? 1 : 0.85, contentMode: .fit)
-        } else {
-            Button {
-                tap(cell)
-            } label: {
-                ZStack(alignment: .topLeading) {
-                    ChamferedRectangle(chamfer: 6)
-                        .fill(OrionColor.deepSpace)
-                    ChamferedRectangle(chamfer: 6)
-                        .strokeBorder(stroke(cell), lineWidth: cell.kind == .today ? 1.5 : 1)
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text("\(cell.day)")
-                                .font(OrionFont.display(13, weight: .bold))
-                                .foregroundStyle(OrionColor.starlight)
-                            Spacer(minLength: 0)
-                            if cell.kind == .played {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(OrionColor.bronze)
-                            } else if cell.kind == .missed {
-                                Text("-")
-                                    .font(OrionFont.body(10, weight: .bold))
-                                    .foregroundStyle(OrionColor.dust)
-                            } else if cell.kind == .untracked {
-                                Text("?")
-                                    .font(OrionFont.body(10, weight: .bold))
-                                    .foregroundStyle(OrionColor.dust)
-                            }
-                        }
-                        Text(cell.mutator)
-                            .font(OrionFont.body(9, weight: .bold))
-                            .foregroundStyle(OrionColor.starlight.opacity(cell.kind == .missed || cell.kind == .untracked ? 0.50 : 1))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(5)
-                    if cell.kind == .today && (model.attemptsLeft > 0 || model.isPremium) {
-                        Circle()
-                            .fill(OrionColor.hullGold)
-                            .frame(width: 5, height: 5)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                            .padding(6)
-                    }
-                    if !model.isPremium && cell.date < today {
-                        PremiumLockGlyph()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                            .padding(4)
-                    }
+    private func status(_ day: CalendarDay) -> some View {
+        let locked = !model.isPremium && day.date < today
+        switch day.kind {
+        case .today:
+            VStack(spacing: 4) {
+                chip("TODAY", color: OrionColor.hullGold)
+                if model.isPremium {
+                    Image(systemName: "infinity")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(OrionColor.hullGold)
+                } else {
+                    Text("\(model.attemptsLeft) left")
+                        .font(OrionFont.body(11, weight: .bold))
+                        .foregroundStyle(model.attemptsLeft > 0 ? OrionColor.starlight : OrionColor.alarm)
                 }
-                .aspectRatio(landscape ? 1 : 0.85, contentMode: .fit)
-                .opacity(cell.kind == .missed ? 0.85 : 1)
             }
-            .buttonStyle(.plain)
+        case .played:
+            VStack(alignment: .trailing, spacing: 4) {
+                Text((day.score ?? 0).formatted())
+                    .font(OrionFont.display(15, weight: .bold))
+                    .foregroundStyle(OrionColor.starlight)
+                    .monospacedDigit()
+                if let medal = day.medal {
+                    MedalBadge(medal: medal)
+                } else if let r = day.rank {
+                    Text("#\(r)")
+                        .font(OrionFont.body(11, weight: .bold))
+                        .foregroundStyle(OrionColor.bronze)
+                }
+            }
+        case .missed:
+            if locked { lock } else { chip("MISSED", color: OrionColor.dust) }
+        case .untracked:
+            if locked { lock } else { chip("NO RECORD", color: OrionColor.dust) }
+        case .future:
+            chip("REHEARSAL", color: OrionColor.alarm)
         }
     }
 
-    private func stroke(_ cell: CalendarDay) -> Color {
-        if cell.kind == .today { return OrionColor.hullGold }
-        if cell.kind == .future { return OrionColor.alarm.opacity(0.25) }
+    private var lock: some View {
+        VStack(spacing: 4) {
+            PremiumLockGlyph()
+            Text("GOLD")
+                .font(OrionFont.body(9, weight: .bold))
+                .foregroundStyle(OrionColor.bronze)
+                .tracking(1)
+        }
+    }
+
+    private func chip(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(OrionFont.body(9, weight: .bold))
+            .foregroundStyle(color)
+            .tracking(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .overlay {
+                ChamferedRectangle(chamfer: 5)
+                    .strokeBorder(color.opacity(0.6), lineWidth: 1)
+            }
+    }
+
+    private func subline(_ day: CalendarDay) -> String {
+        if day.lines.isEmpty { return "The standard swarm. No mutator today." }
+        if day.lines.count == 1 { return day.lines[0].subline }
+        return day.lines.map { "\($0.name.capitalized): \($0.subline)" }.joined(separator: " ")
+    }
+
+    private func weekdayAbbrev(_ date: String) -> String {
+        let names = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+        let i = PatrolDate.weekdaySundayZero(date)
+        return names.indices.contains(i) ? names[i] : ""
+    }
+
+    private func accessibility(_ day: CalendarDay) -> String {
+        var parts = [PatrolDate.shortLabel(day.date), day.mutator]
+        switch day.kind {
+        case .today: parts.append("Today")
+        case .played: parts.append("Flown, \((day.score ?? 0).formatted()) points")
+        case .missed: parts.append("Missed")
+        case .untracked: parts.append("No record")
+        case .future: parts.append("Rehearsal, crew only")
+        }
+        if !model.isPremium && day.date < today { parts.append("Locked, requires Gold Patrol") }
+        return parts.joined(separator: ". ")
+    }
+
+    private func stroke(_ day: CalendarDay) -> Color {
+        if day.kind == .today { return OrionColor.hullGold }
+        if day.kind == .future { return OrionColor.alarm.opacity(0.35) }
         return OrionColor.hullLine
     }
 
@@ -213,22 +364,21 @@ struct CalendarView: View {
         month == 12 ? (year + 1, 1) : (year, month + 1)
     }
 
-    private func tap(_ cell: CalendarDay) {
-        if cell.kind == .today {
+    private func tap(_ day: CalendarDay) {
+        if day.kind == .today {
             if model.attemptsLeft > 0 || model.isPremium {
-                onPlay?(.daily, nil)
-                dismiss()
+                launch(PlayLaunch(mode: .daily, date: nil))
             } else {
                 premium = .calendar
             }
             return
         }
-        if cell.date < today && !model.isPremium {
+        if day.date < today && !model.isPremium {
             premium = .calendar
             return
         }
-        if cell.kind == .future && !model.isAdmin { return }
-        detail = cell
+        if day.kind == .future && !model.isAdmin { return }
+        detail = day
     }
 
     private func boot() async {
@@ -260,24 +410,28 @@ struct CalendarView: View {
             footnote = "Signed out: showing this device's local history only. Sign in to sync your full record."
         }
 
-        var remoteNames: [String: String] = [:]
+        // The bundled schedule is exported from the same hash as the server, so it wins
+        // whenever it knows the day; the server fills in dates past the bundle. A server
+        // without its schedule file answers "CLASSIC" for every day, never trust that alone.
+        var remote: [String: [MutatorLine]] = [:]
         if model.isSignedIn {
             let to = model.isAdmin ? PatrolDate.addCivilDays(today, 14) : today
             if let r = try? await APIClient.shared.patrolMutators(from: start, to: min(end, to)) {
-                for e in r.entries { remoteNames[e.date] = e.name }
+                for e in r.entries where e.name != "CLASSIC" {
+                    remote[e.date] = [MutatorLine(name: e.name, subline: e.subline ?? "")]
+                }
             }
         }
 
-        let pad = PatrolDate.weekdaySundayZero(start)
-        var cells: [CalendarDay] = (0..<pad).map { _ in
-            CalendarDay(date: "", day: 0, kind: .empty, mutator: "")
-        }
         let join = model.joinedAt.map { PatrolDate.dateString(from: $0) }
+        var days: [CalendarDay] = []
         for d in 1...lastDay {
             let date = String(format: "%04d-%02d-%02d", year, month, d)
             if date > today && !model.isAdmin { continue }
             if date > PatrolDate.addCivilDays(today, 14) { continue }
-            let mutator = remoteNames[date] ?? MutatorCatalog.name(for: date)
+            let bundled = MutatorCatalog.today(date)
+            let lines = bundled.isEmpty ? (remote[date] ?? []) : bundled
+            let mutator = lines.isEmpty ? "CLASSIC" : lines.map(\.name).joined(separator: " + ")
             var kind: CalendarDayKind
             var score: Int?
             var time: Double?
@@ -299,23 +453,44 @@ struct CalendarView: View {
             } else {
                 kind = .untracked
             }
-            cells.append(CalendarDay(
+            days.append(CalendarDay(
                 date: date,
                 day: d,
                 kind: kind,
                 mutator: mutator,
+                lines: lines,
                 score: score,
                 time: time,
                 rank: rank,
                 medal: medal(for: score)
             ))
         }
-        days = cells
+        weeks = groupWeeks(days)
         if model.pendingQaDayDetail {
             model.pendingQaDayDetail = false
-            if let first = cells.first(where: { $0.kind == .missed || $0.kind == .untracked }) {
+            if let first = days.first(where: { $0.kind == .missed || $0.kind == .untracked }) {
                 detail = first
+                if model.pendingQaDayLaunch {
+                    model.pendingQaDayLaunch = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        queuedAfterSheet = PlayLaunch(mode: .daily, date: first.date)
+                        detail = nil
+                    }
+                }
             }
+        }
+    }
+
+    /// Newest first: today (and crew rehearsal days) on top, then the weeks before.
+    private func groupWeeks(_ days: [CalendarDay]) -> [CalendarWeek] {
+        var byWeek: [String: [CalendarDay]] = [:]
+        for day in days {
+            let offset = PatrolDate.weekdaySundayZero(day.date)
+            let sunday = PatrolDate.addCivilDays(day.date, -offset)
+            byWeek[sunday, default: []].append(day)
+        }
+        return byWeek.keys.sorted(by: >).map { sunday in
+            CalendarWeek(sunday: sunday, days: byWeek[sunday]!.sorted { $0.date > $1.date })
         }
     }
 
@@ -343,6 +518,13 @@ struct DayDetailSheet: View {
                 .font(OrionFont.display(28))
                 .foregroundStyle(OrionColor.goldGradient)
                 .multilineTextAlignment(.center)
+            if let first = day.lines.first {
+                Text(first.subline)
+                    .font(OrionFont.body(14, weight: .regular))
+                    .foregroundStyle(OrionColor.dust)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
             if day.kind == .played, let score = day.score {
                 Text(score.formatted())
                     .font(OrionFont.display(24, weight: .bold))
@@ -388,6 +570,6 @@ struct DayDetailSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(OrionColor.void.ignoresSafeArea())
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }

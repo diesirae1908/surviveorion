@@ -61,6 +61,11 @@ struct OrionApp: App {
                         model.pendingCalendar = true
                         model.pendingQaDayDetail = true
                     }
+                    if args[i + 1] == "calendar-launch" {
+                        model.pendingCalendar = true
+                        model.pendingQaDayDetail = true
+                        model.pendingQaDayLaunch = true
+                    }
                     if args[i + 1] == "premium" { model.pendingPremium = .calendar }
                     if args[i + 1] == "feedback" { model.pendingFeedback = true }
                     if args[i + 1] == "wingmates" { model.pendingWingmates = true }

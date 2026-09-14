@@ -3,19 +3,27 @@ import Photos
 import UIKit
 
 enum PhotosAccess: String {
-    case notGranted = "Not granted"
+    /// iOS has never asked. The Photos row in iOS Settings only appears after the first prompt.
+    case notAsked = "Tap to allow"
+    case notGranted = "Denied, open Settings"
     case granted = "Granted"
 }
 
 enum ClipStore {
+    private static func access(_ s: PHAuthorizationStatus) -> PhotosAccess {
+        switch s {
+        case .authorized, .limited: return .granted
+        case .notDetermined: return .notAsked
+        default: return .notGranted
+        }
+    }
+
     static func photosStatus() -> PhotosAccess {
-        let s = PHPhotoLibrary.authorizationStatus(for: .addOnly)
-        return (s == .authorized || s == .limited) ? .granted : .notGranted
+        access(PHPhotoLibrary.authorizationStatus(for: .addOnly))
     }
 
     static func requestPhotos() async -> PhotosAccess {
-        let s = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-        return (s == .authorized || s == .limited) ? .granted : .notGranted
+        access(await PHPhotoLibrary.requestAuthorization(for: .addOnly))
     }
 
     static func saveVideo(data: Data, ext: String) async throws {

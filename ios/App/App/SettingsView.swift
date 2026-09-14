@@ -17,10 +17,6 @@ struct SettingsView: View {
     @State private var showGoogle = false
     @State private var googleClientId = ""
     @State private var appleCoordinator = AppleSignInCoordinator()
-    @State private var showCalendar = false
-    @State private var showWingmates = false
-    @State private var showAnalytics = false
-    @State private var showFeedback = false
     @State private var premium: PremiumContext?
     @State private var showManageSub = false
     @State private var photosStatus = ClipStore.photosStatus()
@@ -46,7 +42,6 @@ struct SettingsView: View {
                 accountSection
                 notificationsSection
                 pilotSection
-                extrasSection
                 if model.isRealCrew {
                     crewSection
                         .id("crewTools")
@@ -127,10 +122,6 @@ struct SettingsView: View {
         .sheet(item: $premium) { ctx in
             PremiumSheet(context: ctx) { premium = nil }
         }
-        .navigationDestination(isPresented: $showCalendar) { CalendarView() }
-        .navigationDestination(isPresented: $showWingmates) { SquadronsView() }
-        .navigationDestination(isPresented: $showAnalytics) { AnalyticsView() }
-        .navigationDestination(isPresented: $showFeedback) { FeedbackView() }
         .onChange(of: recordRuns) { _, on in
             PreferencesStore.recordRuns = on
         }
@@ -196,43 +187,26 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                }
-            }
-        }
-    }
-
-    private var extrasSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ChamferedPanel(padding: 4) {
-                VStack(spacing: 0) {
-                    extraRow("Wingmates") {
-                        if model.isPremium { showWingmates = true } else { premium = .squadrons }
-                    } trailing: {
-                        if model.pendingFriends > 0 {
-                            Circle().fill(OrionColor.alarm).frame(width: 8, height: 8)
+                    if model.tier != .admin {
+                        hairline
+                        Button {
+                            Task {
+                                _ = await model.store.restore()
+                                restoreNote = model.store.lastError ?? (model.store.entitled ? "Gold Patrol active." : nil)
+                                if model.store.entitled { model.showPremiumToast() }
+                            }
+                        } label: {
+                            OrionListRow(label: "Already subscribed? Restore", chevron: true)
                         }
-                    }
-                    hairline
-                    extraRow("Patrol Calendar") { showCalendar = true }
-                    hairline
-                    extraRow("Analytics") {
-                        if model.isPremium { showAnalytics = true } else { premium = .analytics }
-                    }
-                    hairline
-                    extraRow("Feedback") { showFeedback = true }
-                    hairline
-                    extraRow("Already subscribed? Restore") {
-                        Task {
-                            _ = await model.store.restore()
-                            restoreNote = model.store.lastError ?? (model.store.entitled ? "Gold Patrol active." : nil)
-                            if model.store.entitled { model.showPremiumToast() }
-                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
-            Text("Use this if you paid on another device or reinstalled.")
-                .font(OrionFont.body(12, weight: .regular))
-                .foregroundStyle(OrionColor.dust)
+            if model.tier != .admin {
+                Text("Restore if you paid on another device or reinstalled.")
+                    .font(OrionFont.body(12, weight: .regular))
+                    .foregroundStyle(OrionColor.dust)
+            }
             if let restoreNote {
                 Text(restoreNote)
                     .font(OrionFont.body(13))
@@ -299,40 +273,30 @@ struct SettingsView: View {
                         .padding(.bottom, 8)
                     hairline
                     Button {
-                        if photosStatus != .granted {
+                        switch photosStatus {
+                        case .notAsked:
+                            Task { photosStatus = await ClipStore.requestPhotos() }
+                        case .notGranted:
                             ClipStore.openSystemSettings()
+                        case .granted:
+                            break
                         }
                     } label: {
-                        OrionListRow(label: "Photos access", value: photosStatus.rawValue)
+                        OrionListRow(label: "Photos access", value: photosStatus.rawValue, chevron: photosStatus != .granted)
                     }
                     .buttonStyle(.plain)
+                    Text("Needed for Save Clip. iOS lists ORION under Photos only after the first prompt.")
+                        .font(OrionFont.body(13, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
                 }
             }
         }
         .onAppear { photosStatus = ClipStore.photosStatus() }
-    }
-
-    private func extraRow<T: View>(_ title: String, action: @escaping () -> Void, @ViewBuilder trailing: () -> T) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(title)
-                    .font(OrionFont.body(13, weight: .bold))
-                    .foregroundStyle(OrionColor.hullGold)
-                    .tracking(1)
-                Spacer()
-                trailing()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(OrionColor.bronze)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: OrionLayout.minTap)
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            photosStatus = ClipStore.photosStatus()
         }
-        .buttonStyle(.plain)
-    }
-
-    private func extraRow(_ title: String, action: @escaping () -> Void) -> some View {
-        extraRow(title, action: action) { EmptyView() }
     }
 
     private var notificationsSection: some View {

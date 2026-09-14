@@ -45,6 +45,8 @@ final class AppModel: ObservableObject {
     @Published var pendingShare = false
     @Published var pendingCalendar = false
     @Published var pendingQaDayDetail = false
+    /// QA: after the day sheet opens, auto-tap its launch button (sheet dismiss, pop, play cover sequencing).
+    @Published var pendingQaDayLaunch = false
     @Published var pendingPremium: PremiumContext?
     @Published var pendingFeedback = false
     @Published var pendingWingmates = false
@@ -236,6 +238,8 @@ struct GameResult: Equatable {
     var clipSidecar: String? = nil
     var clipExt: String? = nil
     var patrolDate: String? = nil
+    /// Website share block (Patrol #, mutators, time, pts, peak, rank, medal). Daily runs only.
+    var shareText: String? = nil
 }
 
 enum PlayMode: String {

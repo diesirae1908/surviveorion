@@ -47,6 +47,7 @@
 		A1000029 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000029 /* StoreKit.framework */; };
 		A100002A /* Photos.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100002A /* Photos.framework */; };
 		A100002B /* patrol-complete.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B100002B /* patrol-complete.mp3 */; };
+		A100002D /* imperial-procession.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B100002D /* imperial-procession.mp3 */; };
 		A100002C /* PatrolCompleteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100002C /* PatrolCompleteSheet.swift */; };
 /* End PBXBuildFile section */
 
@@ -95,6 +96,7 @@
 		B1000029 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		B100002A /* Photos.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Photos.framework; path = System/Library/Frameworks/Photos.framework; sourceTree = SDKROOT; };
 		B100002B /* patrol-complete.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "patrol-complete.mp3"; path = "../../public/music/patrol-complete.mp3"; sourceTree = SOURCE_ROOT; };
+		B100002D /* imperial-procession.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "imperial-procession.mp3"; path = "../../public/music/imperial-procession.mp3"; sourceTree = SOURCE_ROOT; };
 		B100002C /* PatrolCompleteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatrolCompleteSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -158,6 +160,7 @@
 				B1000020 /* App.entitlements */,
 				B100001D /* empire-of-the-stars.mp3 */,
 				B100002B /* patrol-complete.mp3 */,
+				B100002D /* imperial-procession.mp3 */,
 				B1000010 /* Assets.xcassets */,
 				B1000011 /* LaunchScreen.storyboard */,
 				B1000012 /* Rajdhani-400.ttf */,
@@ -257,6 +260,7 @@
 				A1000015 /* dist in Resources */,
 				A100001B /* empire-of-the-stars.mp3 in Resources */,
 				A100002B /* patrol-complete.mp3 in Resources */,
+				A100002D /* imperial-procession.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

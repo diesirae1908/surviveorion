@@ -81,6 +81,8 @@ export function postNativeGameOver(payload: {
   clipBasename?: string | null;
   clipSidecar?: string | null;
   clipExt?: string | null;
+  /** Same pasteable block the website shares (Patrol #, mutators, stats). */
+  shareText?: string | null;
 }): void {
   if (!isNativePlay()) return;
   postNative({ type: "gameOver", ...payload });
