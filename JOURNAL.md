@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-13 night PT: TestFlight 1.0 (10) uploaded + attached to ASC 1.0
+
+- Commit `1026418` on `origin/main`. Render `surviveorion` deploy `dep-dajp517qj5pc73beaccg` live. `/api/config` serves `googleIosClientId`. `/api/patrol-mutators` returns real mutator names (e.g. GOLD DASH for 2026-09-13).
+- Archived from `.worktrees/fix-paywall-terms` at `1026418`: `xcodebuild archive` with `CURRENT_PROJECT_VERSION=10` CLI override, manual signing team `4R88D2NKUC`, profile "ORION App Store", session keychain `/tmp/orion-ios-native/tf9.keychain-db`. Archive `/tmp/orion-ios-native/ORION-b10.xcarchive`.
+- `altool --upload-app` delivery/build `1862eb71-6e2e-4ce9-8582-342487133377`. Processing `VALID`. `usesNonExemptEncryption:false`. Internal group `1c4f517b-f1cd-4f8b-a2a7-c770b0e09dfe`: `IN_BETA_TESTING`. Attached to App Store version 1.0 `cc936b94-bb8b-4d22-a4bc-183ee4fb1809` (state `PREPARE_FOR_SUBMISSION`). Not submitted for review.
+- Follow-ups for Lucas: eyeball Terms/Privacy row on paywall; confirm native Google sign-in E2E on device; fix `tf10_upload.py` `GROUP_ID` to full UUID (truncated id 404'd on first pass, fixed manually).
+
 ## 2026-09-13 night PT: Build 10 — paywall compliance, iPhone-only, native Google, TF fixes
 
 - Merged `origin/main` (`877c23f`, TF9 calendar/game-over/settings + incomplete b10 archive journal) into `.worktrees/fix-paywall-terms` / `fix/paywall-terms`. Supersedes the incomplete `ORION-b10.xcarchive` archived from that tip before export/upload.
