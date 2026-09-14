@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-14 afternoon PT: TestFlight 1.0 (13) uploaded + attached to ASC 1.0
+
+- Commit `9269d09` / implementation `2594e08` on `origin/main`. Cinematic web game-over on native (red veil + HTML overlay); no sheet on normal run end.
+- Archived with login keychain Distribution identity (session keychains in /tmp failed find-identity). Archive `/tmp/orion-ios-native/ORION-b13.xcarchive`, `CURRENT_PROJECT_VERSION=13`.
+- `altool` delivery/build `a32bb66d-24c7-4843-ba90-1f2ba0a0a007`. Processing `VALID`. Internal `IN_BETA_TESTING`. Attached to ASC 1.0 `cc936b94-bb8b-4d22-a4bc-183ee4fb1809`. Not submitted for review.
+- Follow-up for Lucas: install TF 13; confirm red fade + dancing drones + score/buttons + song, no sheet/home flash.
+
 ## 2026-09-14 evening PT: Build 13 — cinematic web game-over on native (TF13)
 
 - Branch `fix/gameover-cinematic` from `origin/main` (`45dc13c`). Lucas rejected Build 12's native `GameOverView` sheet pop-on: wants the crimson death veil + dancing drones, web HTML game-over on top, imperial-procession track, no separate sheet.
