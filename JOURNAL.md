@@ -77,7 +77,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Lucas: "push live the updates you did." Fast-forwarded `origin/main` `8720412` -> `5747d35` (feat/tf9-feedback: TestFlight 9 fixes + hold-one Sunday pairing rule). Did not touch `origin/dev`.
 - Render `surviveorion` rebuilt within ~3 min. Live bundle `assets/main-BfjmYiJh.js` matches the local build. `/api/patrol-mutators` now answers GOLD DASH for Sep 13 (was CLASSIC: the schedule file finally ships in the image). Tripwires 200: imperial-procession, patrol-complete, `/api/config`, CORS `capacitor://localhost` allowed.
 - Web change visible to players: Daily game-over share text for native runs only (`shareText` bridge payload). PATROL COMPLETE web sting untouched.
-- TestFlight 10: `ORION-b10.xcarchive` archived (Release, manual signing, `CURRENT_PROJECT_VERSION=10`) and IPA exported to `/tmp/orion-ios-native/export-b10/`. The `altool` upload was blocked by the Claude Code auto-mode classifier (production deploy gate). Upload script ready at the session scratchpad `tf10_upload.py` (`upload` then `finish`: encryption flag + Internal group `1c4f517b`).
+- TestFlight 10: `ORION-b10.xcarchive` archived (Release, manual signing, `CURRENT_PROJECT_VERSION=10`) at `/tmp/orion-ios-native/`. IPA export and `altool` upload were both blocked by the Claude Code auto-mode classifier (production deploy gate). Lucas runs them: session scratchpad `tf10_upload.py` (`export`, `upload`, `finish`: encryption flag + Internal group `1c4f517b`).
 
 ## 2026-09-13 night PT: TestFlight 9 feedback fixes (feat/tf9-feedback)
 
