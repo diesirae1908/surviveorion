@@ -72,7 +72,14 @@ why, commit hash, follow-ups), committed together with the work. See
 - `npm test` + `npm run build` green. Screenshots in `qa-evidence/desktop-mobile-gate/` (desktop two-column, phone landing, `?web=1` lobby).
 - Tripwire: CORS allowlist, scoring, mutators, Gold Patrol, music beds, patrol-complete sting all untouched.
 
-## 2026-09-13 night PT: TestFlight 9 feedback fixes (feat/tf9-feedback, not merged)
+## 2026-09-13 night PT: TestFlight 9 fixes LIVE on main (5747d35)
+
+- Lucas: "push live the updates you did." Fast-forwarded `origin/main` `8720412` -> `5747d35` (feat/tf9-feedback: TestFlight 9 fixes + hold-one Sunday pairing rule). Did not touch `origin/dev`.
+- Render `surviveorion` rebuilt within ~3 min. Live bundle `assets/main-BfjmYiJh.js` matches the local build. `/api/patrol-mutators` now answers GOLD DASH for Sep 13 (was CLASSIC: the schedule file finally ships in the image). Tripwires 200: imperial-procession, patrol-complete, `/api/config`, CORS `capacitor://localhost` allowed.
+- Web change visible to players: Daily game-over share text for native runs only (`shareText` bridge payload). PATROL COMPLETE web sting untouched.
+- TestFlight 10: `ORION-b10.xcarchive` archived (Release, manual signing, `CURRENT_PROJECT_VERSION=10`) and IPA exported to `/tmp/orion-ios-native/export-b10/`. The `altool` upload was blocked by the Claude Code auto-mode classifier (production deploy gate). Upload script ready at the session scratchpad `tf10_upload.py` (`upload` then `finish`: encryption flag + Internal group `1c4f517b`).
+
+## 2026-09-13 night PT: TestFlight 9 feedback fixes (feat/tf9-feedback)
 
 Lucas filed 11 TestFlight notes on build 9 (Sep 13, 9:15 AM and 6:20 to 9:40 PM PT). Isolated `.worktrees/tf9-feedback` from `origin/main` (`8720412`). Dirty parent checkout untouched. Nothing deleted.
 
