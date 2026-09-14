@@ -47,6 +47,11 @@ const PORT = Number(process.env.PORT ?? 8787);
 const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ??
   "846475365993-b9nmm32pqp6pinlkm9sm3cspthvsuceq.apps.googleusercontent.com";
+// Optional: a separate "iOS" type OAuth client (native apps can't use the Web
+// client's https redirect with ASWebAuthenticationSession). When set, the native
+// app signs in against this client id instead, and id_token verification accepts
+// either aud. Unset until Lucas creates the iOS client in Google Cloud console.
+const GOOGLE_IOS_CLIENT_ID = process.env.GOOGLE_IOS_CLIENT_ID || null;
 const SERVE_DIST = process.env.ORION_SERVE_DIST === "1";
 // Set ORION_ADMIN_KEY to unlock /admin + /api/admin/* (analytics, feedback).
 const ADMIN_KEY = process.env.ORION_ADMIN_KEY ?? "";
@@ -338,7 +343,8 @@ async function verifyGoogleToken(idToken) {
   );
   if (!res.ok) return null;
   const info = await res.json();
-  if (info.aud !== GOOGLE_CLIENT_ID) return null;
+  if (info.aud !== GOOGLE_CLIENT_ID && (!GOOGLE_IOS_CLIENT_ID || info.aud !== GOOGLE_IOS_CLIENT_ID))
+    return null;
   return info; // { sub, email, name, ... }
 }
 
@@ -352,7 +358,11 @@ const arenaCode = () => {
 
 const routes = {
   "GET /api/config": (req, res) => {
-    json(res, 200, { googleClientId: GOOGLE_CLIENT_ID, clerkPublishableKey: clerkPublishableKey() });
+    json(res, 200, {
+      googleClientId: GOOGLE_CLIENT_ID,
+      googleIosClientId: GOOGLE_IOS_CLIENT_ID,
+      clerkPublishableKey: clerkPublishableKey(),
+    });
   },
 
   "POST /api/auth/register": async (req, res) => {

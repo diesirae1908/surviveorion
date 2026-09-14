@@ -64,6 +64,11 @@ struct LoginResponse: Codable {
 
 struct AppConfig: Codable {
     var googleClientId: String
+    /// Set once Lucas creates a Google Cloud OAuth client of type "iOS" (see
+    /// NativeAuth.swift). Native sign-in uses this client id when present, since
+    /// the Web client's https redirect can't be intercepted by
+    /// ASWebAuthenticationSession. `nil` until the server has `GOOGLE_IOS_CLIENT_ID` set.
+    var googleIosClientId: String?
 }
 
 struct DailyHistoryEntry: Codable, Identifiable {

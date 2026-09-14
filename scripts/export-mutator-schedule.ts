@@ -1,6 +1,17 @@
 /**
- * Precompute Daily Patrol mutator name + subline for the iOS Home screen.
- * Uses the live selection functions so the app never reimplements the hash.
+ * Precompute Daily Patrol mutator name + subline for the iOS Home screen
+ * (bundled in the app) and for the community server's GET /api/patrol-mutators
+ * (bundled in the Docker image via `COPY server ./server`, see ../Dockerfile).
+ * Uses the live selection functions so neither copy reimplements the hash.
+ *
+ * Both copies must stay in sync: server/index.mjs's loadMutatorSchedule()
+ * only ever finds the iOS Resources copy on a local checkout (relative
+ * `../ios/...` path), never inside the production container, which has no
+ * ios/ directory at all. Without server/mutator-schedule.json, every date
+ * silently falls back to the "CLASSIC" placeholder for any signed-in client
+ * (native Patrol Calendar via the server call), even though the local,
+ * bundled iOS copy shows the real name. Run this script after any mutator
+ * schedule change and commit both output files.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -22,10 +33,12 @@ while (d <= UNTIL) {
   d = addCivilDays(d, 1);
 }
 
-const dest = path.resolve(
-  new URL(".", import.meta.url).pathname,
-  "../ios/App/App/Resources/mutator-schedule.json",
-);
-fs.mkdirSync(path.dirname(dest), { recursive: true });
-fs.writeFileSync(dest, JSON.stringify(out));
-console.log(`wrote ${Object.keys(out).length} days to ${dest}`);
+const dests = [
+  path.resolve(new URL(".", import.meta.url).pathname, "../ios/App/App/Resources/mutator-schedule.json"),
+  path.resolve(new URL(".", import.meta.url).pathname, "../server/mutator-schedule.json"),
+];
+for (const dest of dests) {
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(out));
+  console.log(`wrote ${Object.keys(out).length} days to ${dest}`);
+}

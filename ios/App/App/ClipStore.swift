@@ -22,6 +22,13 @@ enum ClipStore {
         access(PHPhotoLibrary.authorizationStatus(for: .addOnly))
     }
 
+    /// True until the system permission dialog has ever been shown. Once the
+    /// pilot has answered (granted or denied), asking again does nothing;
+    /// only Settings can change it from there.
+    static func photosNeverAsked() -> Bool {
+        PHPhotoLibrary.authorizationStatus(for: .addOnly) == .notDetermined
+    }
+
     static func requestPhotos() async -> PhotosAccess {
         access(await PHPhotoLibrary.requestAuthorization(for: .addOnly))
     }

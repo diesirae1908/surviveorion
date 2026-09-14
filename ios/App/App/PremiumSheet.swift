@@ -56,6 +56,10 @@ struct PremiumSheet: View {
                     }
                     .opacity(model.store.purchasing ? 0.60 : 1)
                     .allowsHitTesting(!model.store.purchasing)
+                    Text(renewalDisclosure)
+                        .font(OrionFont.body(12, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .multilineTextAlignment(.center)
                     if model.store.productsUnavailable {
                         Text("Premium unavailable")
                             .font(OrionFont.body(13))
@@ -83,8 +87,8 @@ struct PremiumSheet: View {
                             .multilineTextAlignment(.center)
                     }
                     HStack(spacing: 8) {
-                        Text("Terms")
-                            .foregroundStyle(OrionColor.dust.opacity(0.45))
+                        Link("Terms", destination: URL(string: "https://surviveorion.com/terms.html")!)
+                            .foregroundStyle(OrionColor.dust)
                         Text("·")
                             .foregroundStyle(OrionColor.dust)
                         Link("Privacy", destination: URL(string: "https://surviveorion.com/privacy.html")!)
@@ -99,6 +103,12 @@ struct PremiumSheet: View {
         .background(OrionColor.void.ignoresSafeArea())
         .presentationDetents([.large])
         .task { await model.store.refresh() }
+    }
+
+    private var renewalDisclosure: String {
+        let monthlyPrice = model.store.monthly?.displayPrice ?? "$1.99"
+        let yearlyPrice = model.store.yearly?.displayPrice ?? "$14.99"
+        return "Gold Patrol renews automatically at \(monthlyPrice) per month or \(yearlyPrice) per year until cancelled. Payment goes to your Apple Account at confirmation. Cancel anytime in Settings, at least 24 hours before the period ends."
     }
 
     private func benefit(_ icon: String, _ text: String) -> some View {

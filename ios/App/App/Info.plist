@@ -66,6 +66,22 @@
 				<string>orion</string>
 			</array>
 		</dict>
+		<dict>
+			<!-- Google Sign-In callback for the "iOS" type OAuth client (see
+			     NativeAuth.swift). Google's iOS clients always redirect to the
+			     reversed client id as a custom scheme. PLACEHOLDER must be
+			     replaced with the real client number once Lucas creates that
+			     OAuth client in Google Cloud console (client id looks like
+			     "861556726218-abc123.apps.googleusercontent.com", so the piece
+			     before ".apps.googleusercontent.com" goes here). Until then
+			     native Google sign-in cannot complete. -->
+			<key>CFBundleURLName</key>
+			<string>com.surviveorion.app.google</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.846475365993-k8im01ghtevbij90idmk50384mdfutc0</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

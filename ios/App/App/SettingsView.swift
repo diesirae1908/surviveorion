@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var appeared = false
     @State private var showGoogle = false
     @State private var googleClientId = ""
+    @State private var googleIosClientId: String?
     @State private var appleCoordinator = AppleSignInCoordinator()
     @State private var premium: PremiumContext?
     @State private var showManageSub = false
@@ -75,12 +76,14 @@ struct SettingsView: View {
             Task {
                 if let cfg = try? await APIClient.shared.config() {
                     googleClientId = cfg.googleClientId
+                    googleIosClientId = cfg.googleIosClientId
                 }
             }
         }
         .sheet(isPresented: $showGoogle) {
             GoogleSignInHost(
                 clientId: googleClientId,
+                iosClientId: googleIosClientId,
                 onToken: { token in
                     showGoogle = false
                     Task { await signInGoogle(token: token) }

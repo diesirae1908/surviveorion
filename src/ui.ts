@@ -1804,7 +1804,7 @@ export class Ui {
         this.el(
           "div",
           "field-hint center",
-          "Tilt steering: lean the phone to fly. A tribute to Tilt to Live.",
+          "Tilt steering: lean the phone to fly.",
         ),
       );
       const row = this.el("div", "toggles", "");

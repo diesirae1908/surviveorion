@@ -1,16 +1,17 @@
 import AuthenticationServices
 import SwiftUI
 import UIKit
-import WebKit
 
 struct GoogleSignInHost: UIViewControllerRepresentable {
     var clientId: String
+    var iosClientId: String?
     var onToken: (String) -> Void
     var onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> GoogleSignInController {
         let vc = GoogleSignInController()
         vc.clientId = clientId
+        vc.iosClientId = iosClientId
         vc.onToken = onToken
         vc.onCancel = onCancel
         return vc
@@ -18,102 +19,119 @@ struct GoogleSignInHost: UIViewControllerRepresentable {
 
     func updateUIViewController(_ vc: GoogleSignInController, context: Context) {
         vc.clientId = clientId
+        vc.iosClientId = iosClientId
         vc.onToken = onToken
         vc.onCancel = onCancel
     }
 }
 
 /// Google OAuth only. Never loads the live game (no Daily attempt spend).
-final class GoogleSignInController: UIViewController, WKNavigationDelegate {
+///
+/// Runs the flow in `ASWebAuthenticationSession` (a system-managed browser context)
+/// instead of an embedded `WKWebView`. Google's login pages block WKWebView's user
+/// agent outright (403 disallowed_useragent), which is what broke Google sign-in in
+/// the TestFlight build. `ASWebAuthenticationSession` presents as Google's own
+/// first-party page and can share the device's existing Google session
+/// (`prefersEphemeralWebBrowserSession = false`).
+///
+/// The prior flow's redirect_uri was `https://surviveorion.com/`, which only a Web
+/// type OAuth client accepts, and `ASWebAuthenticationSession` cannot intercept an
+/// `https` redirect without an associated domain (iOS 17.4's `.https(host:path:)`
+/// callback), which needs a server-hosted apple-app-site-association file (out of
+/// scope, no server change). A bare custom scheme on the Web client also doesn't
+/// work: Google's Web client type rejects non-https redirect URIs outright
+/// (redirect_uri_mismatch). The standard fix is a separate Google Cloud OAuth
+/// client of type "iOS", whose redirect is always the reversed client id as a
+/// custom URL scheme (e.g. `123-abc.apps.googleusercontent.com` becomes
+/// `com.googleusercontent.apps.123-abc`), which Google accepts without an explicit
+/// redirect allowlist entry. `iosClientId` comes from `/api/config`
+/// (`googleIosClientId`, server env `GOOGLE_IOS_CLIENT_ID`) once Lucas creates
+/// that client; the scheme is derived from it at runtime below, falling back to
+/// the existing web `clientId` (current behavior) when the iOS client isn't
+/// configured yet, in which case sign-in will still fail until it is. See the
+/// `CFBundleURLTypes` placeholder entry in `Info.plist` and the JOURNAL for the
+/// one manual step (drop in the real client number) once that client exists.
+final class GoogleSignInController: UIViewController, ASWebAuthenticationPresentationContextProviding {
     var clientId = ""
+    var iosClientId: String?
     var onToken: ((String) -> Void)?
     var onCancel: (() -> Void)?
 
-    private var webView: WKWebView!
     private var finished = false
+    private var session: ASWebAuthenticationSession?
     private let nonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+
+    private var effectiveClientId: String {
+        if let iosClientId, !iosClientId.isEmpty { return iosClientId }
+        return clientId
+    }
+
+    /// Google's "iOS" OAuth client type always redirects to the reversed client id
+    /// as a custom URL scheme. Built at runtime from whichever client id is in
+    /// play so nothing beyond the fixed `oauth2redirect` path is hardcoded.
+    private var redirectScheme: String? {
+        let suffix = ".apps.googleusercontent.com"
+        guard effectiveClientId.hasSuffix(suffix) else { return nil }
+        let prefix = effectiveClientId.dropLast(suffix.count)
+        guard !prefix.isEmpty else { return nil }
+        return "com.googleusercontent.apps.\(prefix)"
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 10 / 255, green: 10 / 255, blue: 18 / 255, alpha: 1)
+    }
 
-        let bar = UIToolbar()
-        bar.barStyle = .black
-        bar.translatesAutoresizingMaskIntoConstraints = false
-        let cancel = UIBarButtonItem(title: "Cancel", style: .plain, target: self, action: #selector(cancelTapped))
-        cancel.tintColor = UIColor(red: 1, green: 215 / 255, blue: 0, alpha: 1)
-        bar.items = [cancel, .flexibleSpace()]
-        view.addSubview(bar)
-
-        let config = WKWebViewConfiguration()
-        webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = self
-        webView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(webView)
-
-        NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            webView.topAnchor.constraint(equalTo: bar.bottomAnchor),
-            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
-
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard session == nil else { return }
         startOAuth()
     }
 
     private func startOAuth() {
+        guard let scheme = redirectScheme else {
+            cancelTapped()
+            return
+        }
+        let redirectUri = "\(scheme):/oauth2redirect"
         var comps = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
         comps.queryItems = [
-            URLQueryItem(name: "client_id", value: clientId),
-            URLQueryItem(name: "redirect_uri", value: "https://surviveorion.com/"),
+            URLQueryItem(name: "client_id", value: effectiveClientId),
+            URLQueryItem(name: "redirect_uri", value: redirectUri),
             URLQueryItem(name: "response_type", value: "id_token"),
             URLQueryItem(name: "scope", value: "openid email profile"),
             URLQueryItem(name: "nonce", value: nonce),
             URLQueryItem(name: "prompt", value: "select_account"),
         ]
-        guard let url = comps.url else { return }
-        webView.load(URLRequest(url: url))
+        guard let url = comps.url else {
+            cancelTapped()
+            return
+        }
+        let session = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme) { [weak self] callbackURL, error in
+            guard let self else { return }
+            if let callbackURL, let token = self.idToken(from: callbackURL) {
+                self.finish(token: token)
+                return
+            }
+            self.cancelTapped()
+        }
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        self.session = session
+        session.start()
+    }
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        view.window ?? UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow } ?? UIWindow()
     }
 
     @objc private func cancelTapped() {
         guard !finished else { return }
         finished = true
         onCancel?()
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.cancel)
-            return
-        }
-        if let token = idToken(from: url) {
-            decisionHandler(.cancel)
-            finish(token: token)
-            return
-        }
-        if let host = url.host?.lowercased() {
-            if host.contains("google.") || host.contains("gstatic.com") || host.contains("googleapis.com")
-                || host.contains("googleusercontent.com")
-            {
-                decisionHandler(.allow)
-                return
-            }
-            if host == "surviveorion.com" || host.hasSuffix(".surviveorion.com") {
-                decisionHandler(.cancel)
-                if let token = idToken(from: url) {
-                    finish(token: token)
-                }
-                return
-            }
-        }
-        decisionHandler(.cancel)
     }
 
     private func idToken(from url: URL) -> String? {

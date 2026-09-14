@@ -3,13 +3,15 @@ import Foundation
 
 /// Website menu bed (`public/music/empire-of-the-stars.mp3`), looping on native Home.
 @MainActor
-final class LobbyMusic {
+final class LobbyMusic: NSObject {
     static let shared = LobbyMusic()
 
     private var player: AVAudioPlayer?
     private var sting: AVAudioPlayer?
     private var gameOver: AVAudioPlayer?
     private var shouldPlay = true
+    /// Bed volume before it was ducked for the sting, so resume restores it exactly.
+    private var duckedBedVolume: Float?
 
     func prepare() {
         guard player == nil else { return }
@@ -33,11 +35,13 @@ final class LobbyMusic {
         shouldPlay = true
         stopGameOver()
         prepare()
+        unduckBed()
         player?.play()
     }
 
     func pause() {
         shouldPlay = false
+        unduckBed()
         player?.pause()
     }
 
@@ -47,6 +51,7 @@ final class LobbyMusic {
             return
         }
         prepare()
+        unduckBed()
         player?.play()
     }
 
@@ -78,7 +83,9 @@ final class LobbyMusic {
         gameOver = nil
     }
 
-    /// One-shot PATROL COMPLETE sting. Home bed keeps looping underneath.
+    /// One-shot PATROL COMPLETE sting. The bed goes silent underneath while it
+    /// plays (was audibly doubling with the sting, TestFlight build 9 feedback)
+    /// and comes back at its prior volume once the sting finishes.
     func playSting() {
         guard let url = Bundle.main.url(forResource: "patrol-complete", withExtension: "mp3") else {
             return
@@ -89,11 +96,33 @@ final class LobbyMusic {
             let p = try AVAudioPlayer(contentsOf: url)
             p.numberOfLoops = 0
             p.volume = 0.5
+            p.delegate = self
             p.prepareToPlay()
             sting = p
+            duckBed()
             p.play()
         } catch {
             sting = nil
+        }
+    }
+
+    private func duckBed() {
+        guard let bed = player, duckedBedVolume == nil else { return }
+        duckedBedVolume = bed.volume
+        bed.volume = 0
+    }
+
+    private func unduckBed() {
+        guard let restored = duckedBedVolume else { return }
+        player?.volume = restored
+        duckedBedVolume = nil
+    }
+}
+
+extension LobbyMusic: AVAudioPlayerDelegate {
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            self.unduckBed()
         }
     }
 }
