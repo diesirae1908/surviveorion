@@ -1277,7 +1277,10 @@ function onGameOver(): void {
     });
   }
   // Training Ground runs are unscored: no PBs, no run count, no submission
-  if (runIsTraining) return;
+  if (runIsTraining) {
+    if (IS_NATIVE_PLAY) showGameOverUi();
+    return;
+  }
   // instant wipeouts are free: a daily death inside the grace window hands
   // the attempt back so a botched start doesn't burn the day's budget
   runRefunded = DAILY_ONLY && runIsDaily && world.time < DAILY_FREE_DEATH_SECONDS;
@@ -1294,6 +1297,7 @@ function onGameOver(): void {
     bestTime = world.time;
     saveBestTime(bestTime, runGameMode);
   }
+  if (IS_NATIVE_PLAY) showGameOverUi();
 }
 
 async function emitNativePlayGameOver(medal: string | null): Promise<void> {

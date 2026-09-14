@@ -6,7 +6,6 @@ struct HomeView: View {
     @Environment(\.verticalSizeClass) private var vSize
     @State private var now = Date()
     @State private var playLaunch: PlayLaunch?
-    @State private var pendingGameResult: GameResult?
     @State private var showGameOver = false
     @State private var showSettings = false
     @State private var showBoard = false
@@ -196,11 +195,8 @@ struct HomeView: View {
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
         .fullScreenCover(item: $playLaunch, onDismiss: {
-            LobbyMusic.shared.play()
-            if let result = pendingGameResult {
-                model.lastResult = result
-                pendingGameResult = nil
-                showGameOver = true
+            if !showGameOver {
+                LobbyMusic.shared.play()
             }
             Task {
                 await model.refresh()
@@ -211,10 +207,10 @@ struct HomeView: View {
                 PlayView(launch: launch) { exit in
                     switch exit {
                     case .quit:
-                        pendingGameResult = nil
                         playLaunch = nil
                     case .finished(let result):
-                        pendingGameResult = result
+                        model.lastResult = result
+                        showGameOver = true
                         playLaunch = nil
                     }
                 }

@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-14 afternoon PT: Build 12 — game-over flash fix (TF12)
+
+- Branch `fix/gameover-flash` from `origin/main` (`61590b3`). iOS end-of-run felt clunky: crimson death veil (~2.4s), brief home lobby flash (empire-of-the-stars), then GameOver sheet + game-over song.
+- **Root cause:** Web canvas held death FX until `DEATH_UI_AT` before bridge `gameOver`; native `HomeView` deferred `showGameOver` to `fullScreenCover.onDismiss` and always called `LobbyMusic.shared.play()` there.
+- **Fix (`HomeView.swift`):** On `.finished`, set `model.lastResult`, `showGameOver = true`, then dismiss play cover. `onDismiss` plays lobby music only when `!showGameOver`. Removed `pendingGameResult` deferral.
+- **Fix (`main.ts`, `IS_NATIVE_PLAY` only):** `onGameOver()` calls `showGameOverUi()` immediately (training + scored runs); website death cinematic unchanged.
+- Verify: `npm test` pass, `npm run build` pass, `xcodebuild ... iPhone 17 Simulator` **BUILD SUCCEEDED**. Device TF is real proof for transition feel.
+
 ## 2026-09-14 morning PT: TestFlight 1.0 (11) uploaded + attached to ASC 1.0
 
 - Commit `9024fc3` on `origin/main`. Archived from `.worktrees/fix-google-pkce` at `9024fc3`: `xcodebuild archive` with `CURRENT_PROJECT_VERSION=11` CLI override, manual signing team `4R88D2NKUC`, profile "ORION App Store", session keychain `/tmp/orion-ios-native/tf9.keychain-db`. Archive `/tmp/orion-ios-native/ORION-b11.xcarchive`.
