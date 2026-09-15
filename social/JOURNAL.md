@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-09-15 PT: MENAGERIE mutator clip hosted + Buffer queue
+
+- Lucas authorized live Buffer (IG/TT/YT). Master copied (not moved) from
+  Downloads to `final_videoasset/0915_menagerie_916.mov`. HEVC remuxed to
+  H.264 yuv420p AAC, `movflags +faststart`, moov before mdat verified.
+  Hosted `public/social-drafts/0915_menagerie_916.mp4` (1080x1920 padded).
+- `calendar.json` row 2026-09-15 MENAGERIE: Linked + Scheduled. xlsx not
+  touched (parent checkout lock risk).
+- Buffer post IDs in root `JOURNAL.md` for this commit.
+
 ## 2026-09-02: Shared CORE prepended to AGENTS.md
 
 - Sam dispatch: prepended shared CORE from `~/Documents/Sam/knowledge/agent-core.md`
