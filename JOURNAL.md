@@ -4,6 +4,11 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-14 night PT: TF13 ASC feedback promoted to main
+
+- Fast-forward `origin/main` `293d45c` → `cd78b2c` (`feat/tf13-feedback`). Lucas authorized push main.
+- Native-only (home grid, premium CTA, paywall selection, splash alpha). Web bundle unchanged; Render will redeploy from main.
+
 ## 2026-09-14 evening PT: TF13 ASC screenshot feedback (feat/tf13-feedback)
 
 - Branch `feat/tf13-feedback` from `origin/main` (`293d45c`) in worktree `.worktrees/tf13-feedback`. Lucas ASC notes Sep 14 PT (builds 10/11/13).
