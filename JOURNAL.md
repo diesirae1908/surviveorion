@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-15 afternoon PT: MENAGERIE social clip hosted + Buffer queued
+
+- Commit `1a40350`: `public/social-drafts/0915_menagerie_916.mp4` (H.264
+  faststart, moov before mdat), `social/calendar.json` row 2026-09-15 Linked +
+  Scheduled. Master archive `final_videoasset/0915_menagerie_916.mov` (gitignored).
+- Deploy: GET `https://surviveorion.com/social-drafts/0915_menagerie_916.mp4`
+  200 `video/mp4` Content-Length 7081641.
+- Buffer `addToQueue` (Lucas authorized): IG `6aa9be0f9dfca6aa7bad0b13`, TT
+  `6aa9be11d94bc931c6b08781`, YT `6aa9be12c0e2827a4f4c4c1a` (all `scheduled`).
+
 ## 2026-09-14 night PT: TF13 ASC feedback promoted to main
 
 - Fast-forward `origin/main` `293d45c` → `cd78b2c` (`feat/tf13-feedback`). Lucas authorized push main.

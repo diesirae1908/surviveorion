@@ -8,7 +8,10 @@
   Hosted `public/social-drafts/0915_menagerie_916.mp4` (1080x1920 padded).
 - `calendar.json` row 2026-09-15 MENAGERIE: Linked + Scheduled. xlsx not
   touched (parent checkout lock risk).
-- Buffer post IDs in root `JOURNAL.md` for this commit.
+- Buffer `addToQueue` (status scheduled): IG `6aa9be0f9dfca6aa7bad0b13`,
+  TT `6aa9be11d94bc931c6b08781`, YT `6aa9be12c0e2827a4f4c4c1a`.
+  Media `https://surviveorion.com/social-drafts/0915_menagerie_916.mp4`.
+  Commit `1a40350` (+ journal follow-up).
 
 ## 2026-09-02: Shared CORE prepended to AGENTS.md
 
