@@ -454,7 +454,12 @@ struct HomeView: View {
     }
 
     private var launchButtons: some View {
-        VStack(spacing: 12) {
+        let secondaryColumns = [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12),
+        ]
+
+        return VStack(spacing: 12) {
             Button("Launch Patrol") { startPlay(.daily) }
                 .buttonStyle(OrionButtonStyle(kind: .primary, enabled: canLaunchDaily))
                 .disabled(!canLaunchDaily)
@@ -465,31 +470,33 @@ struct HomeView: View {
                             .blur(radius: 16)
                     }
                 }
-            Button("Training Ground") { startPlay(.training) }
-                .buttonStyle(OrionButtonStyle(kind: .secondary))
-            if model.attemptsLeft == 0 && !model.isPremium {
-                Button("Unlock Gold Patrol") { premium = .calendar }
+            LazyVGrid(columns: secondaryColumns, spacing: 12) {
+                Button("Training Ground") { startPlay(.training) }
                     .buttonStyle(OrionButtonStyle(kind: .secondary))
-            }
-            Button("Patrol Calendar") { openCalendar() }
-                .buttonStyle(OrionButtonStyle(kind: .secondary))
-            Button(action: openWingmates) {
-                HStack(spacing: 8) {
-                    Text("Wingmates")
-                    if !model.isPremium {
-                        PremiumLockGlyph()
-                    }
-                    if model.pendingFriends > 0 {
-                        Circle()
-                            .fill(OrionColor.alarm)
-                            .frame(width: 8, height: 8)
+                if model.attemptsLeft == 0 && !model.isPremium {
+                    Button("Unlock Gold Patrol") { premium = .calendar }
+                        .buttonStyle(OrionButtonStyle(kind: .secondary))
+                }
+                Button("Patrol Calendar") { openCalendar() }
+                    .buttonStyle(OrionButtonStyle(kind: .secondary))
+                Button(action: openWingmates) {
+                    HStack(spacing: 6) {
+                        Text("Wingmates")
+                        if !model.isPremium {
+                            PremiumLockGlyph()
+                        }
+                        if model.pendingFriends > 0 {
+                            Circle()
+                                .fill(OrionColor.alarm)
+                                .frame(width: 8, height: 8)
+                        }
                     }
                 }
-            }
-            .buttonStyle(OrionButtonStyle(kind: .secondary))
-            .accessibilityLabel(model.isPremium ? "Wingmates" : "Wingmates, Gold Patrol locked")
-            Button("Feedback") { showFeedback = true }
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
+                .accessibilityLabel(model.isPremium ? "Wingmates" : "Wingmates, Gold Patrol locked")
+                Button("Feedback") { showFeedback = true }
+                    .buttonStyle(OrionButtonStyle(kind: .secondary))
+            }
         }
     }
 

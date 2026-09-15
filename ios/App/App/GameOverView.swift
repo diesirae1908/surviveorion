@@ -161,9 +161,21 @@ struct GameOverView: View {
                     .font(OrionFont.body(14, weight: .regular))
                     .foregroundStyle(OrionColor.starlight)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Unlock Gold Patrol") { onUnlockArchive?() }
-                    .buttonStyle(OrionButtonStyle(kind: .secondary))
-                    .padding(.top, 4)
+                Button {
+                    onUnlockArchive?()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Unlock Gold Patrol")
+                    }
+                }
+                .buttonStyle(OrionButtonStyle(kind: .primary))
+                .padding(.top, 4)
+                .background {
+                    GoldBloom(diameter: 140)
+                        .offset(y: 4)
+                }
             }
         }
         .background {

@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-14 evening PT: TF13 ASC screenshot feedback (feat/tf13-feedback)
+
+- Branch `feat/tf13-feedback` from `origin/main` (`293d45c`) in worktree `.worktrees/tf13-feedback`. Lucas ASC notes Sep 14 PT (builds 10/11/13).
+- **A Home launch buttons:** `Launch Patrol` stays full-width primary; Training Ground, Unlock Gold Patrol (when shown), Patrol Calendar, Wingmates, Feedback move to a 2-column `LazyVGrid` (`HomeView.swift`).
+- **B Game-over Gold Patrol CTA:** Unlock button uses `OrionButtonStyle` primary + crown glyph + `GoldBloom` behind (`GameOverView.swift`). Share/Done unchanged.
+- **C Paywall plan selection:** Selected plan gets gold tint fill, 2.5pt hullGold border, checkmark + SELECTED cue; featured yearly no longer shares the selected stroke (`PremiumSheet.swift`). Default `yearly = true` unchanged.
+- **D Splash logo white square:** Near-white pixels made transparent on `GoldRing.png` (LaunchScreen) and all `Splash.imageset` PNGs. LaunchScreen storyboard already uses void black background.
+- Verify: `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'platform=iOS Simulator,name=iPhone 17' build` **BUILD SUCCEEDED**.
+- Follow-up: Sam review; merge to `main` + TF14 archive when Lucas approves. Device QA: launch splash, paywall monthly tap, game-over premium CTA, home button grid.
+
 ## 2026-09-14 afternoon PT: TestFlight 1.0 (13) uploaded + attached to ASC 1.0
 
 - Commit `9269d09` / implementation `2594e08` on `origin/main`. Cinematic web game-over on native (red veil + HTML overlay); no sheet on normal run end.

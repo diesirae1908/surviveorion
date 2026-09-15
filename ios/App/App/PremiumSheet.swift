@@ -135,6 +135,16 @@ struct PremiumSheet: View {
                         .padding(.vertical, 3)
                         .background(OrionColor.goldGradient, in: ChamferedRectangle(chamfer: 4))
                 }
+                if selected {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("SELECTED")
+                            .font(OrionFont.body(10, weight: .bold))
+                            .tracking(1)
+                    }
+                    .foregroundStyle(OrionColor.hullGold)
+                }
                 Text(title)
                     .font(OrionFont.display(22, weight: .bold))
                     .foregroundStyle(featured ? AnyShapeStyle(OrionColor.goldGradient) : AnyShapeStyle(OrionColor.starlight))
@@ -144,13 +154,26 @@ struct PremiumSheet: View {
             }
             .frame(maxWidth: .infinity, minHeight: 92)
             .padding(12)
-            .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 12))
+            .background {
+                ZStack {
+                    ChamferedRectangle(chamfer: 12)
+                        .fill(OrionColor.deepSpace)
+                    if selected {
+                        ChamferedRectangle(chamfer: 12)
+                            .fill(OrionColor.hullGold.opacity(0.10))
+                    }
+                }
+            }
             .overlay {
                 ChamferedRectangle(chamfer: 12)
-                    .strokeBorder(selected || featured ? OrionColor.hullGold.opacity(0.25) : OrionColor.hullLine, lineWidth: 1.5)
+                    .strokeBorder(
+                        selected ? OrionColor.hullGold : OrionColor.hullLine,
+                        lineWidth: selected ? 2.5 : 1.5
+                    )
             }
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func buy() async {
