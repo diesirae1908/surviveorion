@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-16 afternoon PT: Paywall StoreKit prices + TestFlight 1.0 (15) submitted
+
+- Lucas: paywall cards showed hardcoded USD while ASC charges local currency (e.g. CAD). Fix native paywall to use `Product.displayPrice`; compute yearly save % from StoreKit `price` when both plans load; game-over pitch uses same display prices. Commit `2865ac2` on `origin/main` (worktree `.worktrees/tf15-displayprice`, branch `fix/ios-paywall-displayprice`).
+- `npm ci` + `npm run build` (bundle `main-O2AXaoHA.js`). `xcodebuild archive` `CURRENT_PROJECT_VERSION=15`, team `4R88D2NKUC`, profile "ORION App Store", login keychain. Archive `/tmp/orion-ios-native/ORION-b15.xcarchive`.
+- `altool --upload-app` delivery/build `0bc63a20-e389-416a-89de-3936f249f159`. Processing `VALID`. `usesNonExemptEncryption:false`. Internal group `1c4f517b-f1cd-4f8b-a2a7-c770b0e09dfe`: `IN_BETA_TESTING`. Attached to App Store version 1.0 `cc936b94-bb8b-4d22-a4bc-183ee4fb1809`.
+- Submit API first failed `STATE_ERROR.APP_PRICING_REQUIRED` (no manual app price on schedule). Set free tier via `POST /v1/appPriceSchedules` (USA base, $0 app price). Then `reviewSubmissions` `2d348604-b729-4b40-bacd-7f7f5138b61c` + item for version 1.0; `submitted: true`. Version state `WAITING_FOR_REVIEW` (submitted 2026-09-16 ~12:36 PM PT). Subscriptions monthly `6811430559` / yearly `6811430281` remain `READY_TO_SUBMIT` in ASC (included with version per existing listing setup). DSA trader address still deferred per Lucas.
+
 ## 2026-09-16 early AM PT: TestFlight 1.0 (14) uploaded + attached to ASC 1.0
 
 - Commit `e62821b` on `origin/main` (includes TF13 ASC feedback `cd78b2c`, phone web play `3025630`). Worktree `.worktrees/tf14-upload` at `e62821b`. `npm ci` + `npm run build` (bundle `main-O2AXaoHA.js`).
