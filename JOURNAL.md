@@ -10,7 +10,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - `shouldShowPhoneLanding` always false; removed inline `index.html` early phone landing injection. `main.ts` PHONE_LANDING branches inert. CREW clip / FIELD UPDATE paths untouched.
 - Tests: `test-web-gate`, `test-native-play` assert phones boot lobby path.
 - Branch `feat/phone-web-playable` from `origin/main` (`e052043`), worktree `.worktrees/phone-web-playable`. Parent checkout left dirty.
-- Commit `ffdb71f`. `npm test` + `npm run build` green.
+- Commit `3025630`. `npm test` + `npm run build` green.
 
 ## 2026-09-15 afternoon PT: MENAGERIE social clip hosted + Buffer queued
 
