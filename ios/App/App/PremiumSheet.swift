@@ -42,14 +42,14 @@ struct PremiumSheet: View {
                     }
                     HStack(spacing: 12) {
                         planCard(
-                            title: "$1.99",
+                            title: monthlyPriceTitle,
                             sub: "per month",
                             selected: !yearly,
                             featured: false
                         ) { yearly = false }
                         planCard(
-                            title: "$14.99",
-                            sub: "per year, save 37%",
+                            title: yearlyPriceTitle,
+                            sub: yearlySubline,
                             selected: yearly,
                             featured: true
                         ) { yearly = true }
@@ -105,9 +105,35 @@ struct PremiumSheet: View {
         .task { await model.store.refresh() }
     }
 
+    private var monthlyPriceTitle: String {
+        model.store.monthly?.displayPrice ?? "$1.99"
+    }
+
+    private var yearlyPriceTitle: String {
+        model.store.yearly?.displayPrice ?? "$14.99"
+    }
+
+    private var yearlySubline: String {
+        guard let monthly = model.store.monthly, let yearly = model.store.yearly else {
+            return "per year"
+        }
+        let annualIfMonthly = monthly.price * 12
+        guard annualIfMonthly > 0 else { return "per year" }
+        let ratio = yearly.price / annualIfMonthly
+        let savings = (Decimal(1) - ratio) * 100
+        var rounded = Decimal()
+        var value = savings
+        NSDecimalRound(&rounded, &value, 0, .plain)
+        let pct = NSDecimalNumber(decimal: rounded).intValue
+        if pct > 0 {
+            return "per year, save \(pct)%"
+        }
+        return "per year"
+    }
+
     private var renewalDisclosure: String {
-        let monthlyPrice = model.store.monthly?.displayPrice ?? "$1.99"
-        let yearlyPrice = model.store.yearly?.displayPrice ?? "$14.99"
+        let monthlyPrice = monthlyPriceTitle
+        let yearlyPrice = yearlyPriceTitle
         return "Gold Patrol renews automatically at \(monthlyPrice) per month or \(yearlyPrice) per year until cancelled. Payment goes to your Apple Account at confirmation. Cancel anytime in Settings, at least 24 hours before the period ends."
     }
 

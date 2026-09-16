@@ -12,6 +12,7 @@ struct GameOverView: View {
     var onAnalytics: (() -> Void)? = nil
     var onUnlockArchive: (() -> Void)? = nil
 
+    @EnvironmentObject private var model: AppModel
     @Environment(\.verticalSizeClass) private var vSize
     @State private var scoreLanded = false
     @State private var sharePresented = false
@@ -142,6 +143,12 @@ struct GameOverView: View {
         }
     }
 
+    private var goldPitchPricing: String {
+        let monthly = model.store.monthly?.displayPrice ?? "$1.99"
+        let yearly = model.store.yearly?.displayPrice ?? "$14.99"
+        return "Unlimited Daily runs today, every past patrol, full analytics, wingmates. \(monthly) a month or \(yearly) a year."
+    }
+
     private var goldPitch: some View {
         ChamferedPanel(goldBorder: true, padding: 16) {
             VStack(alignment: .leading, spacing: 8) {
@@ -157,7 +164,7 @@ struct GameOverView: View {
                 Text("Fly every patrol.")
                     .font(OrionFont.display(22))
                     .foregroundStyle(OrionColor.goldGradient)
-                Text("Unlimited Daily runs today, every past patrol, full analytics, wingmates. $1.99 a month or $14.99 a year.")
+                Text(goldPitchPricing)
                     .font(OrionFont.body(14, weight: .regular))
                     .foregroundStyle(OrionColor.starlight)
                     .fixedSize(horizontal: false, vertical: true)
