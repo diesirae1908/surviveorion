@@ -1,6 +1,6 @@
 /**
- * Phone landing detection: override, native skip, UA + coarse fallback.
- * Run: npx tsx scripts/test-web-gate.ts
+ * Device classification + web gate helpers. Hard phone landing is disabled;
+ * shouldShowPhoneLanding is always false. Run: npx tsx scripts/test-web-gate.ts
  */
 import assert from "node:assert/strict";
 import {
@@ -37,7 +37,7 @@ const iphone = {
   innerWidth: 390,
 };
 
-assert.equal(shouldShowPhoneLanding(iphone), true);
+assert.equal(shouldShowPhoneLanding(iphone), false, "phones get lobby, not hard landing");
 assert.equal(shouldShowPhoneLanding({ ...iphone, search: "?web=1" }), false);
 assert.equal(shouldShowPhoneLanding({ ...iphone, sessionOverride: true }), false);
 assert.equal(shouldShowPhoneLanding({ ...iphone, nativePlay: true }), false);
@@ -69,4 +69,4 @@ assert.equal(
   false,
 );
 
-console.log("PASS  web gate detection (override, native skip, phone/tablet/desktop)");
+console.log("PASS  web gate (device class; phone landing disabled)");

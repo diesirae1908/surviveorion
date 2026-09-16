@@ -68,12 +68,10 @@ export function isBundledNativeOrigin(protocol: string): boolean {
   return protocol === "capacitor:" || protocol === "ionic:";
 }
 
-/** True only for phone-class web browsers that did not opt into the webapp. */
-export function shouldShowPhoneLanding(input: GateInput): boolean {
-  if (input.nativePlay || input.nativeApp) return false;
-  if (isBundledNativeOrigin(input.protocol)) return false;
-  if (queryFlag(input.search, "nativePlay", "daily")) return false;
-  if (queryFlag(input.search, "nativePlay", "training")) return false;
-  if (hasWebOverride(input.search, input.sessionOverride === true)) return false;
-  return classifyDevice(input) === "phone";
+/**
+ * Hard phone App Store landing is off (Lucas, 2026-09-15): web stays playable on
+ * phones; lobby App Store badge/CTA is the nudge. Kept for call sites + tests.
+ */
+export function shouldShowPhoneLanding(_input: GateInput): boolean {
+  return false;
 }

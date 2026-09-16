@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { parseNativeGoldPatrol, parseNativePlay, parseNativePlayDate } from "../src/native.ts";
+import { shouldShowPhoneLanding } from "../src/webGate.ts";
 
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
 const main = fs.readFileSync(path.join(ROOT, "src/main.ts"), "utf8");
@@ -25,6 +26,20 @@ assert.equal(parseNativePlayDate("?date=2026-13-40"), null);
 assert.equal(parseNativeGoldPatrol(""), false);
 assert.equal(parseNativeGoldPatrol("?nativePlay=daily"), false);
 assert.equal(parseNativeGoldPatrol("?nativePlay=daily&goldPatrol=1"), true);
+
+assert.equal(
+  shouldShowPhoneLanding({
+    search: "",
+    ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+    protocol: "https:",
+    nativePlay: false,
+    nativeApp: false,
+    coarsePointer: true,
+    innerWidth: 390,
+  }),
+  false,
+  "website iPhone boots intro/lobby, not App Store landing",
+);
 
 assert.match(main, /IS_NATIVE_PLAY/);
 assert.match(main, /clearScreens\(\)/);

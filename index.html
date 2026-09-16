@@ -48,31 +48,11 @@
     <canvas id="game"></canvas>
     <div id="ui"></div>
     <script>
-      /* Early phone gate: keep in sync with src/webGate.ts. Native play and
-         capacitor/ionic origins never land here. ?web=1 persists for the tab. */
+      /* ?web=1 legacy tab override (phones use normal lobby without it). */
       (function () {
         try {
           var q = new URLSearchParams(location.search);
           if (q.get("web") === "1") sessionStorage.setItem("orion_web_override", "1");
-          if (q.get("nativePlay") === "daily" || q.get("nativePlay") === "training") return;
-          if (location.protocol === "capacitor:" || location.protocol === "ionic:") return;
-          if (sessionStorage.getItem("orion_web_override") === "1") return;
-          var ua = navigator.userAgent || "";
-          var phone = /iPhone/i.test(ua) || (/Android/i.test(ua) && /Mobile/i.test(ua));
-          if (!phone) {
-            var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-            phone = !!(coarse && window.innerWidth < 700 && !/iPad/i.test(ua));
-          }
-          if (!phone) return;
-          document.documentElement.classList.add("orion-phone-landing");
-          var ui = document.getElementById("ui");
-          if (!ui) return;
-          ui.innerHTML =
-            '<div class="screen phone-landing">' +
-            '<h1 class="landing-headline">ORION is on iPhone.</h1>' +
-            '<p class="landing-subline">One patrol a day. Same swarm for every pilot.</p>' +
-            '<a class="landing-cta chamfer" href="https://apps.apple.com/app/id6811113450" target="_blank" rel="noopener">Get on iPhone</a>' +
-            "</div>";
         } catch (e) {}
       })();
     </script>

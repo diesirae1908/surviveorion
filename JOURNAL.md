@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-15 night PT: Phone web play (soft App Store nudge only)
+
+- Lucas: surviveorion.com phones were hard-gated to App Store landing; web should stay fully playable. Lobby App Store badge/CTA unchanged.
+- `shouldShowPhoneLanding` always false; removed inline `index.html` early phone landing injection. `main.ts` PHONE_LANDING branches inert. CREW clip / FIELD UPDATE paths untouched.
+- Tests: `test-web-gate`, `test-native-play` assert phones boot lobby path.
+- Branch `feat/phone-web-playable` from `origin/main` (`e052043`), worktree `.worktrees/phone-web-playable`. Parent checkout left dirty.
+- Commit `ffdb71f`. `npm test` + `npm run build` green.
+
 ## 2026-09-15 afternoon PT: MENAGERIE social clip hosted + Buffer queued
 
 - Commit `1a40350`: `public/social-drafts/0915_menagerie_916.mp4` (H.264
