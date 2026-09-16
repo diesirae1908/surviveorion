@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-16 early AM PT: TestFlight 1.0 (14) uploaded + attached to ASC 1.0
+
+- Commit `e62821b` on `origin/main` (includes TF13 ASC feedback `cd78b2c`, phone web play `3025630`). Worktree `.worktrees/tf14-upload` at `e62821b`. `npm ci` + `npm run build` (bundle `main-O2AXaoHA.js`).
+- `xcodebuild archive` with `CURRENT_PROJECT_VERSION=14`, manual signing team `4R88D2NKUC`, profile "ORION App Store", login keychain (Distribution). Archive `/tmp/orion-ios-native/ORION-b14.xcarchive`.
+- `altool --upload-app` delivery/build `0c4658d7-2611-42ac-9efa-bf58b641cd1e` (upload UUID same). Processing `VALID`. `usesNonExemptEncryption:false`. Internal group `1c4f517b-f1cd-4f8b-a2a7-c770b0e09dfe`: `IN_BETA_TESTING`. Attached to App Store version 1.0 `cc936b94-bb8b-4d22-a4bc-183ee4fb1809` (state `PREPARE_FOR_SUBMISSION`). Not submitted for review.
+- Follow-up for Lucas: device QA TF14 (home 2-col grid, paywall SELECTED state, splash transparency, cinematic game-over); confirm phone web lobby on surviveorion.com after next Render deploy.
+
 ## 2026-09-15 night PT: Phone web play (soft App Store nudge only)
 
 - Lucas: surviveorion.com phones were hard-gated to App Store landing; web should stay fully playable. Lobby App Store badge/CTA unchanged.
