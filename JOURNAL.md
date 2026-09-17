@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-17 evening PT: Web iOS parity UI phases 1+2 (staging)
+
+- Sam spec `Sam/tmp/orion-web-parity-p12-spec.md` on `origin/dev` (Stripe billing already on dev). Branch `feat/web-ios-parity` in worktree `.worktrees/web-ios-parity`.
+- **Lobby:** header tier chip (ACTIVATE / PREMIUM / CREW) before bell; free opens paywall, premium/crew open Settings. Removed lobby "Manage Gold Patrol subscription" button.
+- **Settings:** ACCOUNT section (tier badge, Go Premium or Manage row, profile/sign-in); CREW / GAMEPLAY / PILOT / PRIVACY regroup; billing portal reuses `onManageGoldPatrol`.
+- **Profile:** dropped Manage row for subscribers (Settings only); free keeps Unlock.
+- **Calendar v2:** weekly row list newest-first, gold strip, free past-day lock + paywall tap, inline detail v2 styling. Data still from `dailyHistory.ts` / `buildCalendarMonth`.
+- **CSS:** tier chip, settings panels, scrollbars (void track, bronze thumb), calendar v2 components.
+- `npm run build` green. Commit: `947f5f6`.
+
 ## 2026-09-17 evening PT: Stripe subscription item `current_period_end` (staging hotfix)
 
 - Stripe API now exposes billing period on **subscription items**, not always on the subscription root. `entitlementFromStripeSubscription` read root `current_period_end` → `0` → `premium_until=0` after test Checkout; lobby stayed on Unlock despite active `sub_…`.
