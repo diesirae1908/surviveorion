@@ -432,16 +432,7 @@ export class CommunityUi {
     body.appendChild(wingmates);
 
     if (!isNativeApp() && this.api.stripeBilling) {
-      if (this.api.stripeCustomer && this.api.premiumActive) {
-        body.appendChild(
-          this.button("Manage Gold Patrol subscription", false, () => {
-            void this.guard(error, async () => {
-              const url = await this.api.openStripePortal();
-              location.assign(url);
-            });
-          }),
-        );
-      } else if (!this.api.goldPatrolUnlimited) {
+      if (!this.api.goldPatrolUnlimited) {
         body.appendChild(
           this.button("Unlock Gold Patrol", false, () => {
             this.onBack();

@@ -1,7 +1,7 @@
 import type { BoardMode } from "./api";
 import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
-import type { DayInfo, DayStatus } from "./dailyHistory";
+import type { DayInfo } from "./dailyHistory";
 import { isTypingTarget } from "./input";
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
 import { archivePatrolTag, formatPatrolShort, nextPatrolMidnight, patrolDateStr } from "./patrolDate";
@@ -111,6 +111,10 @@ export interface MenuCommunity {
   pendingFriends?: number;
   /** Lucas-only: Record runs / Save clip / Send to inbox. Same allowlist as the inbox. */
   clipInbox?: boolean;
+  tier?: "free" | "premium" | "admin";
+  hasStripeCustomer?: boolean;
+  /** Website Stripe checkout configured (Go Premium row). */
+  webBillingEnabled?: boolean;
 }
 
 export interface GameOverStats {
@@ -270,8 +274,10 @@ export interface DailyLobbyInfo {
   showWebGoldPatrol?: boolean;
   /** Website: pilot can open Stripe Customer Portal. */
   showManageGoldPatrol?: boolean;
+  hasStripeCustomer?: boolean;
   /** Display prices from GET /api/config billing (checkout still uses Stripe price ids). */
   goldPatrolPrices?: { monthly: string; yearly: string };
+  tier?: "free" | "premium" | "admin";
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -330,6 +336,11 @@ export interface PatrolCalendarMonth {
   canFlyArchive?: boolean;
   /** Website: past days show Gold Patrol unlock instead of fly. */
   showWebGoldPatrol?: boolean;
+  /** Pacific patrol date (YYYY-MM-DD) for week headers and free-tier locks. */
+  todayDate: string;
+  attemptsLeft: number;
+  unlimitedDaily: boolean;
+  isPremiumOrAdmin: boolean;
 }
 
 const SENSE_LABEL: Record<SenseLevel, string> = {
@@ -770,6 +781,38 @@ export class Ui {
     return btn;
   }
 
+  private buildTierChip(
+    tier: "free" | "premium" | "admin",
+    onGoPremium: () => void,
+    openSettings: () => void,
+  ): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    if (tier === "free") {
+      btn.className = "lobby-icon-btn chamfer tier-chip tier-chip-free";
+      btn.title = "Activate Gold Patrol";
+      btn.setAttribute("aria-label", "Activate Gold Patrol");
+      btn.innerHTML =
+        `<svg class="tier-chip-icon" viewBox="0 0 24 24" aria-hidden="true">` +
+        `<path d="M4 18h16M5 18l-1.4-8.4L9 13l3-6 3 6 5.4-3.4L19 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>` +
+        `<span class="tier-chip-label">ACTIVATE</span>`;
+      btn.addEventListener("click", onGoPremium);
+    } else if (tier === "premium") {
+      btn.className = "lobby-icon-btn chamfer tier-chip tier-chip-premium";
+      btn.title = "Gold Patrol active";
+      btn.setAttribute("aria-label", "Gold Patrol active. Open Settings.");
+      btn.innerHTML = `<span class="tier-chip-label">PREMIUM</span>`;
+      btn.addEventListener("click", openSettings);
+    } else {
+      btn.className = "lobby-icon-btn chamfer tier-chip tier-chip-crew";
+      btn.title = "CREW";
+      btn.setAttribute("aria-label", "CREW access. Open Settings.");
+      btn.innerHTML = `<span class="tier-chip-label">CREW</span>`;
+      btn.addEventListener("click", openSettings);
+    }
+    return btn;
+  }
+
   /** CREW / clipInbox only. Same toggle as Settings "Recording mode". */
   private recordingModeIconBtn(): HTMLButtonElement {
     const btn = document.createElement("button");
@@ -1160,19 +1203,29 @@ export class Ui {
     if (info.creator) {
       icons.appendChild(this.recordingModeIconBtn());
     }
+    const lobbyTier: "free" | "premium" | "admin" =
+      info.tier ?? (info.unlimitedDaily ? "premium" : "free");
+    const openSettings = (): void =>
+      this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
+        callsign: info.callsign,
+        pendingFriends: info.pendingFriends,
+        clipInbox: info.creator,
+        tier: lobbyTier,
+        hasStripeCustomer: info.hasStripeCustomer,
+        webBillingEnabled: info.showWebGoldPatrol,
+      });
+    icons.appendChild(
+      this.buildTierChip(
+        lobbyTier,
+        () => this.cb.onUnlockGoldPatrol?.(),
+        openSettings,
+      ),
+    );
     icons.appendChild(this.lobbyIconBtn("bell", "Updates", () => this.openLatestFieldUpdate()));
     icons.appendChild(
       this.lobbyIconBtn("chat", "Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
     );
-    icons.appendChild(
-      this.lobbyIconBtn("gear", "Settings", () =>
-        this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
-          callsign: info.callsign,
-          pendingFriends: info.pendingFriends,
-          clipInbox: info.creator,
-        }),
-      ),
-    );
+    icons.appendChild(this.lobbyIconBtn("gear", "Settings", openSettings));
     header.appendChild(icons);
     screen.appendChild(header);
 
@@ -1290,12 +1343,6 @@ export class Ui {
       unlock.classList.add("chamfer", "gold-patrol-plan");
       upsell.appendChild(unlock);
       left.appendChild(upsell);
-    } else if (info.showManageGoldPatrol && this.cb.onManageGoldPatrol) {
-      const manage = this.button("Manage Gold Patrol subscription", false, () =>
-        this.cb.onManageGoldPatrol?.(),
-      );
-      manage.classList.add("small-btn", "chamfer");
-      left.appendChild(manage);
     }
 
     const util = this.el("div", "lobby-util-grid", "");
@@ -1407,74 +1454,186 @@ export class Ui {
     this.root.appendChild(screen);
   }
 
-  /** Short, glanceable label for a calendar day cell's status ring. */
-  private static readonly DAY_STATUS_LABEL: Record<DayStatus, string> = {
-    future: "",
-    "before-launch": "",
-    today: "TODAY",
-    completed: "FLOWN",
-    "completed-local-only": "FLOWN",
-    attempted: "STARTED",
-    missed: "MISSED",
-    untracked: "",
-  };
+  private formatCalendarDetailDate(dateStr: string): string {
+    const d = new Date(`${dateStr}T00:00:00.000Z`);
+    const wd = d
+      .toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
+      .toUpperCase();
+    const md = d
+      .toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+      .toUpperCase();
+    return `${wd} · ${md}`;
+  }
 
-  /** One calendar grid cell: day number, status ring, medal/mutator hints.
-   * Tapping fills `detail` with the full breakdown (mobile has no hover). */
-  private calendarDayCell(
+  private dayRowMutatorCopy(day: DayInfo): { name: string; sub: string } {
+    if (day.mutators.length === 0) {
+      return { name: "CLASSIC", sub: "The standard swarm. No mutator today." };
+    }
+    const m = day.mutators[0]!;
+    return { name: m.name.toUpperCase(), sub: m.subline };
+  }
+
+  private weekSectionLabel(
+    days: Array<DayInfo & { dayOfMonth: number }>,
+    todayDate: string,
+  ): string {
+    if (days.some((d) => d.date === todayDate)) return "THIS WEEK";
+    const start = days.reduce((a, b) => (a.date < b.date ? a : b));
+    const d = new Date(`${start.date}T00:00:00.000Z`);
+    const short = d
+      .toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+      .toUpperCase();
+    return `WEEK OF ${short}`;
+  }
+
+  private buildDayRowStatus(
     day: DayInfo & { dayOfMonth: number },
+    month: PatrolCalendarMonth,
+  ): HTMLElement {
+    const statusCol = this.el("div", "day-row-status", "");
+    const isPremium = month.isPremiumOrAdmin;
+    const lockedPast =
+      !isPremium && day.date < month.todayDate && day.status !== "today";
+    const showGoldLock =
+      lockedPast && (day.status === "missed" || day.status === "untracked");
+
+    if (day.status === "today") {
+      statusCol.appendChild(this.el("span", "status-chip status-chip-today", "TODAY"));
+      const attempts = this.el("span", "status-attempts", "");
+      if (month.unlimitedDaily) {
+        attempts.textContent = "∞";
+      } else {
+        attempts.textContent =
+          month.attemptsLeft === 1 ? "1 left" : `${month.attemptsLeft} left`;
+      }
+      statusCol.appendChild(attempts);
+      return statusCol;
+    }
+
+    if (
+      day.status === "completed" ||
+      day.status === "completed-local-only"
+    ) {
+      statusCol.appendChild(
+        this.el(
+          "span",
+          "day-row-score",
+          Math.floor(day.score ?? 0).toLocaleString(),
+        ),
+      );
+      if (day.medal) {
+        statusCol.appendChild(
+          this.el(
+            "span",
+            `day-row-medal day-row-medal-${day.medal}`,
+            MEDAL_LABEL[day.medal].toUpperCase(),
+          ),
+        );
+      } else if (day.rank !== undefined && day.rank !== null) {
+        statusCol.appendChild(this.el("span", "status-attempts", `#${day.rank}`));
+      }
+      return statusCol;
+    }
+
+    if (showGoldLock) {
+      statusCol.appendChild(this.el("span", "day-row-lock", "🔒"));
+      statusCol.appendChild(this.el("span", "status-chip status-chip-gold", "GOLD"));
+      return statusCol;
+    }
+
+    if (day.status === "attempted") {
+      statusCol.appendChild(
+        this.el("span", "status-chip status-chip-muted", "STARTED"),
+      );
+      return statusCol;
+    }
+    if (day.status === "missed") {
+      statusCol.appendChild(
+        this.el("span", "status-chip status-chip-muted", "MISSED"),
+      );
+      return statusCol;
+    }
+    if (day.status === "untracked") {
+      statusCol.appendChild(
+        this.el("span", "status-chip status-chip-muted", "NO RECORD"),
+      );
+      return statusCol;
+    }
+    if (day.status === "future") {
+      statusCol.appendChild(
+        this.el("span", "status-chip status-chip-rehearsal", "REHEARSAL"),
+      );
+      return statusCol;
+    }
+    return statusCol;
+  }
+
+  private buildCalendarDayRow(
+    day: DayInfo & { dayOfMonth: number },
+    month: PatrolCalendarMonth,
     detail: HTMLElement,
     handlers: { onPlayDay?: (date: string) => void },
-    canFlyArchive: boolean,
-    showWebGoldPatrol: boolean,
-  ): HTMLElement {
-    const cell = document.createElement("button");
-    cell.className = `calendar-day ${day.status}`;
-    cell.type = "button";
-    const statusLabel = Ui.DAY_STATUS_LABEL[day.status];
-    if (statusLabel) cell.title = statusLabel;
+    selectedRow: { el: HTMLButtonElement | null },
+  ): HTMLButtonElement {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `day-row chamfer${day.status === "today" ? " day-row-today" : ""}`;
+    const d = new Date(`${day.date}T00:00:00.000Z`);
+    const weekday = d
+      .toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
+      .toUpperCase();
+    const { name, sub } = this.dayRowMutatorCopy(day);
 
-    const num = this.el("span", "cal-daynum", String(day.dayOfMonth));
-    cell.appendChild(num);
+    const dateCol = this.el("div", "day-row-date", "");
+    dateCol.appendChild(this.el("span", "day-row-weekday", weekday));
+    dateCol.appendChild(this.el("span", "day-row-num", String(day.dayOfMonth)));
 
-    if (day.status === "completed" || day.status === "completed-local-only") {
-      cell.appendChild(this.el("span", "cal-medal", day.medal ? MEDAL_EMOJI[day.medal] : "✓"));
-    } else if (day.status === "attempted") {
-      cell.appendChild(this.el("span", "cal-mark", "•"));
-    } else if (day.status === "missed") {
-      cell.appendChild(this.el("span", "cal-mark", "×"));
-    }
-    if (day.mutators.length > 0) {
-      const dots = this.el("span", "cal-mutator-dots", "");
-      for (let i = 0; i < day.mutators.length; i++) dots.appendChild(this.el("span", "cal-mutator-dot", ""));
-      cell.appendChild(dots);
+    const mutCol = this.el("div", "day-row-mutator", "");
+    mutCol.appendChild(this.el("span", "day-row-name", name));
+    mutCol.appendChild(this.el("span", "day-row-sub", sub));
+
+    row.append(dateCol, mutCol, this.buildDayRowStatus(day, month));
+
+    const lockedPast =
+      !month.isPremiumOrAdmin &&
+      day.date < month.todayDate &&
+      day.status !== "today";
+    if (lockedPast) {
+      row.setAttribute("aria-label", "Locked. Requires Gold Patrol.");
     }
 
-    const interactive = day.status !== "future";
-    if (interactive) {
-      cell.addEventListener("click", () => {
-        cell.parentElement
-          ?.querySelectorAll(".calendar-day.selected")
-          .forEach((el) => el.classList.remove("selected"));
-        cell.classList.add("selected");
-        this.fillCalendarDayDetail(detail, day, handlers, canFlyArchive, showWebGoldPatrol);
-      });
-    } else {
-      cell.disabled = true;
+    const interactive = day.status !== "future" && day.status !== "before-launch";
+    if (!interactive) {
+      row.disabled = day.status === "future";
     }
-    return cell;
+
+    row.addEventListener("click", () => {
+      if (lockedPast) {
+        this.cb.onUnlockGoldPatrol?.();
+        return;
+      }
+      if (!interactive) return;
+      selectedRow.el?.classList.remove("day-row-selected");
+      row.classList.add("day-row-selected");
+      selectedRow.el = row;
+      this.fillCalendarDayDetail(
+        detail,
+        day,
+        handlers,
+        !!month.canFlyArchive,
+        !!month.showWebGoldPatrol,
+      );
+    });
+
+    return row;
   }
 
   /** Full breakdown for a tapped calendar day: mutator briefing (the FOMO
    * payoff for a missed day) plus whatever result data is available. */
   private dayDetailHtml(day: DayInfo & { dayOfMonth: number }): string {
-    const dateLabel = new Date(`${day.date}T00:00:00.000Z`).toLocaleDateString([], {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-    const parts: string[] = [`<div class="cal-detail-date">${dateLabel}</div>`];
+    const parts: string[] = [
+      `<div class="cal-detail-date">${this.formatCalendarDetailDate(day.date)}</div>`,
+    ];
 
     for (const m of day.mutators) {
       parts.push(
@@ -1542,6 +1701,7 @@ export class Ui {
     canFlyArchive: boolean,
     showWebGoldPatrol: boolean,
   ): void {
+    detail.hidden = false;
     detail.innerHTML = this.dayDetailHtml(day);
     const past =
       day.status === "completed" ||
@@ -1555,7 +1715,7 @@ export class Ui {
       const btn = this.button(replayed ? REPLAY_THIS_PATROL : FLY_THIS_PATROL, true, () =>
         handlers.onPlayDay!(day.date),
       );
-      btn.classList.add("launch", "cal-detail-fly");
+      btn.classList.add("launch", "chamfer", "cal-detail-fly");
       detail.appendChild(btn);
       return;
     }
@@ -1586,7 +1746,7 @@ export class Ui {
     this.clear();
     this.pauseBtn.style.display = "none";
 
-    const screen = this.el("div", "screen calendar-screen", "");
+    const screen = this.el("div", "screen calendar-screen calendar-screen-v2", "");
     this.makeSubmenu(screen, handlers.onBack);
     screen.appendChild(this.el("div", "heading gold small", "PATROL HISTORY"));
     screen.appendChild(this.el("div", "divider", ""));
@@ -1601,27 +1761,58 @@ export class Ui {
     nav.append(prev, this.el("span", "calendar-month-label", month.label), next);
     screen.appendChild(nav);
 
-    const grid = this.el("div", "calendar-grid", "");
-    for (const wd of ["Su", "M", "T", "W", "Th", "F", "Sa"]) {
-      grid.appendChild(this.el("div", "calendar-weekday", wd));
+    if (month.showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
+      const strip = document.createElement("button");
+      strip.type = "button";
+      strip.className = "gold-strip chamfer";
+      strip.appendChild(this.el("span", "gold-strip-icon", "♛"));
+      const copy = this.el("span", "gold-strip-copy", "");
+      copy.appendChild(this.el("span", "gold-strip-eyebrow", "GOLD PATROL"));
+      copy.appendChild(
+        this.el(
+          "span",
+          "gold-strip-title",
+          "Every past patrol. Unlimited daily runs.",
+        ),
+      );
+      strip.append(copy, this.el("span", "gold-strip-chevron", "›"));
+      strip.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.());
+      screen.appendChild(strip);
     }
-    const detail = this.el("div", "calendar-detail", "");
-    for (const week of month.weeks) {
-      for (const day of week) {
-        grid.appendChild(
-          day
-            ? this.calendarDayCell(
-                day,
-                detail,
-                handlers,
-                !!month.canFlyArchive,
-                !!month.showWebGoldPatrol,
-              )
-            : this.el("div", "calendar-day empty", ""),
+
+    const detail = this.el("div", "calendar-detail calendar-detail-v2 chamfer", "");
+    detail.hidden = true;
+    const selectedRow: { el: HTMLButtonElement | null } = { el: null };
+
+    const weekList = this.el("div", "week-list", "");
+    const reversedWeeks = [...month.weeks].reverse();
+    for (const week of reversedWeeks) {
+      const days = week
+        .filter((c): c is DayInfo & { dayOfMonth: number } => c !== null)
+        .slice()
+        .sort((a, b) => (a.date < b.date ? 1 : -1));
+      if (days.length === 0) continue;
+
+      const section = this.el("div", "week-section", "");
+      const header = this.el("div", "week-header", "");
+      header.appendChild(
+        this.el(
+          "span",
+          "week-header-label",
+          this.weekSectionLabel(days, month.todayDate),
+        ),
+      );
+      header.appendChild(this.el("span", "week-header-rule", ""));
+      section.appendChild(header);
+
+      for (const day of days) {
+        section.appendChild(
+          this.buildCalendarDayRow(day, month, detail, handlers, selectedRow),
         );
       }
+      weekList.appendChild(section);
     }
-    screen.appendChild(grid);
+    screen.appendChild(weekList);
 
     if (month.loading) {
       screen.appendChild(this.el("div", "field-hint center", "Syncing your account's record…"));
@@ -1639,10 +1830,6 @@ export class Ui {
       );
     }
     screen.appendChild(detail);
-
-    const back = this.button("Back", false, handlers.onBack);
-    back.classList.add("small-btn");
-    screen.appendChild(back);
 
     this.root.appendChild(screen);
   }
@@ -1777,6 +1964,49 @@ export class Ui {
     screen.appendChild(this.el("div", "heading gold small", "SETTINGS"));
     screen.appendChild(this.el("div", "divider", ""));
 
+    const tier: "free" | "premium" | "admin" = community?.tier ?? "free";
+
+    const accountSection = this.el("div", "settings-section", "");
+    accountSection.appendChild(this.el("div", "manual-title", "ACCOUNT"));
+    const accountPanel = this.el("div", "settings-panel chamfer", "");
+    const tierRow = this.el("div", "settings-row", "");
+    tierRow.appendChild(this.el("span", "settings-row-label", "ACCOUNT"));
+    const badgeClass =
+      tier === "admin"
+        ? "tier-badge tier-badge-crew"
+        : tier === "premium"
+          ? "tier-badge tier-badge-premium"
+          : "tier-badge tier-badge-free";
+    const badgeLabel = tier === "admin" ? "CREW" : tier === "premium" ? "PREMIUM" : "FREE";
+    tierRow.appendChild(this.el("span", badgeClass, badgeLabel));
+    accountPanel.appendChild(tierRow);
+
+    const showGoPremium =
+      tier === "free" && community?.webBillingEnabled && this.cb.onUnlockGoldPatrol;
+    const showManage =
+      tier === "premium" && community?.hasStripeCustomer && this.cb.onManageGoldPatrol;
+    if (showGoPremium || showManage) {
+      accountPanel.appendChild(this.el("div", "settings-hairline", ""));
+      if (showGoPremium) {
+        const go = document.createElement("button");
+        go.type = "button";
+        go.className = "settings-row settings-row-link";
+        go.innerHTML =
+          `<span>Go Premium: unlock Gold Patrol</span><span class="settings-row-chevron">›</span>`;
+        go.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.());
+        accountPanel.appendChild(go);
+      } else if (showManage) {
+        const manage = document.createElement("button");
+        manage.type = "button";
+        manage.className = "settings-row settings-row-link";
+        manage.innerHTML =
+          `<span>Manage Gold Patrol subscription</span><span class="settings-row-chevron">›</span>`;
+        manage.addEventListener("click", () => this.cb.onManageGoldPatrol?.());
+        accountPanel.appendChild(manage);
+      }
+    }
+    accountSection.appendChild(accountPanel);
+
     if (community?.callsign) {
       const profile = this.el(
         "button",
@@ -1784,79 +2014,28 @@ export class Ui {
         `Pilot profile · ${escapeHtml(sanitizeCallsignForDisplay(community.callsign))}`,
       );
       profile.addEventListener("click", () => this.cb.onProfile());
-      screen.appendChild(profile);
-      screen.appendChild(
+      accountSection.appendChild(profile);
+      accountSection.appendChild(
         this.el("div", "field-hint center", "Country, wingmates, and sign out live here."),
       );
     } else {
       const signIn = this.el("button", "link-btn", "Sign in");
       signIn.addEventListener("click", () => this.cb.onCrewSignIn());
-      screen.appendChild(signIn);
-      screen.appendChild(
-        this.el("div", "field-hint center", "Optional. Needed to save a score to the board from a new device."),
-      );
-    }
-
-    screen.appendChild(this.toggleRow([
-      ["sound", "Sound"],
-      ["music", "Music"],
-      ["screenShake", "Shake"],
-      ["inertia", "Inertia"],
-    ]));
-
-    // sensitivity knobs
-    const senseRow = this.el("div", "toggles", "");
-    senseRow.appendChild(this.senseButton("directSpeed", "Direct speed"));
-    if (touchDevice && this.cb.getControls().tiltSupported) {
-      senseRow.appendChild(this.senseButton("tiltSensitivity", "Tilt sense"));
-    }
-    screen.appendChild(senseRow);
-
-    screen.appendChild(
-      this.el(
-        "div",
-        "field-hint center",
-        "Direct control is the default: the ship goes where you point. " +
-          "Inertia ON adds thrust-and-drift piloting for flavor. Leaderboards don't care either way.",
-      ),
-    );
-
-    // Recording is Lucas-only (same allowlist as Send to inbox). Other
-    // pilots never see the toggle or a clip download.
-    if (community?.clipInbox) {
-      if (recordingSupported()) {
-        screen.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
-        screen.appendChild(
-          this.el(
-            "div",
-            "field-hint center",
-            "Saves a local clip of each run. Send to inbox posts the webm and JSON pair for Grok. " +
-              "A quick toggle also shows up on the game-over screen after a run.",
-          ),
-        );
-      } else {
-        const row = this.el("div", "toggles", "");
-        const dead = document.createElement("button");
-        dead.textContent = "Record runs: unavailable";
-        dead.disabled = true;
-        dead.classList.add("off");
-        row.appendChild(dead);
-        screen.appendChild(row);
-        screen.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
-      }
-      screen.appendChild(this.toggleRow([["recordingMode", "Recording mode"]]));
-      screen.appendChild(
+      accountSection.appendChild(signIn);
+      accountSection.appendChild(
         this.el(
           "div",
           "field-hint center",
-          "Capture menus and game over, not just the run. Desktop Chrome: pick this tab when asked.",
+          "Optional. Needed to save a score to the board from a new device.",
         ),
       );
     }
+    screen.appendChild(accountSection);
 
     const manualTitle = this.el("div", "manual-title", "FLIGHT MANUAL");
     const manual = this.el("div", "manual", "");
-    const paintManual = (): void => {
+    let paintManual: () => void;
+    paintManual = (): void => {
       const controls = this.cb.getControls();
       const binds = this.cb.getKeyBindings();
       const rows = touchDevice
@@ -1893,15 +2072,71 @@ export class Ui {
     };
     paintManual();
 
-    // re-paint the flight manual when Inertia is flipped
-    const inertiaBtn = [...screen.querySelectorAll(".toggles button")].find((b) =>
-      (b as HTMLButtonElement).textContent?.startsWith("Inertia"),
-    );
-    inertiaBtn?.addEventListener("click", () => paintManual());
+    if (community?.clipInbox) {
+      const crewSection = this.el("div", "settings-section", "");
+      crewSection.appendChild(this.el("div", "manual-title", "CREW"));
+      const crewPanel = this.el("div", "settings-panel settings-panel-crew chamfer", "");
+      if (recordingSupported()) {
+        crewPanel.appendChild(this.toggleRow([["recordRuns", "Record runs"]]));
+        crewSection.appendChild(
+          this.el(
+            "div",
+            "field-hint center",
+            "Saves a local clip of each run. Send to inbox posts the webm and JSON pair for Grok. " +
+              "A quick toggle also shows up on the game-over screen after a run.",
+          ),
+        );
+      } else {
+        const row = this.el("div", "toggles", "");
+        const dead = document.createElement("button");
+        dead.textContent = "Record runs: unavailable";
+        dead.disabled = true;
+        dead.classList.add("off");
+        row.appendChild(dead);
+        crewPanel.appendChild(row);
+        crewSection.appendChild(this.el("div", "field-hint center", recordingUnavailableReason()));
+      }
+      crewPanel.appendChild(this.toggleRow([["recordingMode", "Recording mode"]]));
+      crewSection.appendChild(crewPanel);
+      crewSection.appendChild(
+        this.el(
+          "div",
+          "field-hint center",
+          "Capture menus and game over, not just the run. Desktop Chrome: pick this tab when asked.",
+        ),
+      );
+      screen.appendChild(crewSection);
+    }
 
-    // control scheme picker (touch devices with a motion sensor only)
+    const gameplaySection = this.el("div", "settings-section", "");
+    gameplaySection.appendChild(this.el("div", "manual-title", "GAMEPLAY"));
+    gameplaySection.appendChild(
+      this.toggleRow([
+        ["sound", "Sound"],
+        ["music", "Music"],
+        ["screenShake", "Shake"],
+        ["inertia", "Inertia"],
+      ]),
+    );
+
+    const senseRow = this.el("div", "toggles", "");
+    senseRow.appendChild(this.senseButton("directSpeed", "Direct speed"));
     if (touchDevice && this.cb.getControls().tiltSupported) {
-      screen.appendChild(
+      senseRow.appendChild(this.senseButton("tiltSensitivity", "Tilt sense"));
+    }
+    gameplaySection.appendChild(senseRow);
+
+    gameplaySection.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Direct control is the default: the ship goes where you point. " +
+          "Inertia ON adds thrust-and-drift piloting for flavor. Leaderboards don't care either way.",
+      ),
+    );
+
+    if (touchDevice && this.cb.getControls().tiltSupported) {
+      gameplaySection.appendChild(
         this.el(
           "div",
           "field-hint center",
@@ -1917,7 +2152,7 @@ export class Ui {
         setTimeout(() => (recal.textContent = "Recalibrate tilt"), 1200);
       });
       recal.classList.add("small-btn");
-      const paint = (): void => {
+      const paintControls = (): void => {
         const mode = this.cb.getControls().mode;
         tiltBtn.textContent = `Tilt: ${mode === "tilt" ? "ON" : "OFF"}`;
         tiltBtn.classList.toggle("off", mode !== "tilt");
@@ -1926,27 +2161,35 @@ export class Ui {
         recal.style.display = mode === "tilt" ? "" : "none";
         paintManual();
       };
-      tiltBtn.addEventListener("click", () => void this.cb.onControlModeChange("tilt").then(paint));
-      stickBtn.addEventListener("click", () => void this.cb.onControlModeChange("stick").then(paint));
-      paint();
+      tiltBtn.addEventListener("click", () => void this.cb.onControlModeChange("tilt").then(paintControls));
+      stickBtn.addEventListener("click", () => void this.cb.onControlModeChange("stick").then(paintControls));
+      paintControls();
       row.append(tiltBtn, stickBtn);
-      screen.appendChild(row);
-      screen.appendChild(recal);
+      gameplaySection.appendChild(row);
+      gameplaySection.appendChild(recal);
     }
+    screen.appendChild(gameplaySection);
 
-    screen.appendChild(manualTitle);
-    screen.appendChild(manual);
+    // re-paint the flight manual when Inertia is flipped
+    const inertiaBtn = [...screen.querySelectorAll(".toggles button")].find((b) =>
+      (b as HTMLButtonElement).textContent?.startsWith("Inertia"),
+    );
+    inertiaBtn?.addEventListener("click", () => paintManual());
 
-    // key bindings editor (desktop / keyboard players)
+    const pilotSection = this.el("div", "settings-section", "");
+    pilotSection.appendChild(this.el("div", "manual-title", "PILOT"));
+    pilotSection.appendChild(manualTitle);
+    pilotSection.appendChild(manual);
+
     if (!touchDevice) {
-      screen.appendChild(this.el("div", "manual-title", "KEY BINDINGS"));
-      screen.appendChild(this.buildKeybindEditor(paintManual));
-      screen.appendChild(
+      pilotSection.appendChild(this.el("div", "manual-title", "KEY BINDINGS"));
+      pilotSection.appendChild(this.buildKeybindEditor(paintManual));
+      pilotSection.appendChild(
         this.el("div", "field-hint center", "Click a binding, then press a key. Esc cancels."),
       );
     }
 
-    screen.appendChild(
+    pilotSection.appendChild(
       this.el(
         "div",
         "hint",
@@ -1955,7 +2198,7 @@ export class Ui {
     );
 
     if (isNativeApp()) {
-      screen.appendChild(this.el("div", "manual-title", "REMINDERS"));
+      pilotSection.appendChild(this.el("div", "manual-title", "REMINDERS"));
       const notifRow = this.el("div", "toggles", "");
       const dailyBtn = document.createElement("button");
       const streakBtn = document.createElement("button");
@@ -1974,8 +2217,8 @@ export class Ui {
       });
       paintNotif();
       notifRow.append(dailyBtn, streakBtn);
-      screen.appendChild(notifRow);
-      screen.appendChild(
+      pilotSection.appendChild(notifRow);
+      pilotSection.appendChild(
         this.el(
           "div",
           "field-hint center",
@@ -1983,16 +2226,20 @@ export class Ui {
         ),
       );
     }
+    screen.appendChild(pilotSection);
 
+    const privacySection = this.el("div", "settings-section", "");
+    privacySection.appendChild(this.el("div", "manual-title", "PRIVACY"));
     const privacy = this.el("button", "link-btn", "Privacy policy");
     privacy.addEventListener("click", () => openPrivacyPolicy());
-    screen.appendChild(privacy);
+    privacySection.appendChild(privacy);
 
     const feedback = this.button("Send feedback", false, () =>
       this.showFeedback(() => this.showSettings(touchDevice, onBack, community)),
     );
     feedback.classList.add("small-btn");
-    screen.appendChild(feedback);
+    privacySection.appendChild(feedback);
+    screen.appendChild(privacySection);
 
     const back = this.button("Back", false, onBack);
     back.classList.add("small-btn");

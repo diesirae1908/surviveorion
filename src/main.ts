@@ -104,7 +104,7 @@ import {
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { World } from "./types";
-import { deriveGameOverRank, Ui, type CalendarCell, type PatrolCalendarMonth } from "./ui";
+import { deriveGameOverRank, Ui, type CalendarCell, type MenuCommunity, type PatrolCalendarMonth } from "./ui";
 import { consumeWebOverride, shouldShowPhoneLanding } from "./webGate";
 
 type AppState =
@@ -785,6 +785,17 @@ const community = new CommunityUi(
   },
 );
 
+function menuCommunityExtras(): Pick<
+  MenuCommunity,
+  "tier" | "hasStripeCustomer" | "webBillingEnabled"
+> {
+  return {
+    tier: api.tier,
+    hasStripeCustomer: api.stripeCustomer,
+    webBillingEnabled: webStripeBillingAvailable(),
+  };
+}
+
 function showMenu(): void {
   if (PHONE_LANDING) {
     ui.showPhoneLanding();
@@ -820,6 +831,8 @@ function showMenu(): void {
       showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
       showManageGoldPatrol:
         webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
+      hasStripeCustomer: api.stripeCustomer,
+      tier: api.tier,
       goldPatrolPrices: webGoldPatrolPrices(),
     });
     fillDailyHint();
@@ -833,6 +846,7 @@ function showMenu(): void {
     callsign: api.online ? (api.user?.callsign ?? undefined) : null,
     pendingFriends: api.pendingFriends,
     clipInbox: api.clipInbox,
+    ...menuCommunityExtras(),
   });
   fillDailyHint();
 }
@@ -1040,6 +1054,7 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
   const beforeMin = key.year < bounds.min.year || (key.year === bounds.min.year && key.month <= bounds.min.month);
   const afterMax = key.year > bounds.max.year || (key.year === bounds.max.year && key.month >= bounds.max.month);
 
+  const attempts = loadDailyAttempts();
   return {
     label: monthLabel(key.year, key.month),
     weeks,
@@ -1050,6 +1065,10 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
     serverUnavailable,
     canFlyArchive: unlimitedDailyRuns(),
     showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
+    todayDate: today,
+    attemptsLeft: Math.max(0, DAILY_MAX_ATTEMPTS - attempts.used),
+    unlimitedDaily: unlimitedDailyRuns(),
+    isPremiumOrAdmin: unlimitedDailyRuns(),
   };
 }
 
