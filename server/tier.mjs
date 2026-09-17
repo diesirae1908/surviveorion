@@ -7,6 +7,8 @@ import { isValidUtcDateStr } from "./dateUtils.mjs";
 export const PREMIUM_PRODUCTS = new Set([
   "com.surviveorion.app.premium.monthly",
   "com.surviveorion.app.premium.yearly",
+  "stripe.gold_patrol.monthly",
+  "stripe.gold_patrol.yearly",
 ]);
 
 export function userTier(user) {

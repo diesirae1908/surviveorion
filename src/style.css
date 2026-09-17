@@ -492,6 +492,28 @@ button.launch:disabled {
   border-color: rgba(200, 220, 255, 0.7);
 }
 
+.gold-patrol-lobby-upsell {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  background: rgba(42, 34, 16, 0.45);
+}
+
+.gold-patrol-lobby-upsell .manual-title {
+  margin-bottom: 6px;
+}
+
+button.gold-patrol-plan {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.screen.gold-patrol-paywall button.gold-patrol-plan {
+  display: block;
+  width: min(100%, 320px);
+  margin: 8px auto;
+}
+
 /* Daily Patrol menu button: the calendar hook, styled as a mission card */
 .daily-btn {
   min-width: 0;

@@ -94,8 +94,12 @@ export interface UiCallbacks {
   onCrewSignIn: () => void;
   /** Open a public pilot record (daily board rows, with wingmate actions). */
   onPilot: (callsign: string) => void;
-  /** Native play: open the Gold Patrol paywall sheet. */
+  /** Native play: open the Gold Patrol paywall sheet. Web: open Stripe paywall. */
   onUnlockGoldPatrol?: () => void;
+  /** Web Gold Patrol: start Stripe Checkout for monthly or yearly. */
+  onGoldPatrolWebCheckout?: (plan: "monthly" | "yearly") => void;
+  /** Web: open Stripe Customer Portal (manage/cancel). */
+  onManageGoldPatrol?: () => void;
   /** Native play: leave play and open native Analytics. */
   onNativeAnalytics?: () => void;
 }
@@ -262,6 +266,12 @@ export interface DailyLobbyInfo {
   pendingFriends?: number;
   /** Gold Patrol / admin: Daily launch stays open after the free 3-attempt cap. */
   unlimitedDaily?: boolean;
+  /** Website: show Gold Patrol upsell (Stripe checkout configured). */
+  showWebGoldPatrol?: boolean;
+  /** Website: pilot can open Stripe Customer Portal. */
+  showManageGoldPatrol?: boolean;
+  /** Display prices from GET /api/config billing (checkout still uses Stripe price ids). */
+  goldPatrolPrices?: { monthly: string; yearly: string };
 }
 
 /** One row of the daily-only lobby's inline leaderboard (all devices merged). */
@@ -318,6 +328,8 @@ export interface PatrolCalendarMonth {
   serverUnavailable: boolean;
   /** Gold Patrol / admin: past-day Fly / Replay CTAs are live. Free: no launch. */
   canFlyArchive?: boolean;
+  /** Website: past days show Gold Patrol unlock instead of fly. */
+  showWebGoldPatrol?: boolean;
 }
 
 const SENSE_LABEL: Record<SenseLevel, string> = {
@@ -490,7 +502,11 @@ export class Ui {
     const primary = this.button("See You Tomorrow", true, () => this.hidePatrolComplete());
     primary.classList.add("chamfer");
     card.appendChild(primary);
-    if (APP_STORE_LIVE) {
+    if (this.cb.onUnlockGoldPatrol) {
+      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());
+      unlock.classList.add("small-btn", "chamfer", "patrol-complete-unlock");
+      card.appendChild(unlock);
+    } else if (APP_STORE_LIVE) {
       const store = document.createElement("a");
       store.className = "patrol-complete-store chamfer";
       store.href = APP_STORE_URL;
@@ -501,6 +517,42 @@ export class Ui {
     }
     catcher.appendChild(card);
     this.root.appendChild(catcher);
+  }
+
+  /**
+   * Web Gold Patrol paywall: monthly vs yearly before Stripe Checkout redirect.
+   */
+  showGoldPatrolPaywall(
+    prices: { monthly: string; yearly: string },
+    onSelect: (plan: "monthly" | "yearly") => void,
+    onBack: () => void,
+  ): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+    const screen = this.el("div", "screen gold-patrol-paywall", "");
+    this.makeSubmenu(screen, onBack);
+    screen.appendChild(this.el("div", "heading gold small", "GOLD PATROL"));
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Unlimited Daily runs on web, plus every past patrol in the calendar.",
+      ),
+    );
+    screen.appendChild(this.el("div", "divider", ""));
+    const monthly = this.button(`Monthly · ${prices.monthly}`, true, () => onSelect("monthly"));
+    monthly.classList.add("chamfer", "gold-patrol-plan");
+    const yearly = this.button(`Yearly · ${prices.yearly}`, false, () => onSelect("yearly"));
+    yearly.classList.add("chamfer", "gold-patrol-plan");
+    screen.append(monthly, yearly);
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Secure checkout by Stripe (USD). Manage or cancel anytime from your pilot profile.",
+      ),
+    );
+    this.root.appendChild(screen);
   }
 
   private toggleRow(keys: Array<[BooleanSetting, string]>): HTMLElement {
@@ -1224,6 +1276,28 @@ export class Ui {
     training.addEventListener("click", () => this.cb.onTraining());
     left.appendChild(training);
 
+    if (info.showWebGoldPatrol && info.goldPatrolPrices && this.cb.onUnlockGoldPatrol) {
+      const upsell = this.el("div", "gold-patrol-lobby-upsell chamfer", "");
+      upsell.appendChild(this.el("div", "manual-title", "GOLD PATROL"));
+      upsell.appendChild(
+        this.el(
+          "div",
+          "field-hint",
+          `Unlimited Daily runs · ${info.goldPatrolPrices.monthly}/mo or ${info.goldPatrolPrices.yearly}/yr`,
+        ),
+      );
+      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());
+      unlock.classList.add("chamfer", "gold-patrol-plan");
+      upsell.appendChild(unlock);
+      left.appendChild(upsell);
+    } else if (info.showManageGoldPatrol && this.cb.onManageGoldPatrol) {
+      const manage = this.button("Manage Gold Patrol subscription", false, () =>
+        this.cb.onManageGoldPatrol?.(),
+      );
+      manage.classList.add("small-btn", "chamfer");
+      left.appendChild(manage);
+    }
+
     const util = this.el("div", "lobby-util-grid", "");
     util.appendChild(this.lobbyStackButton("Patrol Calendar", () => this.cb.onPatrolCalendar()));
     util.appendChild(
@@ -1352,6 +1426,7 @@ export class Ui {
     detail: HTMLElement,
     handlers: { onPlayDay?: (date: string) => void },
     canFlyArchive: boolean,
+    showWebGoldPatrol: boolean,
   ): HTMLElement {
     const cell = document.createElement("button");
     cell.className = `calendar-day ${day.status}`;
@@ -1382,7 +1457,7 @@ export class Ui {
           ?.querySelectorAll(".calendar-day.selected")
           .forEach((el) => el.classList.remove("selected"));
         cell.classList.add("selected");
-        this.fillCalendarDayDetail(detail, day, handlers, canFlyArchive);
+        this.fillCalendarDayDetail(detail, day, handlers, canFlyArchive, showWebGoldPatrol);
       });
     } else {
       cell.disabled = true;
@@ -1465,6 +1540,7 @@ export class Ui {
     day: DayInfo & { dayOfMonth: number },
     handlers: { onPlayDay?: (date: string) => void },
     canFlyArchive: boolean,
+    showWebGoldPatrol: boolean,
   ): void {
     detail.innerHTML = this.dayDetailHtml(day);
     const past =
@@ -1473,13 +1549,24 @@ export class Ui {
       day.status === "attempted" ||
       day.status === "missed" ||
       day.status === "untracked";
-    if (!past || !canFlyArchive || !handlers.onPlayDay) return;
-    const replayed = day.status === "completed" || day.status === "completed-local-only";
-    const btn = this.button(replayed ? REPLAY_THIS_PATROL : FLY_THIS_PATROL, true, () =>
-      handlers.onPlayDay!(day.date),
-    );
-    btn.classList.add("launch", "cal-detail-fly");
-    detail.appendChild(btn);
+    if (!past) return;
+    if (canFlyArchive && handlers.onPlayDay) {
+      const replayed = day.status === "completed" || day.status === "completed-local-only";
+      const btn = this.button(replayed ? REPLAY_THIS_PATROL : FLY_THIS_PATROL, true, () =>
+        handlers.onPlayDay!(day.date),
+      );
+      btn.classList.add("launch", "cal-detail-fly");
+      detail.appendChild(btn);
+      return;
+    }
+    if (showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
+      detail.appendChild(
+        this.el("div", "field-hint", "Gold Patrol unlocks every past patrol on web."),
+      );
+      const unlock = this.button("Unlock Gold Patrol", true, () => this.cb.onUnlockGoldPatrol?.());
+      unlock.classList.add("chamfer", "cal-detail-fly", "gold-patrol-plan");
+      detail.appendChild(unlock);
+    }
   }
 
   /**
@@ -1523,7 +1610,13 @@ export class Ui {
       for (const day of week) {
         grid.appendChild(
           day
-            ? this.calendarDayCell(day, detail, handlers, !!month.canFlyArchive)
+            ? this.calendarDayCell(
+                day,
+                detail,
+                handlers,
+                !!month.canFlyArchive,
+                !!month.showWebGoldPatrol,
+              )
             : this.el("div", "calendar-day empty", ""),
         );
       }

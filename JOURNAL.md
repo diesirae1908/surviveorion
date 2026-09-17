@@ -4,6 +4,23 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-17 afternoon PT: Web Gold Patrol via Stripe Checkout (staging / dev only)
+
+- Lucas authorized web subscriptions on **surviveorion-dev** only (StoreKit/iOS unchanged). Branch `feat/stripe-web-premium` in worktree `.worktrees/stripe-web-premium`.
+- Server: `stripe` npm dep, `server/stripe.mjs` (Checkout, Customer Portal, signed webhooks), routes `POST /api/billing/checkout|portal|webhook`, `GET /api/billing/config`, `GET /api/config.billing`. DB columns `stripe_customer_id`, `premium_source` (additive). Entitlement maps Stripe price ids to `stripe.gold_patrol.monthly|yearly`; `premium_until` from `current_period_end`. Apple `POST /api/me/premium` untouched.
+- Client: web-only paywall ($1.99/mo · $14.99/yr display, USD App Store parity), lobby upsell, calendar past-day unlock, profile manage/cancel via Portal. Native Capacitor still uses StoreKit bridge.
+- Tests: `scripts/test-stripe-billing.mjs` (entitlement + webhook mapping, no live Stripe). `npm test` + `npm run build` green.
+- **Render `surviveorion-dev` env (test mode, Praetors Lab `acct_1UGmzt1jh5w1xlYd`):**
+  - `STRIPE_SECRET_KEY` = Dashboard test secret (`sk_test_...`)
+  - `STRIPE_WEBHOOK_SECRET` = signing secret for endpoint `https://surviveorion-dev.onrender.com/api/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, optional `invoice.paid`)
+  - `STRIPE_PRICE_MONTHLY` = `price_1UGo6k1jh5w1xlYdeY5EBvjf` (lookup `gold_patrol_monthly`, USD $1.99)
+  - `STRIPE_PRICE_YEARLY` = `price_1UGo6k1jh5w1xlYdRbIIRlzL` (lookup `gold_patrol_yearly`, USD $14.99)
+  - `ORION_PUBLIC_ORIGIN` = `https://surviveorion-dev.onrender.com` (Checkout return URLs)
+  - Optional display overrides: `STRIPE_DISPLAY_MONTHLY` / `STRIPE_DISPLAY_YEARLY` (defaults $1.99 / $14.99)
+- **Production later (livemode, do not set on dev until promote):** monthly `price_1UGo6h1jh5w1xlYdEEc8UcWj`, yearly `price_1UGo6j1jh5w1xlYdUmA9rmnk` on product `prod_VHMA1UCEZWtiIk`.
+- QA: sign in on dev, lobby **Unlock Gold Patrol** → Stripe test Checkout → return `?billing=success` → unlimited Daily + past calendar fly. Portal from profile when subscribed.
+- Commit: `60beb4a`.
+
 ## 2026-09-16 afternoon PT: Paywall StoreKit prices + TestFlight 1.0 (15) submitted
 
 - Lucas: paywall cards showed hardcoded USD while ASC charges local currency (e.g. CAD). Fix native paywall to use `Product.displayPrice`; compute yearly save % from StoreKit `price` when both plans load; game-over pitch uses same display prices. Commit `2865ac2` on `origin/main` (worktree `.worktrees/tf15-displayprice`, branch `fix/ios-paywall-displayprice`).

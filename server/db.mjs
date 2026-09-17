@@ -163,6 +163,17 @@ try {
 } catch {
   // column already exists
 }
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN stripe_customer_id TEXT`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_stripe_customer ON users(stripe_customer_id)`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN premium_source TEXT`);
+} catch {
+  // column already exists
+}
 
 // Migration for databases created before tilt controls (per-mode leaderboards).
 try {
@@ -282,10 +293,24 @@ export function updateUser(id, { callsign, country, passSalt, passHash }) {
   return getUserById(id);
 }
 
-export function setUserPremium(id, { until, productId, transactionId }) {
-  db.prepare(
-    `UPDATE users SET premium_until = ?, premium_product_id = ?, premium_transaction_id = ? WHERE id = ?`,
-  ).run(until ?? null, productId ?? null, transactionId ?? null, id);
+export function setUserPremium(id, { until, productId, transactionId, source }) {
+  if (source !== undefined) {
+    db.prepare(
+      `UPDATE users SET premium_until = ?, premium_product_id = ?, premium_transaction_id = ?, premium_source = ? WHERE id = ?`,
+    ).run(until ?? null, productId ?? null, transactionId ?? null, source ?? null, id);
+  } else {
+    db.prepare(
+      `UPDATE users SET premium_until = ?, premium_product_id = ?, premium_transaction_id = ? WHERE id = ?`,
+    ).run(until ?? null, productId ?? null, transactionId ?? null, id);
+  }
+  return getUserById(id);
+}
+
+export const getUserByStripeCustomerId = (customerId) =>
+  db.prepare(`SELECT * FROM users WHERE stripe_customer_id = ?`).get(customerId);
+
+export function setStripeCustomerId(id, customerId) {
+  db.prepare(`UPDATE users SET stripe_customer_id = ? WHERE id = ?`).run(customerId ?? null, id);
   return getUserById(id);
 }
 

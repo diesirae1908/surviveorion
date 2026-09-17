@@ -16,7 +16,7 @@ import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 import { isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
 import { dailyResetLabel } from "./ui";
-import { openPrivacyPolicy } from "./native";
+import { isNativeApp, openPrivacyPolicy } from "./native";
 
 const BOARD_MODE_KEY = "orion.boardMode";
 const BOARD_GAME_MODE_KEY = "orion.boardGameMode";
@@ -430,6 +430,26 @@ export class CommunityUi {
     const wingmates = this.button("Wingmates", false, () => this.showFriends());
     if (this.api.pendingFriends > 0) wingmates.appendChild(this.el("span", "notif-dot"));
     body.appendChild(wingmates);
+
+    if (!isNativeApp() && this.api.stripeBilling) {
+      if (this.api.stripeCustomer && this.api.premiumActive) {
+        body.appendChild(
+          this.button("Manage Gold Patrol subscription", false, () => {
+            void this.guard(error, async () => {
+              const url = await this.api.openStripePortal();
+              location.assign(url);
+            });
+          }),
+        );
+      } else if (!this.api.goldPatrolUnlimited) {
+        body.appendChild(
+          this.button("Unlock Gold Patrol", false, () => {
+            this.onBack();
+            window.dispatchEvent(new CustomEvent("orion-open-gold-patrol-paywall"));
+          }),
+        );
+      }
+    }
 
     // guest / Google accounts: offer a password so the callsign works anywhere
     if (!this.api.hasPassword) {

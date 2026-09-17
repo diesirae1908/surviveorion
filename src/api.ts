@@ -162,6 +162,15 @@ export class Api {
   clipInbox = false;
   tier: "free" | "premium" | "admin" = "free";
   premiumActive = false;
+  premiumSource: string | null = null;
+  /** Server has Stripe keys + price ids (web checkout available). */
+  stripeBilling = false;
+  /** Signed-in pilot has a Stripe customer id (portal entry). */
+  stripeCustomer = false;
+  billingDisplay: {
+    monthly: { plan: string; displayAmount: string; interval: string };
+    yearly: { plan: string; displayAmount: string; interval: string };
+  } | null = null;
   /** false once a request fails to reach the server at all. */
   online = true;
 
@@ -204,10 +213,40 @@ export class Api {
   }
 
   /** Load server config + restore the saved session if still valid. */
+  private applyMeFields(me: {
+    clipInbox?: boolean;
+    tier?: "free" | "premium" | "admin";
+    premiumActive?: boolean;
+    premiumSource?: string | null;
+    stripeCustomer?: boolean;
+    stripeBilling?: boolean;
+  }): void {
+    this.clipInbox = !!me.clipInbox;
+    this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
+    this.premiumActive = !!me.premiumActive || this.clipInbox;
+    this.premiumSource = me.premiumSource ?? null;
+    this.stripeCustomer = !!me.stripeCustomer;
+    if (me.stripeBilling !== undefined) this.stripeBilling = !!me.stripeBilling;
+  }
+
   async init(): Promise<void> {
     try {
-      const cfg = await this.request<{ googleClientId: string }>("GET", "/api/config");
+      const cfg = await this.request<{
+        googleClientId: string;
+        billing?: {
+          stripeCheckout: boolean;
+          monthly: { plan: string; displayAmount: string; interval: string };
+          yearly: { plan: string; displayAmount: string; interval: string };
+        };
+      }>("GET", "/api/config");
       this.googleClientId = cfg.googleClientId;
+      if (cfg.billing?.stripeCheckout) {
+        this.stripeBilling = true;
+        this.billingDisplay = {
+          monthly: cfg.billing.monthly,
+          yearly: cfg.billing.yearly,
+        };
+      }
     } catch {
       return; // server offline — community features hidden
     }
@@ -221,14 +260,15 @@ export class Api {
           clipInbox?: boolean;
           tier?: "free" | "premium" | "admin";
           premiumActive?: boolean;
+          premiumSource?: string | null;
+          stripeCustomer?: boolean;
+          stripeBilling?: boolean;
         }>("GET", "/api/me");
         this.user = me.user;
         this.pendingFriends = me.pendingFriends ?? 0;
         this.hasPassword = me.hasPassword ?? true;
         this.joinedAt = me.joinedAt ?? null;
-        this.clipInbox = !!me.clipInbox;
-        this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
-        this.premiumActive = !!me.premiumActive || this.clipInbox;
+        this.applyMeFields(me);
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;
@@ -311,6 +351,8 @@ export class Api {
     this.clipInbox = false;
     this.tier = "free";
     this.premiumActive = false;
+    this.premiumSource = null;
+    this.stripeCustomer = false;
     this.hasPassword = true;
     this.joinedAt = null;
     this.pendingFriends = 0;
@@ -328,11 +370,39 @@ export class Api {
     localStorage.removeItem(GUEST_SECRET_KEY);
   }
 
+  /** Re-fetch GET /api/me (after Stripe checkout return, etc.). */
+  async refreshAccount(): Promise<void> {
+    if (!this.token) return;
+    try {
+      const me = await this.request<{
+        user: UserInfo;
+        pendingFriends?: number;
+        hasPassword?: boolean;
+        joinedAt?: number;
+        clipInbox?: boolean;
+        tier?: "free" | "premium" | "admin";
+        premiumActive?: boolean;
+        premiumSource?: string | null;
+        stripeCustomer?: boolean;
+        stripeBilling?: boolean;
+      }>("GET", "/api/me");
+      this.user = me.user;
+      this.pendingFriends = me.pendingFriends ?? 0;
+      this.hasPassword = me.hasPassword ?? true;
+      this.joinedAt = me.joinedAt ?? null;
+      this.applyMeFields(me);
+    } catch {
+      /* keep prior session */
+    }
+  }
+
   async refreshClipInbox(): Promise<void> {
     if (!this.token) {
       this.clipInbox = false;
       this.tier = "free";
       this.premiumActive = false;
+      this.premiumSource = null;
+      this.stripeCustomer = false;
       return;
     }
     try {
@@ -340,13 +410,24 @@ export class Api {
         clipInbox?: boolean;
         tier?: "free" | "premium" | "admin";
         premiumActive?: boolean;
+        premiumSource?: string | null;
+        stripeCustomer?: boolean;
+        stripeBilling?: boolean;
       }>("GET", "/api/me");
-      this.clipInbox = !!me.clipInbox;
-      this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
-      this.premiumActive = !!me.premiumActive || this.clipInbox;
+      this.applyMeFields(me);
     } catch {
       this.clipInbox = false;
     }
+  }
+
+  async startStripeCheckout(plan: "monthly" | "yearly"): Promise<string> {
+    const r = await this.request<{ url: string }>("POST", "/api/billing/checkout", { price: plan });
+    return r.url;
+  }
+
+  async openStripePortal(): Promise<string> {
+    const r = await this.request<{ url: string }>("POST", "/api/billing/portal");
+    return r.url;
   }
 
   async uploadClipInbox(video: Blob, sidecar: object, basename: string, ext: string): Promise<void> {

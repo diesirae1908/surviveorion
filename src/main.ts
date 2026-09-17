@@ -155,6 +155,55 @@ function unlimitedDailyRuns(): boolean {
   return NATIVE_GOLD || api.goldPatrolUnlimited;
 }
 
+function webGoldPatrolPrices(): { monthly: string; yearly: string } {
+  const d = api.billingDisplay;
+  return {
+    monthly: d?.monthly.displayAmount ?? "$1.99",
+    yearly: d?.yearly.displayAmount ?? "$14.99",
+  };
+}
+
+/** Website Stripe checkout (never inside native Capacitor / iOS shell). */
+function webStripeBillingAvailable(): boolean {
+  return api.stripeBilling && !isNativeApp() && !IS_NATIVE_PLAY;
+}
+
+async function startStripeCheckout(plan: "monthly" | "yearly"): Promise<void> {
+  const url = await api.startStripeCheckout(plan);
+  location.assign(url);
+}
+
+async function startStripePortal(): Promise<void> {
+  const url = await api.openStripePortal();
+  location.assign(url);
+}
+
+function openWebGoldPatrolPaywall(): void {
+  if (!webStripeBillingAvailable()) return;
+  const runCheckout = (plan: "monthly" | "yearly"): void => {
+    void (async () => {
+      try {
+        await startStripeCheckout(plan);
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : "Checkout failed";
+        window.alert(msg);
+      }
+    })();
+  };
+  if (!api.signedIn) {
+    community.showAuth(() => {
+      ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, showMenu);
+    });
+    return;
+  }
+  ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, showMenu);
+}
+
+function handleUnlockGoldPatrol(): void {
+  if (IS_NATIVE_PLAY) postNativePremium("calendar");
+  else openWebGoldPatrolPaywall();
+}
+
 /** Past Daily file in play (native `?date=` or website calendar). Not today. */
 function archivePatrolDate(): string | null {
   const d = NATIVE_PATROL_DATE ?? webArchiveDate;
@@ -683,7 +732,27 @@ const ui = new Ui(settings, {
       showMenu();
     }),
   onPilot: (callsign) => community.showPilot(callsign, showMenu),
-  onUnlockGoldPatrol: () => postNativePremium("calendar"),
+  onUnlockGoldPatrol: () => handleUnlockGoldPatrol(),
+  onGoldPatrolWebCheckout: (plan) => {
+    void (async () => {
+      try {
+        await startStripeCheckout(plan);
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : "Checkout failed";
+        window.alert(msg);
+      }
+    })();
+  },
+  onManageGoldPatrol: () => {
+    void (async () => {
+      try {
+        await startStripePortal();
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : "Could not open billing portal";
+        window.alert(msg);
+      }
+    })();
+  },
   onNativeAnalytics: () => postNativeOpenAnalytics(),
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
@@ -748,6 +817,10 @@ function showMenu(): void {
       country: api.user?.country,
       pendingFriends: api.pendingFriends,
       unlimitedDaily: unlimitedDailyRuns(),
+      showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
+      showManageGoldPatrol:
+        webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
+      goldPatrolPrices: webGoldPatrolPrices(),
     });
     fillDailyHint();
     fillDailyBoard();
@@ -921,7 +994,10 @@ function playArchiveDay(date: string): void {
     beginLaunch(true);
     return;
   }
-  if (!unlimitedDailyRuns()) return;
+  if (!unlimitedDailyRuns()) {
+    if (webStripeBillingAvailable()) openWebGoldPatrolPaywall();
+    return;
+  }
   webArchiveDate = date;
   calendarMonth = null;
   beginLaunch(true);
@@ -973,6 +1049,7 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
     loading,
     serverUnavailable,
     canFlyArchive: unlimitedDailyRuns(),
+    showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
   };
 }
 
@@ -1974,8 +2051,17 @@ window.addEventListener("pointerdown", () => {
 
 // Re-render the menu once the community server responds (session restore,
 // server availability) so the community buttons appear/disappear correctly.
-void api.init().then(() => {
+window.addEventListener("orion-open-gold-patrol-paywall", () => openWebGoldPatrolPaywall());
+
+void api.init().then(async () => {
   applyCreatorAccess(api.clipInbox);
+  const billingReturn = new URLSearchParams(location.search).get("billing");
+  if (billingReturn === "success") {
+    const clean = new URL(location.href);
+    clean.searchParams.delete("billing");
+    history.replaceState({}, "", `${clean.pathname}${clean.search}${clean.hash}`);
+    await api.refreshAccount();
+  }
   if (IS_NATIVE_PLAY) {
     const training = NATIVE_PLAY === "training";
     if (NATIVE_PATROL_DATE && NATIVE_PATROL_DATE > patrolDateStr() && !api.clipInbox) {

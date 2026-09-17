@@ -13,6 +13,11 @@
 //   NOTION_TOKEN=...                 # optional: Grok cuts + (later) feedback -> Notion
 //   NOTION_CLIPS_DATABASE_ID=...     # optional override; default is Praetor Lab Clips
 //   CREW_CALLSIGNS=luciux            # boot-promote these callsigns to role=admin
+//   STRIPE_SECRET_KEY=sk_test_...    # web Gold Patrol (test key on staging)
+//   STRIPE_WEBHOOK_SECRET=whsec_...  # Checkout webhook signing secret
+//   STRIPE_PRICE_MONTHLY=price_...   # USD $1.99/mo (lookup gold_patrol_monthly)
+//   STRIPE_PRICE_YEARLY=price_...    # USD $14.99/yr (lookup gold_patrol_yearly)
+//   ORION_PUBLIC_ORIGIN=https://...  # Checkout success/cancel URLs (staging host)
 //
 // Environment can also come from server/.env (KEY=value lines, not committed).
 
@@ -40,6 +45,24 @@ import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload, handleC
 import { applyCors, isCorsPreflight } from "./cors.mjs";
 import { userTier, resolveDailySubmit, clampMutatorRange, dailyAttemptBlocked, PREMIUM_PRODUCTS } from "./tier.mjs";
 import { verifyPremiumTransaction, sandboxTrustAllowed, entitlementFromPayload, decodeJws } from "./apple-iap.mjs";
+import {
+  billingConfigured,
+  billingPublicConfig,
+  createCheckoutSession,
+  createPortalSession,
+  getStripe,
+  applyStripeWebhookEvent,
+  verifyWebhookSignature,
+} from "./stripe.mjs";
+import {
+  billingConfigured,
+  billingPublicConfig,
+  createCheckoutSession,
+  createPortalSession,
+  getStripe,
+  applyStripeWebhookEvent,
+  verifyWebhookSignature,
+} from "./stripe.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -89,6 +112,19 @@ const readBody = (req) =>
         reject(new Error("invalid json"));
       }
     });
+    req.on("error", reject);
+  });
+
+const readRawBody = (req, max = 256 * 1024) =>
+  new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > max) reject(new Error("body too large"));
+      else chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 
@@ -362,7 +398,12 @@ const routes = {
       googleClientId: GOOGLE_CLIENT_ID,
       googleIosClientId: GOOGLE_IOS_CLIENT_ID,
       clerkPublishableKey: clerkPublishableKey(),
+      billing: billingPublicConfig(),
     });
+  },
+
+  "GET /api/billing/config": (req, res) => {
+    json(res, 200, billingPublicConfig());
   },
 
   "POST /api/auth/register": async (req, res) => {
@@ -550,7 +591,44 @@ const routes = {
       clipInbox: t.clipInbox,
       tier: t.tier,
       premiumActive: t.premiumActive,
+      premiumSource: user.premium_source ?? null,
+      stripeCustomer: !!user.stripe_customer_id,
+      stripeBilling: billingConfigured(),
     });
+  },
+
+  "POST /api/billing/checkout": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!billingConfigured()) return json(res, 503, { error: "billing not configured" });
+    if (!rateLimit(`billing-checkout:${user.id}`, 12)) return json(res, 429, { error: "slow down" });
+    const stripe = getStripe();
+    if (!stripe) return json(res, 503, { error: "billing not configured" });
+    const body = await readBody(req);
+    const plan = body.price;
+    if (plan !== "monthly" && plan !== "yearly") return json(res, 400, { error: "invalid price plan" });
+    try {
+      const session = await createCheckoutSession({ stripe, user, plan, req, store });
+      if (!session.url) return json(res, 500, { error: "checkout session missing url" });
+      json(res, 200, { url: session.url });
+    } catch (e) {
+      json(res, 400, { error: e?.message ?? "checkout failed" });
+    }
+  },
+
+  "POST /api/billing/portal": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!billingConfigured()) return json(res, 503, { error: "billing not configured" });
+    if (!user.stripe_customer_id) return json(res, 400, { error: "no subscription to manage" });
+    if (!rateLimit(`billing-portal:${user.id}`, 12)) return json(res, 429, { error: "slow down" });
+    const stripe = getStripe();
+    if (!stripe) return json(res, 503, { error: "billing not configured" });
+    try {
+      const session = await createPortalSession({ stripe, user, req });
+      if (!session.url) return json(res, 500, { error: "portal session missing url" });
+      json(res, 200, { url: session.url });
+    } catch (e) {
+      json(res, 400, { error: e?.message ?? "portal failed" });
+    }
   },
 
   // StoreKit 2: persist a verified Apple signed transaction. Unverified
@@ -1136,6 +1214,23 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   try {
+    if (req.method === "POST" && url.pathname === "/api/billing/webhook") {
+      if (!billingConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
+        return json(res, 503, { error: "webhook not configured" });
+      }
+      const sig = req.headers["stripe-signature"];
+      if (!sig) return json(res, 400, { error: "missing stripe-signature" });
+      const raw = await readRawBody(req);
+      let event;
+      try {
+        event = verifyWebhookSignature(raw, sig);
+      } catch (e) {
+        return json(res, 400, { error: e?.message ?? "invalid signature" });
+      }
+      const stripe = getStripe();
+      await applyStripeWebhookEvent(event, { store, stripe });
+      return json(res, 200, { received: true });
+    }
     const arenaLb = /^\/api\/arenas\/([A-Za-z0-9]+)\/leaderboard$/.exec(url.pathname);
     if (req.method === "GET" && arenaLb) {
       return arenaLeaderboard(req, res, authUser(req), arenaLb[1], url);
@@ -1167,4 +1262,5 @@ server.listen(PORT, () => {
   console.log(`  clerk sign-in:  ${clerkEnabled() ? "enabled" : "disabled (set CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY)"}`);
   console.log(`  google sign-in: ${GOOGLE_CLIENT_ID ? "enabled" : "disabled (set GOOGLE_CLIENT_ID)"}`);
   console.log(`  static dist:    ${SERVE_DIST ? "serving" : "off (set ORION_SERVE_DIST=1)"}`);
+  console.log(`  stripe billing: ${billingConfigured() ? "enabled" : "disabled (STRIPE_* env)"}`);
 });
