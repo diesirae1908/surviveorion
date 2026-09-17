@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-17 night PT: Web iOS parity UI phase 3 + calendar QA (staging)
+
+- Sam spec `Sam/tmp/orion-web-parity-p3-spec.md` on `feat/web-ios-parity` (merged `origin/dev` at `749ad6f`).
+- **Wingmates:** chamfer `.wingmate-panel` sections (requests / squadron / recent flights), reusable `.empty-state` with Leaderboard CTA; no premium gating added.
+- **Gold Patrol paywall:** crown, benefit list, plan cards (single-tap Stripe), disclosure, Terms/Privacy footer.
+- **Game-over pitch:** chamfer, gold glow, crown eyebrow, gradient headline.
+- **Pilot badge:** gold ◆ on callsign for premium/admin.
+- **Wordmark:** `.screen` `overflow-x: hidden`, wordmark widths `vw` → `%` of `.title`.
+- **Calendar QA:** `showFutureCalendarDays` (admin tier or CREW only); free/Gold hide rows after today so THIS WEEK stays on top.
+- `npm run build` green. Commit: _(pending)_.
+
 ## 2026-09-17 evening PT: Web iOS parity UI phases 1+2 (staging)
 
 - Sam spec `Sam/tmp/orion-web-parity-p12-spec.md` on `origin/dev` (Stripe billing already on dev). Branch `feat/web-ios-parity` in worktree `.worktrees/web-ios-parity`.

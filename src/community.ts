@@ -175,6 +175,23 @@ export class CommunityUi {
     return b;
   }
 
+  private emptyState(
+    title: string,
+    body: string,
+    cta?: { label: string; onClick: () => void },
+  ): HTMLElement {
+    const wrap = this.el("div", "empty-state", "");
+    wrap.appendChild(this.el("div", "empty-state-icon", "✦"));
+    wrap.appendChild(this.el("div", "empty-state-title", title));
+    wrap.appendChild(this.el("div", "empty-state-body", body));
+    if (cta) {
+      const btn = this.button(cta.label, false, cta.onClick);
+      btn.classList.add("small-btn", "chamfer");
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  }
+
   private input(placeholder: string, type = "text"): HTMLInputElement {
     const i = document.createElement("input");
     i.className = "field";
@@ -905,10 +922,17 @@ export class CommunityUi {
     const note = this.el("div", "field-hint center");
     body.append(rowAdd, note);
 
+    const requestsPanel = this.el("div", "wingmate-panel chamfer", "");
+    requestsPanel.hidden = true;
+    requestsPanel.appendChild(this.el("div", "wingmate-panel-label", "REQUESTS"));
     const requests = this.el("div", "friend-requests");
-    const boardTitle = this.el("div", "manual-title", "SQUADRON BOARD");
+    requestsPanel.appendChild(requests);
+
+    const squadronPanel = this.el("div", "wingmate-panel chamfer", "");
+    squadronPanel.appendChild(this.el("div", "wingmate-panel-label", "SQUADRON BOARD"));
     const table = this.el("div", "board");
-    const activityTitle = this.el("div", "manual-title", "RECENT FLIGHTS");
+    const activityPanel = this.el("div", "wingmate-panel chamfer", "");
+    activityPanel.appendChild(this.el("div", "wingmate-panel-label", "RECENT FLIGHTS"));
     const activityList = this.el("div", "board");
 
     const loadBoard = (): void => {
@@ -920,7 +944,14 @@ export class CommunityUi {
         ]);
         this.renderBoard(table, board.entries, null, () => this.showFriends());
         if (mine.friends.length === 0 && board.entries.length <= 1) {
-          table.innerHTML = `<div class="field-hint">No wingmates yet. Add a pilot above, or meet them on the leaderboard.</div>`;
+          table.innerHTML = "";
+          table.appendChild(
+            this.emptyState(
+              "No wingmates yet",
+              "Add a pilot above, or find one on the Leaderboard.",
+              { label: "Open Leaderboard", onClick: () => this.showWorldArena() },
+            ),
+          );
           return;
         }
         // friends with no ranked run in this mode still deserve a row
@@ -941,17 +972,20 @@ export class CommunityUi {
       });
     };
     const { row: tabs } = this.boardFilters(loadBoard);
+    squadronPanel.append(tabs, table);
+    activityPanel.appendChild(activityList);
 
     const refresh = (): void => {
       loadBoard();
       void this.guard(error, async () => {
         const [mine, act] = await Promise.all([this.api.myFriends(), this.api.friendActivity()]);
         this.renderFriendRequests(requests, mine.incoming, mine.outgoing, error, refresh);
+        requestsPanel.hidden = requests.childElementCount === 0;
         this.renderActivity(activityList, act.activity);
       });
     };
 
-    body.append(requests, boardTitle, tabs, table, activityTitle, activityList);
+    body.append(requestsPanel, squadronPanel, activityPanel);
     refresh();
     this.backRow(screen);
   }
@@ -965,7 +999,6 @@ export class CommunityUi {
   ): void {
     wrap.innerHTML = "";
     if (incoming.length === 0 && outgoing.length === 0) return;
-    wrap.appendChild(this.el("div", "manual-title", "REQUESTS"));
     for (const r of incoming) {
       const row = this.el(
         "div",
@@ -1015,7 +1048,12 @@ export class CommunityUi {
   private renderActivity(wrap: HTMLElement, activity: FriendActivityEntry[]): void {
     wrap.innerHTML = "";
     if (activity.length === 0) {
-      wrap.appendChild(this.el("div", "field-hint", "No flights from your wingmates yet."));
+      wrap.appendChild(
+        this.emptyState(
+          "Quiet skies",
+          "Wingmate flights show up here once you've added a few.",
+        ),
+      );
       return;
     }
     for (const a of activity) {

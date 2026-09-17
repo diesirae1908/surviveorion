@@ -1069,6 +1069,7 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
     attemptsLeft: Math.max(0, DAILY_MAX_ATTEMPTS - attempts.used),
     unlimitedDaily: unlimitedDailyRuns(),
     isPremiumOrAdmin: unlimitedDailyRuns(),
+    showFutureCalendarDays: api.tier === "admin" || creatorAccess,
   };
 }
 

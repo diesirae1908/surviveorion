@@ -341,6 +341,8 @@ export interface PatrolCalendarMonth {
   attemptsLeft: number;
   unlimitedDaily: boolean;
   isPremiumOrAdmin: boolean;
+  /** Crew / admin: show future patrol rows (rehearsal picker). Hidden for free and Gold. */
+  showFutureCalendarDays: boolean;
 }
 
 const SENSE_LABEL: Record<SenseLevel, string> = {
@@ -542,6 +544,12 @@ export class Ui {
     this.pauseBtn.style.display = "none";
     const screen = this.el("div", "screen gold-patrol-paywall", "");
     this.makeSubmenu(screen, onBack);
+
+    const crown = this.el("div", "paywall-crown", "");
+    crown.appendChild(this.el("div", "paywall-crown-glow", ""));
+    crown.appendChild(this.el("span", "paywall-crown-glyph", "♛"));
+    screen.appendChild(crown);
+
     screen.appendChild(this.el("div", "heading gold small", "GOLD PATROL"));
     screen.appendChild(
       this.el(
@@ -551,18 +559,65 @@ export class Ui {
       ),
     );
     screen.appendChild(this.el("div", "divider", ""));
-    const monthly = this.button(`Monthly · ${prices.monthly}`, true, () => onSelect("monthly"));
-    monthly.classList.add("chamfer", "gold-patrol-plan");
-    const yearly = this.button(`Yearly · ${prices.yearly}`, false, () => onSelect("yearly"));
-    yearly.classList.add("chamfer", "gold-patrol-plan");
-    screen.append(monthly, yearly);
+
+    const benefits = this.el("div", "paywall-benefits", "");
+    const benefitLines: Array<[string, string]> = [
+      ["∞", "Unlimited Daily Patrol runs today"],
+      ["↻", "Replay any past Daily Patrol with full scores"],
+      ["▤", "Track your history: attempts, medals, streaks, survival trends"],
+      ["✦", "Squadrons: friends-only boards for you and your wingmates"],
+    ];
+    for (const [icon, text] of benefitLines) {
+      const row = this.el("div", "paywall-benefit", "");
+      row.appendChild(this.el("span", "paywall-benefit-icon", icon));
+      row.appendChild(this.el("span", "paywall-benefit-text", text));
+      benefits.appendChild(row);
+    }
+    screen.appendChild(benefits);
+
+    const plans = this.el("div", "paywall-plans", "");
+    const monthlyPlan = document.createElement("button");
+    monthlyPlan.type = "button";
+    monthlyPlan.className = "paywall-plan chamfer";
+    monthlyPlan.dataset.plan = "monthly";
+    monthlyPlan.appendChild(this.el("span", "paywall-plan-price", prices.monthly));
+    monthlyPlan.appendChild(this.el("span", "paywall-plan-sub", "per month"));
+    monthlyPlan.addEventListener("click", () => onSelect("monthly"));
+    const yearlyPlan = document.createElement("button");
+    yearlyPlan.type = "button";
+    yearlyPlan.className = "paywall-plan chamfer featured";
+    yearlyPlan.dataset.plan = "yearly";
+    yearlyPlan.appendChild(this.el("span", "paywall-plan-badge", "BEST VALUE"));
+    yearlyPlan.appendChild(this.el("span", "paywall-plan-price", prices.yearly));
+    yearlyPlan.appendChild(this.el("span", "paywall-plan-sub", "per year, save 37%"));
+    yearlyPlan.addEventListener("click", () => onSelect("yearly"));
+    plans.append(monthlyPlan, yearlyPlan);
+    screen.appendChild(plans);
+
     screen.appendChild(
       this.el(
         "div",
-        "field-hint center",
-        "Secure checkout by Stripe (USD). Manage or cancel anytime from your pilot profile.",
+        "paywall-disclosure",
+        "Gold Patrol renews automatically until cancelled. Secure checkout by Stripe (USD). Manage or cancel anytime from your pilot profile.",
       ),
     );
+
+    const footer = this.el("div", "paywall-footer", "");
+    const terms = document.createElement("a");
+    terms.className = "legacy-auth-link";
+    terms.href = "https://surviveorion.com/terms.html";
+    terms.target = "_blank";
+    terms.rel = "noopener";
+    terms.textContent = "Terms";
+    const privacy = document.createElement("a");
+    privacy.className = "legacy-auth-link";
+    privacy.href = "https://surviveorion.com/privacy.html";
+    privacy.target = "_blank";
+    privacy.rel = "noopener";
+    privacy.textContent = "Privacy";
+    footer.append(terms, this.el("span", "paywall-footer-dot", "·"), privacy);
+    screen.appendChild(footer);
+
     this.root.appendChild(screen);
   }
 
@@ -1087,8 +1142,13 @@ export class Ui {
     if (info.callsign) {
       const flag = info.country ? `${countryFlag(info.country)} ` : "";
       const name = escapeHtml(sanitizeCallsignForDisplay(info.callsign));
+      const tier = info.tier ?? (info.unlimitedDaily ? "premium" : "free");
+      const premiumMark =
+        tier === "premium" || tier === "admin"
+          ? `<span class="pilot-badge-premium">◆</span>`
+          : "";
       badge.innerHTML =
-        `<span class="wing">✦</span> ${flag}<b>${name}</b> <span class="sub">pilot profile</span>`;
+        `<span class="wing">✦</span> ${flag}<b>${name}${premiumMark}</b> <span class="sub">pilot profile</span>`;
       badge.title = "Pilot profile";
       if ((info.pendingFriends ?? 0) > 0) {
         badge.appendChild(this.el("span", "notif-dot", ""));
@@ -1787,10 +1847,13 @@ export class Ui {
     const weekList = this.el("div", "week-list", "");
     const reversedWeeks = [...month.weeks].reverse();
     for (const week of reversedWeeks) {
-      const days = week
+      let days = week
         .filter((c): c is DayInfo & { dayOfMonth: number } => c !== null)
         .slice()
         .sort((a, b) => (a.date < b.date ? 1 : -1));
+      if (!month.showFutureCalendarDays) {
+        days = days.filter((d) => d.date <= month.todayDate);
+      }
       if (days.length === 0) continue;
 
       const section = this.el("div", "week-section", "");
@@ -2723,8 +2786,12 @@ export class Ui {
     actions.appendChild(this.gameOverDetailsToggle(stats));
 
     if (stats.showGoldPatrolCta) {
-      const pitch = this.el("div", "gameover-gold-pitch", "");
-      pitch.appendChild(this.el("div", "gameover-gold-title", "GOLD PATROL"));
+      const pitch = this.el("div", "gameover-gold-pitch chamfer", "");
+      pitch.appendChild(this.el("div", "gameover-gold-glow", ""));
+      const eyebrow = this.el("div", "gameover-gold-eyebrow", "");
+      eyebrow.appendChild(this.el("span", "gameover-gold-crown", "♛"));
+      eyebrow.appendChild(document.createTextNode("GOLD PATROL"));
+      pitch.appendChild(eyebrow);
       pitch.appendChild(this.el("div", "gameover-gold-headline", "Fly every patrol."));
       pitch.appendChild(
         this.el(
