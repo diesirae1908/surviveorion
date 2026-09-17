@@ -19,7 +19,7 @@ why, commit hash, follow-ups), committed together with the work. See
   - Optional display overrides: `STRIPE_DISPLAY_MONTHLY` / `STRIPE_DISPLAY_YEARLY` (defaults $1.99 / $14.99)
 - **Production later (livemode, do not set on dev until promote):** monthly `price_1UGo6h1jh5w1xlYdEEc8UcWj`, yearly `price_1UGo6j1jh5w1xlYdUmA9rmnk` on product `prod_VHMA1UCEZWtiIk`.
 - QA: sign in on dev, lobby **Unlock Gold Patrol** → Stripe test Checkout → return `?billing=success` → unlimited Daily + past calendar fly. Portal from profile when subscribed.
-- Commit: `60beb4a`.
+- Commit: `4934548`.
 
 ## 2026-09-16 afternoon PT: Paywall StoreKit prices + TestFlight 1.0 (15) submitted
 
