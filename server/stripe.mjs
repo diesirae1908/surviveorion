@@ -61,12 +61,12 @@ export function billingPublicConfig(env = process.env) {
     stripeCheckout: enabled,
     monthly: {
       plan: "monthly",
-      displayAmount: env.STRIPE_DISPLAY_MONTHLY ?? "$1.99",
+      displayAmount: env.STRIPE_DISPLAY_MONTHLY ?? "$1.99 USD",
       interval: "month",
     },
     yearly: {
       plan: "yearly",
-      displayAmount: env.STRIPE_DISPLAY_YEARLY ?? "$14.99",
+      displayAmount: env.STRIPE_DISPLAY_YEARLY ?? "$14.99 USD",
       interval: "year",
     },
   };
@@ -74,15 +74,32 @@ export function billingPublicConfig(env = process.env) {
 
 const ACTIVEISH = new Set(["active", "trialing", "past_due"]);
 
+/** Stripe API (2025+) often puts billing period on subscription items, not the root. */
+export function stripeSubscriptionPeriodEnd(sub) {
+  const raw = sub?.items?.data?.[0]?.current_period_end ?? sub?.current_period_end ?? 0;
+  const periodEnd = Number(raw);
+  return Number.isFinite(periodEnd) && periodEnd > 0 ? periodEnd : 0;
+}
+
+export function stripeSubscriptionPeriodStart(sub) {
+  const raw = sub?.items?.data?.[0]?.current_period_start ?? sub?.current_period_start ?? 0;
+  const periodStart = Number(raw);
+  return Number.isFinite(periodStart) && periodStart > 0 ? periodStart : 0;
+}
+
+export function stripeEntitlementActive(ent) {
+  return !!(ent && ent.until > Date.now());
+}
+
 /**
- * Map a Stripe subscription object to premium fields, or null to clear web entitlement.
+ * Map a Stripe subscription object to premium fields, or a clear-object when not entitled.
  * Pure: safe for unit tests without Stripe network calls.
  */
 export function entitlementFromStripeSubscription(sub, env = process.env) {
   if (!sub || typeof sub !== "object") return null;
   const status = sub.status;
-  const periodEnd = Number(sub.current_period_end || 0);
-  const untilMs = Number.isFinite(periodEnd) && periodEnd > 0 ? periodEnd * 1000 : 0;
+  const periodEnd = stripeSubscriptionPeriodEnd(sub);
+  const untilMs = periodEnd > 0 ? periodEnd * 1000 : 0;
 
   const item = sub.items?.data?.[0];
   const priceId = item?.price?.id ?? sub.plan?.id ?? null;
@@ -157,6 +174,55 @@ export async function createPortalSession({ stripe, user, req, env = process.env
   return session;
 }
 
+async function resolveStripeCustomerId(stripe, user, store) {
+  if (user.stripe_customer_id) return user.stripe_customer_id;
+  const search = await stripe.customers.search({
+    query: `metadata['orion_user_id']:'${user.id}'`,
+    limit: 1,
+  });
+  const hit = search.data?.[0];
+  if (!hit?.id) return null;
+  store.setStripeCustomerId(user.id, hit.id);
+  return hit.id;
+}
+
+/**
+ * Pull active Stripe subscription state into SQLite (checkout return + webhook lag).
+ */
+export async function syncUserBillingFromStripe({ stripe, user, store, env = process.env }) {
+  if (!stripe) throw new Error("stripe not configured");
+  const customerId = await resolveStripeCustomerId(stripe, user, store);
+  if (!customerId) {
+    return { synced: false, error: "no stripe customer" };
+  }
+  const list = await stripe.subscriptions.list({
+    customer: customerId,
+    status: "all",
+    limit: 20,
+  });
+  let best = null;
+  for (const sub of list.data) {
+    const ent = entitlementFromStripeSubscription(sub, env);
+    if (stripeEntitlementActive(ent) && (!best || ent.until > best.until)) {
+      best = ent;
+    }
+  }
+  if (best) {
+    store.setUserPremium(user.id, best);
+    return { synced: true, entitled: true, until: best.until };
+  }
+  const fresh = store.getUserById(user.id);
+  if (fresh.premium_source === "stripe") {
+    store.setUserPremium(user.id, {
+      until: 0,
+      productId: null,
+      transactionId: null,
+      source: null,
+    });
+  }
+  return { synced: true, entitled: false };
+}
+
 /**
  * Apply a verified Stripe webhook event. Returns a short log line or null.
  */
@@ -173,7 +239,7 @@ export async function applyStripeWebhookEvent(event, { store, stripe, env = proc
     if (!subId || !stripe) return "checkout missing subscription";
     const sub = await stripe.subscriptions.retrieve(String(subId));
     const ent = entitlementFromStripeSubscription(sub, env);
-    if (!ent) return "checkout subscription not entitled";
+    if (!stripeEntitlementActive(ent)) return "checkout subscription not entitled";
     store.setUserPremium(userId, ent);
     if (session.customer && typeof session.customer === "string") {
       store.setStripeCustomerId(userId, session.customer);
@@ -190,12 +256,12 @@ export async function applyStripeWebhookEvent(event, { store, stripe, env = proc
       const userId = Number(sub.metadata?.orion_user_id);
       if (!Number.isFinite(userId)) return "subscription user not found";
       const ent = entitlementFromStripeSubscription(sub, env);
-      if (ent?.until) store.setUserPremium(userId, ent);
+      if (stripeEntitlementActive(ent)) store.setUserPremium(userId, ent);
       else store.setUserPremium(userId, { until: 0, productId: null, transactionId: null, source: null });
       return `${type} user=${userId} (metadata)`;
     }
     const ent = entitlementFromStripeSubscription(sub, env);
-    if (ent?.until) {
+    if (stripeEntitlementActive(ent)) {
       store.setUserPremium(user.id, ent);
     } else {
       store.setUserPremium(user.id, {
@@ -221,7 +287,7 @@ export async function applyStripeWebhookEvent(event, { store, stripe, env = proc
         : null);
     if (!user) return "invoice.paid user not found";
     const ent = entitlementFromStripeSubscription(sub, env);
-    if (ent?.until) store.setUserPremium(user.id, ent);
+    if (stripeEntitlementActive(ent)) store.setUserPremium(user.id, ent);
     return `invoice.paid user=${user.id}`;
   }
 

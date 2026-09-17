@@ -53,6 +53,7 @@ import {
   getStripe,
   applyStripeWebhookEvent,
   verifyWebhookSignature,
+  syncUserBillingFromStripe,
 } from "./stripe.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -619,6 +620,29 @@ const routes = {
       json(res, 200, { url: session.url });
     } catch (e) {
       json(res, 400, { error: e?.message ?? "portal failed" });
+    }
+  },
+
+  "POST /api/billing/sync": async (req, res, user) => {
+    if (!user) return json(res, 401, { error: "not signed in" });
+    if (!billingConfigured()) return json(res, 503, { error: "billing not configured" });
+    if (!rateLimit(`billing-sync:${user.id}`, 20)) return json(res, 429, { error: "slow down" });
+    const stripe = getStripe();
+    if (!stripe) return json(res, 503, { error: "billing not configured" });
+    try {
+      const result = await syncUserBillingFromStripe({ stripe, user, store });
+      const fresh = store.getUserById(user.id);
+      const t = userTier(fresh);
+      json(res, 200, {
+        ok: true,
+        ...result,
+        tier: t.tier,
+        premiumActive: t.premiumActive,
+        premiumUntil: fresh.premium_until ?? null,
+        stripeCustomer: !!fresh.stripe_customer_id,
+      });
+    } catch (e) {
+      json(res, 400, { error: e?.message ?? "sync failed" });
     }
   },
 

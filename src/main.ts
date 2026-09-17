@@ -158,8 +158,8 @@ function unlimitedDailyRuns(): boolean {
 function webGoldPatrolPrices(): { monthly: string; yearly: string } {
   const d = api.billingDisplay;
   return {
-    monthly: d?.monthly.displayAmount ?? "$1.99",
-    yearly: d?.yearly.displayAmount ?? "$14.99",
+    monthly: d?.monthly.displayAmount ?? "$1.99 USD",
+    yearly: d?.yearly.displayAmount ?? "$14.99 USD",
   };
 }
 
@@ -2060,6 +2060,13 @@ void api.init().then(async () => {
     const clean = new URL(location.href);
     clean.searchParams.delete("billing");
     history.replaceState({}, "", `${clean.pathname}${clean.search}${clean.hash}`);
+    if (api.stripeBilling) {
+      try {
+        await api.syncStripeBilling();
+      } catch {
+        /* refreshAccount still runs */
+      }
+    }
     await api.refreshAccount();
   }
   if (IS_NATIVE_PLAY) {

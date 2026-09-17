@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-17 evening PT: Stripe subscription item `current_period_end` (staging hotfix)
+
+- Stripe API now exposes billing period on **subscription items**, not always on the subscription root. `entitlementFromStripeSubscription` read root `current_period_end` → `0` → `premium_until=0` after test Checkout; lobby stayed on Unlock despite active `sub_…`.
+- **Fix:** `stripeSubscriptionPeriodEnd` prefers `items.data[0].current_period_end`, falls back to root. Webhooks use `stripeEntitlementActive` (`until > Date.now()`), fixing `checkout.session.completed` treating the clear-object as entitled. **`POST /api/billing/sync`** pulls customer (metadata search if `stripe_customer_id` missing) + subscriptions, then `setUserPremium`; client calls it on `?billing=success` before `refreshAccount`. Display defaults **`$1.99 USD` / `$14.99 USD`**.
+- Tests: item-level period, legacy root, checkout zero-period rejection. `npm test` + `npm run build` green.
+- Re-verify on **surviveorion-dev**: hard refresh, open `/?billing=success` once (or sign in → sync via return path) → lobby should drop Unlock, unlimited Daily + calendar fly.
+- Commit: _(pending push)_.
+
 ## 2026-09-17 afternoon PT: Docker runtime `npm ci --omit=dev` (staging boot)
 
 - `c19b7a0` runtime image had no `node_modules`; `import Stripe from "stripe"` in `server/stripe.mjs` crashed boot → `surviveorion-dev` health check failed (`update_failed`, stuck on `9fbd3fd`).

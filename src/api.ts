@@ -430,6 +430,20 @@ export class Api {
     return r.url;
   }
 
+  async syncStripeBilling(): Promise<void> {
+    const r = await this.request<{
+      tier?: "free" | "premium" | "admin";
+      premiumActive?: boolean;
+      premiumUntil?: number | null;
+      stripeCustomer?: boolean;
+    }>("POST", "/api/billing/sync", {});
+    this.applyMeFields({
+      tier: r.tier,
+      premiumActive: r.premiumActive,
+      stripeCustomer: r.stripeCustomer,
+    });
+  }
+
   async uploadClipInbox(video: Blob, sidecar: object, basename: string, ext: string): Promise<void> {
     const fd = new FormData();
     fd.append("basename", basename);
