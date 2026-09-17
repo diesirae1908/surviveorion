@@ -21,6 +21,7 @@ import {
   getMutatorById,
   getMutatorsForDate,
   getMutatorsForDateFromPool,
+  HOLD_ONE_PAIR_RULE_FROM,
   MUTATOR_POOL,
   MUTATORS_START_DATE,
   SPELL_DIET_FROM,
@@ -349,6 +350,52 @@ function dayRestricted(dateStr: string): boolean {
     d = addUtcDays(d, 1);
   }
   check("Sunday pairs never share a tag", violations === 0, firstFew.join(" | "));
+}
+
+function isHoldOnePickupDay(m: Mutator): boolean {
+  return m.overrides.pickupHoldOne === true;
+}
+
+/** Mirrors pickSecond's holdOneClash gate (mutators.ts). */
+function holdOneAssemblyClash(a: Mutator, b: Mutator): boolean {
+  return (
+    (isHoldOnePickupDay(a) && b.tags.includes("assembly-kind")) ||
+    (isHoldOnePickupDay(b) && a.tags.includes("assembly-kind"))
+  );
+}
+
+// --- 4b. Hold-one Sunday pairing (HOLD_ONE_PAIR_RULE_FROM, 2026-09-14): from
+// the gate onward, a hold-one pickup day (GOLD DASH, RAM RAID) never shares a
+// Sunday with an assembly-kind day (TITANFALL, MENAGERIE, forced-creature days).
+{
+  let postGateViolations = 0;
+  const postGateSamples: string[] = [];
+  let d = HOLD_ONE_PAIR_RULE_FROM;
+  while (d <= SNAPSHOT_END_DATE) {
+    const date = new Date(`${d}T00:00:00Z`);
+    if (date.getUTCDay() === 0) {
+      const picks = getMutatorsForDate(date);
+      if (picks.length === 2 && holdOneAssemblyClash(picks[0], picks[1])) {
+        postGateViolations++;
+        if (postGateSamples.length < 5) {
+          postGateSamples.push(`${d}: ${picks.map((m) => m.id).join("+")}`);
+        }
+      }
+    }
+    d = addUtcDays(d, 1);
+  }
+  check(
+    "hold-one rule: post-gate Sundays never pair hold-one with assembly-kind",
+    postGateViolations === 0,
+    postGateSamples.join(" | "),
+  );
+
+  const sep21 = getMutatorsForDate(new Date("2026-09-21T00:00:00Z")).map((m) => m.id);
+  check(
+    "hold-one rule: 2026-09-21 (Sun) stays titanfall-only (no gold-dash partner)",
+    sep21.length === 1 && sep21[0] === "titanfall",
+    sep21.join("+"),
+  );
 }
 
 // --- 5. Append-only proof: a fake 23rd mutator, never added to the live

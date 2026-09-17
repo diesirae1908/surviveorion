@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-17: test: hold-one Sunday pairing rule regression lock
+
+- Added `scripts/test-mutators.ts` checks for `HOLD_ONE_PAIR_RULE_FROM` (2026-09-14): post-gate Sundays never pair hold-one days (GOLD DASH, RAM RAID) with assembly-kind days; pin 2026-09-21 as titanfall-only. Why: Lucas/TestFlight 9 pairing fix must not regress when the pool grows. Commit: (this run). `npm run test:mutators` ALL PASS.
+
 ## 2026-09-16 afternoon PT: Paywall StoreKit prices + TestFlight 1.0 (15) submitted
 
 - Lucas: paywall cards showed hardcoded USD while ASC charges local currency (e.g. CAD). Fix native paywall to use `Product.displayPrice`; compute yearly save % from StoreKit `price` when both plans load; game-over pitch uses same display prices. Commit `2865ac2` on `origin/main` (worktree `.worktrees/tf15-displayprice`, branch `fix/ios-paywall-displayprice`).
