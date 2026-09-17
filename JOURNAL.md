@@ -8,7 +8,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 - `c19b7a0` runtime image had no `node_modules`; `import Stripe from "stripe"` in `server/stripe.mjs` crashed boot → `surviveorion-dev` health check failed (`update_failed`, stuck on `9fbd3fd`).
 - **Dockerfile:** final stage copies `package.json` / `package-lock.json`, runs `npm ci --omit=dev`, then `dist` + `server` + mutator schedule as before. `stripe` is in `dependencies` in lockfile.
-- Follow-up: confirm Render `surviveorion-dev` deploy live and `/api/config` 200. Commit: `e771b0c`.
+- Follow-up: confirm Render `surviveorion-dev` deploy live and `/api/config` 200. Commit: `134d1ea`.
 
 ## 2026-09-17 afternoon PT: Web Gold Patrol via Stripe Checkout (staging / dev only)
 
