@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-17 afternoon PT: Docker runtime `npm ci --omit=dev` (staging boot)
+
+- `c19b7a0` runtime image had no `node_modules`; `import Stripe from "stripe"` in `server/stripe.mjs` crashed boot → `surviveorion-dev` health check failed (`update_failed`, stuck on `9fbd3fd`).
+- **Dockerfile:** final stage copies `package.json` / `package-lock.json`, runs `npm ci --omit=dev`, then `dist` + `server` + mutator schedule as before. `stripe` is in `dependencies` in lockfile.
+- Follow-up: confirm Render `surviveorion-dev` deploy live and `/api/config` 200. Commit: `e771b0c`.
+
 ## 2026-09-17 afternoon PT: Web Gold Patrol via Stripe Checkout (staging / dev only)
 
 - Lucas authorized web subscriptions on **surviveorion-dev** only (StoreKit/iOS unchanged). Branch `feat/stripe-web-premium` in worktree `.worktrees/stripe-web-premium`.
@@ -19,7 +25,7 @@ why, commit hash, follow-ups), committed together with the work. See
   - Optional display overrides: `STRIPE_DISPLAY_MONTHLY` / `STRIPE_DISPLAY_YEARLY` (defaults $1.99 / $14.99)
 - **Production later (livemode, do not set on dev until promote):** monthly `price_1UGo6h1jh5w1xlYdEEc8UcWj`, yearly `price_1UGo6j1jh5w1xlYdUmA9rmnk` on product `prod_VHMA1UCEZWtiIk`.
 - QA: sign in on dev, lobby **Unlock Gold Patrol** → Stripe test Checkout → return `?billing=success` → unlimited Daily + past calendar fly. Portal from profile when subscribed.
-- Commit: `4934548`.
+- Commits: feature `a24b8a4`, merged to `dev` as `2da5d67` (after `origin/dev` merge).
 
 ## 2026-09-16 afternoon PT: Paywall StoreKit prices + TestFlight 1.0 (15) submitted
 

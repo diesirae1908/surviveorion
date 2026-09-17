@@ -10,6 +10,8 @@ RUN npm run build
 
 FROM node:22-alpine
 WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server ./server
 # Daily Patrol mutator names for /api/patrol-mutators (ios/ is not in the runtime image).
