@@ -14,7 +14,8 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Wordmark:** `.screen` `overflow-x: hidden`, wordmark widths `vw` → `%` of `.title`.
 - **Calendar QA:** `showFutureCalendarDays` (admin tier or CREW only); free/Gold hide rows after today so THIS WEEK stays on top.
 - **Follow-up:** game-over Gold pitch now shows on web when `webStripeBillingAvailable()` (was native-only `showGoldPatrolCta` gate); anonymous free users included; Unlock uses `handleUnlockGoldPatrol` → Stripe paywall or auth.
-- `npm run build` green. Commits: `f493013`, follow-up `1320e62`.
+- **Product:** Wingmates/Squadrons stays free; removed Squadrons from web + iOS Gold Patrol paywall benefit lists and from game-over pitch copy (web `ui.ts`, iOS `PremiumSheet.swift`, `GameOverView.swift`).
+- `npm run build` green. Commits: `f493013`, follow-up `05f2da9`.
 
 ## 2026-09-17 evening PT: Web iOS parity UI phases 1+2 (staging)
 

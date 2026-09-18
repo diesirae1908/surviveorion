@@ -146,7 +146,7 @@ struct GameOverView: View {
     private var goldPitchPricing: String {
         let monthly = model.store.monthly?.displayPrice ?? "$1.99"
         let yearly = model.store.yearly?.displayPrice ?? "$14.99"
-        return "Unlimited Daily runs today, every past patrol, full analytics, wingmates. \(monthly) a month or \(yearly) a year."
+        return "Unlimited Daily runs today, every past patrol, full analytics. \(monthly) a month or \(yearly) a year."
     }
 
     private var goldPitch: some View {

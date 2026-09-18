@@ -565,7 +565,6 @@ export class Ui {
       ["∞", "Unlimited Daily Patrol runs today"],
       ["↻", "Replay any past Daily Patrol with full scores"],
       ["▤", "Track your history: attempts, medals, streaks, survival trends"],
-      ["✦", "Squadrons: friends-only boards for you and your wingmates"],
     ];
     for (const [icon, text] of benefitLines) {
       const row = this.el("div", "paywall-benefit", "");
@@ -2797,7 +2796,7 @@ export class Ui {
         this.el(
           "div",
           "field-hint center",
-          "Unlimited Daily runs today, every past patrol, full analytics, wingmates.",
+          "Unlimited Daily runs today, every past patrol, full analytics.",
         ),
       );
       const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());
