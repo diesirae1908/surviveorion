@@ -13,7 +13,8 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Pilot badge:** gold ◆ on callsign for premium/admin.
 - **Wordmark:** `.screen` `overflow-x: hidden`, wordmark widths `vw` → `%` of `.title`.
 - **Calendar QA:** `showFutureCalendarDays` (admin tier or CREW only); free/Gold hide rows after today so THIS WEEK stays on top.
-- `npm run build` green. Commit: _(pending)_.
+- **Follow-up:** game-over Gold pitch now shows on web when `webStripeBillingAvailable()` (was native-only `showGoldPatrolCta` gate); anonymous free users included; Unlock uses `handleUnlockGoldPatrol` → Stripe paywall or auth.
+- `npm run build` green. Commits: `f493013`, follow-up `1320e62`.
 
 ## 2026-09-17 evening PT: Web iOS parity UI phases 1+2 (staging)
 

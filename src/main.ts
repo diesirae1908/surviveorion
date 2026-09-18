@@ -1542,7 +1542,8 @@ function showGameOverUi(): void {
     clipCapped: lastClipCapped,
     clipInbox: api.clipInbox,
     patrolDate: archivePatrolDate() ?? undefined,
-    showGoldPatrolCta: IS_NATIVE_PLAY && !unlimitedDailyRuns(),
+    showGoldPatrolCta:
+      !unlimitedDailyRuns() && (IS_NATIVE_PLAY || webStripeBillingAvailable()),
     showAnalyticsLink: IS_NATIVE_PLAY && unlimitedDailyRuns(),
   });
   submitRun();
