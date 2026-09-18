@@ -13,7 +13,7 @@ enum PremiumContext: String, Identifiable {
         switch self {
         case .calendar: return "Unlimited Daily runs today, plus every past patrol."
         case .analytics: return "See your whole record, not just today."
-        case .squadrons: return "Race your wingmates, not strangers."
+        case .squadrons: return "Unlimited Daily runs, plus your full history."
         case .generic: return "Unlimited Daily runs today, plus every past patrol."
         }
     }

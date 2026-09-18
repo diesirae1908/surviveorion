@@ -555,7 +555,7 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Unlimited Daily runs on web, plus every past patrol in the calendar.",
+        "Unlimited Daily runs, plus your full patrol archive.",
       ),
     );
     screen.appendChild(this.el("div", "divider", ""));
@@ -564,7 +564,7 @@ export class Ui {
     const benefitLines: Array<[string, string]> = [
       ["∞", "Unlimited Daily Patrol runs today"],
       ["↻", "Replay any past Daily Patrol with full scores"],
-      ["▤", "Track your history: attempts, medals, streaks, survival trends"],
+      ["▤", "Full history: attempts, medals, streaks, trends"],
     ];
     for (const [icon, text] of benefitLines) {
       const row = this.el("div", "paywall-benefit", "");
@@ -597,7 +597,7 @@ export class Ui {
       this.el(
         "div",
         "paywall-disclosure",
-        "Gold Patrol renews automatically until cancelled. Secure checkout by Stripe (USD). Manage or cancel anytime from your pilot profile.",
+        "Gold Patrol renews automatically until cancelled. Secure checkout by Stripe (USD). Manage or cancel anytime from Settings.",
       ),
     );
 
@@ -2796,7 +2796,7 @@ export class Ui {
         this.el(
           "div",
           "field-hint center",
-          "Unlimited Daily runs today, every past patrol, full analytics.",
+          "Unlimited Daily runs, every past patrol, full history.",
         ),
       );
       const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());

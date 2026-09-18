@@ -301,7 +301,7 @@ struct HomeView: View {
     }
 
     private func openWingmates() {
-        if model.isPremium { showWingmates = true } else { premium = .squadrons }
+        showWingmates = true
     }
 
     private func openAnalytics() {
@@ -482,9 +482,6 @@ struct HomeView: View {
                 Button(action: openWingmates) {
                     HStack(spacing: 6) {
                         Text("Wingmates")
-                        if !model.isPremium {
-                            PremiumLockGlyph()
-                        }
                         if model.pendingFriends > 0 {
                             Circle()
                                 .fill(OrionColor.alarm)
@@ -493,7 +490,7 @@ struct HomeView: View {
                     }
                 }
                 .buttonStyle(OrionButtonStyle(kind: .secondary))
-                .accessibilityLabel(model.isPremium ? "Wingmates" : "Wingmates, Gold Patrol locked")
+                .accessibilityLabel("Wingmates")
                 Button("Feedback") { showFeedback = true }
                     .buttonStyle(OrionButtonStyle(kind: .secondary))
             }
