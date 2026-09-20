@@ -11,7 +11,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Month nav:** chamfered 44px arrows, gold gradient month label.
 - **CREW data:** `buildCalendarMonth` overwrites `future` mutators via `getMutatorsForDateStr` when `showFutureCalendarDays`; `dayInfoFor` spoiler default unchanged.
 - Tests: `test-daily-history.ts` regression strings for month build + week cards. `npm test` + `npm run build` green.
-- Commit: _(fill on push)_.
+- Commit: `3182a38`.
 
 ## 2026-09-17 night PT: Web iOS parity UI phase 3 + calendar QA (staging)
 
