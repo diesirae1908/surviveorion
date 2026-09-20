@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-20 PT: DEMOLITION+PIT Buffer queued (phase 2)
+
+- Lucas authorized live Buffer (IG/TT/YT). `post-buffer.mjs` `addToQueue`,
+  media `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`.
+  Sam-approved captions (IG/TT shared, YT title + description). All three
+  `scheduled`. IG `6ab017e3581115d5905ae5ca`, TT `6ab017e9ca3da6544355616f`,
+  YT `6ab018063f368df689ed03b2`. YouTube first attempt failed (origin 502 while
+  Buffer fetched URL); one retry after HEAD 200 succeeded. No `calendar.json`
+  row for 2026-09-20 (skipped; no duplicate calendar post).
+- Commit: (fill on commit).
+
 ## 2026-09-20 PT: DEMOLITION+PIT social draft hosted (phase 1)
 
 - Branch `sam/buffer-0920` in worktree `.worktrees/buffer-0920`. CapCut master
@@ -13,7 +24,7 @@ why, commit hash, follow-ups), committed together with the work. See
   before mdat verified. Hosted `public/social-drafts/0920_demolition_pit_916.mp4`
   (1080x1920, ~22.5s). Buffer queue deferred to phase 2 (Sam captions).
 - Deploy target: `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`
-- Commit: `59b908b`.
+- Commit: `49c82c9`.
 
 ## 2026-09-17 night PT: Web iOS parity UI phase 3 + calendar QA (staging)
 

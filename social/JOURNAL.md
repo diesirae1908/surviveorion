@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-09-20 PT: DEMOLITION+PIT Buffer queue (phase 2)
+
+- Lucas authorized live Buffer. Sam-approved captions via `post-buffer.mjs`
+  `--dry=false`, mode `addToQueue`. Media
+  `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`.
+- Buffer `addToQueue` (status scheduled): IG `6ab017e3581115d5905ae5ca`,
+  TT `6ab017e9ca3da6544355616f`, YT `6ab018063f368df689ed03b2`. YT needed one
+  retry after transient origin 502. No calendar row for 2026-09-20 in
+  `calendar.json` (not invented).
+
 ## 2026-09-20 PT: DEMOLITION+PIT CapCut hosted (phase 1, no Buffer yet)
 
 - Master copied (not moved) from Downloads to
