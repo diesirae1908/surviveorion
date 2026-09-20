@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-20 PT: DEMOLITION+PIT social draft hosted (phase 1)
+
+- Branch `sam/buffer-0920` in worktree `.worktrees/buffer-0920`. CapCut master
+  copied (not moved) from Downloads to
+  `final_videoasset/0920_demolition_pit_916.mov` (+ H.264 master `.mp4` archive,
+  gitignored). Transcoded HEVC to H.264 yuv420p AAC, `movflags +faststart`, moov
+  before mdat verified. Hosted `public/social-drafts/0920_demolition_pit_916.mp4`
+  (1080x1920, ~22.5s). Buffer queue deferred to phase 2 (Sam captions).
+- Deploy target: `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`
+- Commit: `1bb9db9`.
+
 ## 2026-09-17 night PT: Web iOS parity UI phase 3 + calendar QA (staging)
 
 - Sam spec `Sam/tmp/orion-web-parity-p3-spec.md` on `feat/web-ios-parity` (merged `origin/dev` at `749ad6f`).

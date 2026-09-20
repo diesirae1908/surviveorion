@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-09-20 PT: DEMOLITION+PIT CapCut hosted (phase 1, no Buffer yet)
+
+- Master copied (not moved) from Downloads to
+  `final_videoasset/0920_demolition_pit_916.mov`. HEVC transcoded to H.264
+  yuv420p AAC, `movflags +faststart`, moov before mdat verified. Hosted
+  `public/social-drafts/0920_demolition_pit_916.mp4` (1080x1920).
+- Media URL (after deploy):
+  `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`.
+  Phase 2: calendar row + Buffer when Lucas/Sam authorize.
+
 ## 2026-09-15 PT: MENAGERIE mutator clip hosted + Buffer queue
 
 - Lucas authorized live Buffer (IG/TT/YT). Master copied (not moved) from
