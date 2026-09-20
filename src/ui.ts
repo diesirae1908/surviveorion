@@ -5,7 +5,11 @@ import type { DayInfo } from "./dailyHistory";
 import { isTypingTarget } from "./input";
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
 import { archivePatrolTag, formatPatrolShort, nextPatrolMidnight, patrolDateStr } from "./patrolDate";
-import { FLY_THIS_PATROL, REPLAY_THIS_PATROL } from "./dailyHistory";
+import {
+  FLY_THIS_PATROL,
+  REPLAY_THIS_PATROL,
+  patrolDayEligibleForArchiveCalendarAction,
+} from "./dailyHistory";
 import type { Mutator } from "./mutators";
 import type {
   BooleanSetting,
@@ -1632,12 +1636,11 @@ export class Ui {
   ): void {
     const canFlyArchive = !!month.canFlyArchive;
     const showWebGoldPatrol = !!month.showWebGoldPatrol;
-    const past =
-      day.status === "completed" ||
-      day.status === "completed-local-only" ||
-      day.status === "attempted" ||
-      day.status === "missed" ||
-      day.status === "untracked";
+    const archivePast = patrolDayEligibleForArchiveCalendarAction(
+      day.status,
+      day.date,
+      month.todayDate,
+    );
 
     let actionBtn: HTMLButtonElement | null = null;
 
@@ -1648,7 +1651,7 @@ export class Ui {
       (month.unlimitedDaily || month.attemptsLeft > 0)
     ) {
       actionBtn = this.button(FLY_THIS_PATROL, true, () => handlers.onPlayDay!(day.date));
-    } else if (past && canFlyArchive && handlers.onPlayDay) {
+    } else if (archivePast && canFlyArchive && handlers.onPlayDay) {
       const replayed =
         day.status === "completed" || day.status === "completed-local-only";
       actionBtn = this.button(
@@ -1656,7 +1659,7 @@ export class Ui {
         true,
         () => handlers.onPlayDay!(day.date),
       );
-    } else if (past && showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
+    } else if (archivePast && showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
       actionBtn = this.button("Unlock Gold Patrol", true, () =>
         this.cb.onUnlockGoldPatrol?.(),
       );

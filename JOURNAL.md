@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-19 night PT: Fly CTA on pre-account archive days (staging)
+
+- Bug: Gold pilots saw empty status + no Fly on `before-launch` past days (pre `joinedAt`); `appendCalendarDayAction` only treated completed/missed/etc. as archive past.
+- **Fix:** `patrolDayEligibleForArchiveCalendarAction` in `dailyHistory.ts`; web calendar Fly/Replay + free Unlock Gold on those days. `dayInfoFor` epoch semantics unchanged (still not MISSED).
+- Tests: `test-daily-history.ts` eligibility cases. `npm test` + `npm run build` green. Commit: `27a8aa7`.
+
 ## 2026-09-19 night PT: Patrol History desktop width + compact Fly CTA (staging)
 
 - Lucas QA: calendar stuck at ~460px; Fly buttons inherited `.launch` (22px / 80px pad).

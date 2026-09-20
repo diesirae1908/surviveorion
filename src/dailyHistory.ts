@@ -192,3 +192,21 @@ export function prevMonthOf({ year, month }: MonthKey): MonthKey {
 export function nextMonthOf({ year, month }: MonthKey): MonthKey {
   return month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 };
 }
+
+/** Past calendar days that may show Fly (Gold) or Unlock (free) in patrol history.
+ * Includes pre-account archive days (`before-launch`) without treating them as MISSED. */
+export function patrolDayEligibleForArchiveCalendarAction(
+  status: DayStatus,
+  date: string,
+  todayDate: string,
+): boolean {
+  if (date >= todayDate || status === "today" || status === "future") return false;
+  if (status === "before-launch") return true;
+  return (
+    status === "completed" ||
+    status === "completed-local-only" ||
+    status === "attempted" ||
+    status === "missed" ||
+    status === "untracked"
+  );
+}

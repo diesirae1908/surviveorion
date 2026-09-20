@@ -9,6 +9,7 @@ import {
   FLY_THIS_PATROL,
   REPLAY_THIS_PATROL,
   dayInfoFor,
+  patrolDayEligibleForArchiveCalendarAction,
   daysInMonth,
   leadingPadding,
   maxDateStr,
@@ -52,6 +53,24 @@ check(
 check(
   "the epoch day itself is not 'before-launch'",
   dayInfoFor(EPOCH, opts()).status !== "before-launch",
+);
+
+check(
+  "before-launch past day is eligible for archive Fly/Unlock CTAs",
+  patrolDayEligibleForArchiveCalendarAction("before-launch", "2026-07-01", TODAY),
+);
+check(
+  "before-launch today or future is not archive-action eligible",
+  !patrolDayEligibleForArchiveCalendarAction("before-launch", TODAY, TODAY) &&
+    !patrolDayEligibleForArchiveCalendarAction("before-launch", "2026-08-21", TODAY),
+);
+check(
+  "missed past day stays archive-action eligible",
+  patrolDayEligibleForArchiveCalendarAction("missed", "2026-08-15", TODAY),
+);
+check(
+  "future days are not archive-action eligible",
+  !patrolDayEligibleForArchiveCalendarAction("future", "2026-08-21", TODAY),
 );
 
 // --- signed-out: local log is the only source of truth ---
