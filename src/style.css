@@ -3298,9 +3298,18 @@ button.link-btn:active {
 .day-card-action {
   width: 100%;
   min-width: 0;
-  font-size: 11px;
-  padding: 10px 8px;
+  font-size: 10px;
+  padding: 7px 6px;
   letter-spacing: var(--orion-tracking-label);
+  text-indent: 0;
+  animation: none;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+button.day-card-action:hover,
+button.day-card-action:active {
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
 }
 
 .status-chip {
@@ -3380,6 +3389,12 @@ button.link-btn:active {
 }
 
 @media (min-width: 900px) {
+  .calendar-screen-v2 .calendar-nav,
+  .calendar-screen-v2 .gold-strip,
+  .calendar-screen-v2 .week-list {
+    width: min(1160px, 96vw);
+  }
+
   .week-track {
     display: flex;
     flex-wrap: wrap;

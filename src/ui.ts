@@ -1664,7 +1664,7 @@ export class Ui {
     }
 
     if (!actionBtn) return;
-    actionBtn.classList.add("day-card-action", "launch", "chamfer");
+    actionBtn.classList.add("day-card-action", "chamfer");
     actionBtn.addEventListener("click", (e) => e.stopPropagation());
     const actionWrap = this.el("div", "day-card-action-wrap", "");
     actionWrap.appendChild(actionBtn);

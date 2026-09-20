@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-19 night PT: Patrol History desktop width + compact Fly CTA (staging)
+
+- Lucas QA: calendar stuck at ~460px; Fly buttons inherited `.launch` (22px / 80px pad).
+- **CSS:** desktop (≥900px) `.calendar-screen-v2` widens `.week-list`, `.calendar-nav`, `.gold-strip` to `min(1160px, 96vw)`; `.day-card-action` tighter (10px, 7×6 pad, no glow).
+- **UI:** drop `launch` class from day-card Fly/Replay/Unlock actions (keep `primary` + `chamfer`).
+- `npm test` + `npm run build` green. Commit: `1f90636`.
+
 ## 2026-09-19 evening PT: Patrol History week cards (web, staging)
 
 - Sam spec `Sam/tmp/orion-calendar-week-cards-spec.md`. Web only; no iOS/Swift.
