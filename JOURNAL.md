@@ -13,7 +13,7 @@ why, commit hash, follow-ups), committed together with the work. See
   YT `6ab018063f368df689ed03b2`. YouTube first attempt failed (origin 502 while
   Buffer fetched URL); one retry after HEAD 200 succeeded. No `calendar.json`
   row for 2026-09-20 (skipped; no duplicate calendar post).
-- Commit: (fill on commit).
+- Commit: `dac6766`.
 
 ## 2026-09-20 PT: DEMOLITION+PIT social draft hosted (phase 1)
 
