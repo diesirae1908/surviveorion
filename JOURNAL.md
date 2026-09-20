@@ -13,7 +13,7 @@ why, commit hash, follow-ups), committed together with the work. See
   before mdat verified. Hosted `public/social-drafts/0920_demolition_pit_916.mp4`
   (1080x1920, ~22.5s). Buffer queue deferred to phase 2 (Sam captions).
 - Deploy target: `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`
-- Commit: `1bb9db9`.
+- Commit: `59b908b`.
 
 ## 2026-09-17 night PT: Web iOS parity UI phase 3 + calendar QA (staging)
 
