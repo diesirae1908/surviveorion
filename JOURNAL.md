@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-19 evening PT: Patrol History week cards (web, staging)
+
+- Sam spec `Sam/tmp/orion-calendar-week-cards-spec.md`. Web only; no iOS/Swift.
+- **Calendar UI:** removed bottom detail panel; each day is a vertical `.day-card` in `.week-track` (phone horizontal scroll-snap + peek scale; desktop wrap at 900px). Fly / Replay / Unlock Gold on card actions.
+- **Month nav:** chamfered 44px arrows, gold gradient month label.
+- **CREW data:** `buildCalendarMonth` overwrites `future` mutators via `getMutatorsForDateStr` when `showFutureCalendarDays`; `dayInfoFor` spoiler default unchanged.
+- Tests: `test-daily-history.ts` regression strings for month build + week cards. `npm test` + `npm run build` green.
+- Commit: _(fill on push)_.
+
 ## 2026-09-17 night PT: Web iOS parity UI phase 3 + calendar QA (staging)
 
 - Sam spec `Sam/tmp/orion-web-parity-p3-spec.md` on `feat/web-ios-parity` (merged `origin/dev` at `749ad6f`).

@@ -1033,17 +1033,21 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
   const pad = leadingPadding(key.year, key.month);
   const total = daysInMonth(key.year, key.month);
 
+  const showFutureCalendarDays = api.tier === "admin" || creatorAccess;
   const cells: CalendarCell[] = [];
   for (let i = 0; i < pad; i++) cells.push(null);
   for (let d = 1; d <= total; d++) {
     const dateStr = utcDateStr(key.year, key.month, d);
-    const info = dayInfoFor(dateStr, {
+    let info = dayInfoFor(dateStr, {
       today,
       epochDate,
       signedIn: api.signedIn,
       local: local.get(dateStr) ?? null,
       server: calendarServerCache.get(dateStr) ?? null,
     });
+    if (showFutureCalendarDays && info.status === "future") {
+      info = { ...info, mutators: getMutatorsForDateStr(dateStr) };
+    }
     cells.push({ ...info, dayOfMonth: d });
   }
   while (cells.length % 7 !== 0) cells.push(null);
@@ -1069,7 +1073,7 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
     attemptsLeft: Math.max(0, DAILY_MAX_ATTEMPTS - attempts.used),
     unlimitedDaily: unlimitedDailyRuns(),
     isPremiumOrAdmin: unlimitedDailyRuns(),
-    showFutureCalendarDays: api.tier === "admin" || creatorAccess,
+    showFutureCalendarDays,
   };
 }
 

@@ -1513,20 +1513,17 @@ export class Ui {
     this.root.appendChild(screen);
   }
 
-  private formatCalendarDetailDate(dateStr: string): string {
-    const d = new Date(`${dateStr}T00:00:00.000Z`);
-    const wd = d
-      .toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
-      .toUpperCase();
-    const md = d
-      .toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
-      .toUpperCase();
-    return `${wd} · ${md}`;
-  }
-
   private dayRowMutatorCopy(day: DayInfo): { name: string; sub: string } {
     if (day.mutators.length === 0) {
       return { name: "CLASSIC", sub: "The standard swarm. No mutator today." };
+    }
+    if (day.mutators.length === 2) {
+      const a = day.mutators[0]!;
+      const b = day.mutators[1]!;
+      return {
+        name: `${a.name} + ${b.name}`.toUpperCase(),
+        sub: `${a.subline} · ${b.subline}`,
+      };
     }
     const m = day.mutators[0]!;
     return { name: m.name.toUpperCase(), sub: m.subline };
@@ -1549,7 +1546,7 @@ export class Ui {
     day: DayInfo & { dayOfMonth: number },
     month: PatrolCalendarMonth,
   ): HTMLElement {
-    const statusCol = this.el("div", "day-row-status", "");
+    const statusCol = this.el("div", "day-card-status", "");
     const isPremium = month.isPremiumOrAdmin;
     const lockedPast =
       !isPremium && day.date < month.todayDate && day.status !== "today";
@@ -1576,7 +1573,7 @@ export class Ui {
       statusCol.appendChild(
         this.el(
           "span",
-          "day-row-score",
+          "day-card-score",
           Math.floor(day.score ?? 0).toLocaleString(),
         ),
       );
@@ -1584,7 +1581,7 @@ export class Ui {
         statusCol.appendChild(
           this.el(
             "span",
-            `day-row-medal day-row-medal-${day.medal}`,
+            `day-card-medal day-card-medal-${day.medal}`,
             MEDAL_LABEL[day.medal].toUpperCase(),
           ),
         );
@@ -1595,7 +1592,7 @@ export class Ui {
     }
 
     if (showGoldLock) {
-      statusCol.appendChild(this.el("span", "day-row-lock", "🔒"));
+      statusCol.appendChild(this.el("span", "day-card-lock", "🔒"));
       statusCol.appendChild(this.el("span", "status-chip status-chip-gold", "GOLD"));
       return statusCol;
     }
@@ -1627,164 +1624,111 @@ export class Ui {
     return statusCol;
   }
 
-  private buildCalendarDayRow(
+  private appendCalendarDayAction(
+    card: HTMLElement,
     day: DayInfo & { dayOfMonth: number },
     month: PatrolCalendarMonth,
-    detail: HTMLElement,
     handlers: { onPlayDay?: (date: string) => void },
-    selectedRow: { el: HTMLButtonElement | null },
-  ): HTMLButtonElement {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = `day-row chamfer${day.status === "today" ? " day-row-today" : ""}`;
-    const d = new Date(`${day.date}T00:00:00.000Z`);
-    const weekday = d
-      .toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
-      .toUpperCase();
-    const { name, sub } = this.dayRowMutatorCopy(day);
-
-    const dateCol = this.el("div", "day-row-date", "");
-    dateCol.appendChild(this.el("span", "day-row-weekday", weekday));
-    dateCol.appendChild(this.el("span", "day-row-num", String(day.dayOfMonth)));
-
-    const mutCol = this.el("div", "day-row-mutator", "");
-    mutCol.appendChild(this.el("span", "day-row-name", name));
-    mutCol.appendChild(this.el("span", "day-row-sub", sub));
-
-    row.append(dateCol, mutCol, this.buildDayRowStatus(day, month));
-
-    const lockedPast =
-      !month.isPremiumOrAdmin &&
-      day.date < month.todayDate &&
-      day.status !== "today";
-    if (lockedPast) {
-      row.setAttribute("aria-label", "Locked. Requires Gold Patrol.");
-    }
-
-    const interactive = day.status !== "future" && day.status !== "before-launch";
-    if (!interactive) {
-      row.disabled = day.status === "future";
-    }
-
-    row.addEventListener("click", () => {
-      if (lockedPast) {
-        this.cb.onUnlockGoldPatrol?.();
-        return;
-      }
-      if (!interactive) return;
-      selectedRow.el?.classList.remove("day-row-selected");
-      row.classList.add("day-row-selected");
-      selectedRow.el = row;
-      this.fillCalendarDayDetail(
-        detail,
-        day,
-        handlers,
-        !!month.canFlyArchive,
-        !!month.showWebGoldPatrol,
-      );
-    });
-
-    return row;
-  }
-
-  /** Full breakdown for a tapped calendar day: mutator briefing (the FOMO
-   * payoff for a missed day) plus whatever result data is available. */
-  private dayDetailHtml(day: DayInfo & { dayOfMonth: number }): string {
-    const parts: string[] = [
-      `<div class="cal-detail-date">${this.formatCalendarDetailDate(day.date)}</div>`,
-    ];
-
-    for (const m of day.mutators) {
-      parts.push(
-        `<div class="cal-detail-mutator">` +
-          `<span class="mutator-name">${escapeHtml(m.name)}</span>` +
-          `<span class="mutator-subline">${escapeHtml(m.subline)}</span>` +
-          `</div>`,
-      );
-    }
-
-    switch (day.status) {
-      case "today":
-        parts.push(`<div class="field-hint center">Today's patrol, still flying.</div>`);
-        break;
-      case "before-launch":
-        parts.push(`<div class="field-hint center">Before Daily Patrol existed.</div>`);
-        break;
-      case "completed":
-      case "completed-local-only": {
-        const medalLine = day.medal
-          ? `${MEDAL_EMOJI[day.medal]} ${MEDAL_LABEL[day.medal]} MEDAL`
-          : "No medal that day";
-        parts.push(
-          `<div class="cal-detail-result">` +
-            `<span class="value">${Math.floor(day.score ?? 0).toLocaleString()}</span> pts` +
-            (day.time !== undefined ? ` &nbsp;·&nbsp; ${fmtTime(day.time)}` : "") +
-            (day.rank !== undefined && day.rank !== null ? ` &nbsp;·&nbsp; #${day.rank}` : "") +
-            `</div>`,
-          `<div class="cal-detail-medal">${medalLine}</div>`,
-        );
-        if (day.status === "completed-local-only") {
-          parts.push(
-            `<div class="field-hint center">` +
-              (day.sourceConflict
-                ? "Recorded on this device only, it never reached your account (flown before signing in, or a sync that failed)."
-                : "Recorded on this device only. Sign in to keep this on your account.") +
-              `</div>`,
-          );
-        }
-        break;
-      }
-      case "attempted":
-        parts.push(
-          `<div class="field-hint center">Started but never finished (this device only, no run submitted).</div>`,
-        );
-        break;
-      case "missed":
-        parts.push(`<div class="field-hint center">No patrol flown.</div>`);
-        break;
-      case "untracked":
-        parts.push(
-          `<div class="field-hint center">No record for this device, and you're not signed in to check your account.</div>`,
-        );
-        break;
-      case "future":
-        break;
-    }
-    return parts.join("");
-  }
-
-  private fillCalendarDayDetail(
-    detail: HTMLElement,
-    day: DayInfo & { dayOfMonth: number },
-    handlers: { onPlayDay?: (date: string) => void },
-    canFlyArchive: boolean,
-    showWebGoldPatrol: boolean,
   ): void {
-    detail.hidden = false;
-    detail.innerHTML = this.dayDetailHtml(day);
+    const canFlyArchive = !!month.canFlyArchive;
+    const showWebGoldPatrol = !!month.showWebGoldPatrol;
     const past =
       day.status === "completed" ||
       day.status === "completed-local-only" ||
       day.status === "attempted" ||
       day.status === "missed" ||
       day.status === "untracked";
-    if (!past) return;
-    if (canFlyArchive && handlers.onPlayDay) {
-      const replayed = day.status === "completed" || day.status === "completed-local-only";
-      const btn = this.button(replayed ? REPLAY_THIS_PATROL : FLY_THIS_PATROL, true, () =>
-        handlers.onPlayDay!(day.date),
+
+    let actionBtn: HTMLButtonElement | null = null;
+
+    if (
+      day.status === "today" &&
+      canFlyArchive &&
+      handlers.onPlayDay &&
+      (month.unlimitedDaily || month.attemptsLeft > 0)
+    ) {
+      actionBtn = this.button(FLY_THIS_PATROL, true, () => handlers.onPlayDay!(day.date));
+    } else if (past && canFlyArchive && handlers.onPlayDay) {
+      const replayed =
+        day.status === "completed" || day.status === "completed-local-only";
+      actionBtn = this.button(
+        replayed ? REPLAY_THIS_PATROL : FLY_THIS_PATROL,
+        true,
+        () => handlers.onPlayDay!(day.date),
       );
-      btn.classList.add("launch", "chamfer", "cal-detail-fly");
-      detail.appendChild(btn);
-      return;
+    } else if (past && showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
+      actionBtn = this.button("Unlock Gold Patrol", true, () =>
+        this.cb.onUnlockGoldPatrol?.(),
+      );
+      actionBtn.classList.add("gold-patrol-plan");
     }
-    if (showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
-      detail.appendChild(
-        this.el("div", "field-hint", "Gold Patrol unlocks every past patrol on web."),
+
+    if (!actionBtn) return;
+    actionBtn.classList.add("day-card-action", "launch", "chamfer");
+    actionBtn.addEventListener("click", (e) => e.stopPropagation());
+    const actionWrap = this.el("div", "day-card-action-wrap", "");
+    actionWrap.appendChild(actionBtn);
+    card.appendChild(actionWrap);
+  }
+
+  private buildCalendarDayCard(
+    day: DayInfo & { dayOfMonth: number },
+    month: PatrolCalendarMonth,
+    handlers: { onPlayDay?: (date: string) => void },
+  ): HTMLElement {
+    const todayClass = day.status === "today" ? " day-card-today" : "";
+    const card = this.el("div", `day-card chamfer${todayClass}`, "");
+
+    const d = new Date(`${day.date}T00:00:00.000Z`);
+    const weekday = d
+      .toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
+      .toUpperCase();
+    const { name, sub } = this.dayRowMutatorCopy(day);
+
+    const dateCol = this.el("div", "day-card-date", "");
+    dateCol.appendChild(this.el("span", "day-card-weekday", weekday));
+    dateCol.appendChild(this.el("span", "day-card-num", String(day.dayOfMonth)));
+
+    const mutCol = this.el("div", "day-card-mutator", "");
+    mutCol.appendChild(this.el("span", "day-card-name", name));
+    mutCol.appendChild(this.el("span", "day-card-sub", sub));
+
+    card.append(dateCol, mutCol, this.buildDayRowStatus(day, month));
+    this.appendCalendarDayAction(card, day, month, handlers);
+
+    const lockedPast =
+      !month.isPremiumOrAdmin &&
+      day.date < month.todayDate &&
+      day.status !== "today";
+    if (lockedPast) {
+      card.setAttribute("aria-label", "Locked. Requires Gold Patrol.");
+      card.classList.add("day-card-locked");
+      card.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.());
+    }
+
+    return card;
+  }
+
+  private attachWeekTrackPeekEffects(weekList: HTMLElement): void {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia("(min-width: 900px)").matches) return;
+
+    const tracks = weekList.querySelectorAll<HTMLElement>(".week-track");
+    for (const track of tracks) {
+      track.style.scrollBehavior = "smooth";
+      const cards = track.querySelectorAll<HTMLElement>(".day-card");
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            entry.target.classList.toggle(
+              "day-card-peek",
+              entry.intersectionRatio < 0.75,
+            );
+          }
+        },
+        { root: track, threshold: [0, 0.25, 0.5, 0.75, 1] },
       );
-      const unlock = this.button("Unlock Gold Patrol", true, () => this.cb.onUnlockGoldPatrol?.());
-      unlock.classList.add("chamfer", "cal-detail-fly", "gold-patrol-plan");
-      detail.appendChild(unlock);
+      cards.forEach((c) => observer.observe(c));
     }
   }
 
@@ -1813,10 +1757,10 @@ export class Ui {
     const nav = this.el("div", "calendar-nav", "");
     const prev = this.button("‹", false, handlers.onPrevMonth);
     prev.disabled = !month.canGoPrev;
-    prev.classList.add("calendar-nav-btn");
+    prev.classList.add("calendar-nav-btn", "chamfer");
     const next = this.button("›", false, handlers.onNextMonth);
     next.disabled = !month.canGoNext;
-    next.classList.add("calendar-nav-btn");
+    next.classList.add("calendar-nav-btn", "chamfer");
     nav.append(prev, this.el("span", "calendar-month-label", month.label), next);
     screen.appendChild(nav);
 
@@ -1838,10 +1782,6 @@ export class Ui {
       strip.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.());
       screen.appendChild(strip);
     }
-
-    const detail = this.el("div", "calendar-detail calendar-detail-v2 chamfer", "");
-    detail.hidden = true;
-    const selectedRow: { el: HTMLButtonElement | null } = { el: null };
 
     const weekList = this.el("div", "week-list", "");
     const reversedWeeks = [...month.weeks].reverse();
@@ -1867,14 +1807,15 @@ export class Ui {
       header.appendChild(this.el("span", "week-header-rule", ""));
       section.appendChild(header);
 
+      const track = this.el("div", "week-track", "");
       for (const day of days) {
-        section.appendChild(
-          this.buildCalendarDayRow(day, month, detail, handlers, selectedRow),
-        );
+        track.appendChild(this.buildCalendarDayCard(day, month, handlers));
       }
+      section.appendChild(track);
       weekList.appendChild(section);
     }
     screen.appendChild(weekList);
+    this.attachWeekTrackPeekEffects(weekList);
 
     if (month.loading) {
       screen.appendChild(this.el("div", "field-hint center", "Syncing your account's record…"));
@@ -1891,8 +1832,6 @@ export class Ui {
         ),
       );
     }
-    screen.appendChild(detail);
-
     this.root.appendChild(screen);
   }
 

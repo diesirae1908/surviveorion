@@ -198,6 +198,15 @@ check("archive game-over tag", archivePatrolTag("2026-09-08") === "PATROL · Sep
 check("formatPatrolShort drops the leading zero", formatPatrolShort("2026-09-08") === "Sep 8");
 
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
+const mainTs = fs.readFileSync(path.join(ROOT, "src/main.ts"), "utf8");
+check(
+  "CREW calendar overwrites future mutators in buildCalendarMonth",
+  mainTs.includes('showFutureCalendarDays && info.status === "future"') &&
+    mainTs.includes("getMutatorsForDateStr(dateStr)"),
+);
+const uiTs = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");
+check("web patrol calendar uses week-track day cards", uiTs.includes("week-track") && uiTs.includes("buildCalendarDayCard"));
+check("web patrol calendar dropped bottom detail panel", !uiTs.includes("fillCalendarDayDetail"));
 const calendarSwift = fs.readFileSync(path.join(ROOT, "ios/App/App/CalendarView.swift"), "utf8");
 check("native missed/untracked offers Fly this Patrol", calendarSwift.includes("Fly this Patrol"));
 check("native played day still offers Replay this Patrol", calendarSwift.includes("Replay this Patrol"));
