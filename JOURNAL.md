@@ -8,7 +8,7 @@ why, commit hash, follow-ups), committed together with the work. See
 
 - Bug: Gold pilots saw empty status + no Fly on `before-launch` past days (pre `joinedAt`); `appendCalendarDayAction` only treated completed/missed/etc. as archive past.
 - **Fix:** `patrolDayEligibleForArchiveCalendarAction` in `dailyHistory.ts`; web calendar Fly/Replay + free Unlock Gold on those days. `dayInfoFor` epoch semantics unchanged (still not MISSED).
-- Tests: `test-daily-history.ts` eligibility cases. `npm test` + `npm run build` green. Commit: `27a8aa7`.
+- Tests: `test-daily-history.ts` eligibility cases. `npm test` + `npm run build` green. Commit: `406a6b2`.
 
 ## 2026-09-19 night PT: Patrol History desktop width + compact Fly CTA (staging)
 
