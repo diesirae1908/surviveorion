@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-09-24 PT: DEMOLITION DAY mutator hosted (phase 1)
+
+- Patrol Day 73. Master copied (not moved) from Downloads to
+  `final_videoasset/0924_demolition_916.mov` (+ H.264 archive `.mp4`, gitignored).
+  HEVC transcoded to H.264 yuv420p AAC, `movflags +faststart`, moov before mdat
+  verified. Hosted `public/social-drafts/0924_demolition_916.mp4` (1080x1920, ~25s).
+- Deploy target:
+  `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`.
+  Commit TBD (phase 2 adds Buffer TT).
+
 ## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
 
 - Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `--dry=false`,

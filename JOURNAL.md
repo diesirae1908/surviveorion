@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-24 PT: DEMOLITION DAY social draft hosted (phase 1)
+
+- Worktree `.worktrees/buffer-0924` branch `sam/buffer-0924`. Patrol Day 73.
+  Master copied (not moved) from Downloads to `final_videoasset/0924_demolition_916.mov`
+  (+ H.264 `.mp4` archive, gitignored). HEVC to H.264 faststart, moov before mdat.
+  Hosted `public/social-drafts/0924_demolition_916.mp4` (1080x1920, ~25s).
+- Deploy: `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`
+- Commit: TBD (phase 2 adds Buffer TT id).
+
 ## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
 
 - Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `shareNow`,
