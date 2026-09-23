@@ -15,7 +15,7 @@
 - Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `--dry=false`,
   mode `customScheduled`, `dueAt` `2026-09-24T16:00:00.000Z`. Media
   `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`.
-- Buffer TT `6ab428560aa0d077fc2fccfc` (status `scheduled`). Commit TBD.
+- Buffer TT `6ab428560aa0d077fc2fccfc` (status `scheduled`). Commit `789c494`.
 
 ## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
 

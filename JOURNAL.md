@@ -19,7 +19,7 @@ why, commit hash, follow-ups), committed together with the work. See
   `dueAt` `2026-09-24T16:00:00.000Z` (9:00 AM PT). Media
   `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`.
   TT `6ab428560aa0d077fc2fccfc` (status `scheduled`). IG/YT not posted.
-- Commit: TBD.
+- Commit: `789c494`.
 
 ## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
 
