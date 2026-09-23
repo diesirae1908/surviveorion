@@ -11,7 +11,15 @@ why, commit hash, follow-ups), committed together with the work. See
   (+ H.264 `.mp4` archive, gitignored). HEVC to H.264 faststart, moov before mdat.
   Hosted `public/social-drafts/0924_demolition_916.mp4` (1080x1920, ~25s).
 - Deploy: `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`
-- Commit: TBD (phase 2 adds Buffer TT id).
+- Commit: `ec5b74b`.
+
+## 2026-09-24 PT: DEMOLITION DAY Buffer TikTok (phase 2)
+
+- Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `customScheduled`,
+  `dueAt` `2026-09-24T16:00:00.000Z` (9:00 AM PT). Media
+  `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`.
+  TT `6ab428560aa0d077fc2fccfc` (status `scheduled`). IG/YT not posted.
+- Commit: TBD.
 
 ## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
 
