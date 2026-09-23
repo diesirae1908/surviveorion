@@ -1,5 +1,13 @@
 # JOURNAL
 
+## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
+
+- Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `--dry=false`,
+  mode `shareNow`. Media
+  `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`.
+- Buffer TT `6ab40458062c9074d14e345c` (initial status `sending`). Commit follow-up
+  after journal.
+
 ## 2026-09-23 PT: THE LIGHTHOUSE mutator hosted (phase 1)
 
 - Master copied (not moved) from Downloads to
@@ -8,7 +16,7 @@
   verified. Hosted `public/social-drafts/0923_lighthouse_916.mp4` (1080x1920, ~67s).
 - Deploy target:
   `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`.
-  Buffer TikTok `shareNow` when Lucas authorized (phase 2).
+  Commit `d0004f5`.
 
 ## 2026-09-20 PT: DEMOLITION+PIT Buffer queue (phase 2)
 

@@ -4,6 +4,22 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
+
+- Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `shareNow`,
+  media `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`.
+  TT `6ab40458062c9074d14e345c` (initial status `sending`). IG/YT not posted.
+- Commit: (phase 2 journal follow-up).
+
+## 2026-09-23 PT: THE LIGHTHOUSE social draft hosted (phase 1)
+
+- Worktree `.worktrees/buffer-0923` branch `sam/buffer-0923`. Master copied (not
+  moved) from Downloads to `final_videoasset/0923_lighthouse_916.mov` (+ H.264
+  `.mp4` archive, gitignored). HEVC to H.264 faststart. Hosted
+  `public/social-drafts/0923_lighthouse_916.mp4` (1080x1920, ~67s).
+- Deploy: `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`
+- Commit: `d0004f5`.
+
 ## 2026-09-20 PT: DEMOLITION+PIT Buffer queued (phase 2)
 
 - Lucas authorized live Buffer (IG/TT/YT). `post-buffer.mjs` `addToQueue`,
