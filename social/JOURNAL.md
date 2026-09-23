@@ -1,5 +1,15 @@
 # JOURNAL
 
+## 2026-09-23 PT: THE LIGHTHOUSE mutator hosted (phase 1)
+
+- Master copied (not moved) from Downloads to
+  `final_videoasset/0923_lighthouse_916.mov` (+ H.264 archive `.mp4`, gitignored).
+  HEVC transcoded to H.264 yuv420p AAC, `movflags +faststart`, moov before mdat
+  verified. Hosted `public/social-drafts/0923_lighthouse_916.mp4` (1080x1920, ~67s).
+- Deploy target:
+  `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`.
+  Buffer TikTok `shareNow` when Lucas authorized (phase 2).
+
 ## 2026-09-20 PT: DEMOLITION+PIT Buffer queue (phase 2)
 
 - Lucas authorized live Buffer. Sam-approved captions via `post-buffer.mjs`
