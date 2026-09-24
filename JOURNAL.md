@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-24 morning PT: StoreKit JWS for premium report (TF17 prep)
+
+- Apple rejected ASC submission `7a02957c-7690-4ebb-868f-cc9fd3c11e7f` (build 16) Guideline 2.1(b): Gold Patrol purchase error in review sandbox. Root cause: `StoreKitManager` sent `transaction.jsonRepresentation` (raw JSON) to `POST /api/me/premium`; server expects StoreKit 2 signed JWS (`verifyStoreKitJws`).
+- **Fix (`StoreKitManager.swift`):** `checkVerifiedTransaction` returns `(Transaction, VerificationResult.jwsRepresentation)`. Purchase success, `Transaction.updates`, and `currentEntitlements` paths call `reportPremium(signedTransaction:)` with that JWS. Purchase catch surfaces truncated `localizedDescription`. Local entitlement prefs unchanged.
+- Branch `fix/storekit-jws-tf17`, worktree `.worktrees/fix-storekit-jws-tf17`. Commit `1c6c603`. Verify: `node --test scripts/test-apple-iap.mjs` pass; `xcodebuild ... iPhone 17 Simulator` **BUILD SUCCEEDED** (after `npm run build` for `dist/`).
+- Follow-up: archive/upload build 17, attach ASC 1.0, sandbox QA monthly+yearly on TF17. Do not submit for review (Sam/Lucas).
+
 ## 2026-09-24 PT: DEMOLITION DAY social draft hosted (phase 1)
 
 - Worktree `.worktrees/buffer-0924` branch `sam/buffer-0924`. Patrol Day 73.
