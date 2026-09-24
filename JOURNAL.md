@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-24 morning PT: TestFlight 1.0 (17) uploaded + attached to ASC 1.0 (StoreKit JWS)
+
+- Commit `808d932` on `origin/main` (includes `1c6c603` StoreKit JWS fix). Worktree `.worktrees/fix-storekit-jws-tf17`.
+- `npm ci` + `npm run build` (bundle `main-BFgLner-.js`). `xcodebuild archive` `CURRENT_PROJECT_VERSION=17`, team `4R88D2NKUC`, profile "ORION App Store", login keychain. Archive `/tmp/orion-ios-native/ORION-b17.xcarchive`.
+- `altool --upload-app` delivery/build `bb90bd49-70bb-4d5e-9ac5-8d2ddf00c611`. Processing `VALID`. `usesNonExemptEncryption:false`. Internal group `1c4f517b-f1cd-4f8b-a2a7-c770b0e09dfe`: `IN_BETA_TESTING`. Attached to App Store version 1.0 `cc936b94-bb8b-4d22-a4bc-183ee4fb1809` (state `PREPARE_FOR_SUBMISSION`). **Not submitted for review.**
+- Follow-up for Lucas: sandbox purchase QA on TF17 (monthly + yearly Gold Patrol); Sam/Lucas resubmit ASC draft `7a02957c-7690-4ebb-868f-cc9fd3c11e7f` after QA.
+
 ## 2026-09-24 morning PT: StoreKit JWS for premium report (TF17 prep)
 
 - Apple rejected ASC submission `7a02957c-7690-4ebb-868f-cc9fd3c11e7f` (build 16) Guideline 2.1(b): Gold Patrol purchase error in review sandbox. Root cause: `StoreKitManager` sent `transaction.jsonRepresentation` (raw JSON) to `POST /api/me/premium`; server expects StoreKit 2 signed JWS (`verifyStoreKitJws`).
