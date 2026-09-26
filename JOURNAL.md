@@ -4,6 +4,21 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-25 PT: GitHub Actions CI (advisory)
+
+- **What:** `.github/workflows/ci.yml` on `ubuntu-latest`, Node 22 (matches `Dockerfile` `node:22-alpine` and `social/package.json` engines). Steps: `npm ci`, `npm run build` (`tsc --noEmit` + Vite), `npm test` (full existing chain, 26 scripts). `concurrency` per ref with cancel-in-progress. `timeout-minutes: 15`.
+- **Triggers:** `push` to `dev` and `main` only; all `pull_request` events (no CI on arbitrary feature-branch pushes).
+- **test:ci:** not added. Every script in `npm test` is headless (in-memory SQLite, mocked `fetch` for Notion, local HTTP for clip-inbox, `openssl` self-signed certs for Apple IAP). No real API keys; stripe-billing sets public price IDs in the test file.
+- **Not run in CI (outside `npm test`):**
+  - `npm run sim-test`: longer headless playtest, not wired into `npm test` (follow-up: add to chain if Sam wants it in the promote gate).
+  - `npm run test:daily-bots`, `test:rehearsal-day`, `test:patrol-date`: exist but not in `npm test` today.
+  - `cd social && npm test`: separate package; Playwright/ffmpeg and operator secrets (`social/.env`).
+  - `cap:sync` / iOS: macOS + Xcode, not Linux CI.
+  - Browser/Playwright game QA: out of scope (music, separate design).
+- **Local:** `npm ci`, `npm run build`, `npm test` green on clean `origin/dev` worktree.
+- **Commit:** the `chore: add GitHub Actions CI` commit on `dev`.
+- **Follow-ups:** Sam subscribe to CI results; merge `chore/ci-actions` to `dev` when ready (no push from this dispatch).
+
 ## 2026-09-19 night PT: Fly CTA on pre-account archive days (staging)
 
 - Bug: Gold pilots saw empty status + no Fly on `before-launch` past days (pre `joinedAt`); `appendCalendarDayAction` only treated completed/missed/etc. as archive past.
