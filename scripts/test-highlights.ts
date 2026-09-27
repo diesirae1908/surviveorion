@@ -84,8 +84,23 @@ check(
 );
 check(
   "label pads seconds under 10",
-  closestCallLabel({ time: 5, x: 0, y: 0, clearance: 0.9 }),
-  "Clean dodge at 0:05",
+  closestCallLabel({ time: 5, x: 0, y: 0, clearance: 0.1 }),
+  "Hair's-breadth dodge at 0:05",
+);
+check(
+  "clean dodge under 20s is hidden",
+  closestCallLabel({ time: 4, x: 0, y: 0, clearance: 0.9 }),
+  null,
+);
+check(
+  "razor dodge under 20s still shows",
+  closestCallLabel({ time: 4, x: 0, y: 0, clearance: 0.4 }),
+  "Razor-thin dodge at 0:04",
+);
+check(
+  "clean dodge at 0:45 shows",
+  closestCallLabel({ time: 45, x: 0, y: 0, clearance: 0.9 }),
+  "Clean dodge at 0:45",
 );
 
 if (failures > 0) {

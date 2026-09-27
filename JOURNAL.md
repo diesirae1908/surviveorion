@@ -4,6 +4,22 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: WS2 onboarding and game-over meta (UX round)
+
+- **Branch:** `feat/ux-ws2-onboarding` (worktree `.worktrees/ws2-onboarding`, from `origin/dev` `deae671`).
+- **OR-08:** `shouldAutoShowUpdate` skips the FIELD UPDATE modal when `lastSeen === null` and `runCount === 0`; caller writes lastSeen so the bell has no pill. Bell still opens the latest entry.
+- **OR-07:** "New best score" only when `prevBest > 0` and `runCount > 1`. Clean dodge hidden under 20 s; hair/razor always show.
+- **OR-05:** Guest daily game-over shows "Would be #N of M today" (combined board, bots included, ties rank below). Refunded / signed-in skip it.
+- **OR-06:** New `src/gameOverGoal.ts` `goalLine`: under 40% of copper, nearest board name or "Beat your best today"; else `nextMedalHint`; null once gold.
+- **OR-04:** Fresh web device auto-starts a 25 s skippable First Flight (training, no `useDailyAttempt`, no submit). Hints at 0 / 8 / 18 s. End screen CTA warps into today's patrol. **Native `?nativePlay=daily` skips First Flight** (no Swift): the first-flight end screen is web HTML and native game-over chrome still owns that path. Question for Sam: should a later TestFlight show First Flight inside WebPlay without `postNativeGameOver`?
+- **OR-13:** Flight School adds THE PATROL beat; THE GOAL / tutorial-end copy is "Top today's board. Above all, survive."
+- **OR-17 markup:** lobby pips and game-over medal line use `/medals/{copper,silver,gold}.svg` plus COPPER/SILVER/GOLD. Share text keeps emoji; share PNG draws the SVG. WS4 owns the files.
+- **OR-18 ui.ts:** splash "CLICK TO ENTER" on non-touch. CSS tagline is WS4.
+- **OR-19:** lobby button "Patrol History".
+- **OR-23:** preview game-over skips the Scoring rank slot.
+- **OR-22:** not implemented (held).
+- **Tests:** `scripts/test-gameover-goal.ts`, `scripts/test-first-flight.ts` added to `npm test`. `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts` green.
+
 ## 2026-09-27 PT: merge `origin/main` into `dev` (pre UX round)
 
 - **Why:** Staging (`surviveorion-dev`, auto-deploy from `dev`) must carry live before UX/gameplay work.

@@ -3,7 +3,7 @@ import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
 import type { DayInfo } from "./dailyHistory";
 import { isTypingTarget } from "./input";
-import { MEDAL_EMOJI, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
+import { MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
 import { archivePatrolTag, formatPatrolShort, nextPatrolMidnight, patrolDateStr } from "./patrolDate";
 import {
   FLY_THIS_PATROL,
@@ -28,6 +28,7 @@ import {
   PATROL_COMPLETE_BODY_GOLD,
   PATROL_COMPLETE_TITLE,
   formatKeyList,
+  loadRunCount,
 } from "./save";
 import type { ShareOutcome } from "./share";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
@@ -46,6 +47,7 @@ import {
   latestUpdate,
   loadLastSeenUpdateId,
   saveLastSeenUpdateId,
+  shouldAutoShowUpdate,
   type GameUpdate,
 } from "./updates";
 import { APP_STORE_URL } from "./webGate";
@@ -156,6 +158,10 @@ export interface GameOverStats {
   preview?: boolean;
   /** "Razor-thin dodge at 1:24" style highlight line, or undefined for no grazes (see highlights.ts). */
   closestCallLabel?: string | null;
+  /** Personal best before this run (OR-07: hide New best on a first score). */
+  prevBest?: number;
+  /** Lifetime completed runs after this one is counted (OR-07). */
+  runCount?: number;
   /** Opt-in local recording (see recorder.ts): a clip is ready to save. */
   clipReady?: boolean;
   /** That clip got cut short by RECORDING_MAX_SECONDS instead of stopping at game over. */
@@ -387,6 +393,14 @@ function fmtTime(s: number): string {
 /** Compact score, e.g. 150000 -> "150k" (thresholds are always round-5k). */
 function fmtScoreShort(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+function isTouchDevice(): boolean {
+  return typeof window !== "undefined" && "ontouchstart" in window;
+}
+
+function medalIconHtml(tier: MedalTier): string {
+  return `<img class="medal-icon" src="/medals/${tier}.svg" alt="${MEDAL_LABEL[tier]}" width="20" height="20">`;
 }
 
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
@@ -961,9 +975,17 @@ export class Ui {
         this.latestLobbyUpdate = latestUpdate(list);
         this.paintUpdatePill();
         const latest = this.latestLobbyUpdate;
-        if (latest && hasUnreadUpdate(latest.id, loadLastSeenUpdateId())) {
-          this.showFieldUpdate(latest, { persistOnDismiss: true, clearPillNow: true });
+        if (!latest) return;
+        const lastSeen = loadLastSeenUpdateId();
+        const runCount = loadRunCount();
+        if (!shouldAutoShowUpdate(latest.id, lastSeen, runCount)) {
+          if (lastSeen === null && runCount === 0) {
+            saveLastSeenUpdateId(latest.id);
+            this.paintUpdatePill();
+          }
+          return;
         }
+        this.showFieldUpdate(latest, { persistOnDismiss: true, clearPillNow: true });
       })
       .catch(() => {});
   }
@@ -1101,9 +1123,9 @@ export class Ui {
       this.el(
         "div",
         "medal-thresholds",
-        `<span class="medal-pip copper">🥉 ${fmtScoreShort(thresholds.copper)}</span>` +
-          `<span class="medal-pip silver">🥈 ${fmtScoreShort(thresholds.silver)}</span>` +
-          `<span class="medal-pip gold">🥇 ${fmtScoreShort(thresholds.gold)}</span>`,
+        `<span class="medal-pip copper">${medalIconHtml("copper")} ${MEDAL_LABEL.copper} ${fmtScoreShort(thresholds.copper)}</span>` +
+          `<span class="medal-pip silver">${medalIconHtml("silver")} ${MEDAL_LABEL.silver} ${fmtScoreShort(thresholds.silver)}</span>` +
+          `<span class="medal-pip gold">${medalIconHtml("gold")} ${MEDAL_LABEL.gold} ${fmtScoreShort(thresholds.gold)}</span>`,
       ),
     );
     wrap.appendChild(card);
@@ -1409,7 +1431,7 @@ export class Ui {
     }
 
     const util = this.el("div", "lobby-util-grid", "");
-    util.appendChild(this.lobbyStackButton("Patrol Calendar", () => this.cb.onPatrolCalendar()));
+    util.appendChild(this.lobbyStackButton("Patrol History", () => this.cb.onPatrolCalendar()));
     util.appendChild(
       this.lobbyStackButton("Wingmates", () => this.cb.onFriends(), {
         notif: (info.pendingFriends ?? 0) > 0,
@@ -1842,11 +1864,35 @@ export class Ui {
    * Training Ground send-off (daily-only site): the run is unscored, so no
    * stats ceremony — just a nudge toward the real patrol.
    */
-  showTrainingEnd(attemptsLeft: number): void {
+  showTrainingEnd(
+    attemptsLeft: number,
+    opts?: { firstFlight?: boolean; onFlyPatrol?: () => void },
+  ): void {
     this.clear();
     this.pauseBtn.style.display = "none";
 
     const screen = this.el("div", "screen gameover-screen", "");
+    if (opts?.firstFlight) {
+      screen.appendChild(this.el("div", "heading gold small", "FIRST FLIGHT"));
+      screen.appendChild(this.el("div", "divider", ""));
+      screen.appendChild(
+        this.el(
+          "div",
+          "hint",
+          "Everyone flies this same patrol today. 3 attempts. Best one goes on the board.",
+        ),
+      );
+      const fly = (): void => {
+        if (opts.onFlyPatrol) opts.onFlyPatrol();
+        else this.cb.onDaily();
+      };
+      const daily = this.button("Fly today's patrol", true, fly);
+      daily.classList.add("launch");
+      screen.appendChild(daily);
+      screen.appendChild(this.button("Skip", false, () => this.cb.onQuitToMenu()));
+      this.root.appendChild(screen);
+      return;
+    }
     screen.appendChild(this.el("div", "heading gold small", "TRAINING OVER"));
     screen.appendChild(this.el("div", "divider", ""));
     screen.appendChild(
@@ -2422,7 +2468,7 @@ export class Ui {
 
     const gate = this.el("div", "intro-gate", "");
     gate.appendChild(this.wordmarkTitle());
-    gate.appendChild(this.el("div", "enter", "Tap to enter"));
+    gate.appendChild(this.el("div", "enter", isTouchDevice() ? "Tap to enter" : "CLICK TO ENTER"));
     gate.appendChild(
       this.el("div", "gate-tagline", "Dodge the swarm · 3 attempts daily · same run for every pilot"),
     );
@@ -2505,6 +2551,20 @@ export class Ui {
     this.root.appendChild(skip);
   }
 
+  /** First Flight overlay: same hint strip + Skip as Flight School. */
+  showFirstFlightHud(onSkip: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+
+    const hint = this.el("div", "tutorial-hint", "");
+    hint.id = "tutorial-hint";
+    this.root.appendChild(hint);
+
+    const skip = this.button("Skip", false, onSkip);
+    skip.className = "tutorial-skip";
+    this.root.appendChild(skip);
+  }
+
   setTutorialHint(html: string): void {
     const hint = document.getElementById("tutorial-hint");
     if (!hint) return;
@@ -2551,7 +2611,7 @@ export class Ui {
       this.el(
         "div",
         "hint",
-        "Score the best score. Be the best of the galaxy.<br/>And above all… survive.",
+        "Top today's board. Above all, survive.",
       ),
     );
     const launch = this.button("Launch", true, onLaunch);
@@ -2615,7 +2675,7 @@ export class Ui {
           `<span class="result-sub">pts &nbsp;·&nbsp; survived ${fmtTime(stats.time)}</span>`,
       ),
     );
-    if (stats.isNewBest) {
+    if (stats.isNewBest && (stats.prevBest ?? 0) > 0 && (stats.runCount ?? 0) > 1) {
       screen.appendChild(this.el("div", "new-best", "New best score"));
     }
 
@@ -2627,13 +2687,13 @@ export class Ui {
     // best-of-day medal (score), or how close today's best is to the next tier
     if (stats.dailyMedal) {
       const { tier, hint } = stats.dailyMedal;
-      screen.appendChild(
-        this.el(
-          "div",
-          `medal-earned${tier ? ` ${tier}` : ""}`,
-          tier ? `${MEDAL_EMOJI[tier]} ${MEDAL_LABEL[tier]} MEDAL` : (hint ?? ""),
-        ),
+      const medalEl = this.el(
+        "div",
+        `medal-earned${tier ? ` ${tier}` : ""}`,
+        tier ? `${medalIconHtml(tier)} ${MEDAL_LABEL[tier]} MEDAL` : (hint ?? ""),
       );
+      medalEl.id = "medal-earned";
+      screen.appendChild(medalEl);
     }
 
     // free death: the attempt went back to the budget — say so, or the
@@ -2652,14 +2712,13 @@ export class Ui {
 
     // COMPARISON: gap-to-goal sentence + the compact 2-row board (target
     // above, this run pinned below), filled async once the score
-    // submission returns (setGameOverRank). No standalone "World rank #N /
-    // Country #N" text line above it any more — the board's own rank badge
-    // already shows the number, and the daily/Iron Rain tag above already
-    // says which board this run counts on, so a repeated label was pure
-    // redundancy on a screen that had too much text, not too little.
-    const rank = this.el("div", "rank-line", `<div class="field-hint center dim">Scoring…</div>`);
-    rank.id = "rank-line";
-    screen.appendChild(rank);
+    // submission returns (setGameOverRank). Preview runs never score, so
+    // skip the Scoring placeholder (OR-23).
+    if (!stats.preview) {
+      const rank = this.el("div", "rank-line", `<div class="field-hint center dim">Scoring…</div>`);
+      rank.id = "rank-line";
+      screen.appendChild(rank);
+    }
 
     // NEXT ACTION: the one thing to do next, front and center.
     const capped = stats.attemptsLeft !== undefined;
@@ -2907,6 +2966,13 @@ export class Ui {
     line.appendChild(board);
   }
 
+  /** Refresh the no-medal goal line once the combined board arrives. */
+  setGameOverGoalLine(text: string | null): void {
+    const el = document.getElementById("medal-earned");
+    if (!el || el.querySelector(".medal-icon")) return;
+    el.textContent = text ?? "";
+  }
+
   /** Small note under the rank line (e.g. "name already in use" heads-up). */
   appendGameOverRankNote(text: string): void {
     const line = document.getElementById("rank-line");
@@ -2934,10 +3000,16 @@ export class Ui {
     /** Rejects with a user-readable message shown under the field. */
     onSave: (name: string) => Promise<void>;
     onSignIn: () => void;
+    /** Guest daily: "Would be #N of M today" above the name prompt. */
+    provisionalRankLine?: string | null;
   }): void {
     const line = document.getElementById("rank-line");
     if (!line) return;
     line.innerHTML = "";
+
+    if (handlers.provisionalRankLine) {
+      line.appendChild(this.el("div", "rank-provisional", handlers.provisionalRankLine));
+    }
 
     line.appendChild(
       this.el("div", "guest-save-title", "Enter a name to save your score to the leaderboard"),

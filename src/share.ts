@@ -47,6 +47,16 @@ export interface ShareStats {
 
 export const SHARE_URL = "https://surviveorion.com";
 
+function loadMedalSvg(tier: MedalTier): Promise<HTMLImageElement | null> {
+  if (typeof Image === "undefined") return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = `/medals/${tier}.svg`;
+  });
+}
+
 export function buildShareText(s: ShareStats): string {
   const mins = Math.floor(s.time / 60);
   const secs = Math.floor(s.time % 60).toString().padStart(2, "0");
@@ -73,14 +83,14 @@ export function buildShareText(s: ShareStats): string {
 export type ShareOutcome = "shared" | "copied" | "failed";
 
 /** Brand-kit share card (1080 square) as a PNG blob for the native sheet. */
-export function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
-  if (typeof document === "undefined") return Promise.resolve(null);
+export async function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
+  if (typeof document === "undefined") return null;
   const size = 1080;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return Promise.resolve(null);
+  if (!ctx) return null;
 
   const bg = ctx.createRadialGradient(size / 2, size / 2, 40, size / 2, size / 2, size * 0.78);
   bg.addColorStop(0, "#12121e");
@@ -116,6 +126,8 @@ export function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
     lines.push(["TODAY'S MUTATOR", s.mutatorNames.join(" + "), "#ff4455"]);
   }
 
+  const medalImg = s.medal ? await loadMedalSvg(s.medal) : null;
+
   let y = 360;
   for (const [label, value, color] of lines) {
     ctx.fillStyle = "#8a7a55";
@@ -123,7 +135,12 @@ export function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
     ctx.fillText(label, 112, y);
     ctx.fillStyle = color;
     ctx.font = "700 56px Rajdhani, system-ui, sans-serif";
-    ctx.fillText(value, 112, y + 64);
+    if (label === "MEDAL" && medalImg) {
+      ctx.drawImage(medalImg, 112, y + 16, 56, 56);
+      ctx.fillText(value, 184, y + 64);
+    } else {
+      ctx.fillText(value, 112, y + 64);
+    }
     y += 130;
   }
 

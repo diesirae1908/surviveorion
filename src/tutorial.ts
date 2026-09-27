@@ -14,8 +14,8 @@ const DODGE_SECONDS = 6;
 
 /**
  * Scripted flight-school sequence over a sandbox world (no ambient spawns).
- * Five beats: fly → meet static (frozen) drones → they hunt, dodge → grab a
- * power to clear them → the goal. main.ts ticks it once per fixed step.
+ * Seven beats: fly → frozen drones → they hunt → grab a power → scoring →
+ * the goal → today's patrol format. main.ts ticks it once per fixed step.
  */
 export class Tutorial {
   /** True once the outro finished; main.ts shows the "ready" screen. */
@@ -174,14 +174,21 @@ export class Tutorial {
         if (!this.waiting) {
           this.step = 5;
           this.message(
-            "<b>THE GOAL</b><br/>Score the best score. Be the best of the galaxy." +
-              "<br/>And above all… <b>SURVIVE</b>.",
+            "<b>THE GOAL</b><br/>Top today's board. Above all, survive.",
           );
         }
         break;
       }
       case 5: {
-        // final message dismissed → straight to the send-off screen
+        if (!this.waiting) {
+          this.step = 6;
+          this.message(
+            "<b>THE PATROL</b><br/>Everyone flies this same patrol today. 3 attempts. Your best one goes on the board.",
+          );
+        }
+        break;
+      }
+      case 6: {
         if (!this.waiting) this.done = true;
         break;
       }

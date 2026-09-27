@@ -63,6 +63,20 @@ export function hasUnreadUpdate(latestId: string | null, lastSeen: string | null
   return latestId != null && latestId !== lastSeen;
 }
 
+/**
+ * Auto FIELD UPDATE popup. Fresh profiles (never seen an id, zero runs)
+ * skip the modal; the caller still writes lastSeen so the bell has no pill.
+ */
+export function shouldAutoShowUpdate(
+  latestId: string | null,
+  lastSeen: string | null,
+  runCount: number,
+): boolean {
+  if (latestId == null) return false;
+  if (lastSeen === null && runCount === 0) return false;
+  return hasUnreadUpdate(latestId, lastSeen);
+}
+
 export async function fetchUpdates(url = UPDATES_URL): Promise<GameUpdate[]> {
   const res = await fetch(url, { cache: "no-cache" });
   if (!res.ok) return [];
