@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: merge UX QA fixes (opening + UI) into `dev`
+
+- **Worktree:** `.worktrees/ux-qa-merge-0927`, branch `sam/ux-qa-merge-0927` off `origin/dev` `558d756`.
+- **Merge order (`--no-ff`):** `feat/ux-qa-fix-opening` `637bb15` → `e8b5403`; `feat/ux-qa-fix-ui` `2d625e1` → `79b3f28`.
+- **Conflicts:** `JOURNAL.md` only (kept every entry, newest first: UI, then opening follow-up, then opening first slice). No code conflicts.
+- **Verify:** `npm test`, `npm run build` (bundle `main-Bdx14LWw.js`), `npx tsx scripts/sim-test.ts` all green.
+- **Push:** `git push origin HEAD:dev` (staging `surviveorion-dev` auto-deploy). `main` untouched.
+
 ## 2026-09-27 PT: QA-02 / QA-03 UI fixes (hint strip + desktop lobby fit)
 
 - **Branch:** `feat/ux-qa-fix-ui` (worktree `.worktrees/ux-qa-fix-ui` off `origin/dev` `558d756`).
