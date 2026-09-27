@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: QA-02 / QA-03 UI fixes (hint strip + desktop lobby fit)
+
+- **Branch:** `feat/ux-qa-fix-ui` (worktree `.worktrees/ux-qa-fix-ui` off `origin/dev` `558d756`).
+- **QA-02 (OR-12 follow-up):** `.tutorial-skip` moved to top-right (`12px +` safe area), `min-width/min-height` 44px. Hint strip stays one line at the bottom. Flight School `setTutorialHint` now uses a short `.hint-strip` one-liner (modal still has the full text), so "But these..." no longer truncates. First Flight skip no longer covers "Grab the glowing orb, it fires itself".
+- **QA-03 (OR-20 follow-up):** laptop `@media (min-width: 900px) and (max-height: 940px / 820px)` tightens header, briefing, launch, gold upsell, and board `max-height` to whole rows only (7 then 6). 1920x1080 keeps the 8-row board. PRIVACY and Patrol History / Wingmates stay on-screen at 1440x900 and 1280x800 with the Gold Patrol card present.
+- **OR-22:** not implemented (held).
+- **Files:** `src/style.css`, `src/ui.ts`, `src/tutorial.ts`, `JOURNAL.md`, `qa-evidence/ux-round-2026-09-27/fix-ui/`.
+- **Verify:** local `vite`/`ORION_SERVE_DIST` preview + Playwright shots; `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts`.
+- **Push:** this branch only. Do not merge to `dev` from this dispatch.
+
 ## 2026-09-27 PT: merge UX round WS4/WS3/WS1/WS2/WS5 into `dev`
 
 - **Worktree:** `.worktrees/ux-merge-0927`, branch `sam/ux-merge-0927` off `origin/dev` `deae671` (unchanged).

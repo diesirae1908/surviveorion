@@ -1,0 +1,123 @@
+{
+  "lobby-1440x900": {
+    "vh": 900,
+    "screenScroll": [
+      900,
+      900,
+      0
+    ],
+    "docScroll": [
+      900,
+      900
+    ],
+    "privacyY": 644,
+    "privacyBottom": 688,
+    "privacyVisible": true,
+    "utilBottom": 635,
+    "utilVisible": true,
+    "visibleRowCount": 6,
+    "halfRows": 0,
+    "goldUpsell": false
+  },
+  "lobby-1280x800": {
+    "vh": 800,
+    "screenScroll": [
+      800,
+      800,
+      0
+    ],
+    "docScroll": [
+      800,
+      800
+    ],
+    "privacyY": 607,
+    "privacyBottom": 651,
+    "privacyVisible": true,
+    "utilBottom": 601,
+    "utilVisible": true,
+    "visibleRowCount": 5,
+    "halfRows": 0,
+    "goldUpsell": false
+  },
+  "lobby-1920x1080": {
+    "vh": 1080,
+    "screenScroll": [
+      1080,
+      1080,
+      0
+    ],
+    "docScroll": [
+      1080,
+      1080
+    ],
+    "privacyY": 809,
+    "privacyBottom": 853,
+    "privacyVisible": true,
+    "utilBottom": 791,
+    "utilVisible": true,
+    "visibleRowCount": 7,
+    "halfRows": 0,
+    "goldUpsell": false
+  },
+  "lobby-390": {
+    "vh": 844,
+    "screenScroll": [
+      1697,
+      844,
+      0
+    ],
+    "docScroll": [
+      844,
+      844
+    ],
+    "privacyY": 1621,
+    "privacyBottom": 1665,
+    "privacyVisible": false,
+    "utilBottom": 994,
+    "utilVisible": false,
+    "visibleRowCount": 8,
+    "halfRows": 0,
+    "goldUpsell": false
+  },
+  "lobby-360": {
+    "vh": 740,
+    "screenScroll": [
+      1647,
+      740,
+      0
+    ],
+    "docScroll": [
+      740,
+      740
+    ],
+    "privacyY": 1571,
+    "privacyBottom": 1615,
+    "privacyVisible": false,
+    "utilBottom": 992,
+    "utilVisible": false,
+    "visibleRowCount": 7,
+    "halfRows": 0,
+    "goldUpsell": false
+  },
+  "drones": {
+    "hintText": "Frozen drones shatter. Ram one!",
+    "hintH": 43,
+    "hintY": 777,
+    "skipY": 12,
+    "skipH": 44,
+    "skipW": 129,
+    "lineHeight": "21px",
+    "whiteSpace": "nowrap",
+    "overlap": false,
+    "lines": 2,
+    "ui": "Frozen drones shatter. Ram one! | SKIP TUTORIAL"
+  },
+  "orb": {
+    "hintText": "Grab the glowing orb, it fires itself",
+    "hintH": 43,
+    "skipY": 12,
+    "skipH": 44,
+    "overlap": false,
+    "lines": 2
+  }
+}

@@ -403,6 +403,25 @@ function medalIconHtml(tier: MedalTier): string {
   return `<img class="medal-icon" src="/medals/${tier}.svg" alt="${MEDAL_LABEL[tier]}" width="20" height="20">`;
 }
 
+/** One-line Flight School / First Flight strip. Prefers `.hint-strip`, else last <br> line. */
+function tutorialHintStrip(html: string): string {
+  const wrap = document.createElement("div");
+  wrap.innerHTML = html;
+  const tagged = wrap.querySelector(".hint-strip");
+  const taggedText = tagged?.textContent?.replace(/\s+/g, " ").trim();
+  if (taggedText) return taggedText;
+  const lines = html
+    .split(/<br\s*\/?>/i)
+    .map((chunk) => {
+      const d = document.createElement("div");
+      d.innerHTML = chunk;
+      return (d.textContent || "").replace(/\s+/g, " ").trim();
+    })
+    .filter(Boolean);
+  if (lines.length > 1) return lines[lines.length - 1];
+  return (wrap.textContent || "").replace(/\s+/g, " ").trim();
+}
+
 /** DOM overlay screens (menu / pause / game over) in the gold-and-red style. */
 export class Ui {
   private root: HTMLElement;
@@ -2568,7 +2587,7 @@ export class Ui {
   setTutorialHint(html: string): void {
     const hint = document.getElementById("tutorial-hint");
     if (!hint) return;
-    hint.innerHTML = html;
+    hint.textContent = tutorialHintStrip(html);
     // retrigger the pop-in animation on every new instruction
     hint.classList.remove("pop");
     void hint.offsetWidth;

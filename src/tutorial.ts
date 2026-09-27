@@ -12,6 +12,11 @@ export interface TutorialEnv {
 const MOVE_DISTANCE = 12; // world units of flying before step 1 completes
 const DODGE_SECONDS = 6;
 
+/** Hidden in the modal; the bottom strip shows this one-liner after dismiss. */
+function withStrip(html: string, strip: string): string {
+  return `<span class="hint-strip">${strip}</span>${html}`;
+}
+
 /**
  * Scripted flight-school sequence over a sandbox world (no ambient spawns).
  * Seven beats: fly → frozen drones → they hunt → grab a power → scoring →
@@ -52,20 +57,23 @@ export class Tutorial {
 
   private flyText(): string {
     if (this.env.touch) {
-      return (
+      return withStrip(
         "<b>FLIGHT SCHOOL</b><br/>Drag anywhere on the screen to fly." +
-        "<br/>The ship goes where you point. Take her for a spin!"
+          "<br/>The ship goes where you point. Take her for a spin!",
+        "Drag anywhere to fly",
       );
     }
     if (this.env.inertia) {
-      return (
+      return withStrip(
         `<b>FLIGHT SCHOOL</b><br/>Thrust with ${this.env.moveKeys.split(" ")[0] ?? "W"}, ` +
-        "turn with the side keys.<br/>Give her a try."
+          "turn with the side keys.<br/>Give her a try.",
+        "Thrust and turn",
       );
     }
-    return (
+    return withStrip(
       `<b>FLIGHT SCHOOL</b><br/>Fly with ${this.env.moveKeys}. Ship goes that way.` +
-      "<br/>See how she handles."
+        "<br/>See how she handles.",
+      `Fly with ${this.env.moveKeys}`,
     );
   }
 
@@ -115,8 +123,11 @@ export class Tutorial {
           this.step = 1;
           this.spawnStaticDrones();
           this.message(
-            "<b>DRONES</b><br/>One touch and you're space dust. But these are frozen." +
-              "<br/>Frozen drones shatter harmlessly. Ram one!",
+            withStrip(
+              "<b>DRONES</b><br/>One touch and you're space dust. But these are frozen." +
+                "<br/>Frozen drones shatter harmlessly. Ram one!",
+              "Frozen drones shatter. Ram one!",
+            ),
           );
         }
         break;
@@ -130,8 +141,11 @@ export class Tutorial {
             if (d.alive) d.frozen = 1.4;
           }
           this.message(
-            "<b>THEY HUNT</b><br/>In a real run drones chase you, forever, in growing swarms." +
-              `<br/>Dodge them for ${DODGE_SECONDS} seconds!`,
+            withStrip(
+              "<b>THEY HUNT</b><br/>In a real run drones chase you, forever, in growing swarms." +
+                `<br/>Dodge them for ${DODGE_SECONDS} seconds!`,
+              `Dodge them for ${DODGE_SECONDS} seconds!`,
+            ),
           );
         }
         break;
@@ -150,8 +164,11 @@ export class Tutorial {
             age: 0,
           });
           this.message(
-            "<b>POWERS</b><br/>Pickups auto-fire the instant you grab them. No button needed." +
-              "<br/>Grab the shockwave and clear the pack!",
+            withStrip(
+              "<b>POWERS</b><br/>Pickups auto-fire the instant you grab them. No button needed." +
+                "<br/>Grab the shockwave and clear the pack!",
+              "Grab the shockwave. It fires itself.",
+            ),
           );
         }
         break;
@@ -163,9 +180,12 @@ export class Tutorial {
         if (w.pickups.length === 0 && w.powers.waves.length === 0 && w.shake < 0.03) {
           this.step = 4;
           this.message(
-            "<b>SCORING</b><br/>Kills heat up your multiplier, and everything you score is" +
-              " multiplied. It drains fast, so keep hunting." +
-              "<br/>And the deeper you fly, the more every second and kill pays.",
+            withStrip(
+              "<b>SCORING</b><br/>Kills heat up your multiplier, and everything you score is" +
+                " multiplied. It drains fast, so keep hunting." +
+                "<br/>And the deeper you fly, the more every second and kill pays.",
+              "Kills heat the multiplier. Keep hunting.",
+            ),
           );
         }
         break;
@@ -174,7 +194,10 @@ export class Tutorial {
         if (!this.waiting) {
           this.step = 5;
           this.message(
-            "<b>THE GOAL</b><br/>Top today's board. Above all, survive.",
+            withStrip(
+              "<b>THE GOAL</b><br/>Top today's board. Above all, survive.",
+              "Top today's board. Survive.",
+            ),
           );
         }
         break;
@@ -183,7 +206,10 @@ export class Tutorial {
         if (!this.waiting) {
           this.step = 6;
           this.message(
-            "<b>THE PATROL</b><br/>Everyone flies this same patrol today. 3 attempts. Your best one goes on the board.",
+            withStrip(
+              "<b>THE PATROL</b><br/>Everyone flies this same patrol today. 3 attempts. Your best one goes on the board.",
+              "3 attempts. Best one goes on the board.",
+            ),
           );
         }
         break;
