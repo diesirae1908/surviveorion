@@ -14,7 +14,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - **OR-17 (assets):** Copied `brand/assets/badges/orion-medal-{copper,silver,gold}.svg` to `public/medals/{copper,silver,gold}.svg`.
 - **QA:** `qa-evidence/ux-round-2026-09-27/` lobby PNGs at 360/375/390/430w and 1440x900 (local `vite preview` + Playwright).
 - **Verify:** `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts` green.
-- **Commit:** (this entry).
+- **Commit:** `ae9453a`.
 
 ## 2026-09-27 PT: merge `origin/main` into `dev` (pre UX round)
 
