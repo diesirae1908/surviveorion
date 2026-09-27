@@ -2101,10 +2101,10 @@ button.link-btn:active {
 
 .tutorial-hint {
   position: absolute;
-  top: calc(52px + var(--safe-top));
+  bottom: calc(24px + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
-  max-width: min(560px, 88vw);
+  max-width: 92vw;
   padding: 14px 22px;
   text-align: center;
   color: var(--orion-flare);
@@ -2115,6 +2115,10 @@ button.link-btn:active {
   border: 1px solid rgba(170, 136, 68, 0.5);
   border-radius: 4px;
   pointer-events: none;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tutorial-hint b {
@@ -2129,7 +2133,7 @@ button.link-btn:active {
 @keyframes hintPop {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-8px);
+    transform: translateX(-50%) translateY(8px);
   }
   to {
     opacity: 1;
@@ -2304,9 +2308,20 @@ button.link-btn:active {
   animation: enterPulse 1.6s ease-in-out infinite;
 }
 
-/* lobby: tech subline is clutter at this stage — italic briefing is enough */
+/* lobby: show the short hud rule (WS2 fills the text); calendar keeps the long subline */
 .screen.menu .mutator-subline {
-  display: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  width: 100%;
+  margin-top: 2px;
+  color: var(--orion-starlight);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
+  opacity: 0.88;
+  text-overflow: ellipsis;
 }
 
 /* --- cinematic intro --- */
@@ -2334,12 +2349,12 @@ button.link-btn:active {
 }
 
 .gate-tagline {
-  color: var(--orion-dust);
-  font-size: 11px;
+  color: rgba(255, 247, 224, 0.85);
+  font-size: 15px;
   letter-spacing: var(--orion-tracking-label);
   text-align: center;
-  max-width: 260px;
-  line-height: 1.7;
+  max-width: 280px;
+  line-height: 1.5;
 }
 
 @keyframes enterPulse {
@@ -2377,12 +2392,38 @@ button.link-btn:active {
 }
 
 @media (max-width: 899px) {
+  .daily-lobby .lobby-header {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .daily-lobby .lobby-header-icons {
+    position: static;
+    justify-content: flex-end;
+    align-self: flex-end;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .daily-lobby .lobby-header .title {
+    width: 100%;
+    justify-content: center;
+  }
+
   .daily-lobby .title .wordmark-svg {
-    width: min(240px, calc(100% - 168px));
+    width: min(280px, 92vw);
+    max-width: 100%;
   }
 
   .daily-lobby.has-rec .title .wordmark-svg {
-    width: min(240px, calc(100% - 228px));
+    width: min(280px, 92vw);
+    max-width: 100%;
+  }
+
+  .lobby-icon-btn.tier-chip {
+    min-height: 44px;
   }
 }
 
@@ -2645,6 +2686,27 @@ button.link-btn:active {
   .lobby-util-grid .lobby-stack-btn .notif-dot {
     top: 4px;
     right: 6px;
+  }
+
+  .screen.menu.daily-lobby {
+    padding-bottom: calc(24px + var(--safe-bottom));
+  }
+
+  .daily-lobby .daily-board-wrap .board {
+    max-height: calc(8 * (2 * var(--orion-space-2) + 1.35em) + 7 * 2px);
+    overflow-y: auto;
+  }
+
+  .screen.menu.daily-lobby .lobby-header,
+  .screen.menu.daily-lobby .lobby-col-left,
+  .screen.menu.daily-lobby .lobby-col-right,
+  .screen.menu.daily-lobby .lobby-footer,
+  .screen.menu.daily-lobby .mutator-card-wrap,
+  .screen.menu.daily-lobby .menu-mode-btn.training,
+  .screen.menu.daily-lobby .lobby-stack-btn,
+  .daily-lobby .daily-board-wrap {
+    position: relative;
+    z-index: 1;
   }
 }
 
