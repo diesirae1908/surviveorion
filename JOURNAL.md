@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: UX round WS4 (mobile/desktop lobby CSS + medal assets)
+
+- **OR-11:** Mobile `.daily-lobby` header is `column-reverse` (icon row above wordmark), icons `position: static`, wordmark up to 92vw; ACTIVATE tier chip `min-height: 44px`.
+- **OR-12:** `.tutorial-hint` anchored bottom with one-line ellipsis, 0.85 opacity, 92vw max.
+- **OR-10 (CSS):** `.screen.menu .mutator-subline` visible with 2-line clamp (WS2 supplies `hudRule` text).
+- **OR-18 (CSS):** `.gate-tagline` 15px, Starlight `rgba(255,247,224,0.85)`.
+- **OR-20:** Desktop `≥900px`: board scroll capped at 8 rows, menu bottom padding 24px, lobby panels `z-index: 1` over canvas decor.
+- **OR-17 (assets):** Copied `brand/assets/badges/orion-medal-{copper,silver,gold}.svg` to `public/medals/{copper,silver,gold}.svg`.
+- **QA:** `qa-evidence/ux-round-2026-09-27/` lobby PNGs at 360/375/390/430w and 1440x900 (local `vite preview` + Playwright).
+- **Verify:** `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts` green.
+- **Commit:** (this entry).
+
 ## 2026-09-27 PT: merge `origin/main` into `dev` (pre UX round)
 
 - **Why:** Staging (`surviveorion-dev`, auto-deploy from `dev`) must carry live before UX/gameplay work.
