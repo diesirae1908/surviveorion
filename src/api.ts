@@ -4,6 +4,8 @@
 
 import type { GameMode } from "./config";
 import { apiBase } from "./native";
+import { loadDeviceId } from "./device";
+import { loadRunCount } from "./save";
 
 export interface UserInfo {
   callsign: string;
@@ -492,7 +494,12 @@ export class Api {
     /** Past-day / rehearsal Daily (server gates: premium for past, admin for future). */
     dailyDate?: string;
   }): Promise<SubmitResult> {
-    return this.request<SubmitResult>("POST", "/api/scores", run);
+    return this.request<SubmitResult>("POST", "/api/scores", {
+      ...run,
+      deviceId: loadDeviceId(),
+      // 0-based index of the run just finished. onGameOver bumps the count first.
+      runIndex: Math.max(0, loadRunCount() - 1),
+    });
   }
 
   /** Anonymous run telemetry (analytics only — signed-in runs go via submitScore). */
@@ -506,7 +513,11 @@ export class Api {
     platform: string;
     daily?: boolean;
   }): Promise<{ ok: boolean }> {
-    return this.request("POST", "/api/runs", run);
+    return this.request("POST", "/api/runs", {
+      ...run,
+      deviceId: loadDeviceId(),
+      runIndex: Math.max(0, loadRunCount() - 1),
+    });
   }
 
   playerProfile(callsign: string): Promise<PlayerProfile> {
@@ -610,6 +621,8 @@ export class Api {
       country,
       ref: document.referrer,
       platform: "ontouchstart" in window ? "touch" : "desktop",
+      deviceId: loadDeviceId(),
+      runIndex: loadRunCount(),
     }).catch(() => {});
   }
 

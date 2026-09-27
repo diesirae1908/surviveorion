@@ -1,7 +1,18 @@
 // SQLite storage via node:sqlite (built into Node 22.5+, zero dependencies).
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 import path from "node:path";
+
+/** Random browser UUID only. Never IP, never account. Hash before storage. */
+const DEVICE_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** sha256 hex truncated to 16 chars. Returns null if the raw id is missing or not a UUID. */
+export function hashDeviceId(raw) {
+  if (typeof raw !== "string" || !DEVICE_ID_RE.test(raw)) return null;
+  return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
+}
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 export const db = new DatabaseSync(process.env.ORION_DB ?? path.join(dir, "orion.db"));
@@ -77,12 +88,15 @@ db.exec(`
     max_multiplier REAL NOT NULL,
     mode TEXT NOT NULL DEFAULT 'desktop',
     platform TEXT NOT NULL DEFAULT '',
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    device_hash TEXT,
+    run_index INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at);
 
   -- Anonymous visit beacons (first-party traffic stats for /admin): one row
   -- per browser session. ip_hash is a truncated SHA-256 — no raw IPs stored.
+  -- device_hash is a truncated SHA-256 of a random browser UUID (never the raw id).
   CREATE TABLE IF NOT EXISTS visits (
     id INTEGER PRIMARY KEY,
     ip_hash TEXT NOT NULL,
@@ -90,9 +104,18 @@ db.exec(`
     ref TEXT NOT NULL DEFAULT '',
     path TEXT NOT NULL DEFAULT '',
     platform TEXT NOT NULL DEFAULT '',
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    device_hash TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_visits_created ON visits(created_at);
+
+  -- Privacy-safe retention: hashed random device id, first/last seen, distinct PT visit days.
+  CREATE TABLE IF NOT EXISTS devices (
+    device_hash TEXT PRIMARY KEY,
+    first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    visit_days INTEGER NOT NULL DEFAULT 1
+  );
 
   -- Earned badges (see server/badges.mjs for the definitions).
   CREATE TABLE IF NOT EXISTS badges (
@@ -206,6 +229,38 @@ try {
 } catch {
   // column already exists
 }
+
+// Privacy-safe retention (OR-21): hashed random device id + run index.
+// Additive only. Existing rows stay NULL; requests without a device id keep
+// writing the same columns they always did.
+try {
+  db.exec(`ALTER TABLE visits ADD COLUMN device_hash TEXT`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE runs ADD COLUMN device_hash TEXT`);
+} catch {
+  // column already exists
+}
+try {
+  db.exec(`ALTER TABLE runs ADD COLUMN run_index INTEGER`);
+} catch {
+  // column already exists
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devices (
+    device_hash TEXT PRIMARY KEY,
+    first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    visit_days INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE INDEX IF NOT EXISTS idx_visits_device ON visits(device_hash);
+  CREATE INDEX IF NOT EXISTS idx_runs_device ON runs(device_hash);
+  CREATE INDEX IF NOT EXISTS idx_runs_index ON runs(run_index);
+  CREATE INDEX IF NOT EXISTS idx_devices_first ON devices(first_seen);
+  CREATE INDEX IF NOT EXISTS idx_devices_last ON devices(last_seen);
+`);
 
 // One-time migration to platform-based boards (desktop / touch / tilt). The
 // old modes were flight-physics tags ('classic' = inertia, 'tilt' = direct
@@ -941,13 +996,69 @@ export function ptDateBounds(dateStr) {
   return { start, end: start + day, dateStr };
 }
 
+/** YYYY-MM-DD in America/Vancouver for an epoch ms. */
+function ptDateStr(ms) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver" }).format(new Date(ms));
+}
+
+function shiftPtDate(dateStr, days) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Upsert a hashed device. First visit creates the row (visit_days = 1).
+ * Same PT calendar day does not bump visit_days; the next PT day does.
+ * `at` is for tests; production always uses Date.now().
+ */
+export function upsertDevice(deviceHash, at = Date.now()) {
+  if (!deviceHash) return;
+  const existing = db
+    .prepare(`SELECT first_seen, last_seen, visit_days FROM devices WHERE device_hash = ?`)
+    .get(deviceHash);
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO devices (device_hash, first_seen, last_seen, visit_days) VALUES (?, ?, ?, 1)`,
+    ).run(deviceHash, at, at);
+    return;
+  }
+  const lastSeen = at > existing.last_seen ? at : existing.last_seen;
+  const visitDays =
+    ptDateStr(at) > ptDateStr(existing.last_seen) ? existing.visit_days + 1 : existing.visit_days;
+  db.prepare(`UPDATE devices SET last_seen = ?, visit_days = ? WHERE device_hash = ?`).run(
+    lastSeen,
+    visitDays,
+    deviceHash,
+  );
+}
+
+export function getDevice(deviceHash) {
+  return db
+    .prepare(
+      `SELECT device_hash AS deviceHash, first_seen AS firstSeen, last_seen AS lastSeen, visit_days AS visitDays
+       FROM devices WHERE device_hash = ?`,
+    )
+    .get(deviceHash);
+}
+
 // --- visits (anonymous traffic beacons; admin dashboard only) ---
 
-export function addVisit({ ipHash, country = "", ref = "", path = "", platform = "" }) {
+export function addVisit({
+  ipHash,
+  country = "",
+  ref = "",
+  path = "",
+  platform = "",
+  deviceHash = null,
+  at = Date.now(),
+}) {
   db.prepare(
-    `INSERT INTO visits (ip_hash, country, ref, path, platform, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(ipHash, country, ref, path, platform, Date.now());
+    `INSERT INTO visits (ip_hash, country, ref, path, platform, device_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(ipHash, country, ref, path, platform, deviceHash, at);
+  if (deviceHash) upsertDevice(deviceHash, at);
 }
 
 /** Traffic overview for the admin dashboard. Days + "today" are Pacific Time. */
@@ -995,10 +1106,13 @@ export function trafficStats() {
 
 // --- runs (analytics telemetry; leaderboards use the scores table) ---
 
-export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, mode, gameMode, platform }) {
+export function insertRun(
+  userId,
+  { score, timeSurvived, kills, maxMultiplier, mode, gameMode, platform, deviceHash = null, runIndex = null, at = Date.now() },
+) {
   db.prepare(
-    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, platform, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, platform, device_hash, run_index, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     userId,
     score,
@@ -1008,8 +1122,11 @@ export function insertRun(userId, { score, timeSurvived, kills, maxMultiplier, m
     mode ?? "desktop",
     gameMode ?? "classic",
     platform ?? "",
-    Date.now(),
+    deviceHash,
+    runIndex,
+    at,
   );
+  if (deviceHash) upsertDevice(deviceHash, at);
 }
 
 /** Nth-percentile of a runs column (0..1), by sorted offset. */
@@ -1229,6 +1346,59 @@ export function adminStatsForDay(dateStr, { untilMs } = {}) {
     .prepare(`SELECT COUNT(*) AS c FROM users WHERE created_at >= ? AND created_at < ?`)
     .get(start, end).c;
 
+  const newDevices = db
+    .prepare(`SELECT COUNT(*) AS c FROM devices WHERE first_seen >= ? AND first_seen < ?`)
+    .get(start, end).c;
+  const returningDevices = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM devices
+       WHERE last_seen >= ? AND last_seen < ? AND first_seen < ?`,
+    )
+    .get(start, end, start).c;
+
+  const cohortReturn = (offsetDays) => {
+    const cohortDate = shiftPtDate(date, offsetDays);
+    const bounds = ptDateBounds(cohortDate);
+    if (!bounds) return 0;
+    const cohort = db
+      .prepare(`SELECT COUNT(*) AS c FROM devices WHERE first_seen >= ? AND first_seen < ?`)
+      .get(bounds.start, bounds.end).c;
+    if (!cohort) return 0;
+    const returned = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM devices
+         WHERE first_seen >= ? AND first_seen < ? AND last_seen >= ? AND last_seen < ?`,
+      )
+      .get(bounds.start, bounds.end, start, end).c;
+    return returned / cohort;
+  };
+
+  const firstRunCount = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM runs
+       WHERE created_at >= ? AND created_at < ? AND run_index = 0`,
+    )
+    .get(start, end).c;
+  const laterRunCount = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM runs
+       WHERE created_at >= ? AND created_at < ? AND run_index > 0`,
+    )
+    .get(start, end).c;
+  const indexedPercentile = (count, extraWhere, p) => {
+    if (!count) return 0;
+    const offset = Math.min(count - 1, Math.max(0, Math.floor((count - 1) * p)));
+    return (
+      db
+        .prepare(
+          `SELECT time_survived AS v FROM runs
+           WHERE created_at >= ? AND created_at < ? AND ${extraWhere}
+           ORDER BY time_survived LIMIT 1 OFFSET ?`,
+        )
+        .get(start, end, offset)?.v ?? 0
+    );
+  };
+
   return {
     date,
     traffic: {
@@ -1240,6 +1410,12 @@ export function adminStatsForDay(dateStr, { untilMs } = {}) {
       paths: topVisits("path"),
     },
     users: { new: newUsers },
+    retention: {
+      returningDevices,
+      newDevices,
+      d1Return: cohortReturn(-1),
+      d7Return: cohortReturn(-7),
+    },
     runs: {
       total: n,
       anonymous: totals.anonRuns ?? 0,
@@ -1251,6 +1427,8 @@ export function adminStatsForDay(dateStr, { untilMs } = {}) {
     gameLength: {
       avg: totals.avgTime ?? 0,
       median: percentile("time_survived", 0.5),
+      firstRunMedian: indexedPercentile(firstRunCount, "run_index = 0", 0.5),
+      laterRunMedian: indexedPercentile(laterRunCount, "run_index > 0", 0.5),
       min: totals.minTime ?? 0,
       max: totals.maxTime ?? 0,
       buckets: {

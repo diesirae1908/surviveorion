@@ -208,6 +208,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 <script>
 const fmt = (n, d = 0) => n == null ? "-" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 const secs = (s) => s == null ? "-" : s >= 60 ? Math.floor(s / 60) + "m " + Math.round(s % 60) + "s" : Math.round(s) + "s";
+const pctRate = (n) => n == null ? "-" : Math.round(Number(n) * 100) + "%";
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const stat = (k, v, delta) =>
   '<div class="metric"><div class="metric-top"><div class="v">' + v + "</div>" +
@@ -335,6 +336,12 @@ function renderDay(day) {
       stat("Real scores", fmt(board.realPilots), vs(board.realPilots, prev && prev.board.realPilots)) +
       stat("Filler scores", fmt(board.fillerBots), vs(board.fillerBots, prev && prev.board.fillerBots)) +
     "</div>" +
+    '<div class="metrics">' +
+      stat("Returning devices", fmt(day.retention && day.retention.returningDevices), vs(day.retention && day.retention.returningDevices, prev && prev.retention && prev.retention.returningDevices)) +
+      stat("New devices", fmt(day.retention && day.retention.newDevices), vs(day.retention && day.retention.newDevices, prev && prev.retention && prev.retention.newDevices)) +
+      stat("D1 return", pctRate(day.retention && day.retention.d1Return), vs(day.retention && day.retention.d1Return, prev && prev.retention && prev.retention.d1Return)) +
+      stat("D7 return", pctRate(day.retention && day.retention.d7Return), vs(day.retention && day.retention.d7Return, prev && prev.retention && prev.retention.d7Return)) +
+    "</div>" +
     '<div class="row2">' +
       '<div class="panel"><h3>Countries</h3>' +
         hbars(day.traffic.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "no traffic that day") +
@@ -361,6 +368,8 @@ function renderDay(day) {
       '<div class="panel"><h3>Game length</h3><div class="metrics">' +
         stat("Average", secs(day.gameLength.avg), deltaHtml(day.gameLength.avg, prev && prev.gameLength.avg, prevDate, secs, through)) +
         stat("Median", secs(day.gameLength.median), deltaHtml(day.gameLength.median, prev && prev.gameLength.median, prevDate, secs, through)) +
+        stat("First-run median", secs(day.gameLength.firstRunMedian), deltaHtml(day.gameLength.firstRunMedian, prev && prev.gameLength.firstRunMedian, prevDate, secs, through)) +
+        stat("Later-run median", secs(day.gameLength.laterRunMedian), deltaHtml(day.gameLength.laterRunMedian, prev && prev.gameLength.laterRunMedian, prevDate, secs, through)) +
         stat("Longest", secs(day.gameLength.max), deltaHtml(day.gameLength.max, prev && prev.gameLength.max, prevDate, secs, through)) +
       "</div></div>" +
       '<div class="panel"><h3>Score</h3><div class="metrics">' +

@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: OR-21 privacy-safe retention instrumentation (WS5)
+
+- **Why:** Admin stats could not compute D1/D7 return or first-run vs later-run length. Next review needs those numbers.
+- **What:** Random `orion.deviceId` UUID in localStorage (`src/device.ts`), sent with visit/run/score. Server hashes sha256 truncated 16 chars; never stores or logs the raw id. Additive SQLite: `visits.device_hash`, `runs.device_hash`, `runs.run_index`, `devices(device_hash, first_seen, last_seen, visit_days)`. `adminStatsForDay` adds `retention` (returning/new devices, d1/d7 rates) and `gameLength.firstRunMedian` / `laterRunMedian`. `/admin` day view shows the four retention numbers plus first vs later medians. Privacy page: one sentence under Basic visit counts.
+- **Files:** `src/device.ts` (new), `src/api.ts`, `server/db.mjs`, `server/index.mjs`, `server/admin.html`, `public/privacy.html`, `scripts/test-server-devices.mjs` (new), `package.json` test chain, this journal.
+- **Tripwires:** no destructive migration; anti-cheat and daily attempt logic untouched; missing `deviceId` still accepted (old web / iOS 1.0).
+- **Deviation:** `runIndex` on run/score is `max(0, loadRunCount() - 1)` because `onGameOver` bumps the count before submit. First completed run is index 0.
+- **Verify:** `npm test` (includes `test:server-devices`), `npm run build`, `npx tsx scripts/sim-test.ts` green.
+- **Branch:** `feat/ux-ws5-analytics` (worktree `.worktrees/ws5-analytics`). Do not merge to `dev` from this dispatch.
+
 ## 2026-09-27 PT: WS2 onboarding and game-over meta (UX round)
 
 - **Branch:** `feat/ux-ws2-onboarding` (worktree `.worktrees/ws2-onboarding`, from `origin/dev` `deae671`).
