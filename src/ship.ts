@@ -41,7 +41,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   // partial drift fraction instead (see enemies.ts).
   const wind = mutatorWindVector(world.time);
   if (wind) {
-    const w = cancelIntoWallWind(s, world, SHIP.radius, wind);
+    const w = cancelIntoWallWind(s, world, SHIP.wallInset, wind);
     s.x += w.x * dt;
     s.y += w.y * dt;
   }
@@ -55,7 +55,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
     s.thrusting = 1;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    const hitWall = clampToBounds(s, world, SHIP.radius);
+    const hitWall = clampToBounds(s, world, SHIP.wallInset);
     // hard brake on the last dash step so the ship exits controllable
     if (world.powers.afterburnerDash <= dt || hitWall) {
       s.vx = fx * POWERS.afterburner.exitSpeed;
@@ -101,7 +101,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
 
   s.x += s.vx * dt;
   s.y += s.vy * dt;
-  clampToBounds(s, world, SHIP.radius);
+  clampToBounds(s, world, SHIP.wallInset);
 }
 
 /** Rotate toward stick / keys. Used in normal flight and afterburner aim. */
@@ -160,5 +160,5 @@ function updateShipDirect(
   s.thrusting = Math.min(1, Math.hypot(mv.x, mv.y));
   s.x += s.vx * dt;
   s.y += s.vy * dt;
-  clampToBounds(s, world, SHIP.radius);
+  clampToBounds(s, world, SHIP.wallInset);
 }

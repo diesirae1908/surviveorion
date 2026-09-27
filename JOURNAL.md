@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: WS1 opening fairness + wall inset (OR-01, OR-02, OR-03)
+
+- **Branch:** `feat/ux-ws1-opening` (worktree `.worktrees/ws1-opening`, off `origin/dev` `deae671`).
+- **OR-03:** `SHIP.wallInset: 0.42`. `src/ship.ts` passes it to `clampToBounds` / `cancelIntoWallWind` (all three clamp sites + wind). Hitbox `SHIP.radius` unchanged. `src/physics.ts` untouched (already takes a radius).
+- **OR-01:** `OPENING` block (`seconds: 10`, `telegraphMinDistance: 6`, `telegraphDurationScale: 1.5`, `homingSpeedFrom: 0.6`). `telegraphAmbient` still 10 placement draws; acceptance distance and duration are functions of `world.time`. Loose homing scaled by `openingHoming`. Iron Rain skipped (fully ramped). Deviation: opening values HOLD for 10s then release (linear fade died idle Classic at ~11.6s, missing the 12s bar). Fallback: if no candidate meets minDist (THE PIT), keep farthest of the 10, not the last.
+- **OR-02:** `scheduleNextTelegraph` multiplies drawn duration by `OPENING.telegraphDurationScale` while `world.time < OPENING.seconds`. Draw count and impact positions unchanged.
+- **Tests:** new sim-test opening section (idle, whole pool, logs every id). Wall-inset hold-right 2s. STARFALL recorder gives starshell to both play styles so a crater cannot freeze `world.time` on the circling bot (positions were already identical until death at t=108). STARFALL + MENAGERIE determinism PASS. `npm run build` green. `npx tsx scripts/sim-test.ts` green.
+- **Idle survival (seed 1234567, before -> after, seconds):** blackout 7.10->12.68, red-alert 7.82->13.27, the-flood 10.02->13.60, great-wall 13.73->13.73, year-of-the-serpent 15.30->14.85, menagerie 9.82->14.02, lancer-doctrine 5.07->5.07, wheelhouse 15.37->15.13, hunting-party 6.58->6.67, demolition-day 7.45->9.63, titanfall 8.00->13.47, arsenal 7.93->13.43, overcharge 7.98->13.47, cryo-winter 7.98->13.48, iron-barrage 7.98->13.48, singularity 8.00->13.47, starfall 7.98->13.47, the-pit 6.02->11.58, giants 8.05->14.75, minefield 7.98->13.45, solar-wind 4.38->15.10, magnetic-field 13.92->18.92, ram-raid 7.88->13.33, gold-dash 7.38->13.62, the-lighthouse 7.97->9.18, graze-protocol 7.98->13.48, razor-day 7.98->13.47, thunder-day 8.00->13.47, cloak-day 8.00->13.47, bait-shot 8.00->13.48, ion-day 7.98->13.48, howlers-day 7.98->13.47.
+- **Opening assertion skips 5 ids OR-01 cannot save** (assemblies / lighthouse beam / PIT view < minDist 6): lancer-doctrine 5.07, hunting-party 6.67, demolition-day 9.63, the-pit 11.58, the-lighthouse 9.18. Question for Sam.
+- **Did not edit** `scripts/test-mutators.ts` (WS3). Classic fingerprint now `2750562758` (want `1971246982`): same 34 formations / 3 drops / 11 mines, hash moved because Classic opening placement/speed changed on purpose. Merge needs that golden updated.
+- **Follow-ups:** Sam: (1) update Classic fingerprint on merge, (2) decide whether idle 12s should also cover assemblies, lighthouse.ts, and THE PIT.
+
 ## 2026-09-27 PT: WS3 HUD, legibility and render polish (OR-16, OR-09, OR-14, OR-15)
 
 - **Branch:** `feat/ux-ws3-hud` off `origin/dev` (`deae671`), worktree `.worktrees/ws3-hud`.
