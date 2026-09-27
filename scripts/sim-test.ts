@@ -2,12 +2,12 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { ASSEMBLY, FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING } from "../src/config";
+import { ASSEMBLY, FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING, shipTopInset } from "../src/config";
 import { droneRadius, spawnAssemblyDirect, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
-import { clamp01, setRunSeed } from "../src/math";
+import { clamp01, hashString, setRunSeed } from "../src/math";
 import { medalThresholdsForDate } from "../src/medals";
 import {
   clearActiveMutators,
@@ -39,6 +39,18 @@ function step(world: World, seconds: number): void {
     tick(world, input, FIXED_DT);
     world.events.length = 0;
   }
+}
+
+/** Teleport onto a pickup without landing in the HUD band the ship cannot enter. */
+function parkShipOnPickup(world: World, p: { x: number; y: number }): void {
+  const top = shipTopInset(world.viewW, world.viewH, world.clipView.w, world.clipView.h);
+  const yMax = world.viewH / 2 - top;
+  const yMin = -(world.viewH / 2 - SHIP.wallInset);
+  const xMax = world.viewW / 2 - SHIP.wallInset;
+  p.x = Math.max(-xMax, Math.min(xMax, p.x));
+  p.y = Math.max(yMin, Math.min(yMax, p.y));
+  world.ship.x = p.x;
+  world.ship.y = p.y;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -432,8 +444,7 @@ function muteAmbientPickups(world: World): void {
   const world = createWorld(17.8, 10, false, 0, "classic", true);
   check("gold-dash opens with exactly one pickup", world.pickups.length === 1);
   const orb = world.pickups[0];
-  world.ship.x = orb.x;
-  world.ship.y = orb.y;
+  parkShipOnPickup(world, orb);
   tick(world, input, FIXED_DT);
   check(
     "collecting a gold-dash pickup spawns the next one immediately",
@@ -454,8 +465,7 @@ function muteAmbientPickups(world: World): void {
     for (let i = 0; i < steps; i++) {
       w.powers.starshellTimer = 9999;
       if (collect && w.pickups[0]) {
-        w.ship.x = w.pickups[0].x;
-        w.ship.y = w.pickups[0].y;
+        parkShipOnPickup(w, w.pickups[0]);
       }
       tick(w, { ...input, inertia: false, moveVector: { x: 0, y: 0 } }, FIXED_DT);
       for (const e of w.events) {
@@ -486,8 +496,7 @@ function muteAmbientPickups(world: World): void {
   check("ram-raid opens with exactly one pickup", world.pickups.length === 1);
   check("ram-raid opening orb is Starshell", world.pickups[0].power === "starshell");
   const orb = world.pickups[0];
-  world.ship.x = orb.x;
-  world.ship.y = orb.y;
+  parkShipOnPickup(world, orb);
   tick(world, input, FIXED_DT);
   check(
     "collecting a ram-raid pickup does not spawn the next one immediately",
@@ -519,8 +528,7 @@ function muteAmbientPickups(world: World): void {
     for (let i = 0; i < steps; i++) {
       w.powers.starshellTimer = 9999;
       if (collect && w.pickups[0]) {
-        w.ship.x = w.pickups[0].x;
-        w.ship.y = w.pickups[0].y;
+        parkShipOnPickup(w, w.pickups[0]);
       }
       tick(w, { ...input, inertia: false, moveVector: { x: 0, y: 0 } }, FIXED_DT);
       for (const e of w.events) {
@@ -786,10 +794,11 @@ function muteAmbientPickups(world: World): void {
   );
 
   // a banked shield does NOT block grazes (contact would still cost it),
-  // but true invulnerability (starshell) does
-  const d2 = spawnDroneDirect(world, 5, 5, 0.6, 0);
+  // but true invulnerability (starshell) does. Park below the HUD band so
+  // the ship clamp cannot pull the pair apart.
+  const d2 = spawnDroneDirect(world, 5, 0, 0.6, 0);
   world.ship.x = 5 - (SHIP.radius + droneRadius(d2) + SCORING.grazeBand * 0.5);
-  world.ship.y = 5;
+  world.ship.y = 0;
   world.powers.shieldActive = true;
   tick(world, input, FIXED_DT);
   const shieldedGraze = world.events.some((e) => e.type === "graze");
@@ -797,9 +806,9 @@ function muteAmbientPickups(world: World): void {
   check("graze still pays while the shield is banked", shieldedGraze);
   world.powers.shieldActive = false;
 
-  const d3 = spawnDroneDirect(world, -5, 5, 0.6, 0);
+  const d3 = spawnDroneDirect(world, -5, 0, 0.6, 0);
   world.ship.x = -5 - (SHIP.radius + droneRadius(d3) + SCORING.grazeBand * 0.5);
-  world.ship.y = 5;
+  world.ship.y = 0;
   world.powers.starshellTimer = 3;
   tick(world, input, FIXED_DT);
   const invulnGraze = world.events.some((e) => e.type === "graze");
@@ -825,6 +834,26 @@ function muteAmbientPickups(world: World): void {
     "wall inset: hold-right 2s keeps the hull inside the view",
     world.ship.x <= limit + 1e-4,
     `x=${world.ship.x.toFixed(3)} limit=${limit.toFixed(3)}`,
+  );
+}
+
+{
+  const world = createWorld(16, 10, true);
+  world.clipView = { w: 1440, h: 900 };
+  const steps = Math.round(2 / FIXED_DT);
+  for (let i = 0; i < steps; i++) {
+    tick(
+      world,
+      { ...input, inertia: false, moveVector: { x: 0, y: 1 }, cruiseSpeed: SHIP.maxSpeed },
+      FIXED_DT,
+    );
+    world.events.length = 0;
+  }
+  const limit = world.viewH / 2 - shipTopInset(16, 10, 1440, 900);
+  check(
+    "HUD band: hold-up 2s keeps the hull below the top HUD",
+    world.ship.y <= limit + 1e-4,
+    `y=${world.ship.y.toFixed(3)} limit=${limit.toFixed(3)}`,
   );
 }
 
@@ -1118,8 +1147,7 @@ function muteAmbientPickups(world: World): void {
   // beat 4: the shockwave pickup appears; grab it
   const pickupAppeared = world.pickups.length === 1 && world.pickups[0].power === "shockwave";
   if (world.pickups.length === 1) {
-    world.ship.x = world.pickups[0].x;
-    world.ship.y = world.pickups[0].y;
+    parkShipOnPickup(world, world.pickups[0]);
   }
   // the SCORING beat waits for the blast to fully play out (~1.2s of wave)
   stepTut(4.5);
@@ -2589,6 +2617,86 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     "  opening skip (assemblies/beam/tiny view): " +
       skipped.map((r) => `${r.id} ${r.t.toFixed(2)}s`).join(" | "),
   );
+}
+
+// Desktop 1440x900 playfield (VIEW_MIN on the short axis => 16 x 10). Denser
+// than phone portrait (~10 x 21.6) and than the 17.8 x 10 16:9 sim above.
+// QA-01: THE FLOOD and SOLAR WIND idle died at 11s / 9s on this size.
+{
+  const CAP = 20;
+  const NEED = 12;
+  const DESK_W = 16;
+  const DESK_H = 10;
+  const SKIP = new Set([
+    "lancer-doctrine",
+    "hunting-party",
+    "demolition-day",
+    "the-lighthouse",
+    "the-pit",
+  ]);
+  const rows: { id: string; t: number }[] = [];
+  for (const m of MUTATOR_POOL) {
+    setRunSeed(1234567);
+    setActiveMutators([m], new Date("2026-08-14T00:00:00Z"));
+    const scale = mutatorViewScale();
+    const world = createWorld(DESK_W * scale, DESK_H * scale, false, 0, "classic", true);
+    world.clipView = { w: 1440, h: 900 };
+    const steps = Math.round(CAP / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      tick(world, input, FIXED_DT);
+      world.events.length = 0;
+      if (world.phase !== "playing") break;
+    }
+    rows.push({ id: m.id, t: world.time });
+    clearActiveMutators();
+    setRunSeed(null);
+  }
+  const flood = rows.find((r) => r.id === "the-flood");
+  const wind = rows.find((r) => r.id === "solar-wind");
+  check(
+    `opening desktop 16x10: the-flood idle >= ${NEED} s`,
+    !!flood && flood.t >= NEED,
+    flood ? `${flood.t.toFixed(2)}s` : "missing",
+  );
+  check(
+    `opening desktop 16x10: solar-wind idle >= ${NEED} s`,
+    !!wind && wind.t >= NEED,
+    wind ? `${wind.t.toFixed(2)}s` : "missing",
+  );
+  const fail = rows.filter((r) => !SKIP.has(r.id) && r.t < NEED);
+  check(
+    `opening desktop 16x10: idle >= ${NEED} s on ambient MUTATOR_POOL ids`,
+    fail.length === 0,
+    fail.map((r) => `${r.id} ${r.t.toFixed(2)}s`).join(", "),
+  );
+  console.log(
+    "  desktop 16x10 idle: " + rows.map((r) => `${r.id} ${r.t.toFixed(2)}s`).join(" | "),
+  );
+
+  // QA used ?mutator= on 2026-09-27: daily seed + date-hashed wind heading.
+  {
+    const qaSeed = hashString("orion-daily-2026-09-27");
+    const qaDate = new Date("2026-09-27T12:00:00Z");
+    for (const id of ["the-flood", "solar-wind"] as const) {
+      setRunSeed(qaSeed);
+      setActiveMutators([getMutatorById(id)!], qaDate);
+      const world = createWorld(DESK_W, DESK_H, false, 0, "classic", true);
+      world.clipView = { w: 1440, h: 900 };
+      const steps = Math.round(CAP / FIXED_DT);
+      for (let i = 0; i < steps; i++) {
+        tick(world, input, FIXED_DT);
+        world.events.length = 0;
+        if (world.phase !== "playing") break;
+      }
+      check(
+        `opening desktop 16x10: ${id} idle >= ${NEED} s on 2026-09-27 daily seed`,
+        world.time >= NEED,
+        `${world.time.toFixed(2)}s`,
+      );
+      clearActiveMutators();
+      setRunSeed(null);
+    }
+  }
 }
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);

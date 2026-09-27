@@ -6,7 +6,8 @@
 // draws. Interval shrinks the whole run (rate = start / (1 + k * minutes))
 // until intervalHardFloor. Placement rides the seeded PLACEMENT stream
 // (one randomEdgePoint draw per pop, plus spawnAt's scale-jitter draw).
-// The pop never looks at drones, mines, or the ship, so every pilot on
+// Opening edge margin is a function of world.time and field size only;
+// the pop never looks at drones, mines, or the ship, so every pilot on
 // today's seed sees the same beat.
 //
 // Fully gated behind mutatorFloodSurgeActive(): every other day and mode

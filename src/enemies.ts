@@ -1,4 +1,4 @@
-import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, OPENING, POWERS, SCORING, SPAWNER, TRAINING, openingFairness, type FormationKind } from "./config";
+import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, OPENING, POWERS, SCORING, SPAWNER, TRAINING, openingFairness, openingWindScale, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import {
   mutatorAmbientRateScale,
@@ -65,6 +65,19 @@ function openingScale(time: number, gameMode: World["gameMode"]): number {
 
 function openingHoming(world: World): number {
   return lerp(OPENING.homingSpeedFrom, 1, openingScale(world.time, world.gameMode));
+}
+
+/** Edge-spawn margin during the opening. Same draw count as SPAWNER.edgeMargin;
+ * only the mapped perimeter grows, and only on short-axis fields where an idle
+ * origin ship would otherwise be reachable before 12s. */
+function openingEdgeMargin(world: World): number {
+  const open = openingScale(world.time, world.gameMode);
+  const minHalf = Math.min(world.viewW, world.viewH) / 2;
+  const hold = Math.max(
+    SPAWNER.edgeMargin,
+    OPENING.telegraphMinDistance + OPENING.edgeTravelPad - minHalf,
+  );
+  return lerp(hold, SPAWNER.edgeMargin, open);
 }
 
 // --- drones ---
@@ -172,7 +185,9 @@ export function updateDrones(world: World, dt: number): void {
   // fraction of the displacement sticks (see DRONE.windDriftFraction) so
   // drones visibly drift without net-leaving the arena. Same vector as the
   // ship this frame (world.time; see mutators.ts). No seeded-stream draws.
-  const wind = mutatorWindVector(world.time);
+  const windRaw = mutatorWindVector(world.time);
+  const wScale = openingWindScale(world.time, world.gameMode);
+  const wind = windRaw ? { x: windRaw.x * wScale, y: windRaw.y * wScale } : null;
 
   for (const d of world.drones) {
     d.prevX = d.x;
@@ -648,10 +663,11 @@ function spawnAmbient(world: World, minutes: number, count = 1): void {
 
   // fixed number of draws (see telegraphAmbient); keep the farthest candidate
   // once one clears the minimum ship distance
-  let best = randomEdgePoint(world, SPAWNER.edgeMargin);
+  const edgeMargin = openingEdgeMargin(world);
+  let best = randomEdgePoint(world, edgeMargin);
   let bestDist = shipDist(best);
   for (let attempt = 0; attempt < 8; attempt++) {
-    const p = randomEdgePoint(world, SPAWNER.edgeMargin);
+    const p = randomEdgePoint(world, edgeMargin);
     if (bestDist >= SPAWNER.minDistanceFromShip) continue;
     const dist = shipDist(p);
     if (dist > bestDist) {
@@ -671,7 +687,7 @@ function spawnAmbient(world: World, minutes: number, count = 1): void {
 /** THE FLOOD metronome pop: one drone from a random edge. Always consumes
  * the same draws (edge + spawnAt jitter) even if the field is already full. */
 export function spawnFloodPop(world: World, minutes: number): { x: number; y: number } {
-  const p = randomEdgePoint(world, SPAWNER.edgeMargin);
+  const p = randomEdgePoint(world, openingEdgeMargin(world));
   spawnAt(world, p.x, p.y, minutes);
   return p;
 }

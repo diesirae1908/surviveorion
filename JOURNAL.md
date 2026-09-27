@@ -4,6 +4,30 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: QA-01 wind visible + QA-04 css-px HUD inset (Sam review of 6f51fb0)
+
+- **Branch:** `feat/ux-qa-fix-opening` (same worktree). Follow-up on `6f51fb0`.
+- **SOLAR WIND identity:** `OPENING.windFrom` 0 -> 0.35 (still a pure function of `world.time`). Hold 0 hid the day's twist through the opening (F07). 0.35 keeps desktop 16x10 idle on QA seed `orion-daily-2026-09-27` at **12.12 s** (FLOOD 14.05 s). Floor was 0.2; 0.35 passed so it stays.
+- **QA-04 inset:** `viewH/VIEW_MIN` over-inset phone portrait (~3.3 world / ~130 css px at 390 wide). HUD is a fixed css-px band. Read `drawHud` only (not edited): padTop 18, mutator tag at padTop+44, 11px font, textBaseline top -> 73 css px. Pause occupancy 72x72; daily stack wins. Hardcoded `SHIP.hudBandPx: 73` in `config.ts` (safe-area not included). `shipTopInset(viewW, viewH, cssW, cssH)` = max(wallInset, 73 * shortWorld/shortCss + 0.55*visualScale). clipView 0,0 uses `hudFallbackCssShort` 900 (1440x900 short axis).
+- **Inset table (world / css px):** 390x844 view 10x21.641 = 2.312 / 90.2; 360x780 view 10x21.667 = 2.468 / 88.8; 1440x900 view 16x10 = 1.251 / 112.6; 1280x800 view 16x10 = 1.353 / 108.2.
+- **Phone note (not the gate):** 390x844 QA-seed SOLAR WIND idle 11.10 s at 0.35. Desktop is the 12 s bar.
+- **Fingerprint:** Classic golden still `2750562758`, 34 / 3 / 11.
+- **Verify:** `npm test` green, `npm run build` (bundle `main-CBLqloG0.js`), `npx tsx scripts/sim-test.ts` green. QA-seed 16x10: FLOOD 14.05 s, WIND 12.12 s.
+- **Did not edit** `src/render.ts`, `src/style.css`, `src/ui.ts`, `src/tutorial.ts`.
+
+## 2026-09-27 PT: QA-01 desktop opening + QA-04 HUD ship clamp
+
+- **Branch:** `feat/ux-qa-fix-opening` (worktree `.worktrees/ux-qa-fix-opening`, off `origin/dev` `558d756`).
+- **QA-01 root cause:** 1440x900 is 16x10 (VIEW_MIN on the short axis). Same spawn rate on a smaller field than phone portrait (~10x21.6). FLOOD pops skip the OPENING distance rule (one `randomEdgePoint`, never looks at the ship). Closest top/bottom pop is 5+1=6 units from an idle origin, ~11 s at 0.6x homing. SOLAR WIND (2.2 u/s) pins an idle ship to that short axis in ~2 s, then closing speed is homing+wind. QA daily seed `orion-daily-2026-09-27` reproduced 11.53 s FLOOD / 9.13 s WIND on 16x10; phone FLOOD 12.73 s.
+- **QA-01 first slice (`6f51fb0`):** `openingEdgeMargin` (time + field size, same draw counts) so short-axis edge pops hold `telegraphMinDistance + edgeTravelPad`. Wind hold started at 0 (superseded: now 0.35, see entry above). No beat-schedule change, no new/removed `rand`/`scheduleRand`.
+- **QA-04 first slice:** `SHIP.hudBand: 1.55` scaled by `viewH/VIEW_MIN` (superseded: css-px band, see entry above). `clampToBounds` / `cancelIntoWallWind` take a larger top inset. Sides/bottom still `wallInset` 0.42.
+- **Tests:** sim-test keeps the 17.8x10 opening section; adds 16x10 idle >= 12 s (whole ambient pool + QA daily seed for FLOOD/WIND). Hold-up HUD clamp. Graze/pickup teleports park below the HUD band.
+- **Fingerprint:** Classic golden unchanged `2750562758`, counts 34 / 3 / 11. STARFALL + MENAGERIE determinism byte-identical.
+- **Verify (first slice):** `npm test`, `npm run build` (bundle `main-FDpl5hPk.js`), `npx tsx scripts/sim-test.ts` green.
+- **Desktop 16x10 idle (QA seed `orion-daily-2026-09-27`, pre-fix -> first slice s):** blackout 12.45->12.45, red-alert 13.65->13.02, the-flood **11.53->14.05**, great-wall 17.33->17.33, year-of-the-serpent 15.07->15.48, menagerie 15.42->14.35, lancer-doctrine 11.98->11.95, wheelhouse 11.77->11.87, hunting-party 4.27->4.27, demolition-day 8.45->9.52, titanfall 13.25->13.25, arsenal 14.65->13.05, overcharge 13.27->13.25, cryo-winter 13.27->13.27, iron-barrage 13.27->13.25, singularity 13.27->13.27, starfall 12.28->12.28, the-pit 10.48->10.47, giants 14.93->14.93, minefield 13.27->13.27, solar-wind **9.13->12.27**, magnetic-field 18.90->20.00, ram-raid 14.47->13.02, gold-dash 14.27->15.15, the-lighthouse 10.60->10.60, graze-protocol 13.27->13.27, razor-day 13.25->13.25, thunder-day 13.27->13.27, cloak-day 13.25->13.25, bait-shot 13.27->13.25, ion-day 13.27->13.27, howlers-day 13.27->13.27. Skip ids still fail (assemblies/beam/tiny view). BLACKOUT/MINEFIELD/STARFALL idle already >= 12 on this seed; evade was the crude bot, same root cause (short-axis density) is covered by the general edge-margin change.
+- **Did not edit** `src/style.css`, `src/ui.ts`, `src/tutorial.ts`, `MUTATOR_POOL`, `SCORING`, `validate.mjs`, `MEDAL_BASE_SCORE`.
+- **Follow-ups:** Sam review landed as the entry above. Staging QA: `?mutator=the-flood` and `?mutator=solar-wind` idle on 1440x900 >= 12 s; hold-up hull below HUD.
+
 ## 2026-09-27 PT: merge UX round WS4/WS3/WS1/WS2/WS5 into `dev`
 
 - **Worktree:** `.worktrees/ux-merge-0927`, branch `sam/ux-merge-0927` off `origin/dev` `deae671` (unchanged).

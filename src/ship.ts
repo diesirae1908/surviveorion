@@ -1,8 +1,19 @@
-import { POWERS, SHIP, TILT } from "./config";
+import { POWERS, SHIP, TILT, openingWindScale, shipTopInset } from "./config";
 import type { InputState } from "./input";
 import { mutatorWindVector } from "./mutators";
 import { cancelIntoWallWind, clampToBounds } from "./physics";
 import type { Ship, World } from "./types";
+
+function clampShip(
+  s: Ship,
+  world: World,
+): boolean {
+  return clampToBounds(s, world, SHIP.wallInset, shipTopInsetFor(world));
+}
+
+function shipTopInsetFor(world: World): number {
+  return shipTopInset(world.viewW, world.viewH, world.clipView.w, world.clipView.h);
+}
 
 export function createShip(): Ship {
   return {
@@ -39,9 +50,11 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   // dropped once the hull is already on that wall, so the current cannot
   // keep shoving past the bound and wiping escape thrust. Drones take a
   // partial drift fraction instead (see enemies.ts).
-  const wind = mutatorWindVector(world.time);
-  if (wind) {
-    const w = cancelIntoWallWind(s, world, SHIP.wallInset, wind);
+  const windRaw = mutatorWindVector(world.time);
+  if (windRaw) {
+    const k = openingWindScale(world.time, world.gameMode);
+    const wind = { x: windRaw.x * k, y: windRaw.y * k };
+    const w = cancelIntoWallWind(s, world, SHIP.wallInset, wind, shipTopInsetFor(world));
     s.x += w.x * dt;
     s.y += w.y * dt;
   }
@@ -55,7 +68,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
     s.thrusting = 1;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    const hitWall = clampToBounds(s, world, SHIP.wallInset);
+    const hitWall = clampShip(s, world);
     // hard brake on the last dash step so the ship exits controllable
     if (world.powers.afterburnerDash <= dt || hitWall) {
       s.vx = fx * POWERS.afterburner.exitSpeed;
@@ -101,7 +114,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
 
   s.x += s.vx * dt;
   s.y += s.vy * dt;
-  clampToBounds(s, world, SHIP.wallInset);
+  clampShip(s, world);
 }
 
 /** Rotate toward stick / keys. Used in normal flight and afterburner aim. */
@@ -160,5 +173,5 @@ function updateShipDirect(
   s.thrusting = Math.min(1, Math.hypot(mv.x, mv.y));
   s.x += s.vx * dt;
   s.y += s.vy * dt;
-  clampToBounds(s, world, SHIP.wallInset);
+  clampShip(s, world);
 }
