@@ -81,8 +81,16 @@ function fmtCallTime(seconds: number): string {
   return `${m}:${s}`;
 }
 
+export interface ClosestCallLabelOpts {
+  /** Clean-dodge floor in seconds (default 20). Hair / razor always show. */
+  minCleanTime?: number;
+}
+
 /** "Razor-thin dodge at 1:24" style highlight line, or null if the run had no grazes. */
-export function closestCallLabel(call: ClosestCall | null): string | null {
+export function closestCallLabel(call: ClosestCall | null, opts?: ClosestCallLabelOpts): string | null {
   if (!call) return null;
-  return `${TIER_LABEL[closestCallTier(call.clearance)]} at ${fmtCallTime(call.time)}`;
+  const tier = closestCallTier(call.clearance);
+  const minClean = opts?.minCleanTime ?? 20;
+  if (tier === "clean" && call.time < minClean) return null;
+  return `${TIER_LABEL[tier]} at ${fmtCallTime(call.time)}`;
 }

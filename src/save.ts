@@ -74,6 +74,12 @@ const KEYBINDS_KEY = "orion.keybinds";
 const GAME_MODE_KEY = "orion.gameMode";
 const DAILY_ATTEMPTS_KEY = "orion.dailyAttempts";
 const DAILY_HISTORY_KEY = "orion.dailyHistory";
+const FIRST_FLIGHT_DONE_KEY = "orion.firstFlightDone";
+
+/** Guided Training Ground before a fresh device's first Daily (OR-04). */
+export const FIRST_FLIGHT_SECONDS = 25;
+export const FIRST_FLIGHT_HINT_ORB_AT = 8;
+export const FIRST_FLIGHT_HINT_PATROL_AT = 18;
 
 const SENSE_LEVELS: SenseLevel[] = ["low", "med", "high"];
 
@@ -125,6 +131,47 @@ export function loadRunCount(): number {
 
 export function bumpRunCount(): void {
   localStorage.setItem(RUN_COUNT_KEY, String(loadRunCount() + 1));
+}
+
+export function loadFirstFlightDone(): boolean {
+  try {
+    return localStorage.getItem(FIRST_FLIGHT_DONE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markFirstFlightDone(): void {
+  try {
+    localStorage.setItem(FIRST_FLIGHT_DONE_KEY, "1");
+  } catch {
+    // private mode
+  }
+}
+
+/**
+ * Fresh device, never finished or skipped First Flight. Native WebPlay
+ * (`?nativePlay=daily`) skips this path: the first-flight end screen is
+ * web HTML and Swift still owns native game-over chrome.
+ */
+export function shouldStartFirstFlight(
+  runCount: number,
+  firstFlightDone: boolean,
+  nativePlay = false,
+): boolean {
+  if (nativePlay) return false;
+  return runCount === 0 && !firstFlightDone;
+}
+
+/** Inline First Flight hint for the current survival time. */
+export function firstFlightHint(time: number, touch: boolean): string {
+  if (time >= FIRST_FLIGHT_HINT_PATROL_AT) {
+    return "Everyone flies this same patrol today. 3 attempts. Best one goes on the board.";
+  }
+  if (time >= FIRST_FLIGHT_HINT_ORB_AT) {
+    return "Grab the glowing orb, it fires itself";
+  }
+  return touch ? "Drag anywhere to fly" : "WASD or arrows";
 }
 
 // --- Daily-only site: attempt budget (client-side, per patrol day) ---

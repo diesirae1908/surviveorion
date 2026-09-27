@@ -39,9 +39,11 @@
     "test:premium-gates": "node scripts/test-premium-gates.mjs",
     "test:apple-iap": "node scripts/test-apple-iap.mjs",
     "test:stripe-billing": "node scripts/test-stripe-billing.mjs",
+    "test:gameover-goal": "npx tsx scripts/test-gameover-goal.ts",
+    "test:first-flight": "npx tsx scripts/test-first-flight.ts",
     "cap:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutator-music && npm run test:patrol-complete && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play && npm run test:premium-gates && npm run test:apple-iap && npm run test:stripe-billing && npm run test:web-gate && npm run test:updates && npm run test:play-viewport"
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutator-music && npm run test:patrol-complete && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play && npm run test:premium-gates && npm run test:apple-iap && npm run test:stripe-billing && npm run test:web-gate && npm run test:updates && npm run test:play-viewport && npm run test:gameover-goal && npm run test:first-flight"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

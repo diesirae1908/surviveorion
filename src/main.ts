@@ -23,7 +23,8 @@ import { Input, isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
 import { patrolDateStr } from "./patrolDate";
 import { clamp01, hashString, setRunSeed } from "./math";
-import { medalForScore, medalThresholdsFor, nextMedalHint } from "./medals";
+import { medalForScore, medalThresholdsFor } from "./medals";
+import { goalLine, guestRankLine } from "./gameOverGoal";
 import {
   buildClipSidecar,
   clipSidecarBasename,
@@ -56,6 +57,7 @@ import {
   loadBestScore,
   loadBestTime,
   loadControlPrefs,
+  loadFirstFlightDone,
   loadGameMode,
   loadKeyBindings,
   loadRunCount,
@@ -72,14 +74,18 @@ import {
   consumePatrolCompletePopup,
   dailyAttemptsLeft,
   dailyBestScoreToday,
+  firstFlightHint,
   loadDailyAttempts,
   loadDailyHistory,
+  markFirstFlightDone,
   recordDailyResult,
   refundDailyAttempt,
+  shouldStartFirstFlight,
   useDailyAttempt,
   DAILY_FREE_DEATH_SECONDS,
   DAILY_MAX_ATTEMPTS,
   DEFAULT_KEYBINDS,
+  FIRST_FLIGHT_SECONDS,
   formatKeyCode,
   type BooleanSetting,
   type DailyDayLog,
@@ -417,6 +423,8 @@ let lastRunWasBest = false;
 let lastRunWasBestTime = false;
 /** Longest flight before the run that just ended (for the game-over delta). */
 let prevBestTime = 0;
+/** Personal best before the run that just ended (OR-07 New best gate). */
+let prevBestScore = 0;
 /** Personal best passed mid-run (one celebration per run). */
 let recordBeaten = false;
 /** Daily Patrol: shared-seed run, files on today's board too. */
@@ -427,6 +435,12 @@ let currentViewScale = 1;
 /** Training Ground (daily-only site): free, unscored practice run. */
 let pendingTraining = false;
 let runIsTraining = false;
+/** Guided First Flight before a fresh device's first Daily (OR-04). */
+let pendingFirstFlight = false;
+let runIsFirstFlight = false;
+let lastFirstFlightHint = "";
+/** Combined daily board (bots included), cached from the lobby fetch. */
+let cachedCombinedDaily: { callsign: string; score: number }[] | null = null;
 /** Daily death inside the free-death window: the attempt was returned. */
 let runRefunded = false;
 /** Opt-in local recording of the run in progress (see recorder.ts), if any. */
@@ -888,6 +902,7 @@ function fillDailyBoard(): void {
   void api
     .dailyLeaderboardCombined(200)
     .then((d) => {
+      cachedCombinedDaily = d.entries.map((e) => ({ callsign: e.callsign, score: e.best }));
       const myCallsign = api.user?.callsign;
       const entries = d.entries.map((e, i) => ({
         rank: i + 1,
@@ -1120,6 +1135,18 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
     ui.toast("Can't reach patrol command. Training Ground is open offline.");
     return;
   }
+  let firstFlight = false;
+  if (
+    daily &&
+    !training &&
+    !PREVIEW_ACTIVE &&
+    !webArchiveDate &&
+    !NATIVE_ARCHIVE &&
+    shouldStartFirstFlight(loadRunCount(), loadFirstFlightDone(), IS_NATIVE_PLAY)
+  ) {
+    firstFlight = true;
+    training = true;
+  }
   // daily-only site: out of attempts → back to the lobby (shows the countdown).
   // Preview runs don't spend attempts, so they never hit this lockout.
   if (daily && !training && dailyLaunchBlocked()) {
@@ -1128,6 +1155,7 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   }
   pendingDaily = daily;
   pendingTraining = training;
+  pendingFirstFlight = firstFlight;
   if (!daily && !training) {
     pendingGameMode = gameMode;
     saveGameMode(gameMode); // the menu remembers the last mode flown
@@ -1192,6 +1220,7 @@ function startRun(): void {
   // boards are per platform: phone tilt, phone touch stick, or desktop keys
   runMode = input.tiltActive ? "tilt" : isTouchDevice() ? "touch" : "desktop";
   runIsTraining = pendingTraining;
+  runIsFirstFlight = pendingFirstFlight;
   runIsDaily = pendingDaily && !pendingTraining;
   runGameMode = runIsDaily || runIsTraining ? "classic" : pendingGameMode;
   // an attempt is spent the moment a daily run starts (quitting mid-run
@@ -1231,6 +1260,11 @@ function startRun(): void {
   accumulator = 0;
   state = "playing";
   ui.hideAll();
+  if (runIsFirstFlight) {
+    lastFirstFlightHint = firstFlightHint(0, isTouchDevice());
+    ui.showFirstFlightHud(() => skipFirstFlight());
+    ui.setTutorialHint(lastFirstFlightHint);
+  }
   audio.playTrack(runIsTraining ? "training" : "game");
   // opt-in local recording (settings toggle + browser support gate both live
   // in recorder.ts); starts fresh every run, previous clip discarded. Training
@@ -1251,6 +1285,52 @@ function startRun(): void {
 }
 
 /** Flight school: a sandbox world with scripted static drones, no spawner. */
+function skipFirstFlight(): void {
+  if (!runIsFirstFlight || state === "launching") return;
+  markFirstFlightDone();
+  pendingDaily = true;
+  pendingTraining = false;
+  pendingFirstFlight = false;
+  doLaunch();
+}
+
+function launchDailyAfterFirstFlight(): void {
+  markFirstFlightDone();
+  pendingDaily = true;
+  pendingTraining = false;
+  pendingFirstFlight = false;
+  doLaunch();
+}
+
+function completeFirstFlight(): void {
+  if (!runIsFirstFlight || state !== "playing") return;
+  markFirstFlightDone();
+  pendingDaily = true;
+  pendingTraining = false;
+  pendingFirstFlight = false;
+  state = "gameover";
+  fx = null;
+  gameOverUiShown = true;
+  audio.setThrustLevel(0);
+  audio.pauseMusic();
+  void setPlayChrome(false);
+  ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1, {
+    firstFlight: true,
+    onFlyPatrol: launchDailyAfterFirstFlight,
+  });
+}
+
+async function loadCombinedDailyBoard(): Promise<{ callsign: string; score: number }[]> {
+  if (cachedCombinedDaily) return cachedCombinedDaily;
+  try {
+    const d = await api.dailyLeaderboardCombined(200);
+    cachedCombinedDaily = d.entries.map((e) => ({ callsign: e.callsign, score: e.best }));
+    return cachedCombinedDaily;
+  } catch {
+    return [];
+  }
+}
+
 function startTutorial(): void {
   audio.unlock();
   clearActiveMutators();
@@ -1299,6 +1379,10 @@ function resume(): void {
   if (state !== "paused") return;
   state = "playing";
   ui.hideAll();
+  if (runIsFirstFlight) {
+    ui.showFirstFlightHud(() => skipFirstFlight());
+    ui.setTutorialHint(lastFirstFlightHint || firstFlightHint(world.time, isTouchDevice()));
+  }
   audio.resumeMusic();
 }
 
@@ -1388,6 +1472,7 @@ function onGameOver(): void {
   runRefunded = DAILY_ONLY && runIsDaily && world.time < DAILY_FREE_DEATH_SECONDS;
   if (runRefunded) refundDailyAttempt();
   bumpRunCount(); // new-pilot grace fades out with completed runs
+  prevBestScore = bestScore;
   lastRunWasBest = world.score > bestScore;
   if (lastRunWasBest) {
     bestScore = world.score;
@@ -1470,8 +1555,17 @@ async function emitNativePlayGameOver(medal: string | null): Promise<void> {
 function showGameOverUi(): void {
   gameOverUiShown = true;
   if (runIsTraining) {
-    ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1);
-    if (IS_NATIVE_PLAY) void emitNativePlayGameOver(null);
+    if (runIsFirstFlight) {
+      markFirstFlightDone();
+      pendingDaily = true;
+      pendingTraining = false;
+      pendingFirstFlight = false;
+    }
+    ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1, {
+      firstFlight: runIsFirstFlight,
+      onFlyPatrol: runIsFirstFlight ? launchDailyAfterFirstFlight : undefined,
+    });
+    if (IS_NATIVE_PLAY && !runIsFirstFlight) void emitNativePlayGameOver(null);
     return;
   }
   const cappedDaily = DAILY_ONLY && runIsDaily;
@@ -1499,12 +1593,18 @@ function showGameOverUi(): void {
     // exactly like it did before this feature shipped.
     if (mutatorsToday.length > 0) {
       const thresholds = medalThresholdsFor(mutatorsToday);
-      const bestScoreToday = PREVIEW_ACTIVE ? Math.floor(world.score) : dailyBestScoreToday();
+      const scoreNow = Math.floor(world.score);
+      const bestScoreToday = PREVIEW_ACTIVE ? scoreNow : dailyBestScoreToday();
       const medalTier = medalForScore(bestScoreToday, thresholds);
       dailyMedal = {
         tier: medalTier,
-        hint: nextMedalHint(bestScoreToday, thresholds),
+        hint: goalLine(scoreNow, thresholds, cachedCombinedDaily ?? [], bestScoreToday),
       };
+      if (!medalTier) {
+        void loadCombinedDailyBoard().then((board) => {
+          ui.setGameOverGoalLine(goalLine(scoreNow, thresholds, board, bestScoreToday));
+        });
+      }
     }
     lastRunShare = {
       score: Math.floor(world.score),
@@ -1542,6 +1642,8 @@ function showGameOverUi(): void {
     dailyMedal,
     preview: cappedDaily && PREVIEW_ACTIVE,
     closestCallLabel: closestCallLabel(world.closestCall),
+    prevBest: prevBestScore,
+    runCount: loadRunCount(),
     clipReady: lastClipBlob !== null || sessionRecording !== null,
     clipCapped: lastClipCapped,
     clipInbox: api.clipInbox,
@@ -1612,10 +1714,8 @@ function submitRun(): void {
   };
   if (!api.signedIn) {
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget
-    // a name is enough to get on the boards: quick guest signup, then the
-    // normal score submit — the device stays signed in for future runs
-    ui.showGameOverGuestPrompt({
-      onSave: async (name) => {
+    const guestHandlers = {
+      onSave: async (name: string) => {
         // skip signup on a retry where the account was created but the score
         // submit failed — the session is already live
         let reusedName = false;
@@ -1633,9 +1733,24 @@ function submitRun(): void {
         // the name matched this device's existing guest pilot: scores merge
         if (reusedName) ui.appendGameOverRankNote(`Welcome back, “${name.trim()}”: this run counts for your existing pilot.`);
       },
-      // full sign-in: back to this screen after, where submitRun files the score
       onSignIn: () => community.showAuth(showGameOverUi),
-    });
+      provisionalRankLine: null as string | null,
+    };
+    if (runIsDaily && !runRefunded) {
+      void loadCombinedDailyBoard()
+        .then((board) => {
+          guestHandlers.provisionalRankLine = guestRankLine({
+            score: Math.floor(world.score),
+            board,
+            signedIn: false,
+            refunded: false,
+          });
+          ui.showGameOverGuestPrompt(guestHandlers);
+        })
+        .catch(() => ui.showGameOverGuestPrompt(guestHandlers));
+    } else {
+      ui.showGameOverGuestPrompt(guestHandlers);
+    }
     return;
   }
   // retry bypasses the api.online gate — a transient failure marks us offline
@@ -1942,12 +2057,22 @@ function frame(now: number): void {
       audio.newRecord();
     }
 
+    if (state === "playing" && runIsFirstFlight && world.phase === "playing") {
+      const hint = firstFlightHint(world.time, isTouchDevice());
+      if (hint !== lastFirstFlightHint) {
+        lastFirstFlightHint = hint;
+        ui.setTutorialHint(hint);
+      }
+    }
+
     if (world.phase === "dead") {
       // dying in flight school just restarts the lesson
       if (state === "tutorial") startTutorial();
       else onGameOver();
     } else if (state === "tutorial" && tutorial?.done) {
       finishTutorial();
+    } else if (state === "playing" && runIsFirstFlight && world.time >= FIRST_FLIGHT_SECONDS) {
+      completeFirstFlight();
     }
   }
 

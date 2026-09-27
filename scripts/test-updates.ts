@@ -13,6 +13,7 @@ import {
   loadLastSeenUpdateId,
   parseUpdates,
   saveLastSeenUpdateId,
+  shouldAutoShowUpdate,
 } from "../src/updates.ts";
 
 const mem = new Map<string, string>();
@@ -71,13 +72,22 @@ assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refit")
 assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refresh"), true);
 assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "older"), true);
 
+assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", null, 0), false, "fresh profile never auto-shows");
+assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", null, 1), true, "returning profile with a new id does");
+assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", "older", 4), true);
+assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refit", 4), false);
+assert.equal(shouldAutoShowUpdate(null, null, 0), false);
+
 assert.equal(loadLastSeenUpdateId(), null);
 saveLastSeenUpdateId("2026-09-13-lobby-refit");
 assert.equal(loadLastSeenUpdateId(), "2026-09-13-lobby-refit");
 assert.equal(hasUnreadUpdate(latestUpdate(updates)?.id ?? null, loadLastSeenUpdateId()), false);
 
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");
-assert.match(ui, /FIELD UPDATE/);
+assert.match(ui, /shouldAutoShowUpdate/);
+assert.match(ui, /CLICK TO ENTER/);
+assert.match(ui, /Patrol History/);
+assert.match(ui, /\/medals\/\$\{tier\}\.svg/);
 assert.match(ui, /lobby-util-grid/);
 assert.match(ui, /app-store-badge/);
 assert.match(ui, /Download on the App Store/);
