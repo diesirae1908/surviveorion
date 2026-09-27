@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: merge `origin/main` into `dev` (pre UX round)
+
+- **Why:** Staging (`surviveorion-dev`, auto-deploy from `dev`) must carry live before UX/gameplay work.
+- **Merge:** `--no-ff` `origin/main` (`8f67139`) into prior `origin/dev` (`0119ad9`). Worktree `.worktrees/sync-dev-0927`, branch `sam/sync-dev-0927`.
+- **Conflicts:** `JOURNAL.md` only; kept both sides' entries (newest first). No code conflicts.
+- **Verify:** `npm ci`, `npm test`, `npm run build` green (bundle `main-NiEx3Jem.js`).
+- **Merge commit:** `fd0ae19`. Pushed to `origin/dev` (fast-forward of remote `dev` only; `main` untouched).
+
 ## 2026-09-25 PT: GitHub Actions CI (advisory)
 
 - **What:** `.github/workflows/ci.yml` on `ubuntu-latest`, Node 22 (matches `Dockerfile` `node:22-alpine` and `social/package.json` engines). Steps: `npm ci`, `npm run build` (`tsc --noEmit` + Vite), `npm test` (full existing chain, 26 scripts). `concurrency` per ref with cancel-in-progress. `timeout-minutes: 15`.
