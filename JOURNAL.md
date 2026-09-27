@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: WS3 HUD, legibility and render polish (OR-16, OR-09, OR-14, OR-15)
+
+- **Branch:** `feat/ux-ws3-hud` off `origin/dev` (`deae671`), worktree `.worktrees/ws3-hud`.
+- **OR-16:** canvas HUD/intro/warp fonts `Georgia, serif` -> `"Rajdhani", system-ui, sans-serif`. HUD sizes bumped 1-2 px. `document.fonts.load` + `document.fonts.ready` primed; first frame may use the system fallback.
+- **OR-09:** `hudRule` (max 44 chars, Mission Control) on every `MUTATOR_POOL` entry. HUD shows gold mutator name(s) under DAILY PATROL all run; centered name + rule banner for `world.time < 2.5`, fading after 1.8 s. Selection, ids, order, `availableFrom` untouched. WS2/WS4 read `hudRule` off the existing `Mutator` type.
+- **OR-14:** off-screen chevrons warn radius 6 -> 8; 1.5x alpha and 1.4x size when the ship is within 2 units of that edge.
+- **OR-15:** 0.35-alpha red ring on drones inside the top-right 72x72 css px HUD rect, drawn after `drawHud`.
+- **Tests:** `test-mutators.ts` adds one check (every entry has non-empty `hudRule` <= 44 chars). Snapshots byte-identical (144 dates, Classic fingerprint `1971246982`). `server/mutator-schedule.json` / iOS export not regenerated.
+- **Verify:** `npm test`, `npm run build` (bundle `main-nrhe8iGZ.js`), `npx tsx scripts/sim-test.ts` all green.
+- **Follow-ups:** Sam merges WS4 then this branch into `dev`. Staging visual QA: `?mutator=blackout` banner, Sunday pair names at 390 px, wall chevrons, pause-corner ring.
+
 ## 2026-09-27 PT: merge `origin/main` into `dev` (pre UX round)
 
 - **Why:** Staging (`surviveorion-dev`, auto-deploy from `dev`) must carry live before UX/gameplay work.

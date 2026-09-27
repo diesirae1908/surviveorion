@@ -267,6 +267,7 @@ function dayRestricted(dateStr: string): boolean {
     name: "TEST SYNTH A",
     briefing: "test-only",
     subline: "test-only",
+    hudRule: "test-only",
     difficultyFactor: 1,
     tags: ["test-only"],
     availableFrom: MUTATORS_START_DATE,
@@ -351,6 +352,18 @@ function dayRestricted(dateStr: string): boolean {
   check("Sunday pairs never share a tag", violations === 0, firstFew.join(" | "));
 }
 
+{
+  const bad = MUTATOR_POOL.filter((m) => {
+    const rule = m.hudRule;
+    return !rule || rule.length > 44 || rule.includes("\u2014");
+  });
+  check(
+    "every pool entry has a non-empty hudRule of at most 44 chars",
+    bad.length === 0,
+    bad.map((m) => `${m.id}:${m.hudRule?.length ?? 0}`).join(" | "),
+  );
+}
+
 // --- 5. Append-only proof: a fake 23rd mutator, never added to the live
 // MUTATOR_POOL, injected only via getMutatorsForDateFromPool. Every date
 // before its availableFrom must still match the frozen snapshot exactly;
@@ -362,6 +375,7 @@ function dayRestricted(dateStr: string): boolean {
     name: "TEST FAKE 23",
     briefing: "test-only",
     subline: "test-only",
+    hudRule: "test-only",
     difficultyFactor: 1,
     tags: ["test-only"],
     availableFrom: FAKE_AVAILABLE_FROM,

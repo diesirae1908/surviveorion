@@ -4,6 +4,7 @@ import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
 import {
+  getActiveMutators,
   mutatorBlackoutPulse,
   mutatorPowerAmpScale,
   mutatorRedTint,
@@ -50,6 +51,15 @@ const pingPong = (t: number): number => {
   const m = t % 2;
   return m < 1 ? m : 2 - m;
 };
+
+/** Brand HUD/cinematic face. Rajdhani is loaded in index.html; one fallback frame is OK. */
+const CANVAS_FONT = '"Rajdhani", system-ui, sans-serif';
+const canvasFont = (spec: string): string => `${spec} ${CANVAS_FONT}`;
+
+if (typeof document !== "undefined" && document.fonts) {
+  void document.fonts.load(`700 28px ${CANVAS_FONT}`);
+  void document.fonts.ready;
+}
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -207,6 +217,7 @@ export class Renderer {
       this.drawBlackoutVignette(world);
     }
     if (opts.showHud) this.drawHud(world, opts);
+    if (opts.showHud) this.drawPauseHudRings(world, opts.alpha);
     if (opts.touch?.active) this.drawTouchOverlay(opts.touch);
 
     // cinematic overlays (drawn above everything, below the DOM UI)
@@ -366,12 +377,12 @@ export class Renderer {
         ctx.save();
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.font = `bold ${minDim * 0.05}px Georgia, serif`;
+        ctx.font = canvasFont(`bold ${minDim * 0.05}px`);
         ctx.fillStyle = `rgba(255, 215, 0, ${a})`;
         ctx.shadowColor = "rgba(255, 200, 60, 0.85)";
         ctx.shadowBlur = 24;
         ctx.fillText("D A I L Y   P A T R O L", cx, cy - minDim * 0.16);
-        ctx.font = `${minDim * 0.022}px Georgia, serif`;
+        ctx.font = canvasFont(`${minDim * 0.022}px`);
         ctx.shadowBlur = 8;
         ctx.fillStyle = `rgba(255, 238, 136, ${a * 0.85})`;
         ctx.fillText("same swarm for every pilot, today's board", cx, cy - minDim * 0.105);
@@ -628,7 +639,7 @@ export class Renderer {
       const titleSize = minDim * 0.17;
       const letters = ["O", "R", "I", "O", "N"];
       ctx.save();
-      ctx.font = `bold ${titleSize}px Georgia, serif`;
+      ctx.font = canvasFont(`bold ${titleSize}px`);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const spacing = titleSize * 0.24;
@@ -669,7 +680,7 @@ export class Renderer {
         ctx.globalAlpha = tagA * (1 - fadeOut);
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.font = `${minDim * 0.032}px Georgia, serif`;
+        ctx.font = canvasFont(`${minDim * 0.032}px`);
         ctx.fillStyle = "rgb(228, 60, 84)";
         ctx.shadowColor = "rgba(196, 30, 58, 0.7)";
         ctx.shadowBlur = 14;
@@ -709,7 +720,7 @@ export class Renderer {
       ctx.globalAlpha = hintA * (0.45 + 0.15 * Math.sin(uiTime * 2.4));
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `${Math.max(11, minDim * 0.016)}px Georgia, serif`;
+      ctx.font = canvasFont(`${Math.max(11, minDim * 0.016)}px`);
       ctx.fillStyle = PALETTE.goldPale;
       ctx.fillText("tap or press any key to skip", cx, H - Math.max(barH / 2, minDim * 0.03));
       ctx.restore();
@@ -1325,6 +1336,8 @@ export class Renderer {
     const hh = this.viewH / 2;
     const inset = 0.35;
     const pulse = 0.72 + 0.28 * Math.sin(time * 8);
+    const warnR = 8;
+    const ship = world.ship;
 
     for (const d of world.drones) {
       if (!d.alive) continue;
@@ -1335,19 +1348,31 @@ export class Renderer {
       const dx = d.x - x;
       const dy = d.y - y;
       const sq = dx * dx + dy * dy;
-      if (sq > 36) continue; // only warn about nearby threats
+      if (sq > warnR * warnR) continue; // only warn about nearby threats
       const dist = Math.sqrt(sq);
+
+      const onLeft = d.x < -hw;
+      const onRight = d.x > hw;
+      const onBottom = d.y < -hh;
+      const onTop = d.y > hh;
+      const cornered =
+        (onLeft && ship.x <= -hw + 2) ||
+        (onRight && ship.x >= hw - 2) ||
+        (onBottom && ship.y <= -hh + 2) ||
+        (onTop && ship.y >= hh - 2);
+      const sizeMul = cornered ? 1.4 : 1;
+      const alphaMul = cornered ? 1.5 : 1;
 
       const angle = Math.atan2(dy, dx);
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
-      ctx.globalAlpha = 0.75 * (1 - dist / 6) * pulse;
+      ctx.globalAlpha = Math.min(1, 0.75 * (1 - dist / warnR) * pulse * alphaMul);
       ctx.fillStyle = PALETTE.redBright;
       ctx.beginPath();
-      ctx.moveTo(0.352, 0);
-      ctx.lineTo(-0.128, 0.224);
-      ctx.lineTo(-0.128, -0.224);
+      ctx.moveTo(0.352 * sizeMul, 0);
+      ctx.lineTo(-0.128 * sizeMul, 0.224 * sizeMul);
+      ctx.lineTo(-0.128 * sizeMul, -0.224 * sizeMul);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -2445,52 +2470,84 @@ export class Renderer {
     const { ctx } = this;
     const padTop = 18 + this.safe.top;
     const pad = 18 + this.safe.left;
+    const mutators = opts.daily ? getActiveMutators() : [];
 
     ctx.textBaseline = "top";
 
     // score (top-left)
     ctx.textAlign = "left";
     ctx.fillStyle = PALETTE.gold;
-    ctx.font = "bold 26px Georgia, serif";
+    ctx.font = canvasFont("bold 28px");
     ctx.fillText(Math.floor(world.score).toLocaleString(), pad, padTop);
 
     // multiplier (gold-hot as it climbs toward the cap)
     const m = world.multiplier;
     const heat = clamp01((m - 1) / (SCORING.multiplierMax - 1));
-    ctx.font = "bold 17px Georgia, serif";
+    ctx.font = canvasFont("bold 18px");
     ctx.fillStyle = heat > 0.55 ? PALETTE.gold : m > 1.01 ? PALETTE.redBright : PALETTE.bronze;
-    ctx.fillText(`x${m.toFixed(1)}`, pad, padTop + 32);
+    ctx.fillText(`x${m.toFixed(1)}`, pad, padTop + 34);
 
     // active kill chain
     if (world.chainCount >= 3 && world.chainTimer > 0) {
       ctx.fillStyle = PALETTE.goldPale;
-      ctx.font = "bold 13px Georgia, serif";
-      ctx.fillText(`CHAIN ×${world.chainCount}`, pad + 64, padTop + 35);
+      ctx.font = canvasFont("bold 14px");
+      ctx.fillText(`CHAIN ×${world.chainCount}`, pad + 64, padTop + 37);
     }
 
     // best (under the score, clear of the pause button top-right)
     ctx.fillStyle = PALETTE.bronze;
-    ctx.font = "13px Georgia, serif";
-    ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, pad, padTop + 58);
+    ctx.font = canvasFont("14px");
+    ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, pad, padTop + 60);
 
     // time (top-center)
     const mins = Math.floor(world.time / 60);
     const secs = Math.floor(world.time % 60);
     ctx.textAlign = "center";
     ctx.fillStyle = PALETTE.goldPale;
-    ctx.font = "20px Georgia, serif";
+    ctx.font = canvasFont("22px");
     ctx.fillText(`${mins}:${secs.toString().padStart(2, "0")}`, this.cssW / 2, padTop);
 
     // daily runs wear their colors the whole flight
     if (opts.daily) {
       ctx.fillStyle = PALETTE.gold;
-      ctx.font = "bold 11px Georgia, serif";
-      ctx.fillText("☀ D A I L Y   P A T R O L", this.cssW / 2, padTop + 26);
+      ctx.font = canvasFont("bold 12px");
+      ctx.fillText("☀ D A I L Y   P A T R O L", this.cssW / 2, padTop + 28);
+      if (mutators.length > 0) {
+        ctx.fillStyle = PALETTE.gold;
+        ctx.font = canvasFont("bold 11px");
+        ctx.fillText(mutators.map((mut) => mut.name).join(" + "), this.cssW / 2, padTop + 44);
+      }
       const warning = mutatorWindShiftWarning(world.time);
       if (warning) {
         ctx.fillStyle = PALETTE.goldPale;
-        ctx.fillText(`CURRENT TURNING  ${warning.secondsLeft.toFixed(1)}`, this.cssW / 2, padTop + 40);
+        ctx.font = canvasFont("bold 11px");
+        const warnY = mutators.length > 0 ? padTop + 60 : padTop + 44;
+        ctx.fillText(`CURRENT TURNING  ${warning.secondsLeft.toFixed(1)}`, this.cssW / 2, warnY);
       }
+    }
+
+    // opening mutator banner: name + rule, 2.5 s, fading
+    if (opts.daily && mutators.length > 0 && world.time < 2.5 && world.phase === "playing") {
+      const fade = world.time >= 1.8 ? clamp01((2.5 - world.time) / 0.7) : 1;
+      const cx = this.cssW / 2;
+      const line = 22;
+      const blockH = mutators.length * line * 2;
+      let by = this.cssH * 0.4 - blockH / 2;
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.globalAlpha = fade;
+      for (const mut of mutators) {
+        ctx.font = canvasFont("bold 22px");
+        ctx.fillStyle = PALETTE.gold;
+        ctx.fillText(mut.name, cx, by);
+        by += line;
+        ctx.font = canvasFont("14px");
+        ctx.fillStyle = PALETTE.goldPale;
+        ctx.fillText(mut.hudRule, cx, by);
+        by += line;
+      }
+      ctx.restore();
     }
 
     // active power timers (bottom-left)
@@ -2537,7 +2594,7 @@ export class Renderer {
 
     let py = this.cssH - pad - this.safe.bottom - powers.length * 24;
     ctx.textAlign = "left";
-    ctx.font = "12px Georgia, serif";
+    ctx.font = canvasFont("13px");
     for (const [name, remaining, total, color] of powers) {
       const frac = clamp01(remaining / total);
       ctx.fillStyle = color;
@@ -2549,6 +2606,34 @@ export class Renderer {
       py += 24;
     }
 
+  }
+
+  /** Red ring over any drone sitting under the top-right pause HUD rect. */
+  private drawPauseHudRings(world: World, alpha: number): void {
+    if (world.phase !== "playing") return;
+    const { ctx } = this;
+    const scaleCss = this.cssH / this.viewH;
+    const rectL = this.cssW - 72;
+    const rectT = 0;
+    const rectR = this.cssW;
+    const rectB = 72;
+    ctx.save();
+    ctx.strokeStyle = PALETTE.redBright;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.35;
+    for (const d of world.drones) {
+      if (!d.alive) continue;
+      const wx = lerp(d.prevX, d.x, alpha);
+      const wy = lerp(d.prevY, d.y, alpha);
+      const sx = this.cssW / 2 + wx * scaleCss;
+      const sy = this.cssH / 2 - wy * scaleCss;
+      if (sx < rectL || sx > rectR || sy < rectT || sy > rectB) continue;
+      const r = Math.max(8, droneRadius(d) * scaleCss + 4);
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private drawTouchOverlay(touch: TouchStickView): void {
