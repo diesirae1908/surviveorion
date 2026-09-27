@@ -43,7 +43,8 @@ function step(world: World, seconds: number): void {
 
 /** Teleport onto a pickup without landing in the HUD band the ship cannot enter. */
 function parkShipOnPickup(world: World, p: { x: number; y: number }): void {
-  const yMax = world.viewH / 2 - shipTopInset(world.viewH);
+  const top = shipTopInset(world.viewW, world.viewH, world.clipView.w, world.clipView.h);
+  const yMax = world.viewH / 2 - top;
   const yMin = -(world.viewH / 2 - SHIP.wallInset);
   const xMax = world.viewW / 2 - SHIP.wallInset;
   p.x = Math.max(-xMax, Math.min(xMax, p.x));
@@ -838,6 +839,7 @@ function muteAmbientPickups(world: World): void {
 
 {
   const world = createWorld(16, 10, true);
+  world.clipView = { w: 1440, h: 900 };
   const steps = Math.round(2 / FIXED_DT);
   for (let i = 0; i < steps; i++) {
     tick(
@@ -847,7 +849,7 @@ function muteAmbientPickups(world: World): void {
     );
     world.events.length = 0;
   }
-  const limit = world.viewH / 2 - shipTopInset(world.viewH);
+  const limit = world.viewH / 2 - shipTopInset(16, 10, 1440, 900);
   check(
     "HUD band: hold-up 2s keeps the hull below the top HUD",
     world.ship.y <= limit + 1e-4,
@@ -2638,6 +2640,7 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     setActiveMutators([m], new Date("2026-08-14T00:00:00Z"));
     const scale = mutatorViewScale();
     const world = createWorld(DESK_W * scale, DESK_H * scale, false, 0, "classic", true);
+    world.clipView = { w: 1440, h: 900 };
     const steps = Math.round(CAP / FIXED_DT);
     for (let i = 0; i < steps; i++) {
       tick(world, input, FIXED_DT);
@@ -2678,6 +2681,7 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
       setRunSeed(qaSeed);
       setActiveMutators([getMutatorById(id)!], qaDate);
       const world = createWorld(DESK_W, DESK_H, false, 0, "classic", true);
+      world.clipView = { w: 1440, h: 900 };
       const steps = Math.round(CAP / FIXED_DT);
       for (let i = 0; i < steps; i++) {
         tick(world, input, FIXED_DT);

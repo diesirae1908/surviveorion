@@ -8,7 +8,11 @@ function clampShip(
   s: Ship,
   world: World,
 ): boolean {
-  return clampToBounds(s, world, SHIP.wallInset, shipTopInset(world.viewH));
+  return clampToBounds(s, world, SHIP.wallInset, shipTopInsetFor(world));
+}
+
+function shipTopInsetFor(world: World): number {
+  return shipTopInset(world.viewW, world.viewH, world.clipView.w, world.clipView.h);
 }
 
 export function createShip(): Ship {
@@ -50,7 +54,7 @@ export function updateShip(world: World, input: InputState, dt: number): void {
   if (windRaw) {
     const k = openingWindScale(world.time, world.gameMode);
     const wind = { x: windRaw.x * k, y: windRaw.y * k };
-    const w = cancelIntoWallWind(s, world, SHIP.wallInset, wind, shipTopInset(world.viewH));
+    const w = cancelIntoWallWind(s, world, SHIP.wallInset, wind, shipTopInsetFor(world));
     s.x += w.x * dt;
     s.y += w.y * dt;
   }

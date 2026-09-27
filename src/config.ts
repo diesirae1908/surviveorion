@@ -29,10 +29,13 @@ export const SHIP = {
   maxSpeed: 15,
   radius: 0.12, // bullet-hell-tiny hitbox (~the canopy), way under the drawn hull
   wallInset: 0.42, // clamp/wind bound: about half the drawn hull at visualScale 0.8
-  // Extra top clamp so the drawn hull (nose 0.44 at visualScale 0.8) sits
-  // below the timer / DAILY PATROL / mutator tag / pause button. Scaled by
-  // viewH / VIEW_MIN so a tall portrait field maps the same CSS HUD height.
-  hudBand: 1.55,
+  // drawHud (read 2026-09-27, not imported): padTop 18, mutator tag at
+  // padTop+44 with 11px font -> 73 css px. Pause occupancy rect is 72x72
+  // (drawPauseHudRings). Daily stack wins. Safe-area inset is runtime-only
+  // and is not in this constant. Converted with the short css axis.
+  hudBandPx: 73,
+  // Headless / missing clipView: treat the short axis as 1440x900's 900 px.
+  hudFallbackCssShort: 900,
   visualScale: 0.8, // hull drawn smaller for more perceived flying room
   linearDamping: 0.12, // gentle drag so the ship eventually settles
   deathKnockback: 12,
@@ -51,7 +54,7 @@ export const OPENING = {
   // tall): closest perimeter pop stays far enough that 0.6x homing cannot
   // reach an idle origin ship before 12s. Pure function of time + view size.
   edgeTravelPad: 2.2,
-  windFrom: 0, // SOLAR WIND holds still, then lerps to full over releaseSeconds
+  windFrom: 0.35, // SOLAR WIND visible in the opening, then lerps to 1 over releaseSeconds
 };
 
 /** 0 through the 10s hold, 1 after 12s, linear in between. Iron Rain stays ramped. */
@@ -69,9 +72,17 @@ export function openingWindScale(time: number, gameMode?: string): number {
   return OPENING.windFrom + (1 - OPENING.windFrom) * t;
 }
 
-/** Top wall inset: hull stays below the HUD band on any field height. */
-export function shipTopInset(viewH: number): number {
-  return SHIP.wallInset + SHIP.hudBand * (viewH / VIEW_MIN);
+/**
+ * Top clamp so the drawn nose sits below the HUD. HUD is a fixed css-px
+ * band; world units = hudBandPx * shortWorld / shortCss. Hull nose is
+ * 0.55 * visualScale (local +x tip). clipView 0,0 uses hudFallbackCssShort.
+ */
+export function shipTopInset(viewW: number, viewH: number, cssW = 0, cssH = 0): number {
+  const viewShort = Math.min(viewW, viewH);
+  const cssShort = cssW > 0 && cssH > 0 ? Math.min(cssW, cssH) : SHIP.hudFallbackCssShort;
+  const hudWorld = SHIP.hudBandPx * (viewShort / cssShort);
+  const hullNose = 0.55 * SHIP.visualScale;
+  return Math.max(SHIP.wallInset, hudWorld + hullNose);
 }
 
 // Tilt controls (mobile): tilt maps directly to velocity, Tilt to Live style.
