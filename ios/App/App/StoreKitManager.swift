@@ -46,8 +46,9 @@ final class StoreKitManager: ObservableObject {
             let result = try await product.purchase()
             switch result {
             case .success(let verification):
-                let transaction = try checkVerified(verification)
+                let (transaction, jws) = try checkVerifiedTransaction(verification)
                 await apply(transaction)
+                _ = try? await APIClient.shared.reportPremium(signedTransaction: jws)
                 await transaction.finish()
                 return true
             case .userCancelled:
@@ -60,7 +61,11 @@ final class StoreKitManager: ObservableObject {
                 return false
             }
         } catch {
-            lastError = "Purchase failed. Try Restore Purchases."
+            let detail = (error as NSError).localizedDescription
+            let clipped = String(detail.prefix(120))
+            lastError = clipped.isEmpty
+                ? "Purchase failed. Try Restore Purchases."
+                : "Purchase failed. Try Restore Purchases. (\(clipped))"
             return false
         }
     }
@@ -89,10 +94,10 @@ final class StoreKitManager: ObservableObject {
 
     private func listenForUpdates() async {
         for await update in Transaction.updates {
-            if let transaction = try? checkVerified(update) {
-                await apply(transaction)
-                await transaction.finish()
-            }
+            guard let (transaction, jws) = try? checkVerifiedTransaction(update) else { continue }
+            await apply(transaction)
+            _ = try? await APIClient.shared.reportPremium(signedTransaction: jws)
+            await transaction.finish()
         }
     }
 
@@ -102,13 +107,13 @@ final class StoreKitManager: ObservableObject {
         var until: TimeInterval = 0
         var jws: String?
         for await entitlement in Transaction.currentEntitlements {
-            guard let transaction = try? checkVerified(entitlement) else { continue }
+            guard let (transaction, signed) = try? checkVerifiedTransaction(entitlement) else { continue }
             if transaction.productID == Self.monthlyId || transaction.productID == Self.yearlyId {
                 if let exp = transaction.expirationDate, exp > Date() {
                     found = true
                     pid = transaction.productID
                     until = exp.timeIntervalSince1970
-                    jws = String(data: transaction.jsonRepresentation, encoding: .utf8)
+                    jws = signed
                 }
             }
         }
@@ -137,12 +142,12 @@ final class StoreKitManager: ObservableObject {
         await updateEntitlement()
     }
 
-    private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
+    private func checkVerifiedTransaction(_ result: VerificationResult<Transaction>) throws -> (Transaction, String) {
         switch result {
         case .unverified:
             throw APIError.server("Unverified App Store transaction")
         case .verified(let safe):
-            return safe
+            return (safe, result.jwsRepresentation)
         }
     }
 }

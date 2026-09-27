@@ -19,6 +19,75 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Commit:** the `chore: add GitHub Actions CI` commit on `dev`.
 - **Follow-ups:** Sam subscribe to CI results; merge `chore/ci-actions` to `dev` when ready (no push from this dispatch).
 
+## 2026-09-24 morning PT: TestFlight 1.0 (17) uploaded + attached to ASC 1.0 (StoreKit JWS)
+
+- Commit `808d932` on `origin/main` (includes `1c6c603` StoreKit JWS fix). Worktree `.worktrees/fix-storekit-jws-tf17`.
+- `npm ci` + `npm run build` (bundle `main-BFgLner-.js`). `xcodebuild archive` `CURRENT_PROJECT_VERSION=17`, team `4R88D2NKUC`, profile "ORION App Store", login keychain. Archive `/tmp/orion-ios-native/ORION-b17.xcarchive`.
+- `altool --upload-app` delivery/build `bb90bd49-70bb-4d5e-9ac5-8d2ddf00c611`. Processing `VALID`. `usesNonExemptEncryption:false`. Internal group `1c4f517b-f1cd-4f8b-a2a7-c770b0e09dfe`: `IN_BETA_TESTING`. Attached to App Store version 1.0 `cc936b94-bb8b-4d22-a4bc-183ee4fb1809` (state `PREPARE_FOR_SUBMISSION`). **Not submitted for review.**
+- Follow-up for Lucas: sandbox purchase QA on TF17 (monthly + yearly Gold Patrol); Sam/Lucas resubmit ASC draft `7a02957c-7690-4ebb-868f-cc9fd3c11e7f` after QA.
+
+## 2026-09-24 morning PT: StoreKit JWS for premium report (TF17 prep)
+
+- Apple rejected ASC submission `7a02957c-7690-4ebb-868f-cc9fd3c11e7f` (build 16) Guideline 2.1(b): Gold Patrol purchase error in review sandbox. Root cause: `StoreKitManager` sent `transaction.jsonRepresentation` (raw JSON) to `POST /api/me/premium`; server expects StoreKit 2 signed JWS (`verifyStoreKitJws`).
+- **Fix (`StoreKitManager.swift`):** `checkVerifiedTransaction` returns `(Transaction, VerificationResult.jwsRepresentation)`. Purchase success, `Transaction.updates`, and `currentEntitlements` paths call `reportPremium(signedTransaction:)` with that JWS. Purchase catch surfaces truncated `localizedDescription`. Local entitlement prefs unchanged.
+- Branch `fix/storekit-jws-tf17`, worktree `.worktrees/fix-storekit-jws-tf17`. Commit `1c6c603`. Verify: `node --test scripts/test-apple-iap.mjs` pass; `xcodebuild ... iPhone 17 Simulator` **BUILD SUCCEEDED** (after `npm run build` for `dist/`).
+- Follow-up: archive/upload build 17, attach ASC 1.0, sandbox QA monthly+yearly on TF17. Do not submit for review (Sam/Lucas).
+
+## 2026-09-24 PT: DEMOLITION DAY social draft hosted (phase 1)
+
+- Worktree `.worktrees/buffer-0924` branch `sam/buffer-0924`. Patrol Day 73.
+  Master copied (not moved) from Downloads to `final_videoasset/0924_demolition_916.mov`
+  (+ H.264 `.mp4` archive, gitignored). HEVC to H.264 faststart, moov before mdat.
+  Hosted `public/social-drafts/0924_demolition_916.mp4` (1080x1920, ~25s).
+- Deploy: `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`
+- Commit: `ec5b74b`.
+
+## 2026-09-24 PT: DEMOLITION DAY Buffer TikTok (phase 2)
+
+- Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `customScheduled`,
+  `dueAt` `2026-09-24T16:00:00.000Z` (9:00 AM PT). Media
+  `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`.
+  TT `6ab428560aa0d077fc2fccfc` (status `scheduled`). IG/YT not posted.
+- Commit: `789c494`.
+
+## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
+
+- Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `shareNow`,
+  media `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`.
+  TT `6ab40458062c9074d14e345c` (initial status `sending`). IG/YT not posted.
+- Commit: `65e7f22`.
+
+## 2026-09-23 PT: THE LIGHTHOUSE social draft hosted (phase 1)
+
+- Worktree `.worktrees/buffer-0923` branch `sam/buffer-0923`. Master copied (not
+  moved) from Downloads to `final_videoasset/0923_lighthouse_916.mov` (+ H.264
+  `.mp4` archive, gitignored). HEVC to H.264 faststart. Hosted
+  `public/social-drafts/0923_lighthouse_916.mp4` (1080x1920, ~67s).
+- Deploy: `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`
+- Commit: `d0004f5`.
+
+## 2026-09-20 PT: DEMOLITION+PIT Buffer queued (phase 2)
+
+- Lucas authorized live Buffer (IG/TT/YT). `post-buffer.mjs` `addToQueue`,
+  media `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`.
+  Sam-approved captions (IG/TT shared, YT title + description). All three
+  `scheduled`. IG `6ab017e3581115d5905ae5ca`, TT `6ab017e9ca3da6544355616f`,
+  YT `6ab018063f368df689ed03b2`. YouTube first attempt failed (origin 502 while
+  Buffer fetched URL); one retry after HEAD 200 succeeded. No `calendar.json`
+  row for 2026-09-20 (skipped; no duplicate calendar post).
+- Commit: `dac6766`.
+
+## 2026-09-20 PT: DEMOLITION+PIT social draft hosted (phase 1)
+
+- Branch `sam/buffer-0920` in worktree `.worktrees/buffer-0920`. CapCut master
+  copied (not moved) from Downloads to
+  `final_videoasset/0920_demolition_pit_916.mov` (+ H.264 master `.mp4` archive,
+  gitignored). Transcoded HEVC to H.264 yuv420p AAC, `movflags +faststart`, moov
+  before mdat verified. Hosted `public/social-drafts/0920_demolition_pit_916.mp4`
+  (1080x1920, ~22.5s). Buffer queue deferred to phase 2 (Sam captions).
+- Deploy target: `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`
+- Commit: `49c82c9`.
+
 ## 2026-09-19 night PT: Fly CTA on pre-account archive days (staging)
 
 - Bug: Gold pilots saw empty status + no Fly on `before-launch` past days (pre `joinedAt`); `appendCalendarDayAction` only treated completed/missed/etc. as archive past.

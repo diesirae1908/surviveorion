@@ -1,5 +1,59 @@
 # JOURNAL
 
+## 2026-09-24 PT: DEMOLITION DAY mutator hosted (phase 1)
+
+- Patrol Day 73. Master copied (not moved) from Downloads to
+  `final_videoasset/0924_demolition_916.mov` (+ H.264 archive `.mp4`, gitignored).
+  HEVC transcoded to H.264 yuv420p AAC, `movflags +faststart`, moov before mdat
+  verified. Hosted `public/social-drafts/0924_demolition_916.mp4` (1080x1920, ~25s).
+- Deploy target:
+  `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`.
+  Commit `ec5b74b`.
+
+## 2026-09-24 PT: DEMOLITION DAY Buffer TikTok (phase 2)
+
+- Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `--dry=false`,
+  mode `customScheduled`, `dueAt` `2026-09-24T16:00:00.000Z`. Media
+  `https://surviveorion.com/social-drafts/0924_demolition_916.mp4`.
+- Buffer TT `6ab428560aa0d077fc2fccfc` (status `scheduled`). Commit `789c494`.
+
+## 2026-09-23 PT: THE LIGHTHOUSE Buffer TikTok (phase 2)
+
+- Lucas authorized live Buffer TikTok only. `post-buffer.mjs` `--dry=false`,
+  mode `shareNow`. Media
+  `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`.
+- Buffer TT `6ab40458062c9074d14e345c` (initial status `sending`). Commit `65e7f22`.
+
+## 2026-09-23 PT: THE LIGHTHOUSE mutator hosted (phase 1)
+
+- Master copied (not moved) from Downloads to
+  `final_videoasset/0923_lighthouse_916.mov` (+ H.264 archive `.mp4`, gitignored).
+  HEVC transcoded to H.264 yuv420p AAC, `movflags +faststart`, moov before mdat
+  verified. Hosted `public/social-drafts/0923_lighthouse_916.mp4` (1080x1920, ~67s).
+- Deploy target:
+  `https://surviveorion.com/social-drafts/0923_lighthouse_916.mp4`.
+  Commit `d0004f5`.
+
+## 2026-09-20 PT: DEMOLITION+PIT Buffer queue (phase 2)
+
+- Lucas authorized live Buffer. Sam-approved captions via `post-buffer.mjs`
+  `--dry=false`, mode `addToQueue`. Media
+  `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`.
+- Buffer `addToQueue` (status scheduled): IG `6ab017e3581115d5905ae5ca`,
+  TT `6ab017e9ca3da6544355616f`, YT `6ab018063f368df689ed03b2`. YT needed one
+  retry after transient origin 502. No calendar row for 2026-09-20 in
+  `calendar.json` (not invented).
+
+## 2026-09-20 PT: DEMOLITION+PIT CapCut hosted (phase 1, no Buffer yet)
+
+- Master copied (not moved) from Downloads to
+  `final_videoasset/0920_demolition_pit_916.mov`. HEVC transcoded to H.264
+  yuv420p AAC, `movflags +faststart`, moov before mdat verified. Hosted
+  `public/social-drafts/0920_demolition_pit_916.mp4` (1080x1920).
+- Media URL (after deploy):
+  `https://surviveorion.com/social-drafts/0920_demolition_pit_916.mp4`.
+  Phase 2: calendar row + Buffer when Lucas/Sam authorize.
+
 ## 2026-09-15 PT: MENAGERIE mutator clip hosted + Buffer queue
 
 - Lucas authorized live Buffer (IG/TT/YT). Master copied (not moved) from
