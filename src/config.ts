@@ -28,9 +28,19 @@ export const SHIP = {
   rotateSpeed: (320 * Math.PI) / 180, // rad/s
   maxSpeed: 15,
   radius: 0.12, // bullet-hell-tiny hitbox (~the canopy), way under the drawn hull
+  wallInset: 0.42, // clamp/wind bound: about half the drawn hull at visualScale 0.8
   visualScale: 0.8, // hull drawn smaller for more perceived flying room
   linearDamping: 0.12, // gentle drag so the ship eventually settles
   deathKnockback: 12,
+};
+
+/** First-10s fairness (Classic, Daily, Training). Pure functions of world.time;
+ * never adds or removes a rand/scheduleRand draw. Iron Rain stays fully ramped. */
+export const OPENING = {
+  seconds: 10,
+  telegraphMinDistance: 6, // on-screen pops start farther than telegraph.minDistanceFromShip
+  telegraphDurationScale: 1.5, // longer warning glow / STARFALL reticle during the window
+  homingSpeedFrom: 0.6, // loose homing drones lerp from this to 1 over `seconds`
 };
 
 // Tilt controls (mobile): tilt maps directly to velocity, Tilt to Live style.

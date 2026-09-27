@@ -1,4 +1,4 @@
-import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, POWERS, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
+import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, OPENING, POWERS, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import {
   mutatorAmbientRateScale,
@@ -56,6 +56,18 @@ function effectiveAssemblyMaxConcurrent(): number {
 export function difficultyMinutes(world: World): number {
   if (world.training) return 0; // Training Ground never escalates
   return world.gameMode === "ironrain" ? IRONRAIN.pinnedMinutes : world.time / 60;
+}
+
+/** 0 during the opening window (full fairness), 1 after. Iron Rain stays ramped.
+ * Spec lerp(t/seconds) faded to full speed by t=10 and idle Classic died at
+ * ~11.6s; the 12s bar needs the window to hold opening values, then release. */
+function openingScale(time: number, gameMode: World["gameMode"]): number {
+  if (gameMode === "ironrain") return 1;
+  return time >= OPENING.seconds ? 1 : 0;
+}
+
+function openingHoming(world: World): number {
+  return lerp(OPENING.homingSpeedFrom, 1, openingScale(world.time, world.gameMode));
 }
 
 // --- drones ---
@@ -321,6 +333,10 @@ export function updateDrones(world: World, dt: number): void {
 
     let speed = DRONE.baseSpeed * d.speedMultiplier * droneSizeSpeedFactor(d.scale) * mutatorDroneSpeedScale();
     if (scripted && d.scriptSpeedScale) speed *= d.scriptSpeedScale;
+    // Opening ramp: only loose homing (no script, no assembly, not flare-piled).
+    if (!scripted && !flare) {
+      speed *= openingHoming(world);
+    }
     d.vx = hx * speed;
     d.vy = hy * speed;
     d.x += d.vx * dt;
@@ -526,24 +542,41 @@ function telegraphAt(world: World, x: number, y: number, duration: number): void
 
 function telegraphAmbient(world: World, count = 1): void {
   const cfg = SPAWNER.telegraph;
+  const open = openingScale(world.time, world.gameMode);
+  const minDist = lerp(OPENING.telegraphMinDistance, cfg.minDistanceFromShip, open);
   // BLACKOUT: warnings stay, but the reaction window shrinks (see mutators.ts).
-  const duration = cfg.duration * mutatorTelegraphDurationScale();
+  const duration =
+    cfg.duration * mutatorTelegraphDurationScale() * lerp(OPENING.telegraphDurationScale, 1, open);
   const hw = world.viewW / 2 - cfg.edgeInset;
   const hh = world.viewH / 2 - cfg.edgeInset;
   // fixed number of draws (ship position must not advance the seeded stream
-  // differently per player); take the first candidate far enough away
+  // differently per player); take the first candidate far enough away.
+  // If the view is too small for minDist (THE PIT), keep the farthest of the 10.
   let x = 0;
   let y = 0;
   let found = false;
+  let bestX = 0;
+  let bestY = 0;
+  let bestDist2 = -1;
   for (let attempt = 0; attempt < 10; attempt++) {
     const cx = randRange(-hw, hw);
     const cy = randRange(-hh, hh);
+    const dx = cx - world.ship.x;
+    const dy = cy - world.ship.y;
+    const dist2 = dx * dx + dy * dy;
+    if (dist2 > bestDist2) {
+      bestDist2 = dist2;
+      bestX = cx;
+      bestY = cy;
+    }
     if (found) continue;
     x = cx;
     y = cy;
-    const dx = cx - world.ship.x;
-    const dy = cy - world.ship.y;
-    if (dx * dx + dy * dy >= cfg.minDistanceFromShip ** 2) found = true;
+    if (dist2 >= minDist ** 2) found = true;
+  }
+  if (!found) {
+    x = bestX;
+    y = bestY;
   }
   telegraphAt(world, x, y, duration);
   // pack members glow in around the anchor (clamped inside the view)

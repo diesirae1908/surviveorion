@@ -808,6 +808,26 @@ function muteAmbientPickups(world: World): void {
   world.powers.starshellTimer = 0;
 }
 
+// --- 6c2. wall inset: hold a direction, hull stays inside the view ---
+{
+  const world = createWorld(17.8, 10, true);
+  const steps = Math.round(2 / FIXED_DT);
+  for (let i = 0; i < steps; i++) {
+    tick(
+      world,
+      { ...input, inertia: false, moveVector: { x: 1, y: 0 }, cruiseSpeed: SHIP.maxSpeed },
+      FIXED_DT,
+    );
+    world.events.length = 0;
+  }
+  const limit = world.viewW / 2 - SHIP.wallInset;
+  check(
+    "wall inset: hold-right 2s keeps the hull inside the view",
+    world.ship.x <= limit + 1e-4,
+    `x=${world.ship.x.toFixed(3)} limit=${limit.toFixed(3)}`,
+  );
+}
+
 // --- 6d. pickups: 1 on start, cap of 3, refill floor, drift (floor off on daily) ---
 {
   const world = createWorld(17.8, 10);
@@ -1134,13 +1154,15 @@ function muteAmbientPickups(world: World): void {
     const steps = Math.round(180 / FIXED_DT);
     for (let i = 0; i < steps; i++) {
       t += FIXED_DT;
-      let drive = { x: 0, y: 0 };
-      if (style === "ram") {
-        world.powers.starshellTimer = 9999;
-      } else {
-        world.powers.shieldActive = true;
-        drive = { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
-      }
+      // both styles stay invulnerable: STARFALL craters (and wall-inset
+      // circling) can pop a one-shot shield in the same tick as a second
+      // blast and freeze world.time, which would desync the rain script.
+      // Paths still differ (stationary ram vs circling drift).
+      world.powers.starshellTimer = 9999;
+      const drive =
+        style === "ram"
+          ? { x: 0, y: 0 }
+          : { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
       tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
 
       // event-sourced (see the section-7 recorder above for why).
@@ -2517,6 +2539,55 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
           return `${r.name} med ${med.toFixed(0)}s, ${r.ended}/${TRIALS} died`;
         })
         .join(" | "),
+  );
+}
+
+// --- opening fairness: idle Daily ship survives the first 12s ---
+// OR-01 only retunes ambient telegraph distance/duration and loose homing.
+// These ids kill an idle origin ship via systems that slice does not touch:
+//   lancer-doctrine / hunting-party / demolition-day: direct-spawn assemblies
+//   the-lighthouse: beam (src/lighthouse.ts, not owned)
+//   the-pit: shrunk view cannot satisfy telegraphMinDistance 6
+// Logged for every pool id; assertion skips those five. Question for Sam.
+{
+  const CAP = 20;
+  const NEED = 12;
+  const SKIP = new Set([
+    "lancer-doctrine",
+    "hunting-party",
+    "demolition-day",
+    "the-lighthouse",
+    "the-pit",
+  ]);
+  const rows: { id: string; t: number }[] = [];
+  for (const m of MUTATOR_POOL) {
+    setRunSeed(1234567);
+    setActiveMutators([m], new Date("2026-08-14T00:00:00Z"));
+    const scale = mutatorViewScale();
+    const world = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true);
+    const steps = Math.round(CAP / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      tick(world, input, FIXED_DT);
+      world.events.length = 0;
+      if (world.phase !== "playing") break;
+    }
+    rows.push({ id: m.id, t: world.time });
+    clearActiveMutators();
+    setRunSeed(null);
+  }
+  const fail = rows.filter((r) => !SKIP.has(r.id) && r.t < NEED);
+  check(
+    `opening: idle ship survives >= ${NEED} s on ambient MUTATOR_POOL ids`,
+    fail.length === 0,
+    fail.map((r) => `${r.id} ${r.t.toFixed(2)}s`).join(", "),
+  );
+  const skipped = rows.filter((r) => SKIP.has(r.id));
+  console.log(
+    "  idle survival: " + rows.map((r) => `${r.id} ${r.t.toFixed(2)}s`).join(" | "),
+  );
+  console.log(
+    "  opening skip (assemblies/beam/tiny view): " +
+      skipped.map((r) => `${r.id} ${r.t.toFixed(2)}s`).join(" | "),
   );
 }
 
