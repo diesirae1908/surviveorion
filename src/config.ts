@@ -29,19 +29,29 @@ export const SHIP = {
   maxSpeed: 15,
   radius: 0.12, // bullet-hell-tiny hitbox (~the canopy), way under the drawn hull
   wallInset: 0.42, // clamp/wind bound: about half the drawn hull at visualScale 0.8
+  // Extra top clamp so the drawn hull (nose 0.44 at visualScale 0.8) sits
+  // below the timer / DAILY PATROL / mutator tag / pause button. Scaled by
+  // viewH / VIEW_MIN so a tall portrait field maps the same CSS HUD height.
+  hudBand: 1.55,
   visualScale: 0.8, // hull drawn smaller for more perceived flying room
   linearDamping: 0.12, // gentle drag so the ship eventually settles
   deathKnockback: 12,
 };
 
-/** First-10s fairness (Classic, Daily, Training). Pure functions of world.time;
- * never adds or removes a rand/scheduleRand draw. Iron Rain stays fully ramped. */
+/** First-10s fairness (Classic, Daily, Training). Pure functions of world.time
+ * (and field size for edge margin). Never adds or removes a rand/scheduleRand
+ * draw. Iron Rain stays fully ramped. */
 export const OPENING = {
   seconds: 10,
   releaseSeconds: 2, // linear release 10s -> 12s (hold, then lerp to full)
   telegraphMinDistance: 6, // on-screen pops start farther than telegraph.minDistanceFromShip
   telegraphDurationScale: 1.5, // longer warning glow / STARFALL reticle during the window
   homingSpeedFrom: 0.6, // loose homing drones hold this, then lerp to 1 over releaseSeconds
+  // Extra edge-spawn standoff on short-axis fields (desktop 1440x900 is 10
+  // tall): closest perimeter pop stays far enough that 0.6x homing cannot
+  // reach an idle origin ship before 12s. Pure function of time + view size.
+  edgeTravelPad: 2.2,
+  windFrom: 0, // SOLAR WIND holds still, then lerps to full over releaseSeconds
 };
 
 /** 0 through the 10s hold, 1 after 12s, linear in between. Iron Rain stays ramped. */
@@ -51,6 +61,17 @@ export function openingFairness(time: number, gameMode?: string): number {
   const span = OPENING.releaseSeconds;
   if (time >= OPENING.seconds + span) return 1;
   return (time - OPENING.seconds) / span;
+}
+
+/** Crosswind multiplier during the opening hold/release. */
+export function openingWindScale(time: number, gameMode?: string): number {
+  const t = openingFairness(time, gameMode);
+  return OPENING.windFrom + (1 - OPENING.windFrom) * t;
+}
+
+/** Top wall inset: hull stays below the HUD band on any field height. */
+export function shipTopInset(viewH: number): number {
+  return SHIP.wallInset + SHIP.hudBand * (viewH / VIEW_MIN);
 }
 
 // Tilt controls (mobile): tilt maps directly to velocity, Tilt to Live style.

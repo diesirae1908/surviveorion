@@ -11,9 +11,11 @@ export function clampToBounds(
   e: { x: number; y: number; prevX: number; prevY: number; vx: number; vy: number },
   world: World,
   radius: number,
+  topInset: number = radius,
 ): boolean {
   const hw = world.viewW / 2 - radius;
-  const hh = world.viewH / 2 - radius;
+  const yMin = -(world.viewH / 2 - radius);
+  const yMax = world.viewH / 2 - topInset;
   let hit = false;
 
   if (e.x < -hw) {
@@ -25,12 +27,12 @@ export function clampToBounds(
     if (e.vx > 0) e.vx = 0;
     hit = true;
   }
-  if (e.y < -hh) {
-    e.y = -hh;
+  if (e.y < yMin) {
+    e.y = yMin;
     if (e.vy < 0) e.vy = 0;
     hit = true;
-  } else if (e.y > hh) {
-    e.y = hh;
+  } else if (e.y > yMax) {
+    e.y = yMax;
     if (e.vy > 0) e.vy = 0;
     hit = true;
   }
@@ -47,16 +49,18 @@ export function cancelIntoWallWind(
   world: World,
   radius: number,
   wind: { x: number; y: number },
+  topInset: number = radius,
 ): { x: number; y: number } {
   const hw = world.viewW / 2 - radius;
-  const hh = world.viewH / 2 - radius;
+  const yMin = -(world.viewH / 2 - radius);
+  const yMax = world.viewH / 2 - topInset;
   const slop = 1e-4;
   let wx = wind.x;
   let wy = wind.y;
   if (e.x <= -hw + slop && wx < 0) wx = 0;
   if (e.x >= hw - slop && wx > 0) wx = 0;
-  if (e.y <= -hh + slop && wy < 0) wy = 0;
-  if (e.y >= hh - slop && wy > 0) wy = 0;
+  if (e.y <= yMin + slop && wy < 0) wy = 0;
+  if (e.y >= yMax - slop && wy > 0) wy = 0;
   return { x: wx, y: wy };
 }
 
