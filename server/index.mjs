@@ -185,6 +185,23 @@ function boardMode(body) {
 const bodyGameMode = (body) =>
   GAME_MODES.includes(body.gameMode) ? body.gameMode : "classic";
 
+/**
+ * Hash a client-supplied random UUID. Returns null for missing/invalid ids
+ * (old web clients, iOS 1.0). Never logs or stores the raw value.
+ */
+function bodyDeviceHash(body) {
+  return store.hashDeviceId(body?.deviceId);
+}
+
+/** Optional 0-based run index. Missing or junk → null (old clients). */
+function bodyRunIndex(body) {
+  const n = body?.runIndex;
+  if (typeof n !== "number" || !Number.isFinite(n)) return null;
+  const i = Math.floor(n);
+  if (i < 0 || i > 1_000_000) return null;
+  return i;
+}
+
 /** Game mode from a leaderboard query (?gameMode=); null = invalid. */
 function queryGameMode(url) {
   const gm = url.searchParams.get("gameMode") ?? "classic";
@@ -757,7 +774,12 @@ const routes = {
       return json(res, 429, { error: "daily attempt limit reached, next patrol at midnight Pacific" });
 
     store.insertScore(user.id, { ...run, dailyDate });
-    store.insertRun(user.id, { ...run, platform: cleanPlatform(body.platform) });
+    store.insertRun(user.id, {
+      ...run,
+      platform: cleanPlatform(body.platform),
+      deviceHash: bodyDeviceHash(body),
+      runIndex: bodyRunIndex(body),
+    });
 
     const worldRank = store.rankOf(user.id, { mode: run.mode, gameMode });
     // badge sweep: qualifying badges the pilot doesn't have yet
@@ -821,6 +843,7 @@ const routes = {
       ref,
       path: body.path === "fullgame" ? "fullgame" : "daily",
       platform: cleanPlatform(body.platform),
+      deviceHash: bodyDeviceHash(body),
     });
     json(res, 200, { ok: true });
   },
@@ -840,7 +863,12 @@ const routes = {
     };
     const err = validateRun(run);
     if (err) return json(res, 422, { error: err });
-    store.insertRun(null, { ...run, platform: cleanPlatform(body.platform) });
+    store.insertRun(null, {
+      ...run,
+      platform: cleanPlatform(body.platform),
+      deviceHash: bodyDeviceHash(body),
+      runIndex: bodyRunIndex(body),
+    });
     json(res, 200, { ok: true });
   },
 

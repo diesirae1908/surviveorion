@@ -19,6 +19,7 @@
     "test:recorder": "npx tsx scripts/test-recorder.ts",
     "test:daily-history": "npx tsx scripts/test-daily-history.ts",
     "test:server-daily-history": "node scripts/test-server-daily-history.mjs",
+    "test:server-devices": "node scripts/test-server-devices.mjs",
     "test:serve-static": "node scripts/test-serve-static.mjs",
     "test:clip-inbox": "node scripts/test-clip-inbox.mjs",
     "test:notion-clips": "node scripts/test-notion-clips.mjs",
@@ -41,7 +42,7 @@
     "test:stripe-billing": "node scripts/test-stripe-billing.mjs",
     "cap:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutator-music && npm run test:patrol-complete && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play && npm run test:premium-gates && npm run test:apple-iap && npm run test:stripe-billing && npm run test:web-gate && npm run test:updates && npm run test:play-viewport"
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:server-devices && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutator-music && npm run test:patrol-complete && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play && npm run test:premium-gates && npm run test:apple-iap && npm run test:stripe-billing && npm run test:web-gate && npm run test:updates && npm run test:play-viewport"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
