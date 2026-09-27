@@ -15,9 +15,9 @@
 // Fully gated behind mutatorMeteorRainActive() (true only when STARFALL is
 // one of today's active mutators): every other day and mode is untouched.
 
-import { OPENING, PALETTE, STARFALL_RAIN } from "./config";
+import { OPENING, PALETTE, STARFALL_RAIN, openingFairness } from "./config";
 import { killDronesInRadius } from "./enemies";
-import { ramp, randRange, scheduleRange } from "./math";
+import { lerp, ramp, randRange, scheduleRange } from "./math";
 import { killMinesInRadius } from "./mines";
 import { mutatorMeteorRainActive } from "./mutators";
 import { spawnBlast } from "./powers";
@@ -49,7 +49,7 @@ function scheduleNextTelegraph(world: World): void {
   const j = STARFALL_RAIN.intervalJitter;
   world.meteorRainTimer = scheduleRange(base * (1 - j), base * (1 + j));
   let duration = scheduleRange(...STARFALL_RAIN.warningRange);
-  if (world.time < OPENING.seconds) duration *= OPENING.telegraphDurationScale;
+  duration *= lerp(OPENING.telegraphDurationScale, 1, openingFairness(world.time, world.gameMode));
 
   const halfW = world.viewW / 2 - 0.5;
   const halfH = world.viewH / 2 - 0.5;

@@ -1,4 +1,4 @@
-import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, OPENING, POWERS, SCORING, SPAWNER, TRAINING, type FormationKind } from "./config";
+import { ASSEMBLY, DRONE, FLOOD_SURGE, IRONRAIN, OPENING, POWERS, SCORING, SPAWNER, TRAINING, openingFairness, type FormationKind } from "./config";
 import { clamp, clamp01, escalate, lerp, rand, randDir, randInCircle, randRange, scheduleRand, scheduleRange, smoothNoise } from "./math";
 import {
   mutatorAmbientRateScale,
@@ -58,12 +58,9 @@ export function difficultyMinutes(world: World): number {
   return world.gameMode === "ironrain" ? IRONRAIN.pinnedMinutes : world.time / 60;
 }
 
-/** 0 during the opening window (full fairness), 1 after. Iron Rain stays ramped.
- * Spec lerp(t/seconds) faded to full speed by t=10 and idle Classic died at
- * ~11.6s; the 12s bar needs the window to hold opening values, then release. */
+/** 0 during the 10s hold, 1 after the 10-12s linear release. Iron Rain stays ramped. */
 function openingScale(time: number, gameMode: World["gameMode"]): number {
-  if (gameMode === "ironrain") return 1;
-  return time >= OPENING.seconds ? 1 : 0;
+  return openingFairness(time, gameMode);
 }
 
 function openingHoming(world: World): number {

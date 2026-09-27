@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: merge UX round WS4/WS3/WS1/WS2/WS5 into `dev`
+
+- **Worktree:** `.worktrees/ux-merge-0927`, branch `sam/ux-merge-0927` off `origin/dev` `deae671` (unchanged).
+- **Merge order (`--no-ff`):** WS4 `7ef33e8` → `cc872be`; WS3 `44267c5` → `6478043`; WS1 `8895a16` → `f292f05`; WS2 `06c40ff` → `8dbb86c`; WS5 `b8a6fe7` → `4129973`.
+- **Conflicts:** `JOURNAL.md` on WS3/WS1/WS2/WS5 (kept every entry, newest first: WS5, WS2, WS1, WS3, WS4). `package.json` `"test"` on WS5 only: kept `test:server-devices` plus WS2 `test:gameover-goal` and `test:first-flight`. No code-file conflicts.
+- **3a fingerprint:** Classic golden `1971246982` → `2750562758`. Counts unchanged: 34 formations / 3 drops / 11 mines. No other snapshot moved.
+- **3b hudRule:** applied final strings from Sam's table to `src/mutators.ts` (field values only; 23 rewritten, 9 already matched).
+- **3c OR-10 ui:** lobby `mutatorBriefingCard` renders `hudRule` in `.mutator-subline`. Patrol History / `dayRowMutatorCopy` keeps full `subline`.
+- **3d opening release:** kept. Hold far pops + 0.6x homing through 10 s, linear release 10→12 s (`openingFairness` in `config.ts`; STARFALL warning duration uses the same scale). Sim-test opening idle >= 12 s and every determinism check green.
+- **Verify:** `npm test`, `npm run build` (bundle `main-eubJhVDF.js`), `npx tsx scripts/sim-test.ts`, `test:no-em-dash` all green.
+- **Push:** `git push origin HEAD:dev` (staging `surviveorion-dev` auto-deploy). `main` untouched.
+
 ## 2026-09-27 PT: OR-21 privacy-safe retention instrumentation (WS5)
 
 - **Why:** Admin stats could not compute D1/D7 return or first-run vs later-run length. Next review needs those numbers.

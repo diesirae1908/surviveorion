@@ -215,18 +215,15 @@ function dayRestricted(dateStr: string): boolean {
   const fingerprint = hashString(
     `f:${script.formations.join("|")}::p:${script.powers.join("|")}::m:${script.mines.join("|")}`,
   );
-  // Frozen 2026-08-18, before this PR touched anything selection-related.
-  // Classic never calls setActiveMutators, so nothing in this PR (adding
-  // availableFrom, rewriting pickFirst/pickSecond to index into the
-  // eligible pool) can change this value; a future PR that somehow does
-  // change it has leaked mutator logic into the non-daily path.
-  const GOLDEN_CLASSIC_FINGERPRINT = 1971246982;
+  // Frozen 2026-09-27 after OR-01 opening fairness (far pops + 0.6x homing).
+  // Selection code still must not move this; counts stay 34 / 3 / 11.
+  const GOLDEN_CLASSIC_FINGERPRINT = 2750562758;
   check(
     "Classic fingerprint: 3 seeded minutes unaffected by mutator code",
     fingerprint === GOLDEN_CLASSIC_FINGERPRINT &&
-      script.formations.length > 5 &&
-      script.powers.length > 3 &&
-      script.mines.length > 1,
+      script.formations.length === 34 &&
+      script.powers.length === 3 &&
+      script.mines.length === 11,
     `fingerprint ${fingerprint} (want ${GOLDEN_CLASSIC_FINGERPRINT}), ${script.formations.length} formations, ${script.powers.length} drops, ${script.mines.length} mines`,
   );
 }

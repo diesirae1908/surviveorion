@@ -351,7 +351,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "GREAT WALL",
     briefing: "Today the enemy builds walls. Find the gaps.",
     subline: "No ambient drones at all. Only walls, mega walls, and pincers, faster than usual, released to hunt after their sweep. Deep in the run the walls keep coming faster and stray drones start leaking in.",
-    hudRule: "Walls only. Find the gap.",
+    hudRule: "Walls only. They hunt after the sweep.",
     // v3 (round 4): ambient to true zero ("purer" per Lucas's playtest note;
     // no more lone stray drones diluting the identity). Scripted members
     // still release to normal homing after their sweep (see handleFormations
@@ -399,7 +399,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "YEAR OF THE SERPENT",
     briefing: "Every formation slithers today. Watch the trains.",
     subline: "No ambient drones at all. Only serpent trains, more of them, released to hunt after their sweep. Deep in the run the trains keep coming faster and stray drones start leaking in.",
-    hudRule: "Trains only. Watch the line.",
+    hudRule: "Trains only. They hunt after the sweep.",
     // v3 (round 4): same "ambient to true zero" treatment as GREAT WALL; see
     // that entry's comment. Eased slightly further than GREAT WALL's 0.85:
     // a serpent is a single-file train, so each formation offers a narrower
@@ -429,7 +429,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "MENAGERIE",
     briefing: "The Zoo is open. Every cage, every kind. You never know what fuses next.",
     subline: "A brief calm, then hunters, lances, wheels, and bombs take turns, drawn at random with no repeats back to back. Ambient is a faint trickle, ordinary formations are gone, and from a couple of minutes in two kinds usually fuse in at once. Power drops come a little slower than a usual Daily.",
-    hudRule: "Every kind. You never know next.",
+    hudRule: "Random types, no repeats. Then two fuse.",
     // v3 (round 5, this fix): moved onto the direct-spawn choreography
     // engine like the four single-kind days (see creatures.ts
     // scheduleMenagerieEvent), replacing round 2's conscription-based
@@ -461,7 +461,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "LANCER DOCTRINE",
     briefing: "Broadsides only. Weave the volley or eat the spear.",
     subline: "Salvos of parallel lance bars sweep in from one edge in sequence, more of them every minute past the first. No ambient swarm, no ordinary formations: the artillery is the whole day. Power drops come a little slower than a usual Daily.",
-    hudRule: "Lance bars sweep. Weave the volley.",
+    hudRule: "Salvos of lance bars. More every minute.",
     // v3 (round 5): direct-spawn choreography replaces conscription; see
     // creatures.ts. The evasive bot's score median came out roughly at
     // baseline for the volley rhythm; see JOURNAL.md for all four numbers.
@@ -480,7 +480,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "WHEELHOUSE",
     briefing: "Crossing traffic only. Survive the intersection.",
     subline: "Wheels roll through in lanes from alternating sides, Frogger-style. One lane at the open, then rush hour builds fast. No ambient swarm, no ordinary formations: the traffic is the whole day. Power drops come a little slower than a usual Daily.",
-    hudRule: "Crossing lanes. Survive the traffic.",
+    hudRule: "Wheels cross lanes. Rush hour builds fast.",
     // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
     // bot's score median came in highest of the four (lanes give the most
     // room to graze safely while still crossing danger).
@@ -499,7 +499,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "HUNTING PARTY",
     briefing: "Wolf packs only. They close in early.",
     subline: "Waves tighten after the first half minute. Threading a pack pays more than a usual graze. No ambient swarm, no ordinary formations: the hunt is the whole day.",
-    hudRule: "Wolf packs close in. Thread them.",
+    hudRule: "Threading a pack pays more than a graze.",
     // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
     // bot's score median came in lowest of the four here (packs close in and
     // die one at a time rather than sweeping through in a batch).
@@ -538,7 +538,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "TITANFALL",
     briefing: "Fewer evolutions today. Each one is a titan.",
     subline: "Evolutions are much rarer, only one active at a time, and roughly twice the usual size.",
-    hudRule: "Rarer evolutions. Each one a titan.",
+    hudRule: "One evolution at a time, twice the size.",
     difficultyFactor: 1.1,
     // Excludes the forced-kind days AND MENAGERIE (both "assembly-kind" as
     // of round 5's MENAGERIE rebuild): this is a conscription frequency AND
@@ -552,7 +552,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "ARSENAL",
     briefing: "The board never runs dry today. Go loud.",
     subline: "Pickup drops roughly twice as often, ambient density up slightly.",
-    hudRule: "Drops come twice as often. Go loud.",
+    hudRule: "Twice the drops. Ambient's up too.",
     difficultyFactor: 0.85,
     tags: ["pickup-rate"],
     availableFrom: MUTATORS_START_DATE,
@@ -563,7 +563,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "OVERCHARGE",
     briefing: "Same drops. Every power just got a lot louder.",
     subline: "Drop rate is normal, but every power's blast radius, count, or duration is amplified.",
-    hudRule: "Same drops. Every power hits louder.",
+    hudRule: "Drops normal. Powers hit far bigger.",
     difficultyFactor: 0.8,
     tags: ["power-amp"],
     availableFrom: MUTATORS_START_DATE,
@@ -590,7 +590,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "IRON BARRAGE",
     briefing: "Every drop is a Missile Swarm. Bring the barrage.",
     subline: "Every pickup is a Missile Swarm.",
-    hudRule: "Every drop is a Missile Swarm.",
+    hudRule: "Only Missile Swarms drop today.",
     difficultyFactor: 0.95,
     tags: ["monopower"],
     availableFrom: MUTATORS_START_DATE,
@@ -601,7 +601,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "SINGULARITY",
     briefing: "The banned singularity is back for one day. Use it well.",
     subline: "Vortex (normally benched) drops often today.",
-    hudRule: "Vortex drops often. Use it well.",
+    hudRule: "Vortex, normally benched, drops often.",
     difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: MUTATORS_START_DATE,
@@ -612,7 +612,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "STARFALL",
     briefing: "The sky opens early. Shields are scarce.",
     subline: "Meteor rain from the first seconds. Shield is the only drop, and it is late.",
-    hudRule: "Meteors fall. Shield is the only drop.",
+    hudRule: "Meteors from second one. Shield only, late.",
     difficultyFactor: 0.8,
     // v3 (round 3, replaced the monopower-Meteor-Storm version): now an
     // environmental event day, not a power day, but it still zeroes the
@@ -643,7 +643,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "GIANTS",
     briefing: "Fewer drones. Bigger ones. Slower, if you're patient.",
     subline: "Every drone is bigger and a bit slower. Fewer of them spawn.",
-    hudRule: "Fewer drones. Bigger, a bit slower.",
+    hudRule: "Bigger, slower drones. Fewer spawn.",
     difficultyFactor: 1.0,
     tags: ["drone-size"],
     availableFrom: MUTATORS_START_DATE,
@@ -671,7 +671,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "SOLAR WIND",
     briefing: "The current shifts during the run. You'll get a warning.",
     subline: "A crosswind pushes your ship and every drone. The heading changes every half minute, with a short warning before each flip.",
-    hudRule: "Crosswind shifts. You'll get a warning.",
+    hudRule: "Wind flips course. Watch for the warning.",
     difficultyFactor: 1.1,
     // Also excluded from THE PIT: a shrunk arena plus a constant crosswind
     // pinning you against the (now closer) walls tested as too much at once.
@@ -695,7 +695,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "RAM RAID",
     briefing: "The shell is short. Spend it, then dodge naked.",
     subline: "Only one Starshell is out. The shell lasts about two seconds. Then dodge a denser swarm until the next orb appears across the field.",
-    hudRule: "Short Starshell. Then dodge empty.",
+    hudRule: "One short Starshell, then a denser swarm.",
     difficultyFactor: 1.15,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -712,7 +712,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "GOLD DASH",
     briefing: "Stop, point, burn the line.",
     subline: "Every pickup is Afterburner. Grab one and you freeze, aim, then dash. You ram while aiming and the corridor burns. Another dash always waits across the field.",
-    hudRule: "Stop, point, burn the line.",
+    hudRule: "Every drop is Afterburner. Aim, then dash.",
     difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -728,7 +728,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "THE LIGHTHOUSE",
     briefing: "Kill the scanners. The beam grows.",
     subline: "A scanner appears at five seconds. The laser starts thin and grows fast. Destroy the body. The beam kills you, not the swarm. No naval mines today.",
-    hudRule: "Kill the scanners. The beam grows.",
+    hudRule: "The beam kills. Destroy the scanner body.",
     difficultyFactor: 1.05,
     tags: ["mines"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -739,7 +739,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "GRAZE PROTOCOL",
     briefing: "Thread them. The number is the score.",
     subline: "Graze band is wider, pay is much higher, cooldown is shorter. Big gold numbers on every near-miss.",
-    hudRule: "Thread them. Near-misses pay big.",
+    hudRule: "Grazes pay much more. Cooldown's shorter.",
     difficultyFactor: 0.8,
     tags: ["scoring"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -756,7 +756,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "RAZOR",
     briefing: "Draw the blade. Stay in the whirl.",
     subline: "Every pickup is Razor. Two blades orbit you and carve anything they touch.",
-    hudRule: "Every drop is Razor. Stay in the whirl.",
+    hudRule: "Every drop is Razor. Two blades orbit you.",
     difficultyFactor: 0.9,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -767,7 +767,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "THUNDER",
     briefing: "Charge. Aim the ray. Let it hop.",
     subline: "Every pickup is Thunder. It charges like Pulse. Steer the ray, ram while it charges, then hops walk the pack. Ray kills pay double.",
-    hudRule: "Every drop is Thunder. Steer the ray.",
+    hudRule: "Every drop is Thunder. Ray kills pay double.",
     difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -778,7 +778,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "CLOAK",
     briefing: "They lose the lock. You seed the dark.",
     subline: "Every pickup is Cloak. Drones hover, lost. Invisible bombs drop along your path and explode when you reappear.",
-    hudRule: "Vanish. Seed bombs. They lose lock.",
+    hudRule: "Vanish. Seed bombs. They blow on return.",
     difficultyFactor: 0.9,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -800,7 +800,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "ION",
     briefing: "Charge, ram the cone, let them break each other.",
     subline: "Most pickups are Ion. A few shields drop too. Ion charges like Pulse. While the cone is up you can ram. Then drones in it fly that way. The pushed ones live. What they slam dies.",
-    hudRule: "Ion cone, then they break each other.",
+    hudRule: "Mostly Ion. Ram the cone to launch drones.",
     difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
@@ -815,7 +815,7 @@ export const MUTATOR_POOL: Mutator[] = [
     name: "HOWLERS",
     briefing: "Paint them gold. Let the pack hunt.",
     subline: "Every pickup is Howlers. Nearby drones turn gold, ram hostiles without dying, then explode.",
-    hudRule: "Paint them gold. Let the pack hunt.",
+    hudRule: "Gold drones ram hostiles, then explode.",
     difficultyFactor: 0.85,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,

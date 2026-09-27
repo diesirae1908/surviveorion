@@ -1091,8 +1091,8 @@ export class Ui {
 
   /**
    * Daily lobby briefing card: today's mutator(s) (name + flavor briefing +
-   * a plain-language subline stating what mechanically changed, 2 on UTC
-   * Sundays) and today's medal score thresholds, shown before launch.
+   * hudRule in the subline slot, 2 on UTC Sundays) and today's medal score
+   * thresholds, shown before launch. Patrol History keeps the full subline.
    */
   private mutatorBriefingCard(
     mutators: Mutator[],
@@ -1115,7 +1115,7 @@ export class Ui {
           "mutator-row",
           `<span class="mutator-name">${escapeHtml(m.name)}</span>` +
             `<span class="mutator-briefing">${escapeHtml(m.briefing)}</span>` +
-            `<span class="mutator-subline">${escapeHtml(m.subline)}</span>`,
+            `<span class="mutator-subline">${escapeHtml(m.hudRule)}</span>`,
         ),
       );
     }

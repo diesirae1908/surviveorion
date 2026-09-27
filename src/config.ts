@@ -38,10 +38,20 @@ export const SHIP = {
  * never adds or removes a rand/scheduleRand draw. Iron Rain stays fully ramped. */
 export const OPENING = {
   seconds: 10,
+  releaseSeconds: 2, // linear release 10s -> 12s (hold, then lerp to full)
   telegraphMinDistance: 6, // on-screen pops start farther than telegraph.minDistanceFromShip
   telegraphDurationScale: 1.5, // longer warning glow / STARFALL reticle during the window
-  homingSpeedFrom: 0.6, // loose homing drones lerp from this to 1 over `seconds`
+  homingSpeedFrom: 0.6, // loose homing drones hold this, then lerp to 1 over releaseSeconds
 };
+
+/** 0 through the 10s hold, 1 after 12s, linear in between. Iron Rain stays ramped. */
+export function openingFairness(time: number, gameMode?: string): number {
+  if (gameMode === "ironrain") return 1;
+  if (time <= OPENING.seconds) return 0;
+  const span = OPENING.releaseSeconds;
+  if (time >= OPENING.seconds + span) return 1;
+  return (time - OPENING.seconds) / span;
+}
 
 // Tilt controls (mobile): tilt maps directly to velocity, Tilt to Live style.
 // No inertia — the ship goes where the phone leans. Tilt runs rank on their
