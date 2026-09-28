@@ -5,7 +5,9 @@ import {
   ANCHOR_EASE_S,
   CROP_MODE_V20,
   CROP_MODE_V21,
+  FIELD_ASPECT_MAX,
   PUSH_IN_PER_SEC,
+  arenaFromWindow,
   baseCropSize,
   clampCrop,
   easedPunchAt,
@@ -98,6 +100,25 @@ describe("crop engine v2.0", () => {
     const fill = worldToPixel(0, 0, 1440, 900, { w: 16, h: 10 });
     assert.equal(fill.px, 720);
     assert.equal(fill.py, 450);
+  });
+
+  it("inferArena clamps window aspect to [16:10, 16:9]", () => {
+    const desk = arenaFromWindow(1440, 900);
+    assert.equal(desk.w, 16);
+    assert.equal(desk.h, 10);
+    const fhd = arenaFromWindow(1920, 1080);
+    assert.ok(Math.abs(fhd.w - 10 * FIELD_ASPECT_MAX) < 1e-9);
+    assert.equal(fhd.h, 10);
+    const ultra = inferArena(2560, 1080, {});
+    assert.equal(ultra.source, "v2.0-aspect");
+    assert.ok(Math.abs(ultra.w - 10 * FIELD_ASPECT_MAX) < 1e-9);
+    assert.equal(ultra.h, 10);
+    const tall = arenaFromWindow(390, 844);
+    assert.equal(tall.w, 10);
+    assert.ok(Math.abs(tall.h - 10 * FIELD_ASPECT_MAX) < 1e-9);
+    const ipad = arenaFromWindow(768, 1024);
+    assert.equal(ipad.w, 10);
+    assert.equal(ipad.h, 16);
   });
 
   it("sendcmd lists crop x/y/w/h", () => {

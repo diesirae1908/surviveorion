@@ -4,6 +4,9 @@
  */
 
 export const VIEW_MIN = 10;
+/** Match orion-web playView.ts: long axis clamped to [16:10, 16:9]. */
+export const FIELD_ASPECT_MIN = 16 / 10;
+export const FIELD_ASPECT_MAX = 16 / 9;
 export const OUT_W = 1080;
 export const OUT_H = 1920;
 export const PUSH_IN_PER_SEC = 0.06;
@@ -37,8 +40,25 @@ export function baseCropSize(sourceW, sourceH) {
 }
 
 /**
+ * Same clamp as orion-web playView.fieldWorldSize: short axis VIEW_MIN,
+ * long axis between 16 and 17.78.
+ * @param {number} sourceW
+ * @param {number} sourceH
+ */
+export function arenaFromWindow(sourceW, sourceH) {
+  const portrait = sourceH > sourceW;
+  const longCss = portrait ? sourceH : sourceW;
+  const shortCss = portrait ? sourceW : sourceH;
+  const windowAspect = shortCss > 0 ? longCss / shortCss : FIELD_ASPECT_MIN;
+  const aspect = Math.min(FIELD_ASPECT_MAX, Math.max(FIELD_ASPECT_MIN, windowAspect));
+  const long = VIEW_MIN * aspect;
+  if (portrait) return { w: VIEW_MIN, h: long };
+  return { w: long, h: VIEW_MIN };
+}
+
+/**
  * Infer world arena when sidecar has no arena/view (v2.0).
- * Shorter axis is VIEW_MIN, matching orion-web.
+ * Shorter axis is VIEW_MIN, matching orion-web, aspect clamped to [16:10, 16:9].
  * @param {number} sourceW
  * @param {number} sourceH
  * @param {{ arena?: { w: number, h: number }, view?: { w: number, h: number } }} [sidecar]
@@ -48,17 +68,11 @@ export function inferArena(sourceW, sourceH, sidecar = {}) {
     return { w: sidecar.arena.w, h: sidecar.arena.h, source: "sidecar.arena" };
   }
   if (sidecar.view && sidecar.view.w > 0 && sidecar.view.h > 0) {
-    const aspect = sidecar.view.w / sidecar.view.h;
-    if (aspect >= 1) {
-      return { w: VIEW_MIN * aspect, h: VIEW_MIN, source: "sidecar.view" };
-    }
-    return { w: VIEW_MIN, h: VIEW_MIN / aspect, source: "sidecar.view" };
+    const inferred = arenaFromWindow(sidecar.view.w, sidecar.view.h);
+    return { ...inferred, source: "sidecar.view" };
   }
-  const aspect = sourceW / sourceH;
-  if (aspect >= 1) {
-    return { w: VIEW_MIN * aspect, h: VIEW_MIN, source: "v2.0-aspect" };
-  }
-  return { w: VIEW_MIN, h: VIEW_MIN / aspect, source: "v2.0-aspect" };
+  const inferred = arenaFromWindow(sourceW, sourceH);
+  return { ...inferred, source: "v2.0-aspect" };
 }
 
 /**

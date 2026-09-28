@@ -19,8 +19,8 @@ export const GAME_MODE_LABEL: Record<GameMode, string> = {
   ironrain: "Iron Rain",
 };
 
-// World is measured in "units". The playfield is a fixed 16x10 (10x16 in
-// portrait); VIEW_MIN is the short axis. See playView.ts.
+// World is measured in "units". The playfield short axis is VIEW_MIN (10);
+// the long axis flexes 16..17.78 with the window (16:10 to 16:9). See playView.ts.
 export const VIEW_MIN = 10;
 
 export const SHIP = {

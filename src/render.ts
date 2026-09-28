@@ -96,7 +96,7 @@ export class Renderer {
     probe.remove();
   }
 
-  /** Fit canvas to the window; field is a fixed 16x10 (10x16 portrait), contained. */
+  /** Fit canvas to the window; field aspect is clamped to [16:10, 16:9]. */
   resize(): void {
     this.measureSafeArea();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -127,9 +127,8 @@ export class Renderer {
 
   private generateStars(): void {
     this.stars = [];
-    const layout = fieldLayout(this.cssW, this.cssH, this.viewW, this.viewH);
-    const worldW = layout.scale > 0 ? this.cssW / layout.scale : this.viewW;
-    const worldH = layout.scale > 0 ? this.cssH / layout.scale : this.viewH;
+    const worldW = this.viewW;
+    const worldH = this.viewH;
     const count = Math.round(1.6 * worldW * worldH);
     for (let i = 0; i < count; i++) {
       this.stars.push({
@@ -142,35 +141,62 @@ export class Renderer {
     }
   }
 
+  /** Clip path for the live field rect in css pixels (current transform = css). */
+  private fieldClipPath(): void {
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.rect(this.field.ox, this.field.oy, this.field.fieldCssW, this.field.fieldCssH);
+  }
+
+  /** 1.5px dim gold frame so the wall reads as a wall, even when the field fills. */
+  private drawFieldFrame(): void {
+    const { ctx } = this;
+    const { ox, oy, fieldCssW, fieldCssH } = this.field;
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.45)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(ox + 0.75, oy + 0.75, Math.max(0, fieldCssW - 1.5), Math.max(0, fieldCssH - 1.5));
+    ctx.restore();
+  }
+
   render(world: World, particles: Particles, popups: Popups, opts: RenderOpts): void {
     const { ctx } = this;
     const dpr = this.canvas.width / this.cssW;
     this.field = fieldLayout(this.cssW, this.cssH, this.viewW, this.viewH);
     const scale = this.field.scale * dpr;
 
-    // background (covers letterbox bars)
+    // bars: solid black, opaque. World (stars, enemies, tints) never draws here.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const grad = ctx.createRadialGradient(
-      this.cssW / 2,
-      this.cssH / 2,
-      0,
-      this.cssW / 2,
-      this.cssH / 2,
-      Math.max(this.cssW, this.cssH) * 0.7,
-    );
-    grad.addColorStop(0, PALETTE.bgTop);
-    grad.addColorStop(1, PALETTE.bgBottom);
-    ctx.fillStyle = grad;
+    ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, this.cssW, this.cssH);
 
-    // world transform (y up), with screen shake. Origin is canvas center so
-    // the contained field stays centered; bars are the leftover css.
     let shakeX = 0;
     let shakeY = 0;
     if (opts.shakeEnabled && world.shake > 0.01) {
       shakeX = (Math.random() - 0.5) * 2 * world.shake;
       shakeY = (Math.random() - 0.5) * 2 * world.shake;
     }
+
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.fieldClipPath();
+    ctx.clip();
+
+    const grad = ctx.createRadialGradient(
+      this.cssW / 2,
+      this.cssH / 2,
+      0,
+      this.cssW / 2,
+      this.cssH / 2,
+      Math.max(this.field.fieldCssW, this.field.fieldCssH) * 0.7,
+    );
+    grad.addColorStop(0, PALETTE.bgTop);
+    grad.addColorStop(1, PALETTE.bgBottom);
+    ctx.fillStyle = grad;
+    ctx.fillRect(this.field.ox, this.field.oy, this.field.fieldCssW, this.field.fieldCssH);
+
+    // world transform (y up), origin at canvas center so the contained field
+    // stays centered. Clip keeps shaken sprites out of the bars.
     ctx.setTransform(
       scale,
       0,
@@ -181,20 +207,6 @@ export class Renderer {
     );
 
     this.drawStars(opts.uiTime);
-
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.beginPath();
-    ctx.rect(this.field.ox, this.field.oy, this.field.fieldCssW, this.field.fieldCssH);
-    ctx.clip();
-    ctx.setTransform(
-      scale,
-      0,
-      0,
-      -scale,
-      (this.cssW / 2 + shakeX * this.field.scale) * dpr,
-      (this.cssH / 2 + shakeY * this.field.scale) * dpr,
-    );
 
     this.drawArenaBoundary(world);
     this.drawWindCurrent(world, opts.uiTime);
@@ -226,8 +238,12 @@ export class Renderer {
     popups.draw(ctx);
     ctx.restore();
 
-    // screen-space UI
+    // screen-space UI (field edge, then mutator tints clipped to the field)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.drawFieldFrame();
+    ctx.save();
+    this.fieldClipPath();
+    ctx.clip();
     // RED ALERT: a subtle pulsing red vignette, cosmetic only (no gameplay
     // state, so it's safe to skip on the daily determinism scripts).
     if (world.daily && world.phase === "playing" && mutatorRedTint()) {
@@ -236,6 +252,7 @@ export class Renderer {
     if (world.daily && world.phase === "playing" && mutatorBlackoutPulse()) {
       this.drawBlackoutVignette(world);
     }
+    ctx.restore();
     if (opts.showHud) this.drawHud(world, opts);
     else {
       const pauseBtn = typeof document !== "undefined" ? document.getElementById("pause-btn") : null;
@@ -253,24 +270,26 @@ export class Renderer {
     }
   }
 
-  /** RED ALERT flavor: a slow-pulsing red edge glow, drawn in screen space. */
+  /** RED ALERT flavor: a slow-pulsing red edge glow, clipped to the field. */
   private drawRedAlertVignette(uiTime: number): void {
     const { ctx } = this;
-    const W = this.cssW;
-    const H = this.cssH;
+    const cx = this.field.ox + this.field.fieldCssW / 2;
+    const cy = this.field.oy + this.field.fieldCssH / 2;
+    const fw = this.field.fieldCssW;
+    const fh = this.field.fieldCssH;
     const pulse = 0.5 + 0.5 * Math.sin(uiTime * 2.2);
     const grad = ctx.createRadialGradient(
-      W / 2,
-      H / 2,
-      Math.min(W, H) * 0.35,
-      W / 2,
-      H / 2,
-      Math.max(W, H) * 0.72,
+      cx,
+      cy,
+      Math.min(fw, fh) * 0.35,
+      cx,
+      cy,
+      Math.max(fw, fh) * 0.72,
     );
     grad.addColorStop(0, "rgba(196, 30, 58, 0)");
     grad.addColorStop(1, `rgba(196, 30, 58, ${(0.14 + 0.08 * pulse).toFixed(3)})`);
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(this.field.ox, this.field.oy, fw, fh);
   }
 
   /** BLACKOUT: flicker, then a true lights-out with a lantern around the ship.

@@ -4,6 +4,19 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: field stretches 16:10 to 16:9, bars solid black
+
+- **Branch:** `fix/field-169-black-bars` (worktree `.worktrees/field-169` off `origin/dev` `e12af5f`). Main checkout and `.worktrees/cal-nav` untouched. Did not merge later origin/dev calendar-nav commits (`a473a59` / `6f3ba2b`).
+- **Why:** Lucas (Sep 28 ~2:42 PM PT): 16:9 desktop still showed the 16x10 gold limit with starfield + RED ALERT tint in the side bars, so enemies looked like they appeared from nowhere. Picked: stretch the field up to 16:9, bars opaque black, clip the world to the field, keep a visible edge.
+- **Field:** short axis stays 10. Long axis flexes 16 (16:10) to 17.78 (16:9). Portrait mirrors (10 wide, 16 to 17.78 tall). Windows in that range fill (1440x900, 1600x900, 1024x581). Wider/taller windows get black bars only for the excess (2560x1080 side, 390x844 top/bottom). px/unit still contain-fit on the short axis. `resizeWorld` + `clampToBounds` unchanged; daily seed not re-rolled.
+- **Bars:** canvas fill `#000`. Stars, gradient, drones, telegraphs, particles, pickups, RED ALERT / BLACKOUT vignettes all clipped to the field rect. 1.5px dim gold frame. HUD may sit in the bars (portrait top, ultrawide left/right).
+- **Spawns:** already used live `world.viewW/viewH` (`randomEdgePoint`, walls, chevrons). No 16-wide hardcode. Ambient rate is time-based (unchanged). Top/bottom walls still `floor(span/spacing)+1`, so a 16:9 field is ~11% wider and those walls pick up ~1 extra drone at spacing 1.0 (17 vs 18) or ~2 per megawall row at 0.9 (18 vs 20). Side walls (span 10) unchanged. Did not stop: that is the extra width filling in, not a new spawn-rate formula.
+- **Social:** `social/src/crop.mjs` `inferArena` / `arenaFromWindow` use the same [16:10, 16:9] clamp. `worldToPixel` still contain-fits the live field rect. Recorder sidecar `clipArena` still frozen at `createWorld`.
+- **Tripwires:** none hit. Classic fingerprint `2750562758` (34 / 3 / 11). No seed/rand/`MUTATOR_POOL`/`SCORING`/`validate.mjs`/medals/StoreKit/Stripe/`ios/` edits.
+- **Verify:** `npm test` green, `npm run build` (`main-CPoz8uTy.js`), `npx tsx scripts/sim-test.ts` green, `cd social && npm test` 92/92. Playwright RED ALERT (`?mutator=red-alert`) shots: `~/Documents/Sam/reports/orion-field-169-2026-09-28/{1440x900,1600x900,2560x1080,390x844,1024x581}.png`.
+- **Push:** this branch only. Sam merges. `main` / `dev` untouched.
+- **iOS:** Capacitor serves this web build after promote + a new TestFlight.
+
 ## 2026-09-28 PT: promote lobby calendar + centered mutator to `main` (production)
 
 - **Approval:** Lucas, 9:54 and 9:56 AM PT (center single mutator card; My patrols days open Calendar; History renamed Calendar). Sam reviewed `84f5d92`.
