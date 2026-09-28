@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: promote daily lobby redesign to `main` (production)
+
+- **Approval:** Lucas, ~7:52 AM PT ("Go live"); Opus staging QA round 2 GO (`~/Documents/Sam/reports/orion-lobby-redesign-2026-09-27/qa-staging/round2/orion-lobby-qa-round2-2026-09-27.md`).
+- **Worktree:** `~/Documents/games/orion-web-promote-lobby-0928` at `d805d08` (main checkout untouched).
+- **Frozen SHAs (tripwire):** `origin/main` `72d1e13`, `origin/dev` `d805d08`. `git diff --stat origin/main origin/dev` lobby-only (10 files: JOURNAL, package.json, lobby tests, `lobbyState.ts`, `main.ts`, `mutatorGlyphs.ts`, `style.css`, `ui.ts`). Lobby commits: `0a3582c`, `40dc8cd`, `5017c27`, `765be73`, `7020d6d`, `2d68897` (+ merge `d805d08`).
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on (`autoDeployTrigger`: commit).
+- **Gate:** `npm ci`, `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts` green at `d805d08` (bundle `main-CxwT4_yY.js`).
+- **Production:** FF push `d805d08` → `main`. Deploy `dep-dat83g3ncjis73f81o3g` live ~8:05 AM PT (`finishedAt` 2026-09-28T15:05:03Z). Smoke: `/` serves `main-CxwT4_yY.js`, `/api/config` 200, `/api/me` 401, `/updates.json` 200. App logs: no `error` lines after deploy start; boot `stripe billing: enabled` (instance `srv-d983pie7r5hc73ce7bfg-vhvmx`, 2026-09-28T15:04:57Z). Prod Playwright guest shots (menu open/close once, no patrol): `~/Documents/Sam/reports/orion-lobby-redesign-2026-09-27/prod-shots/`.
+- **Dev sync:** FF `origin/main` (journal tip) → `dev` after this entry.
+- **iOS:** Capacitor serves this web build; new TestFlight / App Store build needed for native users.
+
 ## 2026-09-28 PT: promote 16x10 field fix (`c451029`) to `main` (production)
 
 - **Approval:** Lucas, 7:49 AM PT ("push live" for field + top-wall fix only; no lobby commits).
