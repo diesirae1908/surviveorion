@@ -3926,6 +3926,9 @@ button.day-card-action:active {
   font-size: 11px;
   letter-spacing: 0.04em;
   text-align: right;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .lobby-kicker,
@@ -3941,6 +3944,10 @@ button.day-card-action:active {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.lobby-muts.is-collapsed {
+  display: none;
 }
 
 .lobby-mut {
@@ -4136,78 +4143,112 @@ button.day-card-action:active {
   white-space: nowrap;
 }
 
+.lobby-v2 button.lobby-train-link,
 .lobby-train-link {
   background: none;
   border: 0;
+  box-shadow: none;
   color: var(--orion-dust);
   font: inherit;
   font-size: 12px;
   letter-spacing: 0.12em;
+  text-indent: 0;
   cursor: pointer;
   min-height: 44px;
+  min-width: 0;
+  width: auto;
+  padding: 8px 0;
+  align-self: center;
 }
 
 .lobby-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
-.lobby-chip {
+.lobby-chip,
+.lobby-v2 button.lobby-rules-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 6px 10px;
   min-height: 36px;
+  min-width: 0;
+  width: auto;
+  flex: 0 0 auto;
   border: 1px solid var(--orion-hull-line);
   color: var(--orion-starlight);
+  font: inherit;
   font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-indent: 0;
+  text-transform: uppercase;
   background: #0e0e18;
+  box-shadow: none;
 }
 
-.lobby-chip svg {
+.lobby-chip svg,
+.lobby-v2 button.lobby-rules-chip svg {
   width: 16px;
   height: 16px;
   color: var(--orion-gold);
 }
 
-.lobby-rules-chip {
+.lobby-v2 button.lobby-rules-chip {
   color: var(--orion-dust);
   cursor: pointer;
-  font: inherit;
 }
 
 .lobby-card {
   background: var(--orion-deep-space);
   border: 1px solid var(--orion-hull-line);
   padding: 14px 14px 12px;
-  min-height: 160px;
 }
 
 .lobby-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
+  white-space: nowrap;
 }
 
+.lobby-card-head .lobby-kicker {
+  letter-spacing: 0.1em;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lobby-v2 button.lobby-more,
+.lobby-v2 button.lobby-foot-link,
 .lobby-more,
 .lobby-foot-link {
   background: none;
   border: 0;
+  box-shadow: none;
   color: var(--orion-bronze);
   font: inherit;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
+  text-indent: 0;
+  text-transform: uppercase;
   cursor: pointer;
-  min-height: 44px;
+  min-height: 32px;
+  min-width: 0;
+  width: auto;
+  padding: 4px 0;
+  flex: 0 0 auto;
 }
 
 .lobby-board-list {
   display: flex;
   flex-direction: column;
-  min-height: 168px;
 }
 
 .lobby-board-row {
@@ -4217,15 +4258,36 @@ button.day-card-action:active {
   gap: 6px;
   min-height: 36px;
   font-size: 15px;
+  color: var(--orion-starlight);
+}
+
+.lobby-board-row .nm {
+  color: var(--orion-starlight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-board-row .pts {
+  color: var(--orion-gold);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .lobby-board-row.open {
   grid-template-columns: 28px 1fr;
-  color: var(--orion-dust);
+  color: var(--orion-brass);
 }
 
 .lobby-board-row.me {
+  background: linear-gradient(90deg, #ffd70026, #ffd70008);
+  box-shadow: inset 3px 0 0 var(--orion-gold);
   color: var(--orion-gold);
+}
+
+.lobby-board-row.me .nm {
+  color: var(--orion-gold);
+  font-weight: 700;
 }
 
 .lobby-board-row.link {
@@ -4239,6 +4301,32 @@ button.day-card-action:active {
 
 .lobby-board-row.me .rk {
   color: var(--orion-gold);
+}
+
+.lobby-guest-you {
+  cursor: pointer;
+}
+
+.lobby-v2 button.lobby-guest-hint,
+.lobby-guest-hint {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  margin: 0;
+  padding: 2px 0 6px 56px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--orion-gold);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-indent: 0;
+  text-transform: none;
+  cursor: pointer;
 }
 
 .lobby-board-gap {
@@ -4393,23 +4481,23 @@ button.day-card-action:active {
 
   .lobby-hero {
     padding: 30px 34px;
-    justify-content: space-between;
+    justify-content: flex-start;
     min-height: 0;
   }
 
   .lobby-muts.tall {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    flex: 1;
-    align-items: stretch;
+    flex: 0 0 auto;
+    align-items: start;
   }
 
   .lobby-muts.tall .lobby-mut {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
-    padding: 28px 22px;
-    align-content: center;
+    padding: 16px 18px;
+    align-content: start;
   }
 
   .lobby-muts.tall .lobby-mut-g {
@@ -4437,12 +4525,11 @@ button.day-card-action:active {
   }
 
   .lobby-board-card {
-    flex: 1 1 auto;
-    min-height: 280px;
+    flex: 0 0 auto;
   }
 
   .lobby-board-list {
-    min-height: 280px;
+    min-height: 0;
   }
 
   .lobby-footer {

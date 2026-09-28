@@ -1632,7 +1632,14 @@ export class Ui {
         day: "numeric",
         timeZone: "UTC",
       });
-      row.appendChild(this.el("span", "lobby-reset", `${pretty} · next patrol ${dailyResetLabel()}`));
+      const phone = typeof window !== "undefined" && window.innerWidth < 600;
+      row.appendChild(
+        this.el(
+          "span",
+          "lobby-reset",
+          phone ? `${pretty} · midnight PT` : `${pretty} · next patrol ${dailyResetLabel()}`,
+        ),
+      );
     }
     return row;
   }
@@ -1670,11 +1677,11 @@ export class Ui {
     chips.appendChild(rules);
     wrap.appendChild(chips);
     const cards = this.mutatorCards(info, false);
-    cards.hidden = !this.lobbyRulesOpen;
+    cards.classList.toggle("is-collapsed", !this.lobbyRulesOpen);
     wrap.appendChild(cards);
     rules.addEventListener("click", () => {
       this.lobbyRulesOpen = !this.lobbyRulesOpen;
-      cards.hidden = !this.lobbyRulesOpen;
+      cards.classList.toggle("is-collapsed", !this.lobbyRulesOpen);
       rules.textContent = this.lobbyRulesOpen ? "RULES ▾" : "RULES ›";
     });
     return wrap;
@@ -1923,14 +1930,28 @@ export class Ui {
   }
 
   private guestYouRow(info: DailyLobbyInfo, rank: number): HTMLElement {
+    const wrap = this.el("div", "lobby-guest-you", "");
     const row = this.el(
       "div",
-      "lobby-board-row me guest-claim",
-      `<span class="rk">${rank}</span><span class="nm">Would be #${rank} · Sign in to post it ›</span>` +
+      "lobby-board-row me",
+      `<span class="rk">${rank}</span>` +
+        `<span class="flag"></span>` +
+        `<span class="nm">You</span>` +
         `<span class="pts">${Math.floor(info.best?.score ?? 0).toLocaleString()}</span>`,
     );
-    row.addEventListener("click", () => this.cb.onCrewSignIn());
-    return row;
+    const hint = document.createElement("button");
+    hint.type = "button";
+    hint.className = "lobby-guest-hint";
+    hint.textContent = "Sign in to post it ›";
+    const signIn = (): void => this.cb.onCrewSignIn();
+    wrap.addEventListener("click", signIn);
+    hint.addEventListener("click", (e) => {
+      e.stopPropagation();
+      signIn();
+    });
+    wrap.appendChild(row);
+    wrap.appendChild(hint);
+    return wrap;
   }
 
   private lobbyBoardRow(row: DailyBoardRow): HTMLElement {
@@ -2035,7 +2056,9 @@ export class Ui {
         cells[cells.length - 1]?.state === "today" ? "fly today to keep it" : "kept alive";
       const device = info.callsign ? "" : " · on this device";
       streakRow.appendChild(this.el("span", "", `<b>${streak}-day streak</b> · ${keep}${device}`));
-      streakRow.appendChild(this.el("span", "", `${medals} medals this week`));
+      streakRow.appendChild(
+        this.el("span", "", `${medals} ${medals === 1 ? "medal" : "medals"} this week`),
+      );
     }
     card.appendChild(streakRow);
 
