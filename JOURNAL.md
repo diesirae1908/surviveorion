@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: lobby week strip opens Calendar (no paywall)
+
+- **Branch:** `fix/lobby-center-mutator` (same worktree as the centered-mutator fix). Main checkout untouched.
+- **Why:** Lucas, 9:56 AM PT: previous days on My patrols should be clickable, or open the calendar; History should be called Calendar.
+- **Strip:** each week cell is a 44px button (`aria-label` like "Fri Sep 25, silver, open calendar") that only calls `onPatrolCalendar(date)`. Calendar opens that month and scrolls the week into view. It does not click the day card, so locked past days do not fire `calendar_unlock`.
+- **Copy:** `HISTORY ›` → `CALENDAR ›`, menu "Patrol History" → "Patrol Calendar", heading PATROL HISTORY → PATROL CALENDAR.
+- **Not pushed:** `dev` / `main`. This branch only.
+
 ## 2026-09-28 PT: center a lone mutator card on desktop
 
 - **Branch:** `fix/lobby-center-mutator` (worktree `.worktrees/lobby-center-mut` off `origin/dev` `e427a0b`). Main checkout untouched.

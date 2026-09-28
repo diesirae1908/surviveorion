@@ -88,6 +88,16 @@ export interface WeekCell {
   medal: MedalTier | null;
 }
 
+/** Player-facing aria-label for a lobby week-strip cell. */
+export function weekCellAriaLabel(cell: WeekCell): string {
+  const d = new Date(`${cell.date}T00:00:00.000Z`);
+  const weekday = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+  const month = d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const day = d.getUTCDate();
+  const status = cell.medal ?? (cell.state === "today" ? "today" : cell.state === "flown" ? "flown" : "missed");
+  return `${weekday} ${month} ${day}, ${status}, open calendar`;
+}
+
 export interface WeekStripExtras {
   signedIn?: boolean;
   server?: Map<string, ServerDayEntry>;

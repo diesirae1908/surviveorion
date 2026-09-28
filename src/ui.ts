@@ -19,6 +19,7 @@ import {
   lobbyPhase,
   nextMedalProgress,
   weekStrip,
+  weekCellAriaLabel,
   type LobbyPhase,
   type WeekCell,
 } from "./lobbyState";
@@ -91,8 +92,8 @@ export interface UiCallbacks {
   onArenas: () => void;
   onFriends: () => void;
   onProfile: () => void;
-  /** Daily lobby: open the patrol history calendar (see showPatrolCalendar). */
-  onPatrolCalendar: () => void;
+  /** Daily lobby: open the patrol calendar. Optional date scrolls that week into view (never unlocks). */
+  onPatrolCalendar: (focusDate?: string) => void;
   /** Gold Patrol / admin: launch a past Daily from the calendar (YYYY-MM-DD). */
   onPlayArchiveDay: (date: string) => void;
   /** Switch control scheme; resolves with the mode actually in effect (tilt may be denied). */
@@ -1174,7 +1175,7 @@ export class Ui {
   /**
    * Daily lobby briefing card: today's mutator(s) (name + flavor briefing +
    * hudRule in the subline slot, 2 on UTC Sundays) and today's medal score
-   * thresholds, shown before launch. Patrol History keeps the full subline.
+   * thresholds, shown before launch. Patrol Calendar keeps the full subline.
    */
   private mutatorBriefingCard(
     mutators: Mutator[],
@@ -1532,7 +1533,7 @@ export class Ui {
     };
 
     addRow("Training Ground", () => this.cb.onTraining());
-    addRow("Patrol History", () => this.cb.onPatrolCalendar());
+    addRow("Patrol Calendar", () => this.cb.onPatrolCalendar());
     addRow("Wingmates", () => this.cb.onFriends(), { notif: (info.pendingFriends ?? 0) > 0 });
     addRow("How to play", () => this.cb.onTutorial());
     addRow("Powers", () => this.showPowers(() => this.showDailyLobby(info)));
@@ -2046,7 +2047,7 @@ export class Ui {
     const more = document.createElement("button");
     more.type = "button";
     more.className = "lobby-more";
-    more.textContent = "HISTORY ›";
+    more.textContent = "CALENDAR ›";
     more.addEventListener("click", () => this.cb.onPatrolCalendar());
     head.appendChild(more);
     card.appendChild(head);
@@ -2103,7 +2104,11 @@ export class Ui {
   }
 
   private weekCellEl(cell: WeekCell, today: string): HTMLElement {
-    const el = this.el("div", `lobby-day${cell.date === today ? " today" : ""}`, "");
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = `lobby-day${cell.date === today ? " today" : ""}`;
+    el.setAttribute("aria-label", weekCellAriaLabel(cell));
+    el.addEventListener("click", () => this.cb.onPatrolCalendar(cell.date));
     let inner = "";
     if (cell.medal) inner = medalIconHtml(cell.medal);
     else if (cell.state === "flown") inner = `<span class="flown-dia">◆</span>`;
@@ -2356,6 +2361,7 @@ export class Ui {
   ): HTMLElement {
     const todayClass = day.status === "today" ? " day-card-today" : "";
     const card = this.el("div", `day-card chamfer${todayClass}`, "");
+    card.dataset.date = day.date;
 
     const d = new Date(`${day.date}T00:00:00.000Z`);
     const weekday = d
@@ -2385,6 +2391,19 @@ export class Ui {
     }
 
     return card;
+  }
+
+  /**
+   * Scroll the week that contains `focusDate` into view.
+   * Never clicks a day card: locked past days open the Gold Patrol paywall on click.
+   */
+  private scrollCalendarToDate(weekList: HTMLElement, focusDate?: string): void {
+    if (!focusDate) return;
+    const card = weekList.querySelector<HTMLElement>(`.day-card[data-date="${focusDate}"]`);
+    const section = card?.closest<HTMLElement>(".week-section");
+    if (!section) return;
+    section.scrollIntoView({ block: "nearest", inline: "nearest" });
+    card?.classList.add("day-card-from-strip");
   }
 
   private attachWeekTrackPeekEffects(weekList: HTMLElement): void {
@@ -2423,13 +2442,14 @@ export class Ui {
       onNextMonth: () => void;
       onPlayDay?: (date: string) => void;
     },
+    focusDate?: string,
   ): void {
     this.clear();
     this.pauseBtn.style.display = "none";
 
     const screen = this.el("div", "screen calendar-screen calendar-screen-v2", "");
     this.makeSubmenu(screen, handlers.onBack);
-    screen.appendChild(this.el("div", "heading gold small", "PATROL HISTORY"));
+    screen.appendChild(this.el("div", "heading gold small", "PATROL CALENDAR"));
     screen.appendChild(this.el("div", "divider", ""));
 
     const nav = this.el("div", "calendar-nav", "");
@@ -2511,6 +2531,7 @@ export class Ui {
       );
     }
     this.root.appendChild(screen);
+    this.scrollCalendarToDate(weekList, focusDate);
   }
 
   /**

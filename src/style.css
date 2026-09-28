@@ -3402,6 +3402,10 @@ button.link-btn:active {
   border-width: 1.5px;
 }
 
+.day-card-from-strip {
+  box-shadow: 0 0 0 1px var(--orion-gold);
+}
+
 .day-card-locked {
   cursor: pointer;
 }
@@ -4363,11 +4367,44 @@ button.day-card-action:active {
   margin: 8px 0;
 }
 
-.lobby-day {
+button.lobby-day {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  min-width: 0;
+  min-height: 44px;
+  width: 100%;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-indent: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+button.lobby-day:hover,
+button.lobby-day:focus-visible {
+  box-shadow: none;
+  border-color: transparent;
+  color: inherit;
+}
+
+button.lobby-day:hover .c,
+button.lobby-day:focus-visible .c {
+  border-color: var(--orion-gold);
+}
+
+button.lobby-day:focus-visible {
+  outline: 1px solid var(--orion-gold);
+  outline-offset: 2px;
 }
 
 .lobby-day .c {

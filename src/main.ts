@@ -742,7 +742,7 @@ const ui = new Ui(settings, {
     community.showFriends();
   },
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
-  onPatrolCalendar: () => openPatrolCalendar(),
+  onPatrolCalendar: (focusDate) => openPatrolCalendar(focusDate),
   onPlayArchiveDay: (date) => playArchiveDay(date),
   onControlModeChange: async (mode) => {
     // Flight only. runMode (the board this run files on) stays whatever
@@ -1004,6 +1004,8 @@ function fillLobbyWeek(): void {
 /** Month currently shown, or null when the calendar isn't open. UTC
  * calendar months, matching the daily rollover boundary everywhere else. */
 let calendarMonth: MonthKey | null = null;
+/** Date the lobby strip asked to show. Scroll only; never click/unlock that day. */
+let calendarFocusDate: string | null = null;
 /** Server day entries fetched so far this session, keyed by date string.
  * Never evicted (a session-lifetime cache of a few dozen small rows at
  * most) so flipping back to an already-seen month is instant. */
@@ -1045,9 +1047,27 @@ function localDailyMap(): Map<string, DailyDayLog> {
   return map;
 }
 
-function openPatrolCalendar(): void {
-  const { max } = patrolCalendarBounds();
-  calendarMonth = calendarMonth ?? max;
+function monthKeyFromDate(date: string): MonthKey | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return null;
+  return { year: Number(m[1]), month: Number(m[2]) - 1 };
+}
+
+function clampMonthKey(key: MonthKey, min: MonthKey, max: MonthKey): MonthKey {
+  const before =
+    key.year < min.year || (key.year === min.year && key.month < min.month);
+  const after =
+    key.year > max.year || (key.year === max.year && key.month > max.month);
+  if (before) return min;
+  if (after) return max;
+  return key;
+}
+
+function openPatrolCalendar(focusDate?: string): void {
+  const { min, max } = patrolCalendarBounds();
+  const fromStrip = focusDate ? monthKeyFromDate(focusDate) : null;
+  calendarMonth = fromStrip ? clampMonthKey(fromStrip, min, max) : (calendarMonth ?? max);
+  calendarFocusDate = fromStrip ? focusDate ?? null : null;
   renderPatrolCalendar();
 }
 
@@ -1060,16 +1080,19 @@ function calendarHandlers(): {
   return {
     onBack: () => {
       calendarMonth = null;
+      calendarFocusDate = null;
       showMenu();
     },
     onPrevMonth: () => {
       if (!calendarMonth) return;
       calendarMonth = prevMonthOf(calendarMonth);
+      calendarFocusDate = null;
       renderPatrolCalendar();
     },
     onNextMonth: () => {
       if (!calendarMonth) return;
       calendarMonth = nextMonthOf(calendarMonth);
+      calendarFocusDate = null;
       renderPatrolCalendar();
     },
     onPlayDay: (date) => playArchiveDay(date),
@@ -1164,7 +1187,7 @@ function renderPatrolCalendar(): void {
   const alreadyFetched = calendarFetchedMonths.has(mKey);
   const loading = api.signedIn && api.online && !alreadyFetched;
 
-  ui.showPatrolCalendar(buildCalendarMonth(key, loading, false), calendarHandlers());
+  ui.showPatrolCalendar(buildCalendarMonth(key, loading, false), calendarHandlers(), calendarFocusDate ?? undefined);
 
   if (!api.signedIn || !api.online || alreadyFetched) return;
   const token = ++calendarFetchToken;
@@ -1178,11 +1201,11 @@ function renderPatrolCalendar(): void {
       // a slower fetch for a month the player has since navigated away
       // from would otherwise clobber whatever's on screen now
       if (token !== calendarFetchToken || !calendarMonth || monthKeyStr(calendarMonth) !== mKey) return;
-      ui.showPatrolCalendar(buildCalendarMonth(key, false, false), calendarHandlers());
+      ui.showPatrolCalendar(buildCalendarMonth(key, false, false), calendarHandlers(), calendarFocusDate ?? undefined);
     })
     .catch(() => {
       if (token !== calendarFetchToken || !calendarMonth || monthKeyStr(calendarMonth) !== mKey) return;
-      ui.showPatrolCalendar(buildCalendarMonth(key, false, true), calendarHandlers());
+      ui.showPatrolCalendar(buildCalendarMonth(key, false, true), calendarHandlers(), calendarFocusDate ?? undefined);
     });
 }
 

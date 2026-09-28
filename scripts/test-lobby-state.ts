@@ -10,6 +10,7 @@ import {
   lobbyPhase,
   nextMedalProgress,
   weekStrip,
+  weekCellAriaLabel,
   type WeekCell,
 } from "../src/lobbyState.ts";
 import { glyphSvg } from "../src/mutatorGlyphs.ts";
@@ -235,6 +236,15 @@ const history: DailyDayLog[] = [
     { date: "2026-09-27", dow: "SUN", state: "today", medal: null },
   ];
   assert.equal(currentStreak(broken), 4, "missed day breaks the earlier gold");
+}
+
+{
+  const silver: WeekCell = { date: "2026-09-25", dow: "FRI", state: "silver", medal: "silver" };
+  assert.equal(weekCellAriaLabel(silver), "Fri Sep 25, silver, open calendar");
+  const today: WeekCell = { date: "2026-09-28", dow: "MON", state: "today", medal: null };
+  assert.equal(weekCellAriaLabel(today), "Mon Sep 28, today, open calendar");
+  const missed: WeekCell = { date: "2026-09-24", dow: "THU", state: "missed", medal: null };
+  assert.equal(weekCellAriaLabel(missed), "Thu Sep 24, missed, open calendar");
 }
 
 {

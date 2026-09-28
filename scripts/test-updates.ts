@@ -90,7 +90,18 @@ assert.equal(hasUnreadUpdate(latestUpdate(updates)?.id ?? null, loadLastSeenUpda
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");
 assert.match(ui, /shouldAutoShowUpdate/);
 assert.match(ui, /CLICK TO ENTER/);
-assert.match(ui, /Patrol History/);
+assert.match(ui, /Patrol Calendar/);
+assert.match(ui, /CALENDAR ›/);
+assert.match(ui, /PATROL CALENDAR/);
+assert.doesNotMatch(ui, /HISTORY ›/);
+assert.doesNotMatch(ui, /PATROL HISTORY/);
+assert.doesNotMatch(ui, /addRow\("Patrol History"/);
+{
+  const strip = ui.slice(ui.indexOf("private weekCellEl"), ui.indexOf("private lobbyDesktopFooter"));
+  assert.match(strip, /onPatrolCalendar\(cell\.date\)/);
+  assert.doesNotMatch(strip, /onUnlockGoldPatrol/);
+  assert.doesNotMatch(strip, /onPlayArchiveDay/);
+}
 assert.match(ui, /\/medals\/\$\{tier\}\.svg/);
 assert.match(ui, /showLobbyMenu/);
 assert.match(ui, /lobby-menu-sheet/);
