@@ -3894,9 +3894,14 @@ button.day-card-action:active {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .lobby-pnum {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -4207,6 +4212,7 @@ button.day-card-action:active {
   background: var(--orion-deep-space);
   border: 1px solid var(--orion-hull-line);
   padding: 14px 14px 12px;
+  text-align: left;
 }
 
 .lobby-card-head {
@@ -4216,12 +4222,14 @@ button.day-card-action:active {
   gap: 8px;
   margin-bottom: 8px;
   white-space: nowrap;
+  text-align: left;
 }
 
 .lobby-card-head .lobby-kicker {
   letter-spacing: 0.1em;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  text-align: left;
 }
 
 .lobby-v2 button.lobby-more,
@@ -4249,16 +4257,19 @@ button.day-card-action:active {
 .lobby-board-list {
   display: flex;
   flex-direction: column;
+  text-align: left;
 }
 
 .lobby-board-row {
   display: grid;
   grid-template-columns: 28px 22px 1fr auto;
   align-items: center;
+  justify-items: start;
   gap: 6px;
   min-height: 36px;
   font-size: 15px;
   color: var(--orion-starlight);
+  text-align: left;
 }
 
 .lobby-board-row .nm {
@@ -4266,12 +4277,17 @@ button.day-card-action:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+  justify-self: start;
+  width: 100%;
 }
 
 .lobby-board-row .pts {
   color: var(--orion-gold);
   font-weight: 700;
   white-space: nowrap;
+  text-align: right;
+  justify-self: end;
 }
 
 .lobby-board-row.open {
@@ -4300,7 +4316,8 @@ button.day-card-action:active {
 }
 
 .lobby-board-row.me .rk {
-  color: var(--orion-gold);
+  color: var(--orion-starlight);
+  font-weight: 700;
 }
 
 .lobby-guest-you {
@@ -4476,13 +4493,16 @@ button.day-card-action:active {
     gap: 24px;
     flex: 1 1 auto;
     min-height: 0;
-    align-items: stretch;
+    align-items: start;
+    align-content: center;
   }
 
   .lobby-hero {
     padding: 30px 34px;
     justify-content: flex-start;
     min-height: 0;
+    height: auto;
+    align-self: start;
   }
 
   .lobby-muts.tall {
@@ -4567,11 +4587,30 @@ button.day-card-action:active {
   }
 }
 
+@media (max-width: 399px) {
+  .lobby-newtag {
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    padding: 2px 4px;
+    margin-left: 4px;
+  }
+
+  .lobby-pnum {
+    letter-spacing: 0.1em;
+  }
+
+  .lobby-pnum b {
+    font-size: 18px;
+    margin-left: 4px;
+  }
+}
+
 @media (max-width: 899px) and (max-height: 499px) {
   .lobby-body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+    align-items: start;
   }
 
   .lobby-patrols-card {
