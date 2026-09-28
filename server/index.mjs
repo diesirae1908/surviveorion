@@ -444,11 +444,11 @@ const routes = {
   // Guest accounts are DEVICE-LOCKED: creation hands the client a random
   // secret (kept in localStorage), and reclaiming an existing guest callsign
   // requires that secret — a stranger typing the same name gets a 409, not
-  // that pilot's session. Guests created before the lock (no stored hash)
-  // are grandfathered: the next successful reclaim binds a secret to them
-  // (first device wins). Names protected by a password, Google, or Clerk
-  // stay locked to their owner as before.
-  "POST /api/auth/guest": async (req, res) => {
+  // that pilot's session. Pre-lock guests (no stored hash) bind a secret
+  // only when the request carries a valid session for that same user id.
+  // Names protected by a password, Google, or Clerk stay locked to their
+  // owner as before.
+  "POST /api/auth/guest": async (req, res, user) => {
     if (!rateLimit(`guest:${clientIp(req)}`, 10)) return json(res, 429, { error: "slow down" });
     const { callsign, country = "", guestSecret } = await readBody(req);
     if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
@@ -475,7 +475,10 @@ const routes = {
           existing: true,
         });
       }
-      // pre-lock guest: bind a device secret now (first device to come back wins)
+      // Pre-lock guest: bind a device secret only to the session holder.
+      if (!user || user.id !== existing.id) {
+        return json(res, 409, { error: "that callsign is taken, pick another name" });
+      }
       const secret = newGuestSecret();
       store.setGuestSecretHash(existing.id, hashGuestSecret(secret));
       return json(res, 200, {
@@ -489,14 +492,14 @@ const routes = {
     // New account: this IS a callsign creation, so the filter applies here.
     if (isNicknameBlocked(callsign.trim())) return json(res, 400, { error: pickRejectionMessage() });
     const secret = newGuestSecret();
-    const user = store.createUser({
+    const created = store.createUser({
       callsign: callsign.trim(),
       country,
       guestSecretHash: hashGuestSecret(secret),
     });
     json(res, 200, {
-      token: issueSession(user.id),
-      user: publicUser(user),
+      token: issueSession(created.id),
+      user: publicUser(created),
       existing: false,
       guestSecret: secret,
     });
@@ -594,6 +597,8 @@ const routes = {
       pendingFriends: store.pendingFriendCount(user.id),
       // guest accounts have no password yet — the profile screen offers to set one
       hasPassword: !!user.pass_hash,
+      guest: !user.pass_hash && !user.google_sub && !user.clerk_sub && !user.apple_sub,
+      appAccountToken: store.ensureAppleAccountToken(user.id),
       // patrol history calendar: bounds how far back "missed" can honestly
       // apply for this account (see src/dailyHistory.ts).
       joinedAt: user.created_at,
@@ -684,6 +689,8 @@ const routes = {
           ent = {
             productId: body.productId,
             transactionId: String(body.transactionId ?? ""),
+            originalTransactionId: String(body.originalTransactionId ?? body.transactionId ?? ""),
+            appAccountToken: body.appAccountToken ? String(body.appAccountToken) : null,
             expiresDate: Number(body.expiresDate),
             environment: "Sandbox",
           };
@@ -694,6 +701,26 @@ const routes = {
       return json(res, 400, {
         error: "could not verify Apple transaction",
         code: "VERIFY_UNAVAILABLE",
+      });
+    }
+    if (ent.appAccountToken) {
+      const expected = store.ensureAppleAccountToken(user.id);
+      if (String(ent.appAccountToken).toLowerCase() !== String(expected).toLowerCase()) {
+        return json(res, 409, {
+          error: "this Apple purchase belongs to a different Orion account",
+          code: "ACCOUNT_TOKEN_MISMATCH",
+        });
+      }
+    }
+    const originalId = ent.originalTransactionId || ent.transactionId;
+    const claimed = store.claimAppleOriginalTransaction(originalId, user.id);
+    if (!claimed.ok) {
+      const inUse = claimed.code === "TRANSACTION_IN_USE";
+      return json(res, 409, {
+        error: inUse
+          ? "this Apple purchase is already linked to another Orion account"
+          : "Apple transaction is missing an id",
+        code: claimed.code,
       });
     }
     store.setUserPremium(user.id, {

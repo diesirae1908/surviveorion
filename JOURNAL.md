@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: fix high-severity auth/IAP findings (SEC-01, SEC-02, SEC-03)
+
+- **Branch:** `fix/sec-highs-0927` (worktree `~/Documents/games/orion-web-sec-highs-0927` off `origin/main` `c5225b8`). Not merged to `dev` or `main`. Lucas approved the fixes; promote only after his OK.
+- **ORION-SEC-02:** `POST /api/auth/guest` no longer binds a device secret to a pre-lock guest (`guest_secret_hash` NULL) for whoever types the callsign. Bind only when the request carries a valid session for that same user id; otherwise the same 409 as a taken callsign. Client `Api.init` calls guest signup when `GET /api/me` says `guest` and localStorage has no `orion.guestSecret`, so a still-valid session can lock the account. New guests and secret-locked reclaim unchanged.
+- **ORION-SEC-01:** StoreKit JWS verify requires x5c length 2 or 3, leaf OID `1.2.840.113635.100.6.11.1`, intermediate OID `1.2.840.113635.100.6.2.1` plus CA, `alg` ES256, EC P-256 leaf, cert time at `signedDate` and now. `entitlementFromPayload` rejects expiry more than 400 days after purchase/signed date. Bundled Apple Root CA G3 unchanged. Length-2 (root omitted) still accepted because StoreKit often sends leaf+intermediate; the OIDs close the "any Apple cert" hole.
+- **ORION-SEC-03:** additive `apple_transactions(original_transaction_id, user_id, first_seen)`. Same originalTransactionId on a second account returns 409 `TRANSACTION_IN_USE`; renewal for the bound user is 200. `GET /api/me` now returns `appAccountToken` (stable UUID). Server rejects a payload token that does not match; current iOS builds omit it, so they keep working until native passes `Product.PurchaseOption.appAccountToken`.
+- **Tests:** `scripts/test-guest-reclaim.mjs`, `scripts/test-apple-transaction.mjs`, extended `scripts/test-apple-iap.mjs`. `npm test` green. `npm run build` green (`main-HRPpetqp.js`).
+- **Render:** no new env vars. Additive schema at boot. Do not set `ORION_PREMIUM_SANDBOX` on production.
+- **Follow-up (native, not in this branch):** `StoreKitManager.purchase` should pass the UUID from `/api/me` as `appAccountToken`. No App Store Connect change. No live sandbox JWS fixture in the repo, so a real Apple-signed passing chain is not in tests.
+- **Sizing (do not run against production from this dispatch):** `SELECT COUNT(*) FROM users WHERE pass_hash IS NULL AND google_sub IS NULL AND clerk_sub IS NULL AND apple_sub IS NULL AND guest_secret_hash IS NULL;`
+- **Stripe:** untouched.
+
 ## 2026-09-27 PT: promote follow-up to `main` (production)
 
 - **Approval:** Lucas, ~6:05 PM PT. **Frozen SHAs:** `origin/main` `c8061fc`, promote target `aa62947` (worktree `.worktrees/promote-followup-0927`, branch `sam/promote-followup-0927`).

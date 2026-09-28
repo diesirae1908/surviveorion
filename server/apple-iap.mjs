@@ -1,6 +1,7 @@
 // StoreKit 2 JWS (signed transaction) verify. Zero extra deps.
 // ES256 against x5c[0], then walk the x5c chain to bundled Apple Root CA - G3.
-// Leaf-only / forged leaves that do not chain to that root fail closed.
+// Leaf and intermediate must carry Apple's StoreKit marker OIDs; any other
+// Apple-issued cert under Root G3 (Apple Pay, WWDR app signing, etc.) fails.
 // Unverified transaction ids are never trusted unless ORION_PREMIUM_SANDBOX=1.
 
 import crypto from "node:crypto";
@@ -13,6 +14,13 @@ const BUNDLE_ID = "com.surviveorion.app";
 const APPLE_ROOT_FINGERPRINT =
   "63:34:3A:BF:B8:9A:6A:03:EB:B5:7E:9B:3F:5F:A7:BE:7C:4F:5C:75:6F:30:17:B3:A8:C4:88:C3:65:3E:91:79";
 const OK_ENVIRONMENTS = new Set(["", "Production", "Sandbox", "Xcode"]);
+/** Gold Patrol is monthly or yearly; reject "expires in 2100" forgeries. */
+export const MAX_ENTITLEMENT_MS = 400 * 24 * 60 * 60 * 1000;
+
+// Apple marker OIDs as DER TLV (tag 0x06 + length 0x0A + 10-byte value).
+// leaf 1.2.840.113635.100.6.11.1 ; intermediate 1.2.840.113635.100.6.2.1
+const LEAF_OID_TLV = Buffer.from("060a2a864886f76364060b01", "hex");
+const INTERMEDIATE_OID_TLV = Buffer.from("060a2a864886f76364060201", "hex");
 
 const rootPem = fs.readFileSync(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "certs", "AppleRootCA-G3.pem"),
@@ -41,13 +49,28 @@ function looksLikeApple(cert) {
   return `${cert.issuer}\n${cert.subject}`.toLowerCase().includes("apple");
 }
 
+function certHasOidTlv(cert, tlv) {
+  const raw = cert.raw;
+  if (!Buffer.isBuffer(raw) || raw.length < tlv.length) return false;
+  return raw.includes(tlv);
+}
+
+function isEcP256(key) {
+  if (!key || key.asymmetricKeyType !== "ec") return false;
+  const curve = key.asymmetricKeyDetails?.namedCurve;
+  if (!curve) return true;
+  return curve === "prime256v1" || curve === "P-256" || curve === "secp256r1";
+}
+
 /**
- * Require x5c to chain to bundled Apple Root CA - G3.
- * Does not fetch intermediates. Leaf-only tokens fail unless the leaf
- * itself is signed by the Apple root (it is not, in StoreKit 2).
+ * Require x5c length 2 (leaf + intermediate) or 3 (leaf + intermediate + root).
+ * Last cert of a 3-chain must be the bundled Apple Root CA - G3. Length-2
+ * chains (root omitted, which StoreKit often does) must have the intermediate
+ * signed by that root. Marker OIDs and intermediate CA bit are required.
  */
-export function verifyX5cToAppleRoot(x5c) {
-  if (!Array.isArray(x5c) || typeof x5c[0] !== "string") return null;
+export function verifyX5cToAppleRoot(x5c, atMs = Date.now()) {
+  if (!Array.isArray(x5c) || (x5c.length !== 2 && x5c.length !== 3)) return null;
+  if (typeof x5c[0] !== "string") return null;
   let certs;
   try {
     certs = x5c.map((b64) => {
@@ -65,25 +88,31 @@ export function verifyX5cToAppleRoot(x5c) {
   } catch {
     return null;
   }
-  if (!certTimeOk(root)) return null;
+  if (!certTimeOk(root, atMs) || !certTimeOk(root, Date.now())) return null;
 
   for (const cert of certs) {
-    if (!certTimeOk(cert)) return null;
+    if (!certTimeOk(cert, atMs)) return null;
+    if (!certTimeOk(cert, Date.now())) return null;
     if (!looksLikeApple(cert)) return null;
   }
 
   const leaf = certs[0];
+  const intermediate = certs[1];
   if (!`${leaf.issuer}`.toLowerCase().includes("apple")) return null;
+  if (!isEcP256(leaf.publicKey)) return null;
+  if (!certHasOidTlv(leaf, LEAF_OID_TLV)) return null;
+  if (!certHasOidTlv(intermediate, INTERMEDIATE_OID_TLV)) return null;
+  if (!intermediate.ca) return null;
 
-  for (let i = 0; i < certs.length - 1; i++) {
-    if (!certs[i].verify(certs[i + 1].publicKey)) return null;
-  }
+  if (!leaf.verify(intermediate.publicKey)) return null;
 
   const last = certs[certs.length - 1];
-  if (last.fingerprint256.toUpperCase() === root.fingerprint256.toUpperCase()) {
-    return leaf;
+  if (certs.length === 3) {
+    if (last.fingerprint256.toUpperCase() !== root.fingerprint256.toUpperCase()) return null;
+    if (!intermediate.verify(last.publicKey)) return null;
+  } else if (!last.verify(root.publicKey)) {
+    return null;
   }
-  if (!last.verify(root.publicKey)) return null;
   return leaf;
 }
 
@@ -104,7 +133,10 @@ export function decodeJws(token) {
 export function verifyStoreKitJws(token) {
   const decoded = decodeJws(token);
   if (!decoded) return null;
-  const leaf = verifyX5cToAppleRoot(decoded.header?.x5c);
+  if (decoded.header?.alg !== "ES256") return null;
+  const signedAt = Number(decoded.payload?.signedDate);
+  const atMs = Number.isFinite(signedAt) && signedAt > 0 ? signedAt : Date.now();
+  const leaf = verifyX5cToAppleRoot(decoded.header?.x5c, atMs);
   if (!leaf) return null;
   try {
     const ok = crypto.verify(
@@ -131,9 +163,17 @@ export function entitlementFromPayload(payload) {
   if (!OK_ENVIRONMENTS.has(env)) return null;
   const expires = Number(payload.expiresDate || 0);
   if (!Number.isFinite(expires) || expires <= Date.now()) return null;
+  const start = Number(payload.purchaseDate || payload.signedDate || Date.now());
+  if (!Number.isFinite(start) || expires > start + MAX_ENTITLEMENT_MS) return null;
+  const originalTransactionId = String(
+    payload.originalTransactionId ?? payload.transactionId ?? "",
+  );
+  const rawToken = payload.appAccountToken;
   return {
     productId,
     transactionId: String(payload.transactionId ?? payload.originalTransactionId ?? ""),
+    originalTransactionId,
+    appAccountToken: rawToken ? String(rawToken) : null,
     expiresDate: expires,
     environment: env,
   };

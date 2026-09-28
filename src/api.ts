@@ -258,6 +258,7 @@ export class Api {
           user: UserInfo;
           pendingFriends?: number;
           hasPassword?: boolean;
+          guest?: boolean;
           joinedAt?: number;
           clipInbox?: boolean;
           tier?: "free" | "premium" | "admin";
@@ -271,6 +272,13 @@ export class Api {
         this.hasPassword = me.hasPassword ?? true;
         this.joinedAt = me.joinedAt ?? null;
         this.applyMeFields(me);
+        if (me.guest && !localStorage.getItem(GUEST_SECRET_KEY)) {
+          try {
+            await this.guestSignup(me.user.callsign, me.user.country);
+          } catch {
+            // 409: already locked without this device's secret. Session still works.
+          }
+        }
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           this.token = null;

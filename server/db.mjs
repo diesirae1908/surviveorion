@@ -147,8 +147,8 @@ try {
 
 // Migration for guest device lock: passwordless (guest) accounts carry a
 // hashed device secret. Reclaiming a guest callsign requires the matching
-// secret; pre-migration guests (NULL hash) get one bound on their next
-// successful reclaim (first device wins).
+// secret. Pre-lock guests (NULL hash) bind a secret only when POST
+// /api/auth/guest carries a valid session for that same user id.
 try {
   db.exec(`ALTER TABLE users ADD COLUMN guest_secret_hash TEXT`);
 } catch {
@@ -197,6 +197,21 @@ try {
 } catch {
   // column already exists
 }
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN apple_account_token TEXT`);
+} catch {
+  // column already exists
+}
+
+// One Apple originalTransactionId may unlock Gold Patrol on one Orion
+// account. Additive. Reused on renewal for the same user_id.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS apple_transactions (
+    original_transaction_id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    first_seen INTEGER NOT NULL
+  );
+`);
 
 // Migration for databases created before tilt controls (per-mode leaderboards).
 try {
@@ -359,6 +374,44 @@ export function setUserPremium(id, { until, productId, transactionId, source }) 
     ).run(until ?? null, productId ?? null, transactionId ?? null, id);
   }
   return getUserById(id);
+}
+
+/** Stable UUID for StoreKit appAccountToken. Created once per user. */
+export function ensureAppleAccountToken(userId) {
+  const user = getUserById(userId);
+  if (!user) return null;
+  if (user.apple_account_token) return user.apple_account_token;
+  const token = crypto.randomUUID();
+  db.prepare(
+    `UPDATE users SET apple_account_token = ? WHERE id = ? AND apple_account_token IS NULL`,
+  ).run(token, userId);
+  return getUserById(userId)?.apple_account_token ?? token;
+}
+
+/**
+ * Bind an Apple originalTransactionId to one user. Same user renewing is ok.
+ * A different user gets TRANSACTION_IN_USE.
+ */
+export function claimAppleOriginalTransaction(originalTransactionId, userId) {
+  if (typeof originalTransactionId !== "string" || !originalTransactionId) {
+    return { ok: false, code: "MISSING_TRANSACTION" };
+  }
+  if (!Number.isInteger(userId) && typeof userId !== "number") {
+    return { ok: false, code: "MISSING_TRANSACTION" };
+  }
+  db.prepare(
+    `INSERT INTO apple_transactions (original_transaction_id, user_id, first_seen)
+     VALUES (?, ?, ?)
+     ON CONFLICT(original_transaction_id) DO NOTHING`,
+  ).run(originalTransactionId, userId, Date.now());
+  const row = db
+    .prepare(
+      `SELECT user_id AS userId FROM apple_transactions WHERE original_transaction_id = ?`,
+    )
+    .get(originalTransactionId);
+  if (!row) return { ok: false, code: "MISSING_TRANSACTION" };
+  if (row.userId !== userId) return { ok: false, code: "TRANSACTION_IN_USE" };
+  return { ok: true };
 }
 
 export const getUserByStripeCustomerId = (customerId) =>
