@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: promote follow-up to `main` (production)
+
+- **Approval:** Lucas, ~6:05 PM PT. **Frozen SHAs:** `origin/main` `c8061fc`, promote target `aa62947` (worktree `.worktrees/promote-followup-0927`, branch `sam/promote-followup-0927`).
+- **Scope:** UX follow-up (OR-22 guest ACTIVATE → Gold Patrol paywall + Wingmates empty state, R2-01..03), FIELD UPDATE `2026-09-27-flight-deck` ("Fairer Skies"). Staging merge already on `aa62947`.
+- **Verify (pre-push):** `git merge-base --is-ancestor origin/main aa62947` OK; `npm ci`, `npm test`, `npm run build` green (bundle `main-crnTLhxg.js`).
+- **Deploy:** `git push origin HEAD:main` (fast-forward). Render `surviveorion` auto-deploy from `main`. Dev FF to same commit if `origin/dev` still `aa62947`.
+
 ## 2026-09-27 PT: merge UX follow-up + FIELD UPDATE onto staging `dev`
 
 - **Worktree:** `.worktrees/followup-merge-0927`, branch `sam/followup-merge-0927` off `origin/dev` `c8061fc`.
