@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: promote 16x10 field fix (`c451029`) to `main` (production)
+
+- **Approval:** Lucas, 7:49 AM PT ("push live" for field + top-wall fix only; no lobby commits).
+- **Worktree:** `~/Documents/games/orion-web-promote-field-0928` at `c451029` (main checkout untouched).
+- **Frozen SHAs:** `origin/main` `1bc45f1`, promote `c451029` (single commit `1bc45f1..c451029`). `origin/dev` `2d68897` not promoted.
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on (`autoDeployTrigger`: commit).
+- **Gate:** `npm ci`, `npm test`, `npm run build` green at `c451029` (bundle `main-y2ICzOUK.js`).
+- **Production:** FF push `c451029` → `main`. Deploy `dep-dat7thavcj2c73biq46g` live ~7:52 AM PT (`finishedAt` 2026-09-28T14:52:16Z). Smoke: `/` serves `main-y2ICzOUK.js`, `/api/config` 200, `/api/me` 401, `/updates.json` 200. App logs on boot: `stripe billing: enabled` (instance `srv-d983pie7r5hc73ce7bfg-rt589`, 2026-09-28T14:52:10Z). No app `error` lines after deploy start.
+- **Dev sync:** merge `origin/main` into `dev` (lobby work stays on `dev`; journal merge keeps both entries).
+
 ## 2026-09-27 PT: merge origin/dev (16x10 field) into lobby redesign
 
 - **Branch:** `feat/lobby-redesign` (worktree `.worktrees/lobby-redesign`). Merged `origin/dev` `c451029` ("Fix playfield to a shared 16x10 world").
