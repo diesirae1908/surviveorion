@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: promote UX round (WS1-5 + QA fix rounds) to `main` (production)
+
+- **Approval:** Lucas, ~4:00 PM PT. **Frozen SHAs:** `origin/main` `8f67139`, promote target `origin/dev` `3aad13b` (worktree `.worktrees/promote-ux-0927`, branch `sam/promote-ux-0927`).
+- **Scope:** 2026-09-27 UX round (workstreams WS1–5 plus QA opening/UI fix merges on dev). Also ships parked slices from Sep 19 already on this tip: Patrol History week cards (`3182a38`), desktop width (`a2ac38a`), archive Fly/Unlock (`406a6b2`), CI (`9fa2343`, `0119ad9`).
+- **DB:** additive migration at boot (visits/runs `device_hash`, `runs.run_index`, `devices` table). No manual migration step.
+- **Verify (pre-push):** `git merge-base --is-ancestor origin/main 3aad13b` OK; `npm ci`, `npm test`, `npm run build` green (bundle `main-Bdx14LWw.js`).
+- **Deploy:** `git push origin HEAD:main` (fast-forward). Render `surviveorion` auto-deploy from `main`. Dev FF to same commit only if `origin/dev` still `3aad13b`.
+
 ## 2026-09-27 PT: merge UX QA fixes (opening + UI) into `dev`
 
 - **Worktree:** `.worktrees/ux-qa-merge-0927`, branch `sam/ux-qa-merge-0927` off `origin/dev` `558d756`.
