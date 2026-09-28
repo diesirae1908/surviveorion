@@ -17,9 +17,10 @@ why, commit hash, follow-ups), committed together with the work. See
 - **L6:** Pre-play Gold card removed. S2 row copy "GOLD PATROL · Keep flying today. Unlimited runs. $1.99/MO ›" fires `lobby_upsell` (existing allowlist). ACTIVATE chip icon-only under 600px, text on desktop. No price/plan/Stripe edits.
 - **L7:** Breakpoints per plan (phone column, 900px 7fr/5fr, 1600px larger, landscape hides patrols). Reset label is PT-stamped. FIELD UPDATE auto-modal only when `lobbyPhase === "pre"`.
 - **L8:** `updates.json` "New Lobby" skipped (would steal latest-update from Fairer Skies; Sam can add copy later). Evidence shots in Sam `impl-shots/`.
-- **Deviations:** L1-L7 share `ui.ts`/`style.css` so they land as one commit after L0. Old lobby helpers kept compiled (`void` refs) rather than deleted.
+- **Deviations:** L1-L7 share `ui.ts`/`style.css` so they land as one commit after L0. Old lobby helpers kept compiled (`void` refs) rather than deleted. `scripts/test-updates.ts` lobby chrome asserts now match the menu sheet (`showLobbyMenu` / `lobby-menu-sheet` / Feedback row) instead of `lobby-util-grid`.
+- **Verify (2026-09-27 ~9:45 PM PT):** `npm test` green (after chrome-hook update), `npm run build` green (`main-YR2HFPYV.js`), `npx tsx scripts/sim-test.ts` green. Local host was `ORION_SERVE_DIST=1` on :8787 (vite preview has no `/api`, so S1/S2 would have painted offline). Playwright shots: `~/Documents/Sam/reports/orion-lobby-redesign-2026-09-27/impl-shots/{d1440,d1280,m390,m360}-{pre,used1,out}-{fold,full}.png`. S2 Gold row did not paint locally (`stripe billing: disabled`); it still gates on `showWebGoldPatrol && goldPatrolPrices` and fires `lobby_upsell`.
 - **Tripwires:** none hit. S2 upsell reuses `lobby_upsell`. Native `?nativePlay=` still `ui.clearScreens()`.
-- **Files:** `src/ui.ts`, `src/style.css`, `src/main.ts`, L0 modules, `package.json`, `JOURNAL.md`.
+- **Files:** `src/ui.ts`, `src/style.css`, `src/main.ts`, L0 modules, `package.json`, `scripts/test-updates.ts`, `scripts/test-mutators.ts`, `scripts/test-lobby-state.ts`, `JOURNAL.md`.
 
 ## 2026-09-27 PT: promote paywall counter (`aca5dba`) to `main` (production)
 
