@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: center a lone mutator card on desktop
+
+- **Branch:** `fix/lobby-center-mutator` (worktree `.worktrees/lobby-center-mut` off `origin/dev` `e427a0b`). Main checkout untouched.
+- **Why:** Lucas, 9:54 AM PT: one mutator (today RED ALERT) sat in the left cell of the desktop 2-col grid with empty space on the right.
+- **Fix:** CSS only. At 900px+, `.lobby-muts.tall:has(> .lobby-mut:only-child)` becomes one centered column; the card is `max-width: 420px` (same feel as one half of the pair). Sunday doubles and phone stacked cards unchanged. CLASSIC PATROL has no mutator grid.
+- **Not pushed:** `dev` / `main`. This branch only.
+
 ## 2026-09-28 PT: promote compact-board dedupe fix to `main` (production)
 
 - **Approval:** Lucas, ~8:15 AM PT ("Push live" for `6464d9b`).

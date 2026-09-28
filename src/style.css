@@ -4516,6 +4516,16 @@ button.day-card-action:active {
     align-items: start;
   }
 
+  .lobby-muts.tall:has(> .lobby-mut:only-child) {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .lobby-muts.tall > .lobby-mut:only-child {
+    width: 100%;
+    max-width: 420px;
+  }
+
   .lobby-muts.tall .lobby-mut {
     grid-template-columns: 1fr;
     justify-items: center;
