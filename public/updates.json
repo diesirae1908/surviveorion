@@ -1,6 +1,18 @@
 {
   "updates": [
     {
+      "id": "2026-09-27-flight-deck",
+      "date": "2026-09-27",
+      "title": "Fairer Skies",
+      "body": [
+        "First 10 seconds are fairer now. Same start for all.",
+        "Today's mutator shows in the lobby and at launch.",
+        "Ship stays on screen, brighter warnings when cornered.",
+        "Game over shows a target you can reach, not a gap."
+      ],
+      "link": null
+    },
+    {
       "id": "2026-09-13-lobby-refit",
       "date": "2026-09-13",
       "title": "Lobby Refit",

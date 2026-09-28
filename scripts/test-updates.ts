@@ -41,12 +41,16 @@ const updates = parseUpdates(file);
 
 assert.equal(UPDATES_URL, "/updates.json");
 assert.equal(LAST_SEEN_UPDATE_KEY, "orion.lastSeenUpdateId");
-assert.ok(updates.length >= 1, "at least the lobby-refit entry");
-assert.equal(updates[0]?.id, "2026-09-13-lobby-refit");
-assert.equal(updates[0]?.date, "2026-09-13");
-assert.equal(updates[0]?.title, "Lobby Refit");
+assert.ok(updates.length >= 1, "at least one FIELD UPDATE entry");
+assert.equal(updates[0]?.id, "2026-09-27-flight-deck");
+assert.equal(updates[0]?.date, "2026-09-27");
+assert.equal(updates[0]?.title, "Fairer Skies");
 assert.equal(updates[0]?.link, null);
-assert.equal(updates[0]?.body.length, 3);
+assert.equal(updates[0]?.body.length, 4);
+assert.ok(
+  updates.some((u) => u.id === "2026-09-13-lobby-refit"),
+  "lobby-refit entry stays in the feed",
+);
 assert.ok(
   updates.some((u) => u.id === "2026-09-13-past-day-fly"),
   "past-day Gold Patrol note is in the file",
@@ -64,23 +68,23 @@ assert.deepEqual(parseUpdates(null), []);
 assert.deepEqual(parseUpdates({}), []);
 assert.deepEqual(parseUpdates({ updates: [{ id: "x" }] }), []);
 assert.equal(latestUpdate([]), null);
-assert.equal(latestUpdate(updates)?.id, "2026-09-13-lobby-refit");
+assert.equal(latestUpdate(updates)?.id, "2026-09-27-flight-deck");
 
 assert.equal(hasUnreadUpdate(null, null), false);
-assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", null), true);
-assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refit"), false);
-assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refresh"), true);
-assert.equal(hasUnreadUpdate("2026-09-13-lobby-refit", "older"), true);
+assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", null), true);
+assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", "2026-09-27-flight-deck"), false);
+assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", "2026-09-13-lobby-refresh"), true);
+assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", "2026-09-13-lobby-refit"), true);
 
-assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", null, 0), false, "fresh profile never auto-shows");
-assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", null, 1), true, "returning profile with a new id does");
-assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", "older", 4), true);
-assert.equal(shouldAutoShowUpdate("2026-09-13-lobby-refit", "2026-09-13-lobby-refit", 4), false);
+assert.equal(shouldAutoShowUpdate("2026-09-27-flight-deck", null, 0), false, "fresh profile never auto-shows");
+assert.equal(shouldAutoShowUpdate("2026-09-27-flight-deck", null, 1), true, "returning profile with a new id does");
+assert.equal(shouldAutoShowUpdate("2026-09-27-flight-deck", "2026-09-13-lobby-refit", 4), true);
+assert.equal(shouldAutoShowUpdate("2026-09-27-flight-deck", "2026-09-27-flight-deck", 4), false);
 assert.equal(shouldAutoShowUpdate(null, null, 0), false);
 
 assert.equal(loadLastSeenUpdateId(), null);
-saveLastSeenUpdateId("2026-09-13-lobby-refit");
-assert.equal(loadLastSeenUpdateId(), "2026-09-13-lobby-refit");
+saveLastSeenUpdateId("2026-09-27-flight-deck");
+assert.equal(loadLastSeenUpdateId(), "2026-09-27-flight-deck");
 assert.equal(hasUnreadUpdate(latestUpdate(updates)?.id ?? null, loadLastSeenUpdateId()), false);
 
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");

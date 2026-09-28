@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: merge UX follow-up + FIELD UPDATE onto staging `dev`
+
+- **Worktree:** `.worktrees/followup-merge-0927`, branch `sam/followup-merge-0927` off `origin/dev` `c8061fc`.
+- **Merge (`--no-ff`):** `origin/feat/ux-followup-0927` `75b77bd` → merge `74a8bd8`. Conflicts: `JOURNAL.md` only (kept every entry, newest first). No code conflicts.
+- **FIELD UPDATE:** `public/updates.json` first entry `2026-09-27-flight-deck` ("Fairer Skies", Sam-reviewed copy). `scripts/test-updates.ts` expectations updated.
+- **Verify:** `npm test`, `npm run build` (bundle `main-crnTLhxg.js`), `npx tsx scripts/sim-test.ts` green.
+- **Push:** `git push origin HEAD:dev` (staging `surviveorion-dev` auto-deploy). `main` untouched.
+
 ## 2026-09-27 PT: promote UX round (WS1-5 + QA fix rounds) to `main` (production)
 
 - **Approval:** Lucas, ~4:00 PM PT. **Frozen SHAs:** `origin/main` `8f67139`, promote target `origin/dev` `3aad13b` (worktree `.worktrees/promote-ux-0927`, branch `sam/promote-ux-0927`).
