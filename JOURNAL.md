@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: daily lobby redesign (L0-L8)
+
+- **Branch:** `feat/lobby-redesign` (worktree `.worktrees/lobby-redesign` off `origin/dev` `aca5dba`). Main checkout untouched.
+- **Why:** Lucas approved D1-D10 at plan defaults. TODAY is the hero; secondaries move into one menu; Gold Patrol upsell only when attempts run out.
+- **L0:** `src/lobbyState.ts` (`lobbyPhase`, `boardNeighborhood`, `weekStrip`, `currentStreak`, `nextMedalProgress`) and `src/mutatorGlyphs.ts` (`glyphSvg` + hex fallback). Tests in `scripts/test-lobby-state.ts`, wired into `npm test`. `test-mutators` skips the glyph catalog (UI map, not gameplay branching).
+- **Follow-ups:** L1-L8 land on this branch in later commits. No `MUTATOR_POOL` / Stripe / native play changes.
+
 ## 2026-09-27 PT: count web Gold Patrol paywall opens
 
 - **Branch:** `feat/paywall-metrics-0927` (worktree `.worktrees/paywall-metrics-0927` off `origin/dev` `b8ec879`). Main checkout untouched.

@@ -505,7 +505,9 @@ function dayRestricted(dateStr: string): boolean {
 
   const leaks: string[] = [];
   for (const file of walk(SRC_DIR)) {
-    if (path.basename(file) === "mutators.ts") continue;
+    const base = path.basename(file);
+    // mutatorGlyphs.ts is a UI catalog (lobby icons), not gameplay branching.
+    if (base === "mutators.ts" || base === "mutatorGlyphs.ts") continue;
     const text = fs.readFileSync(file, "utf8");
     for (const id of liveIds) {
       // string literal only ("id" or 'id'), so a comment mentioning a
