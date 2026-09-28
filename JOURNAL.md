@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: promote compact-board dedupe fix to `main` (production)
+
+- **Approval:** Lucas, ~8:15 AM PT ("Push live" for `6464d9b`).
+- **Worktree:** `~/Documents/games/orion-web-promote-dedupe-0928` at `6464d9b` (main checkout untouched).
+- **Frozen SHAs (tripwire):** `origin/main` `16df059`, `origin/dev` `6464d9b`. `git diff --stat origin/main origin/dev` only `JOURNAL.md`, `scripts/test-lobby-state.ts`, `src/lobbyState.ts`, `src/ui.ts`.
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on (`autoDeployTrigger`: commit).
+- **Gate:** `npm ci`, `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts` green at `6464d9b` (bundle `main-LuHHaW7h.js`).
+- **Production:** FF push `6464d9b` → `main`. Deploy `dep-dat9gpbtqb8s73ait1vg` live ~9:41 AM PT (`finishedAt` 2026-09-28T16:41:33Z). Smoke: `/` serves `main-LuHHaW7h.js`, `/api/config` 200, `/api/me` 401, `/updates.json` 200. App logs: no `error` lines after deploy start; boot `stripe billing: enabled` (instance `srv-d983pie7r5hc73ce7bfg-zq7bt`, 2026-09-28T16:41:28Z). Node SQLite experimental warning only.
+- **Dev sync:** FF `origin/main` (journal tip) → `dev` after this entry.
+
 ## 2026-09-28 PT: merge compact-board neighborhood when You sits next to the top
 
 - **Branch:** `fix/lobby-board-dedupe` (worktree `.worktrees/lobby-board-dedupe` off `origin/dev` `16df059`). Main checkout untouched.
