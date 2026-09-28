@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: promote paywall counter (`aca5dba`) to `main` (production)
+
+- **Approval:** Lucas, ~9:15 PM PT. **Worktree:** `.worktrees/promote-paywall-0927` (not the dirty `orion-web` checkout). **Frozen SHAs:** `origin/main` `b8ec879`, `origin/dev` `aca5dba`.
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on (`autoDeployTrigger`: commit).
+- **Gate:** `npm ci`, `npm test`, `npm run build` green at `aca5dba` (bundle `main-CDVfMZRG.js`).
+- **Production:** FF push `aca5dba` → `main`. Deploy `dep-dasujsjtqb8s73a642qg` live ~9:17 PM PT (`finishedAt` 2026-09-28T04:17:22Z). Smoke: `/` serves `main-CDVfMZRG.js`, `/api/config` 200, `/api/me` 401. App logs on boot: `stripe billing: enabled` (instance `srv-d983pie7r5hc73ce7bfg-5wvmh`, 2026-09-28T04:17:17Z). No app `error` lines after deploy start.
+- **Dev sync:** FF `dev` to journal tip on `main`.
+
 ## 2026-09-27 PT: count web Gold Patrol paywall opens
 
 - **Branch:** `feat/paywall-metrics-0927` (worktree `.worktrees/paywall-metrics-0927` off `origin/dev` `b8ec879`). Main checkout untouched.
