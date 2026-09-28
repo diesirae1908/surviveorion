@@ -129,7 +129,14 @@ button.launch,
 .share-btn,
 .small-btn,
 .corner-btn.settings-chip,
-.landing-cta {
+.landing-cta,
+.lobby-hero,
+.lobby-card,
+.lobby-mut,
+.lobby-upsell,
+.lobby-menu-sheet,
+.lobby-menu-row,
+.lobby-chip {
   --c: var(--orion-chamfer-lg);
   clip-path: polygon(
     var(--c) 0, calc(100% - var(--c)) 0,
@@ -3793,4 +3800,698 @@ button.day-card-action:active {
 
 .paywall-footer-dot {
   color: var(--orion-dust);
+}
+
+/* --- lobby v2 (Sep 27 2026 redesign) --- */
+
+.screen.menu.daily-lobby.lobby-v2 {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+  padding: calc(8px + var(--safe-top)) 12px calc(16px + var(--safe-bottom));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.screen.menu.daily-lobby.lobby-v2::before,
+.screen.menu.daily-lobby.lobby-v2::after {
+  content: none;
+  display: none;
+}
+
+.lobby-v2 .lobby-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  min-height: 56px;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.lobby-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lobby-mark {
+  width: 36px;
+  height: 36px;
+  display: block;
+}
+
+.lobby-word {
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--orion-gold);
+  font-size: 18px;
+}
+
+.lobby-v2 .lobby-header-icons {
+  position: static;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.lobby-v2 .tier-chip-free .tier-chip-label,
+.lobby-v2 .lobby-id-label {
+  display: none;
+}
+
+.lobby-v2 .tier-chip {
+  color: var(--orion-gold);
+}
+
+.lobby-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.lobby-hero {
+  background: var(--orion-deep-space);
+  border: 1px solid var(--orion-hull-line);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lobby-pline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lobby-pnum {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--orion-dust);
+}
+
+.lobby-pnum b {
+  color: var(--orion-gold);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  margin-left: 6px;
+}
+
+.lobby-newtag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--orion-void);
+  background: var(--orion-gold);
+}
+
+.lobby-reset {
+  color: var(--orion-dust);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+.lobby-kicker,
+.lobby-classic {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--orion-dust);
+  text-transform: uppercase;
+}
+
+.lobby-muts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lobby-mut {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px 12px;
+  background: #0e0e18;
+  border: 1px solid var(--orion-hull-line);
+}
+
+.lobby-mut-g {
+  width: 40px;
+  height: 40px;
+  color: var(--orion-gold);
+}
+
+.lobby-mut-g svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.lobby-mut-n {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--orion-gold);
+}
+
+.lobby-mut-b {
+  color: var(--orion-starlight);
+  font-size: 14px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.lobby-mut-r {
+  color: var(--orion-bronze);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.lobby-v2 button.launch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 70px;
+  padding: 12px 16px;
+  font-size: 22px;
+  letter-spacing: 0.14em;
+}
+
+.lobby-launch-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.lobby-pips {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.lobby-pips .pip,
+.lobby-pips i.pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+.lobby-pips .pip.spent,
+.lobby-pips i.pip.spent {
+  opacity: 0.28;
+}
+
+.lobby-medals {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  color: var(--orion-dust);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.lobby-medals img {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+}
+
+.lobby-score {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 0.95;
+  color: var(--orion-gold);
+  letter-spacing: 0.02em;
+}
+
+.lobby-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--orion-starlight);
+  font-size: 15px;
+}
+
+.lobby-meta img {
+  width: 18px;
+  height: 18px;
+}
+
+.lobby-meta .dot,
+.lobby-meta .time {
+  color: var(--orion-dust);
+}
+
+.lobby-bar {
+  height: 4px;
+  background: #2a2a3a;
+  position: relative;
+}
+
+.lobby-bar i {
+  display: block;
+  height: 100%;
+  background: var(--orion-gold);
+}
+
+.lobby-bl {
+  display: flex;
+  justify-content: space-between;
+  color: var(--orion-dust);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.lobby-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lobby-v2 .share-btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+.lobby-countdown {
+  text-align: center;
+  color: var(--orion-bronze);
+  font-size: 13px;
+}
+
+.lobby-upsell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  background: #16120a;
+  color: var(--orion-starlight);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.lobby-upsell .t {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.lobby-upsell .go {
+  color: var(--orion-gold);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.lobby-train-link {
+  background: none;
+  border: 0;
+  color: var(--orion-dust);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.lobby-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lobby-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  min-height: 36px;
+  border: 1px solid var(--orion-hull-line);
+  color: var(--orion-starlight);
+  font-size: 13px;
+  background: #0e0e18;
+}
+
+.lobby-chip svg {
+  width: 16px;
+  height: 16px;
+  color: var(--orion-gold);
+}
+
+.lobby-rules-chip {
+  color: var(--orion-dust);
+  cursor: pointer;
+  font: inherit;
+}
+
+.lobby-card {
+  background: var(--orion-deep-space);
+  border: 1px solid var(--orion-hull-line);
+  padding: 14px 14px 12px;
+  min-height: 160px;
+}
+
+.lobby-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.lobby-more,
+.lobby-foot-link {
+  background: none;
+  border: 0;
+  color: var(--orion-bronze);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.lobby-board-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 168px;
+}
+
+.lobby-board-row {
+  display: grid;
+  grid-template-columns: 28px 22px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  font-size: 15px;
+}
+
+.lobby-board-row.open {
+  grid-template-columns: 28px 1fr;
+  color: var(--orion-dust);
+}
+
+.lobby-board-row.me {
+  color: var(--orion-gold);
+}
+
+.lobby-board-row.link {
+  cursor: pointer;
+}
+
+.lobby-board-row .rk {
+  color: var(--orion-dust);
+  font-size: 12px;
+}
+
+.lobby-board-row.me .rk {
+  color: var(--orion-gold);
+}
+
+.lobby-board-gap {
+  color: var(--orion-dust);
+  letter-spacing: 0.3em;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.lobby-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.lobby-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.lobby-day .c {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--orion-hull-line);
+  background: #0e0e18;
+}
+
+.lobby-day.today .c {
+  border-color: var(--orion-gold);
+}
+
+.lobby-day .c img {
+  width: 18px;
+  height: 18px;
+}
+
+.lobby-day .flown-dia {
+  color: var(--orion-bronze);
+  font-size: 12px;
+}
+
+.lobby-day .dow {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--orion-dust);
+}
+
+.lobby-streak,
+.lobby-yday {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--orion-starlight);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.lobby-footer {
+  display: none;
+}
+
+.lobby-menu-catcher {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: rgba(5, 5, 10, 0.72);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.lobby-menu-sheet {
+  width: min(440px, 100%);
+  background: var(--orion-deep-space);
+  border: 1px solid var(--orion-hull-line);
+  padding: 12px 12px calc(12px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lobby-menu-row {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  text-align: left;
+  background: #0e0e18;
+  border: 1px solid var(--orion-hull-line);
+  color: var(--orion-starlight);
+  font: inherit;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  position: relative;
+}
+
+.full-board .board {
+  width: 100%;
+  max-width: 560px;
+}
+
+@media (min-width: 600px) and (max-width: 899px) {
+  .screen.menu.daily-lobby.lobby-v2 {
+    max-width: 560px;
+  }
+}
+
+@media (min-width: 900px) {
+  .screen.menu.daily-lobby.lobby-v2 {
+    display: flex;
+    max-width: 1240px;
+    height: 100%;
+    justify-content: center;
+    padding: calc(12px + var(--safe-top)) 24px calc(18px + var(--safe-bottom));
+    overflow: hidden;
+  }
+
+  .lobby-v2 .lobby-header {
+    height: 64px;
+    min-height: 64px;
+  }
+
+  .lobby-v2 .tier-chip-free .tier-chip-label,
+  .lobby-v2 .lobby-id-label {
+    display: inline;
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+
+  .lobby-v2 .lobby-icon-btn.tier-chip,
+  .lobby-v2 .lobby-id-btn {
+    min-width: auto;
+    padding: 8px 12px;
+  }
+
+  .lobby-body {
+    display: grid;
+    grid-template-columns: 7fr 5fr;
+    gap: 24px;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .lobby-hero {
+    padding: 30px 34px;
+    justify-content: space-between;
+    min-height: 0;
+  }
+
+  .lobby-muts.tall {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex: 1;
+    align-items: stretch;
+  }
+
+  .lobby-muts.tall .lobby-mut {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    padding: 28px 22px;
+    align-content: center;
+  }
+
+  .lobby-muts.tall .lobby-mut-g {
+    width: 72px;
+    height: 72px;
+  }
+
+  .lobby-muts.tall .lobby-mut-n {
+    font-size: 32px;
+    margin-top: 6px;
+  }
+
+  .lobby-v2 button.launch {
+    min-height: 80px;
+    max-width: 520px;
+    margin-inline: auto;
+    font-size: 26px;
+  }
+
+  .lobby-side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+  }
+
+  .lobby-board-card {
+    flex: 1 1 auto;
+    min-height: 280px;
+  }
+
+  .lobby-board-list {
+    min-height: 280px;
+  }
+
+  .lobby-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--orion-dust);
+  }
+
+  .lobby-menu-catcher {
+    align-items: flex-start;
+    justify-content: flex-end;
+    background: rgba(5, 5, 10, 0.45);
+    padding: 72px 24px 24px;
+  }
+
+  .lobby-menu-sheet {
+    width: 320px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .screen.menu.daily-lobby.lobby-v2 {
+    max-width: 1320px;
+  }
+
+  .lobby-muts.tall .lobby-mut-g {
+    width: 88px;
+    height: 88px;
+  }
+
+  .lobby-v2 button.launch {
+    min-height: 96px;
+  }
+}
+
+@media (max-width: 899px) and (max-height: 499px) {
+  .lobby-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .lobby-patrols-card {
+    display: none;
+  }
+
+  .lobby-v2 button.launch {
+    min-height: 56px;
+  }
 }

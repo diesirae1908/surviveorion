@@ -9,7 +9,17 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Branch:** `feat/lobby-redesign` (worktree `.worktrees/lobby-redesign` off `origin/dev` `aca5dba`). Main checkout untouched.
 - **Why:** Lucas approved D1-D10 at plan defaults. TODAY is the hero; secondaries move into one menu; Gold Patrol upsell only when attempts run out.
 - **L0:** `src/lobbyState.ts` (`lobbyPhase`, `boardNeighborhood`, `weekStrip`, `currentStreak`, `nextMedalProgress`) and `src/mutatorGlyphs.ts` (`glyphSvg` + hex fallback). Tests in `scripts/test-lobby-state.ts`, wired into `npm test`. `test-mutators` skips the glyph catalog (UI map, not gameplay branching).
-- **Follow-ups:** L1-L8 land on this branch in later commits. No `MUTATOR_POOL` / Stripe / native play changes.
+- **L1:** Slim header (mark + ORION, ACTIVATE chip, identity, menu). `showLobbyMenu` sheet with Escape, backdrop, focus trap, 44px rows. Training / History / Wingmates / How to play / Powers / Field updates / Feedback / Settings / Get on iPhone / Privacy. CREW rec icon kept.
+- **L2:** TODAY hero: patrol #, NEW TODAY, mutator glyph cards, launch with pips. Medal line hidden until `loadRunCount()>0`. CLASSIC PATROL on pre-gate days. Preview / rehearsal / offline branches kept.
+- **L3:** Compact board from `boardNeighborhood`. FULL BOARD › screen keeps search + device tags + `renderDailyBoardRows`. One fetch via `fillDailyBoard`.
+- **L4:** My patrols week strip + streak + yesterday line. Guests: local + "on this device". Signed-in: `fillLobbyWeek` merges `api.dailyHistory`. HISTORY › opens calendar.
+- **L5:** S1 result hero (FLY AGAIN + SHARE + RULES ›). S2 COMPLETE + SHARE primary + midnight PT countdown (cleared on `clear()`). No Alarm-red "Patrol complete" pips.
+- **L6:** Pre-play Gold card removed. S2 row copy "GOLD PATROL · Keep flying today. Unlimited runs. $1.99/MO ›" fires `lobby_upsell` (existing allowlist). ACTIVATE chip icon-only under 600px, text on desktop. No price/plan/Stripe edits.
+- **L7:** Breakpoints per plan (phone column, 900px 7fr/5fr, 1600px larger, landscape hides patrols). Reset label is PT-stamped. FIELD UPDATE auto-modal only when `lobbyPhase === "pre"`.
+- **L8:** `updates.json` "New Lobby" skipped (would steal latest-update from Fairer Skies; Sam can add copy later). Evidence shots in Sam `impl-shots/`.
+- **Deviations:** L1-L7 share `ui.ts`/`style.css` so they land as one commit after L0. Old lobby helpers kept compiled (`void` refs) rather than deleted.
+- **Tripwires:** none hit. S2 upsell reuses `lobby_upsell`. Native `?nativePlay=` still `ui.clearScreens()`.
+- **Files:** `src/ui.ts`, `src/style.css`, `src/main.ts`, L0 modules, `package.json`, `JOURNAL.md`.
 
 ## 2026-09-27 PT: promote paywall counter (`aca5dba`) to `main` (production)
 

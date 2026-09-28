@@ -1,16 +1,28 @@
 import type { BoardMode, PaywallSource } from "./api";
 import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
-import type { DayInfo } from "./dailyHistory";
+import type { DayInfo, ServerDayEntry } from "./dailyHistory";
 import { isTypingTarget } from "./input";
-import { MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
+import { medalForScore, medalThresholdsForDate, MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
 import { archivePatrolTag, formatPatrolShort, nextPatrolMidnight, patrolDateStr } from "./patrolDate";
 import {
   FLY_THIS_PATROL,
   REPLAY_THIS_PATROL,
   patrolDayEligibleForArchiveCalendarAction,
 } from "./dailyHistory";
-import type { Mutator } from "./mutators";
+import { getMutatorsForDate, type Mutator } from "./mutators";
+import { glyphSvg } from "./mutatorGlyphs";
+import {
+  boardNeighborhood,
+  currentStreak,
+  lobbyPhase,
+  nextMedalProgress,
+  weekStrip,
+  type LobbyPhase,
+  type WeekCell,
+} from "./lobbyState";
+import { provisionalRank } from "./gameOverGoal";
+import { DAILY_EPOCH_DATE } from "./share";
 import type {
   BooleanSetting,
   ControlMode,
@@ -29,6 +41,8 @@ import {
   PATROL_COMPLETE_BODY_GOLD,
   PATROL_COMPLETE_TITLE,
   formatKeyList,
+  loadDailyAttempts,
+  loadDailyHistory,
   loadRunCount,
 } from "./save";
 import type { ShareOutcome } from "./share";
@@ -384,7 +398,12 @@ function escapeHtml(s: string): string {
  */
 export function dailyResetLabel(): string {
   const next = nextPatrolMidnight();
-  return next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const clock = next.toLocaleTimeString([], {
+    timeZone: "America/Los_Angeles",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${clock} PT`;
 }
 
 function fmtTime(s: number): string {
@@ -430,6 +449,11 @@ export class Ui {
   private dailyBoardFull: DailyBoardRow[] | null = null;
   private dailyBoardPinned: DailyBoardRow | null = null;
   private dailyBoardSearchQuery = "";
+  private lobbyInfo: DailyLobbyInfo | null = null;
+  private lobbyWeekServer = new Map<string, ServerDayEntry>();
+  private lobbyCountdown: ReturnType<typeof setInterval> | null = null;
+  private lobbyRulesOpen = false;
+  private lobbyMenuKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
   /**
    * Back action for whichever submenu screen is currently showing (Settings,
@@ -481,6 +505,8 @@ export class Ui {
   }
 
   private clear(): void {
+    this.stopLobbyCountdown();
+    this.hideLobbyMenu();
     this.root.innerHTML = "";
     this.submenuBack = null;
     this.submenuBackScreen = null;
@@ -960,10 +986,10 @@ export class Ui {
   }
 
   private paintUpdatePill(): void {
-    const pill = this.root.querySelector(".lobby-icon-bell .update-pill") as HTMLElement | null;
-    if (!pill) return;
     const unread = hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId());
-    pill.hidden = !unread;
+    for (const pill of this.root.querySelectorAll(".update-pill")) {
+      (pill as HTMLElement).hidden = !unread;
+    }
   }
 
   hideFieldUpdate(): void {
@@ -1032,6 +1058,12 @@ export class Ui {
             saveLastSeenUpdateId(latest.id);
             this.paintUpdatePill();
           }
+          return;
+        }
+        const info = this.lobbyInfo;
+        const phase = info ? lobbyPhase(info, runCount) : "pre";
+        if (phase !== "pre") {
+          this.paintUpdatePill();
           return;
         }
         this.showFieldUpdate(latest, { persistOnDismiss: true, clearPillNow: true });
@@ -1321,216 +1353,745 @@ export class Ui {
   }
 
   /**
-   * Daily-only site lobby: Launch, Training Ground, then Calendar /
-   * Wingmates / How to Play / Powers. Board + App Store badge on the
-   * right. Header is Rec (CREW) / Bell / Feedback / Settings. Unsigned
-   * players can still join the board via the game-over guest prompt.
+   * Daily-only site lobby: slim header + TODAY hero, board card, my patrols.
+   * Secondaries live in one menu. Gold Patrol upsell only when attempts run out.
    */
   showDailyLobby(info: DailyLobbyInfo): void {
+    const keepWeek = this.lobbyWeekServer;
+    const keepBoard = this.dailyBoardFull;
+    const keepPinned = this.dailyBoardPinned;
+    const keepRules = this.lobbyRulesOpen;
     this.clear();
+    this.lobbyWeekServer = keepWeek;
+    this.dailyBoardFull = keepBoard;
+    this.dailyBoardPinned = keepPinned;
+    this.lobbyRulesOpen = keepRules;
+    this.lobbyInfo = info;
     this.pauseBtn.style.display = "none";
 
-    const screen = this.el("div", `screen menu daily-lobby${info.creator ? " has-rec" : ""}`, "");
-    const header = this.el("div", "lobby-header", "");
-    header.appendChild(this.wordmarkTitle());
-    const icons = this.el("div", "lobby-header-icons", "");
-    if (info.creator) {
-      icons.appendChild(this.recordingModeIconBtn());
-    }
+    const screen = this.el(
+      "div",
+      `screen menu daily-lobby lobby-v2${info.creator ? " has-rec" : ""}`,
+      "",
+    );
+    screen.appendChild(this.lobbyHeader(info));
+    const body = this.el("div", "lobby-body", "");
+    body.appendChild(this.todayHero(info));
+    const side = this.el("div", "lobby-side", "");
+    if (info.online) side.appendChild(this.lobbyBoardCard(info));
+    side.appendChild(this.lobbyPatrolsCard(info));
+    body.appendChild(side);
+    screen.appendChild(body);
+    screen.appendChild(this.lobbyDesktopFooter(info));
+    this.root.appendChild(screen);
+    this.renderLobbyBoard(info);
+    this.paintUpdatePill();
+    this.bootLobbyUpdates();
+    // Keep the pre-redesign helpers compiled (calendar / fullgame still share the class).
+    void this.lobbyIconBtn;
+    void this.appStoreBadge;
+    void this.lobbyStackButton;
+    void this.mutatorBriefingCard;
+    void this.lobbyPilotBadge;
+  }
+
+  private lobbySettingsCommunity(info: DailyLobbyInfo): MenuCommunity {
     const lobbyTier: "free" | "premium" | "admin" =
       info.tier ?? (info.unlimitedDaily ? "premium" : "free");
-    const openSettings = (): void =>
-      this.showSettings(info.touchDevice, () => this.showDailyLobby(info), {
-        callsign: info.callsign,
-        pendingFriends: info.pendingFriends,
-        clipInbox: info.creator,
-        tier: lobbyTier,
-        hasStripeCustomer: info.hasStripeCustomer,
-        webBillingEnabled: info.showWebGoldPatrol,
-      });
+    return {
+      callsign: info.callsign,
+      pendingFriends: info.pendingFriends,
+      clipInbox: info.creator,
+      tier: lobbyTier,
+      hasStripeCustomer: info.hasStripeCustomer,
+      webBillingEnabled: info.showWebGoldPatrol,
+    };
+  }
+
+  private openLobbySettings(info: DailyLobbyInfo): void {
+    this.showSettings(info.touchDevice, () => this.showDailyLobby(info), this.lobbySettingsCommunity(info));
+  }
+
+  private lobbyHeader(info: DailyLobbyInfo): HTMLElement {
+    const header = this.el("div", "lobby-header", "");
+    header.appendChild(this.lobbyBrand());
+    const icons = this.el("div", "lobby-header-icons", "");
+    if (info.creator) icons.appendChild(this.recordingModeIconBtn());
+    const lobbyTier: "free" | "premium" | "admin" =
+      info.tier ?? (info.unlimitedDaily ? "premium" : "free");
     icons.appendChild(
       this.buildTierChip(
         lobbyTier,
         () => this.cb.onUnlockGoldPatrol?.("guest_activate"),
-        openSettings,
+        () => this.openLobbySettings(info),
       ),
     );
-    icons.appendChild(this.lobbyIconBtn("bell", "Updates", () => this.openLatestFieldUpdate()));
-    icons.appendChild(
-      this.lobbyIconBtn("chat", "Feedback", () => this.showFeedback(() => this.showDailyLobby(info))),
-    );
-    icons.appendChild(this.lobbyIconBtn("gear", "Settings", openSettings));
+    icons.appendChild(this.lobbyIdentityBtn(info));
+    icons.appendChild(this.lobbyMenuButton(info));
     header.appendChild(icons);
-    screen.appendChild(header);
+    return header;
+  }
 
-    const left = this.el("div", "lobby-col-left", "");
-    left.appendChild(this.el("div", "subtitle", "Daily Patrol"));
-    left.appendChild(this.el("div", "divider", ""));
-    left.appendChild(this.lobbyPilotBadge(info));
-    if (!info.online) {
-      left.appendChild(
+  private lobbyBrand(): HTMLElement {
+    const wrap = this.el("div", "lobby-logo", "");
+    wrap.innerHTML =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="lobby-mark" role="img" aria-label="ORION">` +
+      `<g fill="none" stroke="#ffd700" stroke-width="10">` +
+      `<path d="M26.71 21.25 A37 37 0 0 1 73.29 21.25"/>` +
+      `<path d="M78.75 26.71 A37 37 0 0 1 78.75 73.29"/>` +
+      `<path d="M73.29 78.75 A37 37 0 0 1 26.71 78.75"/>` +
+      `<path d="M21.25 73.29 A37 37 0 0 1 21.25 26.71"/>` +
+      `</g><circle cx="50" cy="50" r="15" fill="#c41e3a"/></svg>` +
+      `<span class="lobby-word">ORION</span>`;
+    return wrap;
+  }
+
+  private lobbyIdentityBtn(info: DailyLobbyInfo): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "lobby-icon-btn chamfer lobby-id-btn";
+    const person =
+      `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+      `<circle cx="12" cy="8.2" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/>` +
+      `<path d="M5.8 18.4c1.2-3 3.4-4.4 6.2-4.4s5 1.4 6.2 4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>` +
+      `</svg>`;
+    if (info.callsign) {
+      const flag = info.country ? `${countryFlag(info.country)} ` : "";
+      const name = escapeHtml(sanitizeCallsignForDisplay(info.callsign));
+      btn.innerHTML = `${person}<span class="lobby-id-label">${flag}${name}</span>`;
+      btn.title = "Pilot profile";
+      btn.setAttribute("aria-label", `Pilot profile, ${sanitizeCallsignForDisplay(info.callsign)}`);
+      if ((info.pendingFriends ?? 0) > 0) btn.appendChild(this.el("span", "notif-dot", ""));
+      btn.addEventListener("click", () => this.cb.onProfile());
+    } else {
+      btn.innerHTML = `${person}<span class="lobby-id-label">SIGN IN</span>`;
+      btn.title = "Sign in";
+      btn.setAttribute("aria-label", "Sign in");
+      btn.addEventListener("click", () => this.cb.onCrewSignIn());
+    }
+    return btn;
+  }
+
+  private lobbyMenuButton(info: DailyLobbyInfo): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "lobby-icon-btn chamfer lobby-menu-btn";
+    btn.title = "Menu";
+    btn.setAttribute("aria-label", "Menu");
+    btn.innerHTML =
+      `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+      `<path d="M6 8h12M6 12h12M6 16h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>` +
+      `</svg>`;
+    const unread = hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId());
+    const friends = (info.pendingFriends ?? 0) > 0;
+    if (unread || friends) {
+      const dot = this.el("span", unread ? "update-pill" : "notif-dot", "");
+      if (unread) (dot as HTMLElement).hidden = false;
+      btn.appendChild(dot);
+    }
+    btn.addEventListener("click", () => this.showLobbyMenu(info));
+    return btn;
+  }
+
+  hideLobbyMenu(): void {
+    if (this.lobbyMenuKeyHandler) {
+      window.removeEventListener("keydown", this.lobbyMenuKeyHandler);
+      this.lobbyMenuKeyHandler = null;
+    }
+    document.getElementById("lobby-menu-catcher")?.remove();
+  }
+
+  showLobbyMenu(info: DailyLobbyInfo): void {
+    this.hideLobbyMenu();
+    const unread = hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId());
+    const catcher = this.el("div", "lobby-menu-catcher", "");
+    catcher.id = "lobby-menu-catcher";
+    const sheet = this.el("div", "lobby-menu-sheet chamfer", "");
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-label", "Lobby menu");
+    const close = (): void => this.hideLobbyMenu();
+    catcher.addEventListener("click", (e) => {
+      if (e.target === catcher) close();
+    });
+
+    const addRow = (label: string, onClick: () => void, opts?: { notif?: boolean }): void => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "lobby-menu-row chamfer";
+      row.textContent = label;
+      if (opts?.notif) row.appendChild(this.el("span", "notif-dot", ""));
+      row.addEventListener("click", () => {
+        close();
+        onClick();
+      });
+      sheet.appendChild(row);
+    };
+
+    addRow("Training Ground", () => this.cb.onTraining());
+    addRow("Patrol History", () => this.cb.onPatrolCalendar());
+    addRow("Wingmates", () => this.cb.onFriends(), { notif: (info.pendingFriends ?? 0) > 0 });
+    addRow("How to play", () => this.cb.onTutorial());
+    addRow("Powers", () => this.showPowers(() => this.showDailyLobby(info)));
+    addRow("Field updates", () => this.openLatestFieldUpdate(), { notif: unread });
+    addRow("Feedback", () => this.showFeedback(() => this.showDailyLobby(info)));
+    addRow("Settings", () => this.openLobbySettings(info));
+    if (APP_STORE_LIVE) {
+      addRow("Get on iPhone", () => {
+        window.open(APP_STORE_URL, "_blank", "noopener");
+      });
+    }
+    addRow("Privacy", () => openPrivacyPolicy());
+
+    catcher.appendChild(sheet);
+    this.root.appendChild(catcher);
+
+    const focusables = (): HTMLElement[] =>
+      Array.from(sheet.querySelectorAll<HTMLElement>("button"));
+    const first = focusables()[0];
+    first?.focus();
+    this.lobbyMenuKeyHandler = (e: KeyboardEvent): void => {
+      if (e.code === "Escape") {
+        e.preventDefault();
+        close();
+        return;
+      }
+      if (e.code !== "Tab") return;
+      const list = focusables();
+      if (list.length === 0) return;
+      const i = list.indexOf(document.activeElement as HTMLElement);
+      e.preventDefault();
+      if (e.shiftKey) list[(i <= 0 ? list.length : i) - 1].focus();
+      else list[(i + 1) % list.length].focus();
+    };
+    window.addEventListener("keydown", this.lobbyMenuKeyHandler);
+  }
+
+  private todayHero(info: DailyLobbyInfo): HTMLElement {
+    const phase = lobbyPhase(info, loadRunCount());
+    const hero = this.el("div", `lobby-hero chamfer phase-${phase}`, "");
+    hero.appendChild(this.patrolLine(info, phase));
+
+    if (phase === "offline") {
+      hero.appendChild(
         this.el(
           "div",
           "daily-offline",
           "Can't reach patrol command. Daily Patrol needs a connection. Training Ground is open offline.",
         ),
       );
+      const train = this.button("Training Ground", true, () => this.cb.onTraining());
+      train.classList.add("launch", "chamfer");
+      hero.appendChild(train);
+      return hero;
     }
 
-    left.appendChild(this.el("div", "daily-day", `PATROL <b>#${info.dayNumber}</b>`));
-    // pre-launch-gate days carry no mutators and no thresholds (see
-    // mutators.ts MUTATORS_START_DATE): skip the card entirely so the lobby
-    // looks exactly like it did before this feature shipped.
-    if (info.mutators.length > 0 && info.medalThresholds) {
-      left.appendChild(
-        this.mutatorBriefingCard(info.mutators, info.medalThresholds, info.preview, info.previewDate),
-      );
-    }
-
-    if (info.creator && info.upcomingDays && info.upcomingDays.length > 0) {
-      left.appendChild(this.rehearsalDayPicker(info));
-    }
-
-    // attempt pips: one per daily try, spent ones dimmed. A preview run
-    // never spends one, so its row says so instead of counting down.
     if (info.preview) {
-      left.appendChild(
-        this.el("div", "attempt-pips", `<span class="pips-label">unlimited attempts, not scored</span>`),
-      );
-    } else if (info.unlimitedDaily) {
-      left.appendChild(
-        this.el("div", "attempt-pips", `<span class="pips-label">Unlimited today</span>`),
-      );
+      const label = info.previewDate ? `PREVIEW · ${info.previewDate}` : "PREVIEW";
+      hero.appendChild(this.el("div", "preview-badge chamfer", label));
+    }
+    if (info.creator && info.upcomingDays && info.upcomingDays.length > 0) {
+      hero.appendChild(this.rehearsalDayPicker(info));
+    }
+
+    const showResult = (phase === "mid" || phase === "out" || (phase === "unlimited" && !!info.best)) && info.best;
+
+    if (showResult && info.best) {
+      hero.appendChild(this.resultBlock(info, phase));
+      hero.appendChild(this.heroActions(info, phase));
+      hero.appendChild(this.collapsedMutators(info));
     } else {
-      const pipsRow = this.el("div", "attempt-pips", "");
-      for (let i = 0; i < info.maxAttempts; i++) {
-        pipsRow.appendChild(this.el("span", `pip${i < info.attemptsLeft ? "" : " spent"}`, ""));
+      if (info.mutators.length === 0) {
+        hero.appendChild(this.el("div", "lobby-classic", "CLASSIC PATROL"));
+      } else {
+        hero.appendChild(this.el("div", "lobby-kicker", this.mutatorKicker(info)));
+        hero.appendChild(this.mutatorCards(info, phase === "pre" || phase === "unlimited"));
       }
-      pipsRow.appendChild(
-        this.el(
-          "span",
-          info.attemptsLeft > 0 ? "pips-label" : "pips-label complete",
-          info.attemptsLeft > 0 ? `${info.attemptsLeft} left today` : "Patrol complete",
-        ),
-      );
-      left.appendChild(pipsRow);
+      hero.appendChild(this.heroActions(info, phase));
+      if (loadRunCount() > 0 && info.medalThresholds) {
+        hero.appendChild(this.compactMedalLine(info.medalThresholds));
+      }
     }
+    return hero;
+  }
 
-    // today's leader, filled in async via setMenuDailyHint
-    const hint = this.el("div", "daily-hint lobby-hint", "");
-    hint.id = "daily-hint";
-    left.appendChild(hint);
-
-    // preview ignores the real attempt budget entirely: Launch always shows
-    if (!info.online && !info.preview) {
-      left.appendChild(
-        this.el("div", "daily-locked", "Daily Patrol is offline."),
-      );
-    } else if (info.preview || info.unlimitedDaily || info.attemptsLeft > 0) {
-      const launch = this.button("Launch Patrol", true, () => this.cb.onDaily());
-      launch.classList.add("launch", "chamfer");
-      left.appendChild(launch);
-      if (!info.preview && !info.unlimitedDaily && info.attemptsLeft === 1) {
-        left.appendChild(
-          this.el("div", "field-hint center last-attempt-hint", "Last patrol today. Make it count."),
-        );
-      }
+  private patrolLine(info: DailyLobbyInfo, phase: LobbyPhase): HTMLElement {
+    const row = this.el("div", "lobby-pline", "");
+    const left = this.el("span", "lobby-pnum", `PATROL <b>#${info.dayNumber}</b>`);
+    const used = info.maxAttempts - info.attemptsLeft;
+    if (phase === "pre" && used <= 0 && !info.preview) {
+      left.appendChild(this.el("span", "lobby-newtag", "NEW TODAY"));
+    }
+    row.appendChild(left);
+    if (phase === "out") {
+      row.appendChild(this.el("span", "lobby-reset", `${info.maxAttempts} of ${info.maxAttempts} flown`));
     } else {
-      left.appendChild(
-        this.el("div", "daily-locked", `Patrol <b>#${info.dayNumber}</b> complete.`),
-      );
-      left.appendChild(
-        this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`),
-      );
-      if (info.best) {
-        left.appendChild(
-          this.el(
-            "div",
-            "daily-best-line",
-            `Best today: <b>${fmtTime(info.best.time)}</b> · ` +
-              `<b>${Math.floor(info.best.score).toLocaleString()}</b> pts` +
-              (info.best.rank !== null ? ` · #${info.best.rank}` : ""),
-          ),
-        );
-        left.appendChild(this.shareButton());
-      }
-    }
-
-    const training = this.el("button", "menu-mode-btn training chamfer", "");
-    training.innerHTML =
-      `<span class="daily-name">✦ Training Ground</span>` +
-      `<span class="daily-sub">free practice, unlimited</span>`;
-    training.addEventListener("click", () => this.cb.onTraining());
-    left.appendChild(training);
-
-    if (info.showWebGoldPatrol && info.goldPatrolPrices && this.cb.onUnlockGoldPatrol) {
-      const upsell = this.el("div", "gold-patrol-lobby-upsell chamfer", "");
-      upsell.appendChild(this.el("div", "manual-title", "GOLD PATROL"));
-      upsell.appendChild(
-        this.el(
-          "div",
-          "field-hint",
-          `Unlimited Daily runs · ${info.goldPatrolPrices.monthly}/mo or ${info.goldPatrolPrices.yearly}/yr`,
-        ),
-      );
-      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.("lobby_upsell"));
-      unlock.classList.add("chamfer", "gold-patrol-plan");
-      upsell.appendChild(unlock);
-      left.appendChild(upsell);
-    }
-
-    const util = this.el("div", "lobby-util-grid", "");
-    util.appendChild(this.lobbyStackButton("Patrol History", () => this.cb.onPatrolCalendar()));
-    util.appendChild(
-      this.lobbyStackButton("Wingmates", () => this.cb.onFriends(), {
-        notif: (info.pendingFriends ?? 0) > 0,
-      }),
-    );
-    util.appendChild(this.lobbyStackButton("How to Play", () => this.cb.onTutorial()));
-    util.appendChild(
-      this.lobbyStackButton("Powers", () => this.showPowers(() => this.showDailyLobby(info))),
-    );
-    left.appendChild(util);
-    screen.appendChild(left);
-
-    const right = this.el("div", "lobby-col-right", "");
-    // Inline leaderboard: one merged ranking (all devices) for today's
-    // Daily Patrol, scrollable, filled in async via setDailyBoard once it
-    // loads.
-    if (info.online) {
-      const boardWrap = this.el("div", "daily-board-wrap chamfer", "");
-      boardWrap.id = "daily-lobby-board-wrap";
-      boardWrap.appendChild(this.el("div", "manual-title", "TODAY'S BOARD"));
-      const search = document.createElement("input");
-      search.type = "search";
-      search.className = "field daily-board-search chamfer";
-      search.placeholder = "Search callsign…";
-      search.id = "daily-board-search";
-      search.autocomplete = "off";
-      search.spellcheck = false;
-      search.addEventListener("input", () => {
-        this.dailyBoardSearchQuery = search.value;
-        this.renderDailyBoardRows();
+      const date = patrolDateStr();
+      const pretty = new Date(`${date}T12:00:00.000Z`).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
       });
-      boardWrap.appendChild(search);
-      const list = this.el("div", "board", `<div class="field-hint center">Loading…</div>`);
-      list.id = "daily-lobby-board";
-      boardWrap.appendChild(list);
-      right.appendChild(boardWrap);
+      row.appendChild(this.el("span", "lobby-reset", `${pretty} · next patrol ${dailyResetLabel()}`));
+    }
+    return row;
+  }
+
+  private mutatorKicker(info: DailyLobbyInfo): string {
+    return info.mutators.length > 1 ? "Today's mutators · Sunday double" : "Today's mutators";
+  }
+
+  private mutatorCards(info: DailyLobbyInfo, tall: boolean): HTMLElement {
+    const wrap = this.el("div", `lobby-muts${tall ? " tall" : ""}`, "");
+    for (const m of info.mutators) {
+      const card = this.el("div", "lobby-mut chamfer", "");
+      card.innerHTML =
+        `<div class="lobby-mut-g">${glyphSvg(m.id)}</div>` +
+        `<div><div class="lobby-mut-n">${escapeHtml(m.name)}</div>` +
+        `<div class="lobby-mut-b">${escapeHtml(m.briefing)}</div>` +
+        `<div class="lobby-mut-r">${escapeHtml(m.hudRule)}</div></div>`;
+      wrap.appendChild(card);
+    }
+    return wrap;
+  }
+
+  private collapsedMutators(info: DailyLobbyInfo): HTMLElement {
+    const wrap = this.el("div", "lobby-mut-collapse", "");
+    wrap.appendChild(this.el("div", "lobby-kicker", "Today's mutators"));
+    const chips = this.el("div", "lobby-chips", "");
+    for (const m of info.mutators) {
+      const chip = this.el("span", "lobby-chip chamfer", `${glyphSvg(m.id)}${escapeHtml(m.name)}`);
+      chips.appendChild(chip);
+    }
+    const rules = document.createElement("button");
+    rules.type = "button";
+    rules.className = "lobby-chip chamfer lobby-rules-chip";
+    rules.textContent = this.lobbyRulesOpen ? "RULES ▾" : "RULES ›";
+    chips.appendChild(rules);
+    wrap.appendChild(chips);
+    const cards = this.mutatorCards(info, false);
+    cards.hidden = !this.lobbyRulesOpen;
+    wrap.appendChild(cards);
+    rules.addEventListener("click", () => {
+      this.lobbyRulesOpen = !this.lobbyRulesOpen;
+      cards.hidden = !this.lobbyRulesOpen;
+      rules.textContent = this.lobbyRulesOpen ? "RULES ▾" : "RULES ›";
+    });
+    return wrap;
+  }
+
+  private resultBlock(info: DailyLobbyInfo, phase: LobbyPhase): HTMLElement {
+    const best = info.best!;
+    const block = this.el("div", "lobby-result", "");
+    block.appendChild(
+      this.el(
+        "div",
+        "lobby-kicker",
+        phase === "out" ? "Complete · your best" : "Your best today",
+      ),
+    );
+    block.appendChild(this.el("div", "lobby-score", Math.floor(best.score).toLocaleString()));
+      const medal = info.medalThresholds ? medalForScore(best.score, info.medalThresholds) : null;
+    const rankText = this.lobbyRankText(info, best);
+    const meta = this.el("div", "lobby-meta", "");
+    if (medal) {
+      meta.innerHTML += `${medalIconHtml(medal)}<span>${MEDAL_LABEL[medal]}</span>`;
+    }
+    if (rankText) {
+      if (meta.innerHTML) meta.innerHTML += `<span class="dot">·</span>`;
+      meta.innerHTML += `<span>${escapeHtml(rankText)}</span>`;
+    }
+    meta.innerHTML += `<span class="dot">·</span><span class="time">${fmtTime(best.time)}</span>`;
+    block.appendChild(meta);
+    if (info.medalThresholds) {
+      const p = nextMedalProgress(best.score, info.medalThresholds);
+      const bar = this.el("div", "lobby-bar", `<i style="width:${Math.round(p.ratio * 100)}%"></i>`);
+      block.appendChild(bar);
+      const bl = this.el("div", "lobby-bl", "");
+      if (p.earned) {
+        bl.appendChild(this.el("span", "", `${MEDAL_LABEL[p.earned]} ${fmtScoreShort(p.from)}`));
+      } else {
+        bl.appendChild(this.el("span", "", `0`));
+      }
+      if (p.next) {
+        bl.appendChild(this.el("span", "", `${p.remaining.toLocaleString()} to ${MEDAL_LABEL[p.next]}`));
+        bl.appendChild(this.el("span", "", `${MEDAL_LABEL[p.next]} ${fmtScoreShort(p.to)}`));
+      } else {
+        bl.appendChild(this.el("span", "", "GOLD"));
+      }
+      block.appendChild(bl);
+    }
+    return block;
+  }
+
+  private lobbyRankText(info: DailyLobbyInfo, best: { score: number; rank: number | null }): string {
+    if (info.callsign && best.rank !== null) return `#${best.rank} today`;
+    if (info.callsign && this.dailyBoardPinned) return `#${this.dailyBoardPinned.rank} today`;
+    if (info.callsign && this.dailyBoardFull) {
+      const me = this.dailyBoardFull.find((r) => r.isMe);
+      if (me) return `#${me.rank} today`;
+    }
+    if (!info.callsign && this.dailyBoardFull) {
+      const { rank } = provisionalRank(
+        best.score,
+        this.dailyBoardFull.map((r) => ({ callsign: r.callsign, score: r.score })),
+      );
+      return `Would be #${rank}`;
+    }
+    return "";
+  }
+
+  private heroActions(info: DailyLobbyInfo, phase: LobbyPhase): HTMLElement {
+    const wrap = this.el("div", "lobby-actions", "");
+    if (phase === "out") {
+      const share = this.shareButton();
+      share.classList.add("launch", "primary");
+      share.textContent = "SHARE RESULT";
+      wrap.appendChild(share);
+      wrap.appendChild(this.countdownLine());
+      if (info.showWebGoldPatrol && info.goldPatrolPrices && this.cb.onUnlockGoldPatrol) {
+        const monthly = info.goldPatrolPrices.monthly.replace(/\s*USD/i, "").trim();
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "lobby-upsell chamfer";
+        row.innerHTML =
+          `<span class="t"><b>GOLD PATROL</b><br>Keep flying today. Unlimited runs.</span>` +
+          `<span class="go">${escapeHtml(monthly)}/MO ›</span>`;
+        row.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.("lobby_upsell"));
+        wrap.appendChild(row);
+      }
+      const train = document.createElement("button");
+      train.type = "button";
+      train.className = "lobby-train-link";
+      train.textContent = "OR WARM UP IN TRAINING GROUND ›";
+      train.addEventListener("click", () => this.cb.onTraining());
+      wrap.appendChild(train);
+      return wrap;
     }
 
-    if (APP_STORE_LIVE) right.appendChild(this.appStoreBadge());
-    screen.appendChild(right);
+    const canLaunch = info.preview || info.unlimitedDaily || info.attemptsLeft > 0;
+    if (canLaunch) {
+      const launch = this.button(phase === "pre" && !info.best ? "LAUNCH PATROL" : "FLY AGAIN", true, () =>
+        this.cb.onDaily(),
+      );
+      launch.classList.add("launch", "chamfer");
+      const sub = this.el("span", "lobby-launch-sub", "");
+      if (info.preview) {
+        sub.textContent = "unlimited attempts, not scored";
+      } else if (info.unlimitedDaily) {
+        sub.textContent = phase === "pre" && !info.best ? "Unlimited today · Gold Patrol" : "FLY AGAIN · unlimited";
+      } else {
+        sub.innerHTML =
+          `${this.pipsHtml(info.attemptsLeft, info.maxAttempts)} ` +
+          (info.attemptsLeft === 1
+            ? "last attempt today"
+            : `${info.attemptsLeft} attempts left · best one counts`);
+      }
+      launch.appendChild(sub);
+      wrap.appendChild(launch);
+    }
+    if (phase === "mid" || (phase === "unlimited" && info.best)) {
+      wrap.appendChild(this.shareButton());
+    }
+    return wrap;
+  }
 
-    // Privacy stays footer-tier (legal, not a promoted action).
-    const footer = this.el("div", "lobby-footer", "");
-    const privacy = this.el("button", "full-game-link", "Privacy");
-    privacy.addEventListener("click", () => openPrivacyPolicy());
-    footer.append(privacy);
-    screen.appendChild(footer);
+  private pipsHtml(left: number, max: number): string {
+    let s = "";
+    for (let i = 0; i < max; i++) s += `<i class="pip${i < left ? "" : " spent"}"></i>`;
+    return `<span class="lobby-pips">${s}</span>`;
+  }
 
+  private compactMedalLine(thresholds: MedalThresholds): HTMLElement {
+    return this.el(
+      "div",
+      "lobby-medals",
+      `<span>${medalIconHtml("copper")} COPPER ${fmtScoreShort(thresholds.copper)}</span>` +
+        `<span>${medalIconHtml("silver")} SILVER ${fmtScoreShort(thresholds.silver)}</span>` +
+        `<span>${medalIconHtml("gold")} GOLD ${fmtScoreShort(thresholds.gold)}</span>`,
+    );
+  }
+
+  private stopLobbyCountdown(): void {
+    if (this.lobbyCountdown !== null) {
+      clearInterval(this.lobbyCountdown);
+      this.lobbyCountdown = null;
+    }
+  }
+
+  private countdownLine(): HTMLElement {
+    const line = this.el("div", "lobby-countdown", "");
+    const paint = (): void => {
+      const ms = nextPatrolMidnight().getTime() - Date.now();
+      const totalMin = Math.max(0, Math.floor(ms / 60000));
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      const clock = h > 0 ? `${h}h ${m}m` : `${m}m`;
+      line.textContent = `New mutators in ${clock} · midnight PT`;
+    };
+    paint();
+    this.stopLobbyCountdown();
+    this.lobbyCountdown = setInterval(paint, 60_000);
+    return line;
+  }
+
+  private lobbyBoardCard(info: DailyLobbyInfo): HTMLElement {
+    const card = this.el("div", "lobby-card chamfer lobby-board-card", "");
+    card.id = "daily-lobby-board-wrap";
+    const head = this.el("div", "lobby-card-head", "");
+    head.appendChild(this.el("span", "lobby-kicker", "Today's board"));
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "lobby-more";
+    more.textContent = "FULL BOARD ›";
+    more.addEventListener("click", () => this.showFullBoard(info));
+    head.appendChild(more);
+    card.appendChild(head);
+    const list = this.el("div", "lobby-board-list", `<div class="field-hint center">Loading…</div>`);
+    list.id = "lobby-board-list";
+    card.appendChild(list);
+    return card;
+  }
+
+  private boardTopN(): number {
+    if (typeof window === "undefined") return 8;
+    if (window.innerWidth < 900) return 3;
+    return window.innerHeight >= 860 ? 8 : 6;
+  }
+
+  private renderLobbyBoard(info: DailyLobbyInfo): void {
+    const list = document.getElementById("lobby-board-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (this.dailyBoardFull === null) {
+      list.appendChild(this.el("div", "field-hint center", "Loading…"));
+      return;
+    }
+    if (this.dailyBoardFull.length === 0) {
+      list.appendChild(this.el("div", "field-hint center", "No patrols flown yet today. Be the first!"));
+      list.appendChild(this.openSpotRow(info));
+      return;
+    }
+    const meRank = this.lobbyMeRank(info);
+    const hood = boardNeighborhood(this.dailyBoardFull, meRank !== null && info.callsign ? meRank : null, this.boardTopN());
+    for (const row of hood.top) list.appendChild(this.lobbyBoardRow(row));
+    if (hood.gap) list.appendChild(this.el("div", "lobby-board-gap", "· · ·"));
+    for (const row of hood.around) list.appendChild(this.lobbyBoardRow(row));
+    if (meRank !== null && !info.callsign && info.best) {
+      if (hood.top.length > 0 && !hood.gap && meRank > this.boardTopN()) {
+        list.appendChild(this.el("div", "lobby-board-gap", "· · ·"));
+      }
+      const above = this.dailyBoardFull.find((r) => r.rank === meRank - 1);
+      const below = this.dailyBoardFull.find((r) => r.rank === meRank);
+      if (meRank > this.boardTopN() && above && !hood.around.length) {
+        list.appendChild(this.lobbyBoardRow(above));
+      }
+      list.appendChild(this.guestYouRow(info, meRank));
+      if (below && meRank > this.boardTopN()) {
+        const shifted = { ...below, rank: meRank + 1 };
+        list.appendChild(this.lobbyBoardRow(shifted));
+      }
+    } else if (meRank === null) {
+      list.appendChild(this.openSpotRow(info));
+    }
+  }
+
+  private lobbyMeRank(info: DailyLobbyInfo): number | null {
+    if (info.callsign && this.dailyBoardFull) {
+      const me = this.dailyBoardFull.find((r) => r.isMe);
+      if (me) return me.rank;
+    }
+    if (info.callsign && this.dailyBoardPinned) return this.dailyBoardPinned.rank;
+    if (info.callsign && info.best?.rank != null) return info.best.rank;
+    if (!info.callsign && info.best && this.dailyBoardFull) {
+      return provisionalRank(
+        info.best.score,
+        this.dailyBoardFull.map((r) => ({ callsign: r.callsign, score: r.score })),
+      ).rank;
+    }
+    return null;
+  }
+
+  private openSpotRow(info: DailyLobbyInfo): HTMLElement {
+    const row = this.el(
+      "div",
+      "lobby-board-row open",
+      `<span class="rk">?</span><span>Your spot is open. Fly to rank.</span>`,
+    );
+    void info;
+    return row;
+  }
+
+  private guestYouRow(info: DailyLobbyInfo, rank: number): HTMLElement {
+    const row = this.el(
+      "div",
+      "lobby-board-row me guest-claim",
+      `<span class="rk">${rank}</span><span class="nm">Would be #${rank} · Sign in to post it ›</span>` +
+        `<span class="pts">${Math.floor(info.best?.score ?? 0).toLocaleString()}</span>`,
+    );
+    row.addEventListener("click", () => this.cb.onCrewSignIn());
+    return row;
+  }
+
+  private lobbyBoardRow(row: DailyBoardRow): HTMLElement {
+    const clickable = !row.virtual;
+    const el = this.el(
+      "div",
+      `lobby-board-row${clickable ? " link" : ""}${row.isMe ? " me" : ""}`,
+      `<span class="rk">${row.rank}</span>` +
+        `<span class="flag">${row.country ? countryFlag(row.country) : ""}</span>` +
+        `<span class="nm">${escapeHtml(row.callsign)}</span>` +
+        `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
+    );
+    if (clickable) {
+      el.addEventListener("click", () => {
+        if (row.isMe) this.cb.onProfile();
+        else this.cb.onPilot(row.callsign);
+      });
+    }
+    return el;
+  }
+
+  showFullBoard(info: DailyLobbyInfo): void {
+    this.clearKeepLobby(info);
+    const screen = this.el("div", "screen menu full-board", "");
+    this.makeSubmenu(screen, () => this.showDailyLobby(info));
+    screen.appendChild(this.el("div", "heading gold small", "TODAY'S BOARD"));
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "field daily-board-search chamfer";
+    search.placeholder = "Search callsign…";
+    search.id = "daily-board-search";
+    search.autocomplete = "off";
+    search.spellcheck = false;
+    search.value = this.dailyBoardSearchQuery;
+    search.addEventListener("input", () => {
+      this.dailyBoardSearchQuery = search.value;
+      this.renderDailyBoardRows();
+    });
+    screen.appendChild(search);
+    const list = this.el("div", "board", "");
+    list.id = "daily-lobby-board";
+    screen.appendChild(list);
     this.root.appendChild(screen);
-    this.bootLobbyUpdates();
+    this.renderDailyBoardRows();
+  }
+
+  private clearKeepLobby(info: DailyLobbyInfo): void {
+    const week = this.lobbyWeekServer;
+    const board = this.dailyBoardFull;
+    const pinned = this.dailyBoardPinned;
+    const q = this.dailyBoardSearchQuery;
+    this.clear();
+    this.lobbyInfo = info;
+    this.lobbyWeekServer = week;
+    this.dailyBoardFull = board;
+    this.dailyBoardPinned = pinned;
+    this.dailyBoardSearchQuery = q;
+  }
+
+  setLobbyWeekServer(entries: ServerDayEntry[]): void {
+    this.lobbyWeekServer = new Map(entries.map((e) => [e.date, e]));
+    if (this.lobbyInfo && this.root.querySelector(".lobby-patrols-card")) {
+      const card = this.root.querySelector(".lobby-patrols-card");
+      card?.replaceWith(this.lobbyPatrolsCard(this.lobbyInfo));
+    }
+  }
+
+  private lobbyPatrolsCard(info: DailyLobbyInfo): HTMLElement {
+    const card = this.el("div", "lobby-card chamfer lobby-patrols-card", "");
+    const head = this.el("div", "lobby-card-head", "");
+    head.appendChild(this.el("span", "lobby-kicker", "My patrols"));
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "lobby-more";
+    more.textContent = "HISTORY ›";
+    more.addEventListener("click", () => this.cb.onPatrolCalendar());
+    head.appendChild(more);
+    card.appendChild(head);
+
+    const attempts = loadDailyAttempts();
+    const today = patrolDateStr();
+    const epoch =
+      info.callsign && this.lobbyWeekServer.size > 0 ? DAILY_EPOCH_DATE : DAILY_EPOCH_DATE;
+    const cells = weekStrip(loadDailyHistory(), today, attempts, (dateStr) => medalThresholdsForDate(new Date(`${dateStr}T00:00:00.000Z`)), {
+      signedIn: !!info.callsign,
+      server: this.lobbyWeekServer,
+      epochDate: epoch,
+    });
+    const week = this.el("div", "lobby-week", "");
+    for (const cell of cells) {
+      week.appendChild(this.weekCellEl(cell, today));
+    }
+    card.appendChild(week);
+
+    const streak = currentStreak(cells);
+    const medals = cells.filter((c) => c.state === "gold" || c.state === "silver" || c.state === "copper").length;
+    const streakRow = this.el("div", "lobby-streak", "");
+    if (streak === 0 && cells.every((c) => c.state === "today" || c.state === "missed" || c.state === "future")) {
+      streakRow.appendChild(this.el("span", "", "Your first patrol starts the streak."));
+    } else {
+      const keep =
+        cells[cells.length - 1]?.state === "today" ? "fly today to keep it" : "kept alive";
+      const device = info.callsign ? "" : " · on this device";
+      streakRow.appendChild(this.el("span", "", `<b>${streak}-day streak</b> · ${keep}${device}`));
+      streakRow.appendChild(this.el("span", "", `${medals} medals this week`));
+    }
+    card.appendChild(streakRow);
+
+    const yday = cells[cells.length - 2];
+    if (yday && (yday.state === "gold" || yday.state === "silver" || yday.state === "copper" || yday.state === "flown")) {
+      const muts = getMutatorsForDate(new Date(`${yday.date}T00:00:00.000Z`));
+      const name = muts[0]?.name ?? "Patrol";
+      const local = loadDailyHistory().find((d) => d.date === yday.date);
+      const server = this.lobbyWeekServer.get(yday.date);
+      const rank = server?.rank ?? local?.best?.rank ?? null;
+      const score = server?.best ?? local?.best?.score ?? null;
+      const bits: string[] = [];
+      if (rank !== null) bits.push(`#${rank}`);
+      if (score !== null) bits.push(Math.floor(score).toLocaleString());
+      if (yday.medal) bits.push(MEDAL_LABEL[yday.medal]);
+      const line = this.el("div", "lobby-yday", "");
+      line.appendChild(this.el("span", "", `Yesterday · <b>${escapeHtml(name)}</b>`));
+      line.appendChild(this.el("span", "", bits.join(" · ")));
+      card.appendChild(line);
+    }
+    return card;
+  }
+
+  private weekCellEl(cell: WeekCell, today: string): HTMLElement {
+    const el = this.el("div", `lobby-day${cell.date === today ? " today" : ""}`, "");
+    let inner = "";
+    if (cell.medal) inner = medalIconHtml(cell.medal);
+    else if (cell.state === "flown") inner = `<span class="flown-dia">◆</span>`;
+    el.appendChild(this.el("div", `c ${cell.state}`, inner));
+    el.appendChild(this.el("div", "dow", cell.date === today ? "TODAY" : cell.dow.slice(0, 3)));
+    return el;
+  }
+
+  private lobbyDesktopFooter(info: DailyLobbyInfo): HTMLElement {
+    const footer = this.el("div", "lobby-footer", "");
+    const add = (label: string, onClick: () => void): void => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "lobby-foot-link";
+      b.textContent = label;
+      b.addEventListener("click", onClick);
+      footer.appendChild(b);
+    };
+    add("Training Ground", () => this.cb.onTraining());
+    footer.appendChild(this.el("span", "lobby-foot-dot", "·"));
+    add("How to play", () => this.cb.onTutorial());
+    if (APP_STORE_LIVE) {
+      footer.appendChild(this.el("span", "lobby-foot-dot", "·"));
+      add("Get on iPhone", () => {
+        window.open(APP_STORE_URL, "_blank", "noopener");
+      });
+    }
+    footer.appendChild(this.el("span", "lobby-foot-dot", "·"));
+    add("Privacy", () => openPrivacyPolicy());
+    void info;
+    return footer;
   }
 
   /**
@@ -3120,9 +3681,8 @@ export class Ui {
     const wrap = document.getElementById("daily-lobby-board-wrap");
     const list = document.getElementById("daily-lobby-board");
     const search = document.getElementById("daily-board-search") as HTMLInputElement | null;
-    if (!wrap || !list) return;
     if (data === null) {
-      wrap.style.display = "none";
+      if (wrap) wrap.style.display = "none";
       this.dailyBoardFull = null;
       this.dailyBoardPinned = null;
       return;
@@ -3132,7 +3692,8 @@ export class Ui {
     if (search && search.value !== this.dailyBoardSearchQuery) {
       search.value = this.dailyBoardSearchQuery;
     }
-    this.renderDailyBoardRows();
+    if (this.lobbyInfo) this.renderLobbyBoard(this.lobbyInfo);
+    if (list) this.renderDailyBoardRows();
   }
 
   private renderDailyBoardRows(): void {

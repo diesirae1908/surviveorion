@@ -902,6 +902,7 @@ function showMenu(): void {
     });
     fillDailyHint();
     fillDailyBoard();
+    fillLobbyWeek();
     maybeShowPatrolComplete(false);
     return;
   }
@@ -979,6 +980,17 @@ function fillDailyBoard(): void {
       ui.setDailyBoard({ entries, pinned });
     })
     .catch(() => ui.setDailyBoard(null));
+}
+
+function fillLobbyWeek(): void {
+  if (!api.signedIn || !api.online) return;
+  const today = patrolDateStr();
+  const [y, m, d] = today.split("-").map(Number);
+  const from = new Date(Date.UTC(y, m - 1, d - 6)).toISOString().slice(0, 10);
+  void api
+    .dailyHistory(from, today)
+    .then((r) => ui.setLobbyWeekServer(r.entries))
+    .catch(() => {});
 }
 
 // --- Patrol history calendar ---
