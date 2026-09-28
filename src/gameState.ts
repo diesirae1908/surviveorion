@@ -4,7 +4,7 @@ import { updateCreatureChoreography } from "./creatures";
 import { droneRadius, initSpawner, killDrone, updateAssemblies, updateDrones, updateSpawner } from "./enemies";
 import type { InputState } from "./input";
 import { isMineArmed, killMine, mineRadius, shatterFrozenMine, updateMines } from "./mines";
-import { circlesOverlap } from "./physics";
+import { circlesOverlap, clampToBounds } from "./physics";
 import { initPickups, updatePickups } from "./pickups";
 import { blastRadius, createPowersState, detonateShield, updatePowers } from "./powers";
 import { registerGraze, updateScoring } from "./scoring";
@@ -111,6 +111,7 @@ export function createWorld(
 export function resizeWorld(world: World, viewW: number, viewH: number): void {
   world.viewW = viewW;
   world.viewH = viewH;
+  clampToBounds(world.ship, world, SHIP.wallInset);
 }
 
 /** One fixed-timestep simulation step. */

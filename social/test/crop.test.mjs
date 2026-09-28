@@ -91,6 +91,15 @@ describe("crop engine v2.0", () => {
     assert.equal(p.py, 500);
   });
 
+  it("worldToPixel contains a 10x16 field on a tall frame", () => {
+    const c = worldToPixel(0, 0, 390, 844, { w: 10, h: 16 });
+    assert.equal(c.px, 195);
+    assert.equal(c.py, 422);
+    const fill = worldToPixel(0, 0, 1440, 900, { w: 16, h: 10 });
+    assert.equal(fill.px, 720);
+    assert.equal(fill.py, 450);
+  });
+
   it("sendcmd lists crop x/y/w/h", () => {
     const { frames } = precomputeCropPath({
       duration: 0.1,

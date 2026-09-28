@@ -2,7 +2,7 @@
  * Headless playtest of the new formations and powers (no DOM needed).
  * Run: npx tsx scripts/sim-test.ts
  */
-import { ASSEMBLY, FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING, shipTopInset } from "../src/config";
+import { ASSEMBLY, FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING } from "../src/config";
 import { droneRadius, spawnAssemblyDirect, spawnDroneDirect } from "../src/enemies";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
@@ -41,9 +41,9 @@ function step(world: World, seconds: number): void {
   }
 }
 
-/** Teleport onto a pickup without landing in the HUD band the ship cannot enter. */
+/** Teleport onto a pickup, clamped to the real walls (same bound as the ship). */
 function parkShipOnPickup(world: World, p: { x: number; y: number }): void {
-  const top = shipTopInset(world.viewW, world.viewH, world.clipView.w, world.clipView.h);
+  const top = SHIP.wallInset;
   const yMax = world.viewH / 2 - top;
   const yMin = -(world.viewH / 2 - SHIP.wallInset);
   const xMax = world.viewW / 2 - SHIP.wallInset;
@@ -849,10 +849,10 @@ function muteAmbientPickups(world: World): void {
     );
     world.events.length = 0;
   }
-  const limit = world.viewH / 2 - shipTopInset(16, 10, 1440, 900);
+  const limit = world.viewH / 2 - SHIP.wallInset;
   check(
-    "HUD band: hold-up 2s keeps the hull below the top HUD",
-    world.ship.y <= limit + 1e-4,
+    "top wall: hold-up 2s keeps the hull inside the view",
+    world.ship.y <= limit + 1e-4 && world.ship.y >= limit - 0.05,
     `y=${world.ship.y.toFixed(3)} limit=${limit.toFixed(3)}`,
   );
 }
@@ -2619,9 +2619,9 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
   );
 }
 
-// Desktop 1440x900 playfield (VIEW_MIN on the short axis => 16 x 10). Denser
-// than phone portrait (~10 x 21.6) and than the 17.8 x 10 16:9 sim above.
-// QA-01: THE FLOOD and SOLAR WIND idle died at 11s / 9s on this size.
+// Desktop 1440x900 playfield is a fixed 16 x 10 (same on every landscape
+// view). Portrait is 10 x 16. QA-01: THE FLOOD and SOLAR WIND idle died
+// at 11s / 9s on this size.
 {
   const CAP = 20;
   const NEED = 12;

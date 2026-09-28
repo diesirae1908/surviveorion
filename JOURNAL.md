@@ -4,6 +4,18 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: fixed 16x10 field + ship can reach the top wall
+
+- **Branch:** `feat/field-scale-0927` (worktree `~/Documents/games/orion-web-field-0927` off `origin/dev` `aca5dba`, then FF to `1bc45f1`). Main checkout untouched.
+- **Why:** Lucas (Sep 27): on today's mutators the ship could not fly into the top of the screen; desktop vs phone used different world scales. Diagnosis confirmed: `shipTopInset()` (QA-04 HUD clamp) was global, not mutator-specific. `VIEW_MIN = 10` made the short css axis 10 units (desktop 16x10 @90 px/u vs portrait ~10x21.6 @39 px/u).
+- **Scale:** playfield is a fixed 16x10 (10x16 when cssH > cssW). Canvas fills the window; the field is contain-fitted and centered. Spare space is bars (starfield extends into them, subtle gold field border). Desktop 1440x900 still fills exactly at 90 css px/unit. Orientation change mid-run resizes via `resizeWorld` + `clampToBounds`; daily seed is not re-rolled. THE PIT `viewScale` still shrinks physics inside this frame.
+- **Top wall:** removed `shipTopInset` / `hudBandPx` / `hudBandLeftPx` / `hudFallbackCssShort`. Ship clamps to `SHIP.wallInset` only. Where HUD sits in a portrait bar, no overlap. Where HUD overlaps the field (desktop / landscape / iPad portrait height-fill), overlapping HUD (score / timer / pause) fades to 0.35 while the ship is under it.
+- **Mappings:** render transform, touch overlay, pause/blackout rings, clip/share crop (`social/src/crop.mjs` contain-fit). Stick input stays delta-based.
+- **Invariants:** Classic fingerprint still `2750562758` (34 / 3 / 11). Sim hold-up parks at y = 4.580 (real top wall). No seed / rand / server / score / billing / `ios/` changes.
+- **Verify:** `npm test` green, `npx tsx scripts/sim-test.ts` green, `cd social && npm test` 91/91, `npm run build` (`main-y2ICzOUK.js`). Headless Playwright local shots at 1440x900 (fill), 1920x1080 (side bars), 390x844 (top/bottom bars, HUD in top bar, ship at field wall), 844x390 (side bars), 768x1024 (side bars, HUD fade): `~/Documents/Sam/reports/orion-field-scale-2026-09-27/`.
+- **Push:** this branch, then merge to `dev` (staging). `main` untouched.
+- **iOS:** Capacitor serves this web build. Lucas needs a new TestFlight / App Store build to pick it up. No Xcode / build-number bump in this dispatch.
+
 ## 2026-09-27 PT: promote paywall counter (`aca5dba`) to `main` (production)
 
 - **Approval:** Lucas, ~9:15 PM PT. **Worktree:** `.worktrees/promote-paywall-0927` (not the dirty `orion-web` checkout). **Frozen SHAs:** `origin/main` `b8ec879`, `origin/dev` `aca5dba`.
