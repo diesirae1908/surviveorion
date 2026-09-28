@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: promote lobby calendar + centered mutator to `main` (production)
+
+- **Approval:** Lucas, 9:54 and 9:56 AM PT (center single mutator card; My patrols days open Calendar; History renamed Calendar). Sam reviewed `84f5d92`.
+- **Worktree:** `~/Documents/games/orion-web-promote-cal-0928` at `84f5d92` (main checkout untouched).
+- **Frozen SHAs (tripwire):** `origin/main` `e427a0b`, `origin/dev` `84f5d92`. `git diff --name-only origin/main origin/dev` only `JOURNAL.md`, `scripts/test-lobby-state.ts`, `scripts/test-updates.ts`, `src/lobbyState.ts`, `src/main.ts`, `src/style.css`, `src/ui.ts`.
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on (`autoDeployTrigger`: commit).
+- **Gate:** `npm ci`, `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts` green at `84f5d92` (bundle `main-GzxpNelO.js`).
+- **Production:** FF push `84f5d92` → `main`. Deploy `dep-data1249v7es73frdt8g` live ~10:16 AM PT (`finishedAt` 2026-09-28T17:16:02Z). Smoke: `/` serves `main-GzxpNelO.js`, `/api/config` 200, `/api/me` 401, `/updates.json` 200. App logs since deploy start: no `error` lines; boot `stripe billing: enabled` (instance `srv-d983pie7r5hc73ce7bfg-vplpm`, 2026-09-28T17:15:57Z). Node SQLite experimental warning only.
+- **Dev sync:** FF `origin/main` (journal tip) → `dev` after this entry.
+
 ## 2026-09-28 PT: mark and center the strip-opened calendar day
 
 - **Branch:** `fix/lobby-center-mutator`. Main checkout untouched.
