@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: promote field 16:9 + black bars (`bf20251`) to `main` (production)
+
+- **Approval:** Lucas, 2:42 PM PT (field stretches 16:10 to 16:9, opaque black bars, world clipped to field) and 2:49 PM PT "push live when done". Sam reviewed `bf20251` (merge of `origin/dev` calendar nav into `fix/field-169-black-bars`, `b4b86c4`).
+- **Frozen SHAs (tripwire):** `origin/main` `6f3ba2b`, `origin/dev` `bf20251`. Diff was the 8 field files only: `JOURNAL.md`, `scripts/test-play-viewport.ts`, `social/src/crop.mjs`, `social/test/crop.test.mjs`, `src/config.ts`, `src/playView.ts`, `src/render.ts`, `src/style.css`.
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on.
+- **Production:** FF push `origin/main` `6f3ba2b` → `bf20251` (by the promote agent, which then hit a usage limit; bookkeeping entry written after by Claude CLI). Deploy `dep-date8hu0tbcc73fs0fm0` live 2026-09-28T22:05:05Z (~3:05 PM PT). Bundle `main-DK8j4kFf.js` (was `main-e1tAnEbt.js`).
+- **Smoke (Sam, GET):** `/` 200 + new bundle, `/api/config` 200, `/api/me` 401, `/updates.json` 200. App logs since deploy start: `stripe billing: enabled`, no `error` lines.
+- **Gate:** Classic fingerprint `2750562758` (34 / 3 / 11) unchanged; `npm test`, build, sim-test, social 92/92 green at `bf20251` (build agent).
+- **Follow-up:** Sam pushes this entry and removes the promote + build worktrees.
+
 ## 2026-09-28 PT: field stretches 16:10 to 16:9, bars solid black
 
 - **Branch:** `fix/field-169-black-bars` (worktree `.worktrees/field-169` off `origin/dev` `e12af5f`). Main checkout and `.worktrees/cal-nav` untouched. Did not merge later origin/dev calendar-nav commits (`a473a59` / `6f3ba2b`).
