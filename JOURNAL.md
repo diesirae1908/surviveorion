@@ -12,6 +12,18 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Verify (pre-push):** `git merge-base --is-ancestor origin/main 3aad13b` OK; `npm ci`, `npm test`, `npm run build` green (bundle `main-Bdx14LWw.js`).
 - **Deploy:** `git push origin HEAD:main` (fast-forward). Render `surviveorion` auto-deploy from `main`. Dev FF to same commit only if `origin/dev` still `3aad13b`.
 
+## 2026-09-27 PT: UX follow-up (OR-22 + QA R2-01..03)
+
+- **Branch:** `feat/ux-followup-0927` (worktree `.worktrees/ux-followup-0927` off `3aad13b`, not a moving origin/dev).
+- **OR-22 (Lucas approved):** guest ACTIVATE opens the existing Gold Patrol paywall (plan cards) instead of PILOT LOGIN. Unsigned plan tap still goes through `showAuth` then checkout. Native `IS_NATIVE_PLAY` still `postNativePremium`. Guest Wingmates (web only) shows the empty-state panel with "Sign in to add wingmates"; the button opens login. Native Wingmates path unchanged. No Stripe/StoreKit/price/plan edits.
+- **R2-01:** pause-corner ring drawn after HUD, radius clearly past the drone body (`max(body+12, body*1.55)`), alpha 0.9 / 3px stroke.
+- **R2-02:** First Flight 0:18 strip is "Same patrol for everyone. 3 attempts." End screen keeps the full sentence. Flight School modal/strip unchanged.
+- **R2-03:** phone (`cssW < 900`) `shipTopInset` uses `hudBandLeftPx` 96 (score + multiplier + BEST). Desktop/headless stay on `hudBandPx` 73.
+- **Files:** `src/main.ts`, `src/ui.ts`, `src/save.ts`, `src/config.ts`, `src/render.ts`, `scripts/test-first-flight.ts`, `scripts/test-native-play.ts`, `scripts/test-play-viewport.ts`, `JOURNAL.md`, `qa-evidence/ux-round-2026-09-27/followup/`.
+- **Invariants:** no rand/scheduleRand changes. Classic fingerprint still `2750562758` (34 / 3 / 11). Mutator snapshots unchanged.
+- **Verify:** `npm test` green, `npm run build` (`main-crnTLhxg.js`) green, `npx tsx scripts/sim-test.ts` green. Playwright: guest ACTIVATE paywall, guest Wingmates empty-state, 360x780 strip (297px, no overflow).
+- **Push:** this branch only. Do not push `dev` or `main`.
+
 ## 2026-09-27 PT: merge UX QA fixes (opening + UI) into `dev`
 
 - **Worktree:** `.worktrees/ux-qa-merge-0927`, branch `sam/ux-qa-merge-0927` off `origin/dev` `558d756`.

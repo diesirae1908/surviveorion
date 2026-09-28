@@ -2619,8 +2619,8 @@ export class Renderer {
     const rectB = 72;
     ctx.save();
     ctx.strokeStyle = PALETTE.redBright;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = 0.35;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
     for (const d of world.drones) {
       if (!d.alive) continue;
       const wx = lerp(d.prevX, d.x, alpha);
@@ -2628,7 +2628,10 @@ export class Renderer {
       const sx = this.cssW / 2 + wx * scaleCss;
       const sy = this.cssH / 2 - wy * scaleCss;
       if (sx < rectL || sx > rectR || sy < rectT || sy > rectB) continue;
-      const r = Math.max(8, droneRadius(d) * scaleCss + 4);
+      const bodyR = droneRadius(d) * scaleCss;
+      const r = Math.max(bodyR + 12, bodyR * 1.55);
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.9;
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.stroke();

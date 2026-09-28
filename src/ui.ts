@@ -22,6 +22,7 @@ import type {
 } from "./save";
 import {
   DAILY_FREE_DEATH_SECONDS,
+  FIRST_FLIGHT_PATROL_LINE,
   KEY_ACTION_LABELS,
   KEY_ACTIONS,
   PATROL_COMPLETE_BODY_1,
@@ -654,6 +655,35 @@ export class Ui {
     footer.append(terms, this.el("span", "paywall-footer-dot", "·"), privacy);
     screen.appendChild(footer);
 
+    this.root.appendChild(screen);
+  }
+
+  /**
+   * Guest Wingmates: explain the panel, then Sign in. Native play keeps
+   * jumping straight to PILOT LOGIN (see main.ts onFriends).
+   */
+  showGuestWingmates(onSignIn: () => void, onBack: () => void): void {
+    this.clear();
+    this.pauseBtn.style.display = "none";
+    const screen = this.el("div", "screen", "");
+    this.makeSubmenu(screen, onBack);
+    screen.appendChild(this.el("div", "heading gold small", "WINGMATES"));
+    screen.appendChild(this.el("div", "divider", ""));
+    screen.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Add pilots by callsign to race their best runs and see their latest flights.",
+      ),
+    );
+    const empty = this.el("div", "empty-state", "");
+    empty.appendChild(this.el("div", "empty-state-icon", "✦"));
+    empty.appendChild(this.el("div", "empty-state-title", "No wingmates yet"));
+    empty.appendChild(this.el("div", "empty-state-body", "Sign in to add wingmates"));
+    const btn = this.button("Sign in to add wingmates", true, onSignIn);
+    btn.classList.add("small-btn", "chamfer");
+    empty.appendChild(btn);
+    screen.appendChild(empty);
     this.root.appendChild(screen);
   }
 
@@ -1898,7 +1928,7 @@ export class Ui {
         this.el(
           "div",
           "hint",
-          "Everyone flies this same patrol today. 3 attempts. Best one goes on the board.",
+          FIRST_FLIGHT_PATROL_LINE,
         ),
       );
       const fly = (): void => {

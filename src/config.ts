@@ -31,9 +31,12 @@ export const SHIP = {
   wallInset: 0.42, // clamp/wind bound: about half the drawn hull at visualScale 0.8
   // drawHud (read 2026-09-27, not imported): padTop 18, mutator tag at
   // padTop+44 with 11px font -> 73 css px. Pause occupancy rect is 72x72
-  // (drawPauseHudRings). Daily stack wins. Safe-area inset is runtime-only
-  // and is not in this constant. Converted with the short css axis.
+  // (drawPauseHudRings). Daily stack wins on desktop. Safe-area inset is
+  // runtime-only and is not in this constant. Converted with the short css axis.
   hudBandPx: 73,
+  // Phone portrait: left HUD stack is score, multiplier, BEST at padTop+60
+  // with 14px font (baseline top) -> 18+60+14 = 92, plus a little slack.
+  hudBandLeftPx: 96,
   // Headless / missing clipView: treat the short axis as 1440x900's 900 px.
   hudFallbackCssShort: 900,
   visualScale: 0.8, // hull drawn smaller for more perceived flying room
@@ -80,7 +83,9 @@ export function openingWindScale(time: number, gameMode?: string): number {
 export function shipTopInset(viewW: number, viewH: number, cssW = 0, cssH = 0): number {
   const viewShort = Math.min(viewW, viewH);
   const cssShort = cssW > 0 && cssH > 0 ? Math.min(cssW, cssH) : SHIP.hudFallbackCssShort;
-  const hudWorld = SHIP.hudBandPx * (viewShort / cssShort);
+  const phone = cssW > 0 && cssW < 900;
+  const band = phone ? SHIP.hudBandLeftPx : SHIP.hudBandPx;
+  const hudWorld = band * (viewShort / cssShort);
   const hullNose = 0.55 * SHIP.visualScale;
   return Math.max(SHIP.wallInset, hudWorld + hullNose);
 }

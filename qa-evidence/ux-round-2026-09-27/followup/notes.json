@@ -1,0 +1,62 @@
+[
+  [
+    "gotIt",
+    "clicked"
+  ],
+  [
+    "lobby",
+    "ACTIVATE DAILY PATROL ✦ SIGN IN save your score, find wingmates PATROL #76 TODAY'S BRIEFING OVERCHARGE Same drops. Every power just got a lot louder. Drops normal. Powers hit far bigger. MENAGERIE The Zoo is open. Every cage, every kind. You never know what fuses next. Random types, no repeats. Then two fuse. COPPER 45k SILVER 100k GOLD 230k 3 left today LAUNCH PATROL ✦ TRAINING GROUND free practice, unlimited PATROL HISTORY WINGMATES HOW TO PLAY POWERS Daily reminder on your phone PRIVACY"
+  ],
+  [
+    "activateCount",
+    1
+  ],
+  [
+    "afterActivate",
+    "← ♛ GOLD PATROL Unlimited Daily runs, plus your full patrol archive. ∞ Unlimited Daily Patrol runs today ↻ Replay any past Daily Patrol with full scores ▤ Full history: attempts, medals, streaks, trends $1.99 USD per month BEST VALUE $14.99 USD per year, save 37% Gold Patrol renews automatically until cancelled. Secure checkout by Stripe (USD). Manage or cancel anytime from Settings. Terms · Privacy"
+  ],
+  [
+    "paywall",
+    true
+  ],
+  [
+    "notBareLogin",
+    true
+  ],
+  [
+    "wingmatesCount",
+    1
+  ],
+  [
+    "afterWingmates",
+    "← WINGMATES Add pilots by callsign to race their best runs and see their latest flights. ✦ No wingmates yet Sign in to add wingmates SIGN IN TO ADD WINGMATES"
+  ],
+  [
+    "wingEmpty",
+    true
+  ],
+  [
+    "wingNotBareLogin",
+    true
+  ],
+  [
+    "signInOpensLogin",
+    true
+  ],
+  [
+    "ffLobby",
+    "ACTIVATE DAILY PATROL ✦ SIGN IN save your score, find wingmates PATROL #76 TODAY'S BRIEFING OVERCHARGE Same drops. Every power just got a lot louder. Drops normal. Powers hit far bigger. MENAGERIE The Zoo is open. Every cage, every kind. You never know what fuses next. Random types, no repeats. Then two fuse. COPPER 45k SILVER 100k GOLD 230k 3 left today LAUNCH PATROL ✦ TRAINING GROUND free practice, unlimited PATROL HISTORY WINGMATES HOW TO PLAY POWERS Daily reminder on your phone PRIVACY"
+  ],
+  [
+    "ffHint",
+    ""
+  ],
+  [
+    "ffHintShort",
+    false
+  ],
+  [
+    "ffHintNotTruncated",
+    true
+  ]
+]
