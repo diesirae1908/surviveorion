@@ -3403,7 +3403,39 @@ button.link-btn:active {
 }
 
 .day-card-from-strip {
-  box-shadow: 0 0 0 1px var(--orion-gold);
+  position: relative;
+  z-index: 1;
+  border-color: var(--orion-flare);
+  border-width: 2px;
+  box-shadow:
+    0 0 0 2px var(--orion-gold),
+    0 0 22px rgba(255, 215, 0, 0.55);
+  animation: day-card-from-strip-hold 2.2s var(--orion-ease-out) forwards;
+}
+
+.day-card-from-strip.day-card-peek {
+  transform: none;
+  opacity: 1;
+}
+
+@keyframes day-card-from-strip-hold {
+  0%,
+  75% {
+    box-shadow:
+      0 0 0 2px var(--orion-gold),
+      0 0 22px rgba(255, 215, 0, 0.55);
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 215, 0, 0.65),
+      0 0 10px rgba(255, 215, 0, 0.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .day-card-from-strip {
+    animation: none;
+  }
 }
 
 .day-card-locked {

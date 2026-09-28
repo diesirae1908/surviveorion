@@ -102,6 +102,12 @@ assert.doesNotMatch(ui, /addRow\("Patrol History"/);
   assert.doesNotMatch(strip, /onUnlockGoldPatrol/);
   assert.doesNotMatch(strip, /onPlayArchiveDay/);
 }
+{
+  const focus = ui.slice(ui.indexOf("private scrollCalendarToDate"), ui.indexOf("private attachWeekTrackPeekEffects"));
+  assert.match(focus, /scrollIntoView\(\{ block: "center", inline: "center" \}\)/);
+  assert.doesNotMatch(focus, /\.click\(/);
+  assert.doesNotMatch(focus, /onUnlockGoldPatrol/);
+}
 assert.match(ui, /\/medals\/\$\{tier\}\.svg/);
 assert.match(ui, /showLobbyMenu/);
 assert.match(ui, /lobby-menu-sheet/);

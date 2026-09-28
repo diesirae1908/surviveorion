@@ -2394,16 +2394,31 @@ export class Ui {
   }
 
   /**
-   * Scroll the week that contains `focusDate` into view.
+   * Highlight `focusDate` and bring its card fully into the week row.
    * Never clicks a day card: locked past days open the Gold Patrol paywall on click.
    */
   private scrollCalendarToDate(weekList: HTMLElement, focusDate?: string): void {
     if (!focusDate) return;
     const card = weekList.querySelector<HTMLElement>(`.day-card[data-date="${focusDate}"]`);
-    const section = card?.closest<HTMLElement>(".week-section");
-    if (!section) return;
-    section.scrollIntoView({ block: "nearest", inline: "nearest" });
-    card?.classList.add("day-card-from-strip");
+    if (!card) return;
+    card.classList.add("day-card-from-strip");
+    const reveal = (): void => {
+      const section = card.closest<HTMLElement>(".week-section");
+      const track = card.closest<HTMLElement>(".week-track");
+      section?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (track) {
+        track.style.scrollSnapType = "none";
+        track.style.scrollBehavior = "auto";
+      }
+      card.scrollIntoView({ block: "center", inline: "center" });
+      if (track && track.scrollWidth > track.clientWidth) {
+        const left =
+          card.getBoundingClientRect().left - track.getBoundingClientRect().left + track.scrollLeft;
+        track.scrollLeft = left - (track.clientWidth - card.offsetWidth) / 2;
+      }
+    };
+    reveal();
+    requestAnimationFrame(() => requestAnimationFrame(reveal));
   }
 
   private attachWeekTrackPeekEffects(weekList: HTMLElement): void {

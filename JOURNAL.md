@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: mark and center the strip-opened calendar day
+
+- **Branch:** `fix/lobby-center-mutator`. Main checkout untouched.
+- **Why:** Sam review of `b4741cd`: strip tap opened the right week but Fri 25 was unmarked, and on phone the row started at Sat 26 so Fri sat half off-screen.
+- **Fix:** `.day-card-from-strip` is a gold outline + glow (not the today border). The card is scrolled to `block/inline: center` (plus `scrollLeft` on the week row). Peek is suppressed on the focused card. Still no click, so locked days do not fire paywall.
+- **Not pushed:** `dev` / `main`. This branch only.
+
 ## 2026-09-28 PT: lobby week strip opens Calendar (no paywall)
 
 - **Branch:** `fix/lobby-center-mutator` (same worktree as the centered-mutator fix). Main checkout untouched.
