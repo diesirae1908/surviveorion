@@ -952,8 +952,10 @@ button.gold-patrol-plan {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  width: min(380px, 92vw);
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
 }
 
 .calendar-nav-btn {
@@ -983,8 +985,9 @@ button.gold-patrol-plan {
 }
 
 .calendar-month-label {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  white-space: nowrap;
   font-size: 15px;
   letter-spacing: var(--orion-tracking-label);
   text-transform: uppercase;
@@ -1156,11 +1159,32 @@ button.gold-patrol-plan {
   align-self: stretch;
 }
 
+@media (max-width: 520px) {
+  .screen:has(> .corner-btn.left) > .heading {
+    margin-top: 36px;
+    padding-inline: 16px;
+  }
+}
+
 @media (max-width: 380px) {
   .calendar-grid,
-  .calendar-nav,
   .calendar-detail {
     width: 100%;
+  }
+
+  .calendar-nav {
+    gap: 4px;
+    max-width: calc(100vw - 16px);
+  }
+
+  .calendar-month-label {
+    font-size: 13px;
+  }
+
+  .screen:has(> .corner-btn.left) > .heading {
+    margin-top: 36px;
+    padding-inline: 16px;
+    font-size: 22px;
   }
 
   .cal-daynum {
@@ -1334,6 +1358,17 @@ a.share-btn:active {
   left: calc(14px + var(--safe-left));
   right: auto;
   z-index: 2;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+}
+
+.screen:has(> .corner-btn.left) > .heading {
+  padding-inline: 80px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 /* Powers codex: dot + name + one-line hint per power */
@@ -3626,10 +3661,13 @@ button.day-card-action:active {
 }
 
 @media (min-width: 900px) {
-  .calendar-screen-v2 .calendar-nav,
   .calendar-screen-v2 .gold-strip,
   .calendar-screen-v2 .week-list {
     width: min(1160px, 96vw);
+  }
+
+  .calendar-screen-v2 .calendar-nav {
+    width: fit-content;
   }
 
   .week-track {

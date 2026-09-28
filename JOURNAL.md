@@ -16,6 +16,25 @@ why, commit hash, follow-ups), committed together with the work. See
 - **Verify:** `npm test` green, `npm run build` (`main-CPoz8uTy.js`), `npx tsx scripts/sim-test.ts` green, `cd social && npm test` 92/92. Playwright RED ALERT (`?mutator=red-alert`) shots: `~/Documents/Sam/reports/orion-field-169-2026-09-28/{1440x900,1600x900,2560x1080,390x844,1024x581}.png`.
 - **Push:** this branch only. Sam merges. `main` / `dev` untouched.
 - **iOS:** Capacitor serves this web build after promote + a new TestFlight.
+- **Merge (pre-promote):** `origin/dev` `6f3ba2b` (calendar nav live). Conflict only in `JOURNAL.md` (kept both, field entry first). `src/style.css` auto-merged: field `#game` comment plus calendar-nav/BACK rules. No gameplay-logic conflict.
+
+## 2026-09-28 PT: promote calendar nav polish to `main` (production)
+
+- **Approval:** Lucas, 2:41 PM PT (month arrows beside the label; BACK instead of ←). Sam reviewed `a473a59`.
+- **Worktree:** `~/Documents/games/orion-web-promote-calnav-0928` at `a473a59` (main checkout untouched).
+- **Frozen SHAs (tripwire):** `origin/main` `e12af5f`, `origin/dev` `a473a59`. `git diff --name-only origin/main origin/dev` only `JOURNAL.md`, `scripts/test-updates.ts`, `src/community.ts`, `src/style.css`, `src/ui.ts`.
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on.
+- **Gate:** `npm ci`, `npm test`, `npm run build`, `npx tsx scripts/sim-test.ts` green at `a473a59` (bundle `main-e1tAnEbt.js`, was `main-GzxpNelO.js`).
+- **Production:** FF push `a473a59` → `main`. Deploy `dep-date28k9v7es73abqtcg` live ~2:51 PM PT (`finishedAt` 2026-09-28T21:51:51Z). Smoke: `/` serves `main-e1tAnEbt.js`, `/api/config` 200, `/api/me` 401, `/updates.json` 200. App logs since deploy start: no `error` lines; boot `stripe billing: enabled` (instance `srv-d983pie7r5hc73ce7bfg-9zzmz`). Node SQLite experimental warning only.
+- **Dev sync:** FF `origin/main` (journal tip) → `dev` after this entry.
+
+## 2026-09-28 PT: calendar month arrows next to the label, BACK instead of ←
+
+- **Branch:** `fix/calendar-nav` (worktree `.worktrees/cal-nav` off `origin/dev` `e12af5f`). Main checkout untouched.
+- **Why:** Lucas, 2:41 PM PT: the far-left month ‹ looked like Back; he wanted month arrows beside the month name, and BACK instead of the arrow.
+- **Nav:** `.calendar-nav` is a centered `‹ SEPTEMBER 2026 ›` group (no more 1160px stretch). Aria Previous/Next month. 44px hit areas, disabled/dim at the ends.
+- **Back:** shared `makeSubmenu` + community `screen()` corner control now says BACK. Not used by pause, game-over, or `?nativePlay=` run chrome.
+- **Not pushed:** `dev` / `main`. This branch only.
 
 ## 2026-09-28 PT: promote lobby calendar + centered mutator to `main` (production)
 

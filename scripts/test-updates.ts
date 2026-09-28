@@ -93,6 +93,10 @@ assert.match(ui, /CLICK TO ENTER/);
 assert.match(ui, /Patrol Calendar/);
 assert.match(ui, /CALENDAR ›/);
 assert.match(ui, /PATROL CALENDAR/);
+assert.match(ui, /corner\.textContent = "BACK"/);
+assert.match(ui, /aria-label", "Previous month"/);
+assert.match(ui, /aria-label", "Next month"/);
+assert.doesNotMatch(ui, /corner\.textContent = "←"/);
 assert.doesNotMatch(ui, /HISTORY ›/);
 assert.doesNotMatch(ui, /PATROL HISTORY/);
 assert.doesNotMatch(ui, /addRow\("Patrol History"/);
@@ -126,7 +130,12 @@ assert.match(ui, /onToggle\("recordingMode"\)/);
 assert.match(ui, /toggleRow\(\[\["recordingMode", "Recording mode"\]\]\)/);
 assert.match(ui, /Recording mode on/);
 
+const community = fs.readFileSync(path.join(ROOT, "src/community.ts"), "utf8");
+assert.match(community, /corner-btn left", "BACK"/);
+assert.doesNotMatch(community, /corner-btn left", "←"/);
+
 const css = fs.readFileSync(path.join(ROOT, "src/style.css"), "utf8");
+assert.match(css, /\.calendar-nav\s*\{[^}]*width:\s*fit-content/s);
 assert.match(css, /lobby-menu-sheet/);
 assert.match(css, /app-store-badge/);
 assert.match(css, /field-update-modal/);
