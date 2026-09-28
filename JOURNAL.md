@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: drop "arena" from Feedback flavor copy
+
+- **Why:** Lucas copy call: brand rule says never "arena" in player-facing flavor lines (the Arenas feature name and the "arena leaderboard" sign-in hint stay, those are not flavor copy). Two lines on the Feedback screen still said "arena".
+- **Changed (`src/ui.ts`):** feedback-sent confirmation "Received, pilot. Best ideas make it into the arena." to "Received, pilot. The best ideas fly in a future patrol."; feedback screen intro "Bugs, ideas, balance gripes: every report makes the arena better." to "Bugs, ideas, balance gripes: every report sharpens the patrol."
+- **Untouched:** Arenas feature name, `src/community.ts` "arena leaderboard" hint, all code identifiers, `brand/` docs (still show the old copy as historical reference).
+- **Gate:** `npm test` green, `npm run build` green (no test asserted the old strings).
+
 ## 2026-09-28 PT: promote field 16:9 + black bars (`bf20251`) to `main` (production)
 
 - **Approval:** Lucas, 2:42 PM PT (field stretches 16:10 to 16:9, opaque black bars, world clipped to field) and 2:49 PM PT "push live when done". Sam reviewed `bf20251` (merge of `origin/dev` calendar nav into `fix/field-169-black-bars`, `b4b86c4`).

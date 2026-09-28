@@ -2676,7 +2676,7 @@ export class Ui {
             this.el(
               "div",
               "field-hint center",
-              "Received, pilot. Best ideas make it into the arena.",
+              "Received, pilot. The best ideas fly in a future patrol.",
             ),
           );
         })
@@ -3024,7 +3024,7 @@ export class Ui {
       this.el(
         "div",
         "field-hint center",
-        "Bugs, ideas, balance gripes: every report makes the arena better.",
+        "Bugs, ideas, balance gripes: every report sharpens the patrol.",
       ),
     );
 
