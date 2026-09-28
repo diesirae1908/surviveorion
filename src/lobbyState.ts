@@ -34,8 +34,9 @@ export interface BoardNeighborhood<T> {
 
 /**
  * Compact board: top N, then optional gap + the viewer's rank ±1.
- * `meRank` null means pre-play (no neighborhood). Rank 1 and 2 sit in `top`
- * when they fit; rank > N gets the gap + around slice.
+ * `meRank` null means pre-play (no neighborhood). When the ±1 window
+ * overlaps or sits flush against the top slice, the two merge: no
+ * duplicate ranks and no separator for contiguous ranks.
  */
 export function boardNeighborhood<T extends { rank: number }>(
   entries: T[],
@@ -44,12 +45,31 @@ export function boardNeighborhood<T extends { rank: number }>(
 ): BoardNeighborhood<T> {
   const sorted = entries.slice().sort((a, b) => a.rank - b.rank);
   const top = sorted.filter((e) => e.rank <= topN).slice(0, topN);
-  if (meRank === null || meRank <= 0 || meRank <= topN) {
+  if (meRank === null || meRank <= 0) {
     return { top, gap: false, around: [] };
   }
-  const around = sorted.filter((e) => e.rank >= meRank - 1 && e.rank <= meRank + 1);
-  const firstAround = around[0]?.rank ?? meRank;
-  return { top, gap: firstAround > topN + 1, around };
+  const inTop = new Set(top);
+  const around = sorted.filter(
+    (e) => e.rank >= meRank - 1 && e.rank <= meRank + 1 && !inTop.has(e),
+  );
+  if (around.length === 0) return { top, gap: false, around: [] };
+  const lastTop = top[top.length - 1]?.rank ?? 0;
+  return { top, gap: around[0].rank > lastTop + 1, around };
+}
+
+/**
+ * Guest is not on the official board. Seat them at `meRank` and bump
+ * everyone at or below that rank by one so signed-in and guest compact
+ * boards share the same neighborhood math.
+ */
+export function insertGuestRank<T extends { rank: number }>(
+  entries: T[],
+  meRank: number,
+  guest: T,
+): T[] {
+  if (meRank <= 0) return entries.slice().sort((a, b) => a.rank - b.rank);
+  const shifted = entries.map((e) => (e.rank >= meRank ? { ...e, rank: e.rank + 1 } : e));
+  return [...shifted, { ...guest, rank: meRank }].sort((a, b) => a.rank - b.rank);
 }
 
 export type WeekCellState =

@@ -15,6 +15,7 @@ import { glyphSvg } from "./mutatorGlyphs";
 import {
   boardNeighborhood,
   currentStreak,
+  insertGuestRank,
   lobbyPhase,
   nextMedalProgress,
   weekStrip,
@@ -1898,27 +1899,28 @@ export class Ui {
       return;
     }
     const meRank = this.lobbyMeRank(info);
-    const hood = boardNeighborhood(this.dailyBoardFull, meRank !== null && info.callsign ? meRank : null, this.boardTopN());
-    for (const row of hood.top) list.appendChild(this.lobbyBoardRow(row));
+    const rows =
+      meRank !== null && !info.callsign && info.best
+        ? insertGuestRank(this.dailyBoardFull, meRank, {
+            rank: meRank,
+            callsign: "You",
+            country: "",
+            score: info.best.score,
+            mode: "desktop",
+            isMe: true,
+            virtual: true,
+          })
+        : this.dailyBoardFull;
+    const hood = boardNeighborhood(rows, meRank, this.boardTopN());
+    for (const row of hood.top) list.appendChild(this.compactBoardRow(info, row));
     if (hood.gap) list.appendChild(this.el("div", "lobby-board-gap", "· · ·"));
-    for (const row of hood.around) list.appendChild(this.lobbyBoardRow(row));
-    if (meRank !== null && !info.callsign && info.best) {
-      if (hood.top.length > 0 && !hood.gap && meRank > this.boardTopN()) {
-        list.appendChild(this.el("div", "lobby-board-gap", "· · ·"));
-      }
-      const above = this.dailyBoardFull.find((r) => r.rank === meRank - 1);
-      const below = this.dailyBoardFull.find((r) => r.rank === meRank);
-      if (meRank > this.boardTopN() && above && !hood.around.length) {
-        list.appendChild(this.lobbyBoardRow(above));
-      }
-      list.appendChild(this.guestYouRow(info, meRank));
-      if (below && meRank > this.boardTopN()) {
-        const shifted = { ...below, rank: meRank + 1 };
-        list.appendChild(this.lobbyBoardRow(shifted));
-      }
-    } else if (meRank === null) {
-      list.appendChild(this.openSpotRow(info));
-    }
+    for (const row of hood.around) list.appendChild(this.compactBoardRow(info, row));
+    if (meRank === null) list.appendChild(this.openSpotRow(info));
+  }
+
+  private compactBoardRow(info: DailyLobbyInfo, row: DailyBoardRow): HTMLElement {
+    if (row.virtual && row.isMe && !info.callsign) return this.guestYouRow(info, row.rank);
+    return this.lobbyBoardRow(row);
   }
 
   private lobbyMeRank(info: DailyLobbyInfo): number | null {

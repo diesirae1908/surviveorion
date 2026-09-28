@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: merge compact-board neighborhood when You sits next to the top
+
+- **Branch:** `fix/lobby-board-dedupe` (worktree `.worktrees/lobby-board-dedupe` off `origin/dev` `16df059`). Main checkout untouched.
+- **Why:** Live guest at #4 (prod 390) painted 1 / 2 / 3 / · · · / 3 Talo again / 4 You / 5. Guest path passed `null` into `boardNeighborhood` and then re-appended ±1, so the top-3 neighbor reprinted and a separator appeared on a contiguous list.
+- **Fix:** `boardNeighborhood` drops around-rows already in `top` (object identity, so tied ranks stay). Gap only when the first leftover rank is more than one above the last top rank. `insertGuestRank` seats the guest and bumps official ranks at/below that seat. `renderLobbyBoard` uses that one list for guests and signed-in me.
+- **Tests:** `scripts/test-lobby-state.ts` you at #2 / #4 / #5 / #6 / #20 (topN=3), tied #3, board shorter than 3, plus the fun/KOEN/Talo/You/Hugo prod shape.
+- **Not pushed:** `dev` / `main`. This branch only.
+
 ## 2026-09-28 PT: promote daily lobby redesign to `main` (production)
 
 - **Approval:** Lucas, ~7:52 AM PT ("Go live"); Opus staging QA round 2 GO (`~/Documents/Sam/reports/orion-lobby-redesign-2026-09-27/qa-staging/round2/orion-lobby-qa-round2-2026-09-27.md`).

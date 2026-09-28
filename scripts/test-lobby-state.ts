@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   boardNeighborhood,
   currentStreak,
+  insertGuestRank,
   lobbyPhase,
   nextMedalProgress,
   weekStrip,
@@ -49,10 +50,21 @@ assert.equal(phase({ attemptsLeft: 1 }), "mid");
 assert.equal(phase({ attemptsLeft: 0 }), "out");
 assert.equal(phase({ attemptsLeft: 3 }, 0), "pre", "first-visit runCount does not change phase");
 
+function ranksOf<T extends { rank: number }>(n: { top: T[]; around: T[] }): number[] {
+  return [...n.top, ...n.around].map((r) => r.rank);
+}
+function assertUniqueRanks<T extends { rank: number }>(n: { top: T[]; around: T[] }, msg: string): void {
+  const ranks = ranksOf(n);
+  assert.equal(new Set(ranks).size, ranks.length, msg);
+  const overlap = n.top.filter((t) => n.around.includes(t));
+  assert.equal(overlap.length, 0, `${msg}: top/around share a row`);
+}
+
 const board = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15].map((rank) => ({
   rank,
   name: `#${rank}`,
 }));
+const phone = Array.from({ length: 22 }, (_, i) => ({ rank: i + 1, name: `#${i + 1}` }));
 
 {
   const n = boardNeighborhood(board, 1, 8);
@@ -79,12 +91,106 @@ const board = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15].map((rank) => ({
   const n = boardNeighborhood(board, 9, 8);
   assert.equal(n.gap, false, "rank N+1 sits flush under the top, no gap");
   assert.ok(n.around.some((r) => r.rank === 9));
+  assert.ok(!n.around.some((r) => r.rank === 8), "rank 8 is not repeated under the top");
+  assertUniqueRanks(n, "rank 9 vs top 8");
 }
 {
   const n = boardNeighborhood(board, null, 8);
   assert.equal(n.top.length, 8);
   assert.equal(n.gap, false);
   assert.equal(n.around.length, 0);
+}
+
+{
+  const n = boardNeighborhood(phone, 2, 3);
+  assert.deepEqual(ranksOf(n), [1, 2, 3], "you at #2 stays inside top 3");
+  assert.equal(n.gap, false);
+  assert.equal(n.around.length, 0);
+  assertUniqueRanks(n, "you at #2");
+}
+{
+  const n = boardNeighborhood(phone, 4, 3);
+  assert.deepEqual(ranksOf(n), [1, 2, 3, 4, 5], "you at #4 merges with top 3: 1,2,3,You,5");
+  assert.equal(n.gap, false, "no separator when 3 and 4 are contiguous");
+  assert.ok(!n.around.some((r) => r.rank === 3), "rank 3 is not repeated in around");
+  assertUniqueRanks(n, "you at #4");
+}
+{
+  const n = boardNeighborhood(phone, 5, 3);
+  assert.deepEqual(ranksOf(n), [1, 2, 3, 4, 5, 6], "you at #5 stays flush: 1..6");
+  assert.equal(n.gap, false);
+  assertUniqueRanks(n, "you at #5");
+}
+{
+  const n = boardNeighborhood(phone, 6, 3);
+  assert.deepEqual(n.top.map((r) => r.rank), [1, 2, 3]);
+  assert.equal(n.gap, true, "you at #6 is one hole below top 3");
+  assert.deepEqual(n.around.map((r) => r.rank), [5, 6, 7]);
+  assertUniqueRanks(n, "you at #6");
+}
+{
+  const n = boardNeighborhood(phone, 20, 3);
+  assert.deepEqual(n.top.map((r) => r.rank), [1, 2, 3]);
+  assert.equal(n.gap, true);
+  assert.deepEqual(n.around.map((r) => r.rank), [19, 20, 21]);
+  assertUniqueRanks(n, "you at #20");
+}
+
+{
+  const official = [
+    { rank: 1, name: "a" },
+    { rank: 2, name: "b" },
+    { rank: 3, name: "c" },
+    { rank: 3, name: "d" },
+    { rank: 4, name: "e" },
+  ];
+  const seated = insertGuestRank(official, 4, { rank: 4, name: "You" });
+  assert.deepEqual(
+    seated.map((r) => `${r.rank}:${r.name}`),
+    ["1:a", "2:b", "3:c", "3:d", "4:You", "5:e"],
+    "tied #3 stays #3; official #4 becomes #5 under the guest",
+  );
+  const n = boardNeighborhood(seated, 4, 3);
+  assert.equal(n.gap, false);
+  assert.deepEqual(
+    [...n.top, ...n.around].map((r) => `${r.rank}:${r.name}`),
+    ["1:a", "2:b", "3:c", "3:d", "4:You", "5:e"],
+    "tied #3 is kept once in top and once in around, never duplicated",
+  );
+}
+
+{
+  const short = [
+    { rank: 1, name: "a" },
+    { rank: 2, name: "me" },
+  ];
+  const n = boardNeighborhood(short, 2, 3);
+  assert.deepEqual(ranksOf(n), [1, 2], "board shorter than topN keeps both rows");
+  assert.equal(n.gap, false);
+  assert.equal(n.around.length, 0);
+}
+
+{
+  const official = [
+    { rank: 1, name: "fun" },
+    { rank: 2, name: "KOEN" },
+    { rank: 3, name: "Talo" },
+    { rank: 4, name: "Hugo" },
+    { rank: 5, name: "Pia" },
+  ];
+  const seated = insertGuestRank(official, 4, { rank: 4, name: "You" });
+  assert.deepEqual(
+    seated.map((r) => `${r.rank}:${r.name}`),
+    ["1:fun", "2:KOEN", "3:Talo", "4:You", "5:Hugo", "6:Pia"],
+  );
+  const n = boardNeighborhood(seated, 4, 3);
+  assert.deepEqual(
+    [...n.top, ...n.around].map((r) => `${r.rank}:${r.name}`),
+    ["1:fun", "2:KOEN", "3:Talo", "4:You", "5:Hugo"],
+    "prod bug: guest #4 must not reprint Talo or insert a separator",
+  );
+  assert.equal(n.gap, false);
+  assertUniqueRanks(n, "guest insert at #4");
 }
 
 const TODAY = "2026-09-27";
