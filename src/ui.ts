@@ -525,9 +525,11 @@ export class Ui {
    */
   private makeSubmenu(screen: HTMLElement, onBack: () => void): void {
     const corner = document.createElement("button");
+    corner.type = "button";
     corner.className = "corner-btn left";
     corner.title = "Back";
-    corner.textContent = "←";
+    corner.setAttribute("aria-label", "Back");
+    corner.textContent = "BACK";
     corner.addEventListener("click", onBack);
     screen.appendChild(corner);
     this.submenuBack = onBack;
@@ -2471,9 +2473,11 @@ export class Ui {
     const prev = this.button("‹", false, handlers.onPrevMonth);
     prev.disabled = !month.canGoPrev;
     prev.classList.add("calendar-nav-btn", "chamfer");
+    prev.setAttribute("aria-label", "Previous month");
     const next = this.button("›", false, handlers.onNextMonth);
     next.disabled = !month.canGoNext;
     next.classList.add("calendar-nav-btn", "chamfer");
+    next.setAttribute("aria-label", "Next month");
     nav.append(prev, this.el("span", "calendar-month-label", month.label), next);
     screen.appendChild(nav);
 

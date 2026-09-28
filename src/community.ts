@@ -229,8 +229,9 @@ export class CommunityUi {
     this.root.innerHTML = "";
     const screen = this.el("div", "screen");
     if (onBack) {
-      const b = this.el("button", "corner-btn left", "←");
+      const b = this.el("button", "corner-btn left", "BACK");
       b.title = "Back";
+      b.setAttribute("aria-label", "Back");
       b.addEventListener("click", () => this.goBack());
       screen.appendChild(b);
     }

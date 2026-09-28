@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-28 PT: calendar month arrows next to the label, BACK instead of ←
+
+- **Branch:** `fix/calendar-nav` (worktree `.worktrees/cal-nav` off `origin/dev` `e12af5f`). Main checkout untouched.
+- **Why:** Lucas, 2:41 PM PT: the far-left month ‹ looked like Back; he wanted month arrows beside the month name, and BACK instead of the arrow.
+- **Nav:** `.calendar-nav` is a centered `‹ SEPTEMBER 2026 ›` group (no more 1160px stretch). Aria Previous/Next month. 44px hit areas, disabled/dim at the ends.
+- **Back:** shared `makeSubmenu` + community `screen()` corner control now says BACK. Not used by pause, game-over, or `?nativePlay=` run chrome.
+- **Not pushed:** `dev` / `main`. This branch only.
+
 ## 2026-09-28 PT: promote lobby calendar + centered mutator to `main` (production)
 
 - **Approval:** Lucas, 9:54 and 9:56 AM PT (center single mutator card; My patrols days open Calendar; History renamed Calendar). Sam reviewed `84f5d92`.
