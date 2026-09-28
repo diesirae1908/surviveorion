@@ -169,7 +169,8 @@ body {
   display: block;
   touch-action: none;
   -webkit-touch-callout: none; /* no long-press callout over the game */
-  /* JS recenters when desktop play letterboxes to 16:9 */
+  /* JS recenters when the window is larger than the canvas (rare). The field
+     letterboxes inside the canvas; desktop 1440x900 fills 16x10 exactly. */
 }
 
 #ui {

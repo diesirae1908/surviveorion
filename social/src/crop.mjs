@@ -70,9 +70,12 @@ export function inferArena(sourceW, sourceH, sidecar = {}) {
  * @param {{ w: number, h: number }} arena
  */
 export function worldToPixel(x, y, sourceW, sourceH, arena) {
+  const scale = Math.min(sourceW / arena.w, sourceH / arena.h);
+  const ox = (sourceW - arena.w * scale) / 2;
+  const oy = (sourceH - arena.h * scale) / 2;
   return {
-    px: (x / arena.w + 0.5) * sourceW,
-    py: (y / arena.h + 0.5) * sourceH,
+    px: ox + (x + arena.w * 0.5) * scale,
+    py: oy + (y + arena.h * 0.5) * scale,
   };
 }
 

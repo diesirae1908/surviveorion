@@ -1,5 +1,5 @@
 import { ASSEMBLY, BLACKOUT, MINES, PALETTE, PICKUPS, POWERS, POWER_COLORS, SCORING, SHIP, VIEW_MIN, type PowerId } from "./config";
-import { playViewport } from "./playView";
+import { fieldLayout, fieldWorldSize, playViewport, type FieldLayout } from "./playView";
 import { droneRadius } from "./enemies";
 import type { TouchStickView } from "./input";
 import { clamp01, lerp } from "./math";
@@ -55,6 +55,8 @@ const pingPong = (t: number): number => {
 /** Brand HUD/cinematic face. Rajdhani is loaded in index.html; one fallback frame is OK. */
 const CANVAS_FONT = '"Rajdhani", system-ui, sans-serif';
 const canvasFont = (spec: string): string => `${spec} ${CANVAS_FONT}`;
+/** HUD alpha while the ship is under overlapping HUD (desktop / landscape). */
+const HUD_UNDER_SHIP_ALPHA = 0.35;
 
 if (typeof document !== "undefined" && document.fonts) {
   void document.fonts.load(`700 28px ${CANVAS_FONT}`);
@@ -70,6 +72,7 @@ export class Renderer {
   private safe = { top: 0, right: 0, bottom: 0, left: 0 };
   viewW = VIEW_MIN;
   viewH = VIEW_MIN;
+  private field: FieldLayout = { scale: 1, ox: 0, oy: 0, fieldCssW: 0, fieldCssH: 0 };
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -93,7 +96,7 @@ export class Renderer {
     probe.remove();
   }
 
-  /** Fit canvas to the play frame; shorter axis spans VIEW_MIN world units. */
+  /** Fit canvas to the window; field is a fixed 16x10 (10x16 portrait), contained. */
   resize(): void {
     this.measureSafeArea();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -115,24 +118,23 @@ export class Renderer {
     this.canvas.style.right = "auto";
     this.canvas.style.bottom = "auto";
 
-    const aspect = this.cssW / this.cssH;
-    if (aspect >= 1) {
-      this.viewH = VIEW_MIN;
-      this.viewW = VIEW_MIN * aspect;
-    } else {
-      this.viewW = VIEW_MIN;
-      this.viewH = VIEW_MIN / aspect;
-    }
+    const field = fieldWorldSize(this.cssW, this.cssH);
+    this.viewW = field.w;
+    this.viewH = field.h;
+    this.field = fieldLayout(this.cssW, this.cssH, this.viewW, this.viewH);
     this.generateStars();
   }
 
   private generateStars(): void {
     this.stars = [];
-    const count = Math.round(1.6 * this.viewW * this.viewH);
+    const layout = fieldLayout(this.cssW, this.cssH, this.viewW, this.viewH);
+    const worldW = layout.scale > 0 ? this.cssW / layout.scale : this.viewW;
+    const worldH = layout.scale > 0 ? this.cssH / layout.scale : this.viewH;
+    const count = Math.round(1.6 * worldW * worldH);
     for (let i = 0; i < count; i++) {
       this.stars.push({
-        x: (Math.random() - 0.5) * this.viewW * 1.1,
-        y: (Math.random() - 0.5) * this.viewH * 1.1,
+        x: (Math.random() - 0.5) * worldW,
+        y: (Math.random() - 0.5) * worldH,
         size: Math.random() < 0.88 ? 0.01 + Math.random() * 0.02 : 0.03 + Math.random() * 0.025,
         phase: Math.random() * Math.PI * 2,
         brightness: 0.25 + Math.random() * 0.65,
@@ -143,9 +145,10 @@ export class Renderer {
   render(world: World, particles: Particles, popups: Popups, opts: RenderOpts): void {
     const { ctx } = this;
     const dpr = this.canvas.width / this.cssW;
-    const scale = this.canvas.height / this.viewH;
+    this.field = fieldLayout(this.cssW, this.cssH, this.viewW, this.viewH);
+    const scale = this.field.scale * dpr;
 
-    // background
+    // background (covers letterbox bars)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const grad = ctx.createRadialGradient(
       this.cssW / 2,
@@ -160,7 +163,8 @@ export class Renderer {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, this.cssW, this.cssH);
 
-    // world transform (y up), with screen shake
+    // world transform (y up), with screen shake. Origin is canvas center so
+    // the contained field stays centered; bars are the leftover css.
     let shakeX = 0;
     let shakeY = 0;
     if (opts.shakeEnabled && world.shake > 0.01) {
@@ -172,11 +176,26 @@ export class Renderer {
       0,
       0,
       -scale,
-      (this.cssW / 2 + shakeX * (scale / dpr)) * dpr,
-      (this.cssH / 2 + shakeY * (scale / dpr)) * dpr,
+      (this.cssW / 2 + shakeX * this.field.scale) * dpr,
+      (this.cssH / 2 + shakeY * this.field.scale) * dpr,
     );
 
     this.drawStars(opts.uiTime);
+
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.beginPath();
+    ctx.rect(this.field.ox, this.field.oy, this.field.fieldCssW, this.field.fieldCssH);
+    ctx.clip();
+    ctx.setTransform(
+      scale,
+      0,
+      0,
+      -scale,
+      (this.cssW / 2 + shakeX * this.field.scale) * dpr,
+      (this.cssH / 2 + shakeY * this.field.scale) * dpr,
+    );
+
     this.drawArenaBoundary(world);
     this.drawWindCurrent(world, opts.uiTime);
     this.drawOffscreenThreats(world, opts.uiTime);
@@ -205,6 +224,7 @@ export class Renderer {
       y: lerp(world.ship.prevY, world.ship.y, opts.alpha),
     });
     popups.draw(ctx);
+    ctx.restore();
 
     // screen-space UI
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -217,6 +237,10 @@ export class Renderer {
       this.drawBlackoutVignette(world);
     }
     if (opts.showHud) this.drawHud(world, opts);
+    else {
+      const pauseBtn = typeof document !== "undefined" ? document.getElementById("pause-btn") : null;
+      if (pauseBtn instanceof HTMLElement) pauseBtn.style.opacity = "1";
+    }
     if (opts.showHud) this.drawPauseHudRings(world, opts.alpha);
     if (opts.touch?.active) this.drawTouchOverlay(opts.touch);
 
@@ -265,7 +289,7 @@ export class Renderer {
       return;
     }
 
-    const unit = H / world.viewH;
+    const unit = this.field.scale;
     const sx = W / 2 + world.ship.x * unit;
     const sy = H / 2 - world.ship.y * unit;
     const inner = Math.max(1, BLACKOUT.lanternRadius * unit);
@@ -2466,13 +2490,47 @@ export class Renderer {
 
   // --- screen-space HUD ---
 
+  private worldToCss(wx: number, wy: number): { x: number; y: number } {
+    return {
+      x: this.cssW / 2 + wx * this.field.scale,
+      y: this.cssH / 2 - wy * this.field.scale,
+    };
+  }
+
+  private shipOverlapsRect(
+    ship: { x: number; y: number },
+    rect: { x: number; y: number; w: number; h: number },
+  ): boolean {
+    const p = this.worldToCss(ship.x, ship.y);
+    const r = 0.55 * SHIP.visualScale * this.field.scale;
+    return p.x + r > rect.x && p.x - r < rect.x + rect.w && p.y + r > rect.y && p.y - r < rect.y + rect.h;
+  }
+
+  private hudAlpha(ship: { x: number; y: number }, rect: { x: number; y: number; w: number; h: number }): number {
+    return this.shipOverlapsRect(ship, rect) ? HUD_UNDER_SHIP_ALPHA : 1;
+  }
+
   private drawHud(world: World, opts: RenderOpts): void {
     const { ctx } = this;
     const padTop = 18 + this.safe.top;
     const pad = 18 + this.safe.left;
     const mutators = opts.daily ? getActiveMutators() : [];
+    const ship = world.ship;
+    const playing = world.phase === "playing";
+    const leftRect = { x: 0, y: 0, w: 240, h: padTop + 78 };
+    const centerBottom = opts.daily ? padTop + 76 : padTop + 28;
+    const centerRect = { x: this.cssW / 2 - 160, y: 0, w: 320, h: centerBottom };
+    const pauseRect = {
+      x: this.cssW - 72 - this.safe.right,
+      y: this.safe.top,
+      w: 72,
+      h: 72,
+    };
 
     ctx.textBaseline = "top";
+
+    ctx.save();
+    if (playing) ctx.globalAlpha = this.hudAlpha(ship, leftRect);
 
     // score (top-left)
     ctx.textAlign = "left";
@@ -2498,6 +2556,10 @@ export class Renderer {
     ctx.fillStyle = PALETTE.bronze;
     ctx.font = canvasFont("14px");
     ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, pad, padTop + 60);
+    ctx.restore();
+
+    ctx.save();
+    if (playing) ctx.globalAlpha = this.hudAlpha(ship, centerRect);
 
     // time (top-center)
     const mins = Math.floor(world.time / 60);
@@ -2524,6 +2586,12 @@ export class Renderer {
         const warnY = mutators.length > 0 ? padTop + 60 : padTop + 44;
         ctx.fillText(`CURRENT TURNING  ${warning.secondsLeft.toFixed(1)}`, this.cssW / 2, warnY);
       }
+    }
+    ctx.restore();
+
+    const pauseBtn = typeof document !== "undefined" ? document.getElementById("pause-btn") : null;
+    if (pauseBtn instanceof HTMLElement) {
+      pauseBtn.style.opacity = playing && this.shipOverlapsRect(ship, pauseRect) ? String(HUD_UNDER_SHIP_ALPHA) : "1";
     }
 
     // opening mutator banner: name + rule, 2.5 s, fading
@@ -2593,30 +2661,39 @@ export class Renderer {
       powers.push(["DASH GRACE", p.afterburnerGrace, POWERS.afterburner.arrivalInvulnTime, POWER_COLORS.afterburner]);
 
     let py = this.cssH - pad - this.safe.bottom - powers.length * 24;
+    const powerRect = {
+      x: 0,
+      y: py - 8,
+      w: 230,
+      h: powers.length * 24 + 16,
+    };
+    ctx.save();
+    if (playing && powers.length > 0) ctx.globalAlpha = this.hudAlpha(ship, powerRect);
     ctx.textAlign = "left";
     ctx.font = canvasFont("13px");
     for (const [name, remaining, total, color] of powers) {
       const frac = clamp01(remaining / total);
       ctx.fillStyle = color;
       ctx.fillText(name, pad, py);
-      ctx.globalAlpha = 0.3;
+      const barAlpha = ctx.globalAlpha;
+      ctx.globalAlpha = barAlpha * 0.3;
       ctx.fillRect(pad + 122, py + 3, 80, 7);
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = barAlpha;
       ctx.fillRect(pad + 122, py + 3, 80 * frac, 7);
       py += 24;
     }
-
+    ctx.restore();
   }
 
   /** Red ring over any drone sitting under the top-right pause HUD rect. */
   private drawPauseHudRings(world: World, alpha: number): void {
     if (world.phase !== "playing") return;
     const { ctx } = this;
-    const scaleCss = this.cssH / this.viewH;
-    const rectL = this.cssW - 72;
-    const rectT = 0;
-    const rectR = this.cssW;
-    const rectB = 72;
+    const scaleCss = this.field.scale;
+    const rectL = this.cssW - 72 - this.safe.right;
+    const rectT = this.safe.top;
+    const rectR = this.cssW - this.safe.right;
+    const rectB = this.safe.top + 72;
     ctx.save();
     ctx.strokeStyle = PALETTE.redBright;
     ctx.lineJoin = "round";
@@ -2639,24 +2716,31 @@ export class Renderer {
     ctx.restore();
   }
 
+  private canvasLocal(clientX: number, clientY: number): { x: number; y: number } {
+    const r = this.canvas.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
+  }
+
   private drawTouchOverlay(touch: TouchStickView): void {
     const { ctx } = this;
+    const origin = this.canvasLocal(touch.originX, touch.originY);
+    const stick = this.canvasLocal(touch.stickX, touch.stickY);
     ctx.save();
     ctx.globalAlpha = 0.25;
     ctx.strokeStyle = PALETTE.gold;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(touch.originX, touch.originY, 60, 0, Math.PI * 2);
+    ctx.arc(origin.x, origin.y, 60, 0, Math.PI * 2);
     ctx.stroke();
 
-    const dx = touch.stickX - touch.originX;
-    const dy = touch.stickY - touch.originY;
+    const dx = stick.x - origin.x;
+    const dy = stick.y - origin.y;
     const d = Math.hypot(dx, dy);
     const cl = d > 60 ? 60 / d : 1;
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = PALETTE.gold;
     ctx.beginPath();
-    ctx.arc(touch.originX + dx * cl, touch.originY + dy * cl, 24, 0, Math.PI * 2);
+    ctx.arc(origin.x + dx * cl, origin.y + dy * cl, 24, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
