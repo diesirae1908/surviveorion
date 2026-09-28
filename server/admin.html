@@ -304,6 +304,36 @@ function renderBoard(board) {
     rows + "</table></div>";
 }
 
+function renderPaywall(p, vsPay, title) {
+  if (!p) return "";
+  const steps = p.byStep || {};
+  const sources = p.bySource || {};
+  const stepRows = Object.keys(steps).sort().map((k) => ({
+    label: esc(k), value: steps[k], val: fmt(steps[k]),
+  }));
+  const sourceRows = Object.keys(sources).sort().map((k) => ({
+    label: esc(k), value: sources[k], val: fmt(sources[k]),
+  }));
+  const vs = vsPay || function () { return ""; };
+  const heading = title || "Gold Patrol paywall";
+  return "<h3>" + heading + "</h3><div class='metrics'>" +
+    stat("Opens", fmt(steps.open || 0), vs(steps.open || 0, "open")) +
+    stat("Unique devices", fmt(p.uniqueOpenDevices), vs(p.uniqueOpenDevices, "uniqueOpenDevices")) +
+    stat("Signed-in opens", fmt(p.signedInOpens), vs(p.signedInOpens, "signedInOpens")) +
+    stat("Guest opens", fmt(p.guestOpens), vs(p.guestOpens, "guestOpens")) +
+    stat("Checkout created", fmt(p.checkoutCreated), vs(p.checkoutCreated, "checkoutCreated")) +
+    stat("Checkout completed", fmt(p.checkoutCompleted), vs(p.checkoutCompleted, "checkoutCompleted")) +
+  "</div>" +
+  '<div class="row2">' +
+    '<div class="panel"><h3>Funnel steps</h3>' +
+      hbars(stepRows, "no paywall events") +
+    "</div>" +
+    '<div class="panel"><h3>Sources</h3>' +
+      hbars(sourceRows, "no paywall events") +
+    "</div>" +
+  "</div>";
+}
+
 function renderDay(day) {
   const body = document.getElementById("day-body");
   if (!body) return;
@@ -342,6 +372,10 @@ function renderDay(day) {
       stat("D1 return", pctRate(day.retention && day.retention.d1Return), vs(day.retention && day.retention.d1Return, prev && prev.retention && prev.retention.d1Return)) +
       stat("D7 return", pctRate(day.retention && day.retention.d7Return), vs(day.retention && day.retention.d7Return, prev && prev.retention && prev.retention.d7Return)) +
     "</div>" +
+    renderPaywall(day.paywall, (curr, key) => {
+      if (key === "open") return vs(curr, prev && prev.paywall && prev.paywall.byStep && prev.paywall.byStep.open);
+      return vs(curr, prev && prev.paywall && prev.paywall[key]);
+    }) +
     '<div class="row2">' +
       '<div class="panel"><h3>Countries</h3>' +
         hbars(day.traffic.countries.map((c) => ({ label: flag(c.k) + " " + esc(c.k), value: c.uniques, val: fmt(c.uniques) + " visitors" })), "no traffic that day") +
@@ -505,6 +539,8 @@ async function go() {
       stat("Anonymous runs", fmt(s.runs.anonymous)) +
       stat("Signed-in players", fmt(s.runs.signedInPlayers)) +
     "</div>" +
+    renderPaywall(s.paywall && s.paywall.allTime, null, "Gold Patrol paywall (all time)") +
+    renderPaywall(s.paywall && s.paywall.last7, null, "Gold Patrol paywall (last 7 days)") +
     "<h3>Runs per day (last 14)</h3>" +
       colchart(s.runs.perDay.slice().reverse().map((r) => ({ day: r.day, a: r.players, b: r.runs })), "signed-in players", "runs") +
     '<div class="row2">' +

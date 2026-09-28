@@ -1,5 +1,5 @@
 import "./style.css";
-import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type SubmitResult } from "./api";
+import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type PaywallSource, type PaywallStep, type SubmitResult } from "./api";
 import { AudioSystem, PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME } from "./audio";
 import { badgeInfo } from "./badges";
 import { CommunityUi } from "./community";
@@ -174,9 +174,40 @@ function webStripeBillingAvailable(): boolean {
   return api.stripeBilling && !isNativeApp() && !IS_NATIVE_PLAY;
 }
 
+const PAYWALL_SOURCE_SET = new Set<PaywallSource>([
+  "calendar_unlock",
+  "archive_day",
+  "guest_activate",
+  "wingmates",
+  "lobby_upsell",
+  "patrol_complete",
+  "settings",
+  "gameover",
+]);
+
+let paywallSource: PaywallSource = "lobby_upsell";
+
+function asPaywallSource(raw: unknown, fallback: PaywallSource): PaywallSource {
+  return typeof raw === "string" && PAYWALL_SOURCE_SET.has(raw as PaywallSource)
+    ? (raw as PaywallSource)
+    : fallback;
+}
+
+function trackPaywall(step: PaywallStep, source: PaywallSource = paywallSource): void {
+  if (isNativeApp() || IS_NATIVE_PLAY) return;
+  paywallSource = source;
+  api.logPaywallEvent(source, step);
+}
+
 async function startStripeCheckout(plan: "monthly" | "yearly"): Promise<void> {
-  const url = await api.startStripeCheckout(plan);
-  location.assign(url);
+  try {
+    const url = await api.startStripeCheckout(plan);
+    trackPaywall("checkout_redirect");
+    location.assign(url);
+  } catch (e) {
+    trackPaywall("checkout_error");
+    throw e;
+  }
 }
 
 async function startStripePortal(): Promise<void> {
@@ -184,14 +215,21 @@ async function startStripePortal(): Promise<void> {
   location.assign(url);
 }
 
-function openWebGoldPatrolPaywall(): void {
+function openWebGoldPatrolPaywall(source: PaywallSource = paywallSource): void {
   if (isNativeApp() || IS_NATIVE_PLAY) return;
+  trackPaywall("open", source);
+  const onDismiss = (): void => {
+    trackPaywall("dismiss");
+    showMenu();
+  };
   const runCheckout = (plan: "monthly" | "yearly"): void => {
+    trackPaywall(plan === "monthly" ? "plan_monthly" : "plan_yearly");
     void (async () => {
       try {
         if (!api.signedIn) {
+          trackPaywall("auth_prompt");
           community.showAuth(() => {
-            ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, showMenu);
+            ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, onDismiss);
             void startStripeCheckout(plan).catch((e) => {
               const msg = e instanceof ApiError ? e.message : "Checkout failed";
               window.alert(msg);
@@ -206,12 +244,12 @@ function openWebGoldPatrolPaywall(): void {
       }
     })();
   };
-  ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, showMenu);
+  ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, onDismiss);
 }
 
-function handleUnlockGoldPatrol(): void {
+function handleUnlockGoldPatrol(source: PaywallSource = "lobby_upsell"): void {
   if (IS_NATIVE_PLAY) postNativePremium("calendar");
-  else openWebGoldPatrolPaywall();
+  else openWebGoldPatrolPaywall(source);
 }
 
 /** Past Daily file in play (native `?date=` or website calendar). Not today. */
@@ -759,7 +797,7 @@ const ui = new Ui(settings, {
       showMenu();
     }),
   onPilot: (callsign) => community.showPilot(callsign, showMenu),
-  onUnlockGoldPatrol: () => handleUnlockGoldPatrol(),
+  onUnlockGoldPatrol: (source) => handleUnlockGoldPatrol(source ?? "lobby_upsell"),
   onGoldPatrolWebCheckout: (plan) => {
     void (async () => {
       try {
@@ -1037,7 +1075,7 @@ function playArchiveDay(date: string): void {
     return;
   }
   if (!unlimitedDailyRuns()) {
-    if (webStripeBillingAvailable()) openWebGoldPatrolPaywall();
+    if (webStripeBillingAvailable()) openWebGoldPatrolPaywall("archive_day");
     return;
   }
   webArchiveDate = date;
@@ -2214,7 +2252,10 @@ window.addEventListener("pointerdown", () => {
 
 // Re-render the menu once the community server responds (session restore,
 // server availability) so the community buttons appear/disappear correctly.
-window.addEventListener("orion-open-gold-patrol-paywall", () => openWebGoldPatrolPaywall());
+window.addEventListener("orion-open-gold-patrol-paywall", (e: Event) => {
+  const raw = (e as CustomEvent<{ source?: unknown }>).detail?.source;
+  openWebGoldPatrolPaywall(asPaywallSource(raw, "wingmates"));
+});
 
 void api.init().then(async () => {
   applyCreatorAccess(api.clipInbox);

@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: count web Gold Patrol paywall opens
+
+- **Branch:** `feat/paywall-metrics-0927` (worktree `.worktrees/paywall-metrics-0927` off `origin/dev` `b8ec879`). Main checkout untouched.
+- **Why:** Stripe Gold Patrol has been live since Sep 17 with zero `/api/billing/*` hits. Paywall opens were client-only, so admin stats could not tell if anyone was curious.
+- **Client:** fire-and-forget `POST /api/paywall` on open and funnel steps. Skips native / Capacitor (`isNativeApp` / `IS_NATIVE_PLAY`). Sources: `guest_activate` (lobby ACTIVATE), `calendar_unlock` (calendar CTA / locked day / gold strip), `archive_day` (`playArchiveDay` free-user safety net), `wingmates` (profile Unlock), `lobby_upsell`, `patrol_complete`, `settings`, `gameover`. Steps: `open`, `plan_monthly`, `plan_yearly`, `auth_prompt`, `checkout_redirect`, `checkout_error`, `dismiss`. Failures swallowed.
+- **Server:** anonymous `POST /api/paywall` (rate limit 60/min/ip, strict source/step allowlist). Additive SQLite `paywall_events` + `billing_events`. Stores patrol day, source, step, signed-in yes/no, existing OR-21 device hash. Side counters on checkout session created and `checkout.session.completed` webhook handled. No Stripe money-path / entitlement / StoreKit change.
+- **Admin:** `/api/admin/stats` `paywall` block on selected day plus `allTime` / `last7`. Dashboard section for opens, unique devices, signed-in vs guest, checkout created/completed, steps and sources.
+- **Tests:** `scripts/test-server-paywall.mjs`. `npm test` and `npm run build` green (bundle `main-CDVfMZRG.js`).
+- **Push:** this branch, then merge to `dev` (staging). `main` untouched.
+
 ## 2026-09-27 PT: promote `fix/sec-highs-0927` to `main` (production)
 
 - **Approval:** Lucas, ~7:00 PM PT. **Worktree:** `~/Documents/games/orion-web-promote-sec-0927` (not the dirty `orion-web` checkout). **Frozen tip:** `origin/fix/sec-highs-0927` `17ee39b` off `origin/main` `c5225b8`.

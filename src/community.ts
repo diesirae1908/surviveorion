@@ -453,7 +453,9 @@ export class CommunityUi {
         body.appendChild(
           this.button("Unlock Gold Patrol", false, () => {
             this.onBack();
-            window.dispatchEvent(new CustomEvent("orion-open-gold-patrol-paywall"));
+            window.dispatchEvent(
+              new CustomEvent("orion-open-gold-patrol-paywall", { detail: { source: "wingmates" } }),
+            );
           }),
         );
       }

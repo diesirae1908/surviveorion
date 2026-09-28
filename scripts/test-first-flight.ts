@@ -79,12 +79,12 @@ assert.match(
 );
 assert.match(
   main,
-  /function openWebGoldPatrolPaywall\(\): void \{[\s\S]*?ui\.showGoldPatrolPaywall\(webGoldPatrolPrices\(\), runCheckout, showMenu\);\n\}/,
+  /function openWebGoldPatrolPaywall\(source: PaywallSource = paywallSource\): void \{[\s\S]*?ui\.showGoldPatrolPaywall\(webGoldPatrolPrices\(\), runCheckout, onDismiss\);\n\}/,
   "guest ACTIVATE opens the paywall immediately",
 );
 assert.match(
   main,
-  /function openWebGoldPatrolPaywall\(\): void \{[\s\S]*?if \(!api\.signedIn\) \{[\s\S]*?community\.showAuth/,
+  /function openWebGoldPatrolPaywall\(source: PaywallSource = paywallSource\): void \{[\s\S]*?if \(!api\.signedIn\) \{[\s\S]*?community\.showAuth/,
   "unsigned plan tap still uses the paywall's sign-in step",
 );
 

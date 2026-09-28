@@ -7,6 +7,29 @@ import { apiBase } from "./native";
 import { loadDeviceId } from "./device";
 import { loadRunCount } from "./save";
 
+export const PAYWALL_SOURCES = [
+  "calendar_unlock",
+  "archive_day",
+  "guest_activate",
+  "wingmates",
+  "lobby_upsell",
+  "patrol_complete",
+  "settings",
+  "gameover",
+] as const;
+export type PaywallSource = (typeof PAYWALL_SOURCES)[number];
+
+export const PAYWALL_STEPS = [
+  "open",
+  "plan_monthly",
+  "plan_yearly",
+  "auth_prompt",
+  "checkout_redirect",
+  "checkout_error",
+  "dismiss",
+] as const;
+export type PaywallStep = (typeof PAYWALL_STEPS)[number];
+
 export interface UserInfo {
   callsign: string;
   country: string;
@@ -631,6 +654,18 @@ export class Api {
       platform: "ontouchstart" in window ? "touch" : "desktop",
       deviceId: loadDeviceId(),
       runIndex: loadRunCount(),
+    }).catch(() => {});
+  }
+
+  /**
+   * Web Gold Patrol paywall funnel. Fire-and-forget; never blocks the UI.
+   * Native / Capacitor callers must skip this (see main.ts).
+   */
+  logPaywallEvent(source: PaywallSource, step: PaywallStep): void {
+    void this.request("POST", "/api/paywall", {
+      source,
+      step,
+      deviceId: loadDeviceId(),
     }).catch(() => {});
   }
 

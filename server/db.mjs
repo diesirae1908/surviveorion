@@ -277,6 +277,30 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_devices_last ON devices(last_seen);
 `);
 
+// Web Gold Patrol paywall funnel (OR-paywall-metrics). Additive only.
+// patrol_date is the Pacific patrol day key used by admin stats.
+// device_hash reuses the OR-21 truncated SHA-256. No PII.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS paywall_events (
+    id INTEGER PRIMARY KEY,
+    patrol_date TEXT NOT NULL,
+    source TEXT NOT NULL,
+    step TEXT NOT NULL,
+    signed_in INTEGER NOT NULL DEFAULT 0,
+    device_hash TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_paywall_date ON paywall_events(patrol_date);
+  CREATE INDEX IF NOT EXISTS idx_paywall_step ON paywall_events(step);
+  CREATE TABLE IF NOT EXISTS billing_events (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    patrol_date TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_billing_events_date ON billing_events(patrol_date, kind);
+`);
+
 // One-time migration to platform-based boards (desktop / touch / tilt). The
 // old modes were flight-physics tags ('classic' = inertia, 'tilt' = direct
 // control); inertia is a flavor setting now, so old rows are refiled by the
@@ -1114,6 +1138,139 @@ export function addVisit({
   if (deviceHash) upsertDevice(deviceHash, at);
 }
 
+const PAYWALL_SOURCE_OK = new Set([
+  "calendar_unlock",
+  "archive_day",
+  "guest_activate",
+  "wingmates",
+  "lobby_upsell",
+  "patrol_complete",
+  "settings",
+  "gameover",
+]);
+const PAYWALL_STEP_OK = new Set([
+  "open",
+  "plan_monthly",
+  "plan_yearly",
+  "auth_prompt",
+  "checkout_redirect",
+  "checkout_error",
+  "dismiss",
+]);
+const BILLING_KIND_OK = new Set(["checkout_created", "checkout_completed"]);
+
+/** Insert one paywall funnel row. Returns false if source/step is not allowlisted. */
+export function addPaywallEvent({
+  source,
+  step,
+  signedIn = false,
+  deviceHash = null,
+  patrolDate,
+  at = Date.now(),
+}) {
+  if (!PAYWALL_SOURCE_OK.has(source) || !PAYWALL_STEP_OK.has(step)) return false;
+  const date = typeof patrolDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(patrolDate)
+    ? patrolDate
+    : ptDateStr(at);
+  db.prepare(
+    `INSERT INTO paywall_events (patrol_date, source, step, signed_in, device_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(date, source, step, signedIn ? 1 : 0, deviceHash ?? null, at);
+  return true;
+}
+
+/** Checkout session created or checkout.session.completed webhook handled. */
+export function addBillingEvent(kind, patrolDate, at = Date.now()) {
+  if (!BILLING_KIND_OK.has(kind)) return false;
+  const date = typeof patrolDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(patrolDate)
+    ? patrolDate
+    : ptDateStr(at);
+  db.prepare(
+    `INSERT INTO billing_events (kind, patrol_date, created_at) VALUES (?, ?, ?)`,
+  ).run(kind, date, at);
+  return true;
+}
+
+function emptyPaywallSlice() {
+  return {
+    byStep: {},
+    bySource: {},
+    uniqueOpenDevices: 0,
+    signedInOpens: 0,
+    guestOpens: 0,
+    checkoutCreated: 0,
+    checkoutCompleted: 0,
+  };
+}
+
+function paywallSlice(dateWhere, dateParams) {
+  const byStepRows = db
+    .prepare(
+      `SELECT step AS k, COUNT(*) AS c FROM paywall_events WHERE ${dateWhere} GROUP BY step`,
+    )
+    .all(...dateParams);
+  const bySourceRows = db
+    .prepare(
+      `SELECT source AS k, COUNT(*) AS c FROM paywall_events WHERE ${dateWhere} GROUP BY source`,
+    )
+    .all(...dateParams);
+  const uniqueOpenDevices = db
+    .prepare(
+      `SELECT COUNT(DISTINCT device_hash) AS c FROM paywall_events
+       WHERE ${dateWhere} AND step = 'open' AND device_hash IS NOT NULL`,
+    )
+    .get(...dateParams).c;
+  const signedInOpens = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM paywall_events
+       WHERE ${dateWhere} AND step = 'open' AND signed_in = 1`,
+    )
+    .get(...dateParams).c;
+  const guestOpens = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM paywall_events
+       WHERE ${dateWhere} AND step = 'open' AND signed_in = 0`,
+    )
+    .get(...dateParams).c;
+  const checkoutCreated = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM billing_events WHERE kind = 'checkout_created' AND ${dateWhere}`,
+    )
+    .get(...dateParams).c;
+  const checkoutCompleted = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM billing_events WHERE kind = 'checkout_completed' AND ${dateWhere}`,
+    )
+    .get(...dateParams).c;
+  return {
+    byStep: Object.fromEntries(byStepRows.map((r) => [r.k, r.c])),
+    bySource: Object.fromEntries(bySourceRows.map((r) => [r.k, r.c])),
+    uniqueOpenDevices,
+    signedInOpens,
+    guestOpens,
+    checkoutCreated,
+    checkoutCompleted,
+  };
+}
+
+/** Selected-day / last-7 / all-time paywall funnel for /api/admin/stats. */
+export function paywallStatsForDay(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return emptyPaywallSlice();
+  return paywallSlice("patrol_date = ?", [dateStr]);
+}
+
+export function paywallStatsAllTime() {
+  return paywallSlice("1 = 1", []);
+}
+
+export function paywallStatsLast7(todayStr) {
+  const today = todayStr && /^\d{4}-\d{2}-\d{2}$/.test(todayStr)
+    ? todayStr
+    : ptDateBounds().dateStr;
+  const from = shiftPtDate(today, -6);
+  return paywallSlice("patrol_date >= ? AND patrol_date <= ?", [from, today]);
+}
+
 /** Traffic overview for the admin dashboard. Days + "today" are Pacific Time. */
 export function trafficStats() {
   const now = Date.now();
@@ -1313,6 +1470,10 @@ export function adminStats() {
       bestMultiplier: totals.bestMultiplier ?? 0,
     },
     community,
+    paywall: {
+      allTime: paywallStatsAllTime(),
+      last7: paywallStatsLast7(ptDateBounds().dateStr),
+    },
   };
 }
 
@@ -1507,6 +1668,7 @@ export function adminStatsForDay(dateStr, { untilMs } = {}) {
       avgMaxMultiplier: totals.avgMaxMultiplier ?? 0,
       bestMultiplier: totals.bestMultiplier ?? 0,
     },
+    paywall: paywallStatsForDay(date),
   };
 }
 

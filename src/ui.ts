@@ -1,4 +1,4 @@
-import type { BoardMode } from "./api";
+import type { BoardMode, PaywallSource } from "./api";
 import { countryFlag, countryName } from "./countries";
 import { POWER_COLORS, POWER_HINTS, POWER_NAMES, SPAWNABLE_POWER_IDS, type GameMode } from "./config";
 import type { DayInfo } from "./dailyHistory";
@@ -102,7 +102,7 @@ export interface UiCallbacks {
   /** Open a public pilot record (daily board rows, with wingmate actions). */
   onPilot: (callsign: string) => void;
   /** Native play: open the Gold Patrol paywall sheet. Web: open Stripe paywall. */
-  onUnlockGoldPatrol?: () => void;
+  onUnlockGoldPatrol?: (source?: PaywallSource) => void;
   /** Web Gold Patrol: start Stripe Checkout for monthly or yearly. */
   onGoldPatrolWebCheckout?: (plan: "monthly" | "yearly") => void;
   /** Web: open Stripe Customer Portal (manage/cancel). */
@@ -554,7 +554,7 @@ export class Ui {
     primary.classList.add("chamfer");
     card.appendChild(primary);
     if (this.cb.onUnlockGoldPatrol) {
-      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());
+      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.("patrol_complete"));
       unlock.classList.add("small-btn", "chamfer", "patrol-complete-unlock");
       card.appendChild(unlock);
     } else if (APP_STORE_LIVE) {
@@ -1351,7 +1351,7 @@ export class Ui {
     icons.appendChild(
       this.buildTierChip(
         lobbyTier,
-        () => this.cb.onUnlockGoldPatrol?.(),
+        () => this.cb.onUnlockGoldPatrol?.("guest_activate"),
         openSettings,
       ),
     );
@@ -1473,7 +1473,7 @@ export class Ui {
           `Unlimited Daily runs · ${info.goldPatrolPrices.monthly}/mo or ${info.goldPatrolPrices.yearly}/yr`,
         ),
       );
-      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());
+      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.("lobby_upsell"));
       unlock.classList.add("chamfer", "gold-patrol-plan");
       upsell.appendChild(unlock);
       left.appendChild(upsell);
@@ -1732,7 +1732,7 @@ export class Ui {
       );
     } else if (archivePast && showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
       actionBtn = this.button("Unlock Gold Patrol", true, () =>
-        this.cb.onUnlockGoldPatrol?.(),
+        this.cb.onUnlockGoldPatrol?.("calendar_unlock"),
       );
       actionBtn.classList.add("gold-patrol-plan");
     }
@@ -1777,7 +1777,7 @@ export class Ui {
     if (lockedPast) {
       card.setAttribute("aria-label", "Locked. Requires Gold Patrol.");
       card.classList.add("day-card-locked");
-      card.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.());
+      card.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.("calendar_unlock"));
     }
 
     return card;
@@ -1853,7 +1853,7 @@ export class Ui {
         ),
       );
       strip.append(copy, this.el("span", "gold-strip-chevron", "›"));
-      strip.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.());
+      strip.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.("calendar_unlock"));
       screen.appendChild(strip);
     }
 
@@ -2092,7 +2092,7 @@ export class Ui {
         go.className = "settings-row settings-row-link";
         go.innerHTML =
           `<span>Go Premium: unlock Gold Patrol</span><span class="settings-row-chevron">›</span>`;
-        go.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.());
+        go.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.("settings"));
         accountPanel.appendChild(go);
       } else if (showManage) {
         const manage = document.createElement("button");
@@ -2849,7 +2849,7 @@ export class Ui {
           "Unlimited Daily runs, every past patrol, full history.",
         ),
       );
-      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.());
+      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.("gameover"));
       unlock.classList.add("small-btn", "chamfer");
       pitch.appendChild(unlock);
       actions.appendChild(pitch);

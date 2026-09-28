@@ -55,6 +55,7 @@ import {
   verifyWebhookSignature,
   syncUserBillingFromStripe,
 } from "./stripe.mjs";
+import { handlePaywallPost } from "./paywall.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -623,6 +624,11 @@ const routes = {
     try {
       const session = await createCheckoutSession({ stripe, user, plan, req, store });
       if (!session.url) return json(res, 500, { error: "checkout session missing url" });
+      try {
+        store.addBillingEvent("checkout_created", patrolToday());
+      } catch {
+        // counter must never change checkout
+      }
       json(res, 200, { url: session.url });
     } catch (e) {
       json(res, 400, { error: e?.message ?? "checkout failed" });
@@ -873,6 +879,23 @@ const routes = {
       deviceHash: bodyDeviceHash(body),
     });
     json(res, 200, { ok: true });
+  },
+
+  // Anonymous web Gold Patrol paywall funnel. Fire-and-forget from the client.
+  // Native / Capacitor skips this path. No PII: patrol day, source, step,
+  // signed-in yes/no, existing OR-21 device hash.
+  "POST /api/paywall": async (req, res, user) => {
+    const body = await readBody(req);
+    const result = handlePaywallPost({
+      body,
+      ip: clientIp(req),
+      signedIn: !!user,
+      deviceHash: bodyDeviceHash(body),
+      patrolDate: patrolToday(),
+      rateLimit,
+      addEvent: store.addPaywallEvent,
+    });
+    json(res, result.status, result.json);
   },
 
   // Anonymous run telemetry (signed-in runs are logged via POST /api/scores).
@@ -1299,6 +1322,13 @@ const server = http.createServer(async (req, res) => {
       }
       const stripe = getStripe();
       await applyStripeWebhookEvent(event, { store, stripe });
+      if (event?.type === "checkout.session.completed") {
+        try {
+          store.addBillingEvent("checkout_completed", patrolToday());
+        } catch {
+          // counter must never change webhook 200
+        }
+      }
       return json(res, 200, { received: true });
     }
     const arenaLb = /^\/api\/arenas\/([A-Za-z0-9]+)\/leaderboard$/.exec(url.pathname);
