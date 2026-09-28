@@ -185,10 +185,20 @@ async function startStripePortal(): Promise<void> {
 }
 
 function openWebGoldPatrolPaywall(): void {
-  if (!webStripeBillingAvailable()) return;
+  if (isNativeApp() || IS_NATIVE_PLAY) return;
   const runCheckout = (plan: "monthly" | "yearly"): void => {
     void (async () => {
       try {
+        if (!api.signedIn) {
+          community.showAuth(() => {
+            ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, showMenu);
+            void startStripeCheckout(plan).catch((e) => {
+              const msg = e instanceof ApiError ? e.message : "Checkout failed";
+              window.alert(msg);
+            });
+          });
+          return;
+        }
         await startStripeCheckout(plan);
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : "Checkout failed";
@@ -196,12 +206,6 @@ function openWebGoldPatrolPaywall(): void {
       }
     })();
   };
-  if (!api.signedIn) {
-    community.showAuth(() => {
-      ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, showMenu);
-    });
-    return;
-  }
   ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, showMenu);
 }
 
@@ -689,7 +693,16 @@ const ui = new Ui(settings, {
   },
   onWorldArena: () => community.showWorldArena(),
   onArenas: () => community.showArenas(),
-  onFriends: () => community.showFriends(),
+  onFriends: () => {
+    if (!IS_NATIVE_PLAY && !isNativeApp() && !api.signedIn) {
+      ui.showGuestWingmates(
+        () => community.showAuth(() => community.showFriends()),
+        showMenu,
+      );
+      return;
+    }
+    community.showFriends();
+  },
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
   onPatrolCalendar: () => openPatrolCalendar(),
   onPlayArchiveDay: (date) => playArchiveDay(date),

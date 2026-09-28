@@ -163,10 +163,15 @@ export function shouldStartFirstFlight(
   return runCount === 0 && !firstFlightDone;
 }
 
+/** End-screen / modal line. The in-flight strip uses the shorter variant. */
+export const FIRST_FLIGHT_PATROL_LINE =
+  "Everyone flies this same patrol today. 3 attempts. Best one goes on the board.";
+export const FIRST_FLIGHT_PATROL_STRIP = "Same patrol for everyone. 3 attempts.";
+
 /** Inline First Flight hint for the current survival time. */
 export function firstFlightHint(time: number, touch: boolean): string {
   if (time >= FIRST_FLIGHT_HINT_PATROL_AT) {
-    return "Everyone flies this same patrol today. 3 attempts. Best one goes on the board.";
+    return FIRST_FLIGHT_PATROL_STRIP;
   }
   if (time >= FIRST_FLIGHT_HINT_ORB_AT) {
     return "Grab the glowing orb, it fires itself";

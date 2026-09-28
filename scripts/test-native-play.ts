@@ -85,6 +85,7 @@ assert.match(ui, /Switch to touch/);
 assert.match(ui, /Switch to tilt/);
 
 const tilt = fs.readFileSync(path.join(ROOT, "src/tilt.ts"), "utf8");
+assert.match(main, /if \(IS_NATIVE_PLAY\) postNativePremium\("calendar"\)/);
 assert.match(tilt, /stopMotion/);
 
 console.log("PASS  nativePlay guard (website boot unchanged without the query)");

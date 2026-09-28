@@ -9,6 +9,8 @@ import path from "node:path";
 import {
   FIRST_FLIGHT_HINT_ORB_AT,
   FIRST_FLIGHT_HINT_PATROL_AT,
+  FIRST_FLIGHT_PATROL_LINE,
+  FIRST_FLIGHT_PATROL_STRIP,
   FIRST_FLIGHT_SECONDS,
   firstFlightHint,
   shouldStartFirstFlight,
@@ -30,9 +32,11 @@ assert.equal(
 assert.equal(firstFlightHint(0, true), "Drag anywhere to fly");
 assert.equal(firstFlightHint(0, false), "WASD or arrows");
 assert.equal(firstFlightHint(8, true), "Grab the glowing orb, it fires itself");
-assert.equal(
-  firstFlightHint(18, false),
-  "Everyone flies this same patrol today. 3 attempts. Best one goes on the board.",
+assert.equal(firstFlightHint(18, false), FIRST_FLIGHT_PATROL_STRIP);
+assert.equal(FIRST_FLIGHT_PATROL_STRIP, "Same patrol for everyone. 3 attempts.");
+assert.ok(
+  FIRST_FLIGHT_PATROL_LINE.startsWith("Everyone flies this same patrol today."),
+  "end screen keeps the full patrol sentence",
 );
 
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
@@ -65,6 +69,23 @@ assert.match(
   main,
   /shouldStartFirstFlight\(\s*loadRunCount\(\),\s*loadFirstFlightDone\(\),\s*IS_NATIVE_PLAY\s*\)/,
   "native daily skips the First Flight insertion",
+);
+
+assert.match(main, /ui\.showGuestWingmates/);
+assert.match(
+  main,
+  /if \(!IS_NATIVE_PLAY && !isNativeApp\(\) && !api\.signedIn\)/,
+  "native play still uses community.showFriends (login) for Wingmates",
+);
+assert.match(
+  main,
+  /function openWebGoldPatrolPaywall\(\): void \{[\s\S]*?ui\.showGoldPatrolPaywall\(webGoldPatrolPrices\(\), runCheckout, showMenu\);\n\}/,
+  "guest ACTIVATE opens the paywall immediately",
+);
+assert.match(
+  main,
+  /function openWebGoldPatrolPaywall\(\): void \{[\s\S]*?if \(!api\.signedIn\) \{[\s\S]*?community\.showAuth/,
+  "unsigned plan tap still uses the paywall's sign-in step",
 );
 
 console.log("PASS  first-flight gate (web only, no attempt, no submit)");
