@@ -1498,7 +1498,10 @@ export class Ui {
       window.removeEventListener("keydown", this.lobbyMenuKeyHandler);
       this.lobbyMenuKeyHandler = null;
     }
-    document.getElementById("lobby-menu-catcher")?.remove();
+    const catcher = document.getElementById("lobby-menu-catcher");
+    const wasOpen = !!catcher;
+    catcher?.remove();
+    if (wasOpen) this.root.querySelector<HTMLButtonElement>(".lobby-menu-btn")?.focus();
   }
 
   showLobbyMenu(info: DailyLobbyInfo): void {
@@ -1698,17 +1701,9 @@ export class Ui {
       ),
     );
     block.appendChild(this.el("div", "lobby-score", Math.floor(best.score).toLocaleString()));
-      const medal = info.medalThresholds ? medalForScore(best.score, info.medalThresholds) : null;
-    const rankText = this.lobbyRankText(info, best);
     const meta = this.el("div", "lobby-meta", "");
-    if (medal) {
-      meta.innerHTML += `${medalIconHtml(medal)}<span>${MEDAL_LABEL[medal]}</span>`;
-    }
-    if (rankText) {
-      if (meta.innerHTML) meta.innerHTML += `<span class="dot">·</span>`;
-      meta.innerHTML += `<span>${escapeHtml(rankText)}</span>`;
-    }
-    meta.innerHTML += `<span class="dot">·</span><span class="time">${fmtTime(best.time)}</span>`;
+    meta.id = "lobby-result-meta";
+    this.paintResultMeta(meta, info, best);
     block.appendChild(meta);
     if (info.medalThresholds) {
       const p = nextMedalProgress(best.score, info.medalThresholds);
@@ -1729,6 +1724,29 @@ export class Ui {
       block.appendChild(bl);
     }
     return block;
+  }
+
+  private paintResultMeta(
+    meta: HTMLElement,
+    info: DailyLobbyInfo,
+    best: { score: number; time: number; rank: number | null },
+  ): void {
+    const medal = info.medalThresholds ? medalForScore(best.score, info.medalThresholds) : null;
+    const rankText = this.lobbyRankText(info, best);
+    let html = "";
+    if (medal) html += `${medalIconHtml(medal)}<span>${MEDAL_LABEL[medal]}</span>`;
+    if (rankText) {
+      if (html) html += `<span class="dot">·</span>`;
+      html += `<span>${escapeHtml(rankText)}</span>`;
+    }
+    html += `<span class="dot">·</span><span class="time">${fmtTime(best.time)}</span>`;
+    meta.innerHTML = html;
+  }
+
+  private refreshLobbyHeroRank(info: DailyLobbyInfo): void {
+    const meta = document.getElementById("lobby-result-meta");
+    if (!meta || !info.best) return;
+    this.paintResultMeta(meta, info, info.best);
   }
 
   private lobbyRankText(info: DailyLobbyInfo, best: { score: number; rank: number | null }): string {
@@ -3715,7 +3733,10 @@ export class Ui {
     if (search && search.value !== this.dailyBoardSearchQuery) {
       search.value = this.dailyBoardSearchQuery;
     }
-    if (this.lobbyInfo) this.renderLobbyBoard(this.lobbyInfo);
+    if (this.lobbyInfo) {
+      this.renderLobbyBoard(this.lobbyInfo);
+      this.refreshLobbyHeroRank(this.lobbyInfo);
+    }
     if (list) this.renderDailyBoardRows();
   }
 

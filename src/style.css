@@ -3990,6 +3990,7 @@ button.day-card-action:active {
   font-size: 14px;
   line-height: 1.35;
   margin-top: 2px;
+  text-wrap: balance;
 }
 
 .lobby-mut-r {
@@ -4181,7 +4182,7 @@ button.day-card-action:active {
   justify-content: center;
   gap: 6px;
   padding: 6px 10px;
-  min-height: 36px;
+  min-height: 44px;
   min-width: 0;
   width: auto;
   flex: 0 0 auto;
@@ -4248,10 +4249,10 @@ button.day-card-action:active {
   text-indent: 0;
   text-transform: uppercase;
   cursor: pointer;
-  min-height: 32px;
+  min-height: 44px;
   min-width: 0;
   width: auto;
-  padding: 4px 0;
+  padding: 10px 0;
   flex: 0 0 auto;
 }
 
@@ -4300,6 +4301,7 @@ button.day-card-action:active {
   background: linear-gradient(90deg, #ffd70026, #ffd70008);
   box-shadow: inset 3px 0 0 var(--orion-gold);
   color: var(--orion-gold);
+  padding-left: 12px;
 }
 
 .lobby-board-row.me .nm {
@@ -4330,9 +4332,9 @@ button.day-card-action:active {
   display: block;
   width: 100%;
   min-width: 0;
-  min-height: 28px;
+  min-height: 44px;
   margin: 0;
-  padding: 2px 0 6px 56px;
+  padding: 10px 0 10px 56px;
   border: 0;
   background: none;
   box-shadow: none;
@@ -4420,6 +4422,7 @@ button.day-card-action:active {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  pointer-events: auto;
 }
 
 .lobby-menu-sheet {
@@ -4603,6 +4606,25 @@ button.day-card-action:active {
   .lobby-pnum b {
     font-size: 18px;
     margin-left: 4px;
+  }
+
+  .lobby-streak {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .lobby-chips {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .lobby-chip,
+  .lobby-v2 button.lobby-rules-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 6px;
+    font-size: 12px;
   }
 }
 
