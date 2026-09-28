@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-27 PT: promote `fix/sec-highs-0927` to `main` (production)
+
+- **Approval:** Lucas, ~7:00 PM PT. **Worktree:** `~/Documents/games/orion-web-promote-sec-0927` (not the dirty `orion-web` checkout). **Frozen tip:** `origin/fix/sec-highs-0927` `17ee39b` off `origin/main` `c5225b8`.
+- **Render (pre-push):** `surviveorion` `srv-d983pie7r5hc73ce7bfg` tracks `main`, autoDeploy on. `surviveorion-dev` `srv-da9j8nhf2nfc73fnuaig` tracks `dev`, autoDeploy on.
+- **Staging:** FF `origin/dev` `c5225b8` → `17ee39b`. Deploy `dep-dasskcivcj2c73b71d30` live. Smoke: `/` 200, `/api/me` 401, guest POST new callsign 200, duplicate callsign without secret 409. Staging error logs: only deploy-cutover 502s (no app stack traces).
+- **Production:** direct merge `origin/fix/sec-highs-0927` into `main` (not `dev` → `main`). `npm ci`, `npm test`, `npm run build` green (bundle `main-HRPpetqp.js`). Push `promote-main-sec:main` FF to `17ee39b`. Deploy `dep-dassm0rtqb8s73a4k270` live. Smoke: `/` 200, `/api/me` 401, served bundle `main-HRPpetqp.js`. Prod logs since deploy: two cutover 502s at 02:05:15Z, then 200s; no migration/SQLite errors in app logs.
+- **Dev sync:** merge `origin/main` into `origin/dev` after JOURNAL commit (see hash below).
+
 ## 2026-09-27 PT: fix high-severity auth/IAP findings (SEC-01, SEC-02, SEC-03)
 
 - **Branch:** `fix/sec-highs-0927` (worktree `~/Documents/games/orion-web-sec-highs-0927` off `origin/main` `c5225b8`). Not merged to `dev` or `main`. Lucas approved the fixes; promote only after his OK.
