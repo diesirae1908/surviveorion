@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-29 PT: THE FLOOD 0929 social draft hosted (phase 1)
+
+- Worktree `.worktrees/buffer-0929` branch `sam/buffer-0929`. Master
+  `final_videoasset/0929_theflood_captain_916.mp4`. Stream-copied (no
+  re-encode) to H.264 1080x1920 AAC, faststart verified (moov before mdat).
+  Hosted `public/social-drafts/0929_theflood_captain_916.mp4` (16.3s,
+  5,087,558 bytes).
+- Deploy target: `https://surviveorion.com/social-drafts/0929_theflood_captain_916.mp4`.
+- Buffer IG/TT/YT shareNow pending Lucas caption approval (phase 2).
+
 ## 2026-09-28 PT: drop "arena" from Feedback flavor copy
 
 - **Why:** Lucas copy call: brand rule says never "arena" in player-facing flavor lines (the Arenas feature name and the "arena leaderboard" sign-in hint stay, those are not flavor copy). Two lines on the Feedback screen still said "arena".
