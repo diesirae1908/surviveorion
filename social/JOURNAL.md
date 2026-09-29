@@ -1,5 +1,10 @@
 # JOURNAL
 
+## 2026-09-29 PT: THE FLOOD Buffer IG/TT/YT shareNow (phase 2)
+
+- Lucas authorized live Buffer IG + TikTok + YouTube Shorts, `shareNow`, caption Option A (Sam fixed reset line to "midnight PT" per Aug 26 PT day boundary). `post-buffer.mjs` `--dry=false`, media `https://surviveorion.com/social-drafts/0929_theflood_captain_916.mp4` (video/mp4, 5,087,558 bytes).
+- Buffer IG `6abbf72b945e596c70384722` (initial status `sending`), TT `6abbf7379340de4c7360c197` (sending, hashtags added to text by hand), YT `6abbf742945e596c703849b6` (sent, title "THE FLOOD day | daily dodge game"). Hosting commit `e335b8e`.
+
 ## 2026-09-29 PT: THE FLOOD 0929 social draft hosted (phase 1)
 
 - Worktree `.worktrees/buffer-0929` branch `sam/buffer-0929`. Master
