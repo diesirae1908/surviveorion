@@ -1,5 +1,6 @@
 import Foundation
 import StoreKit
+import UIKit
 
 @MainActor
 final class StoreKitManager: ObservableObject {
@@ -13,6 +14,14 @@ final class StoreKitManager: ObservableObject {
     @Published var lastError: String?
     @Published var entitled = false
     @Published var productId: String?
+    @Published var expiresAt: Date?
+
+    /// Verified, unrevoked, unexpired StoreKit entitlement on this Apple ID.
+    /// Re-checks the clock so an app left open past expiry drops premium.
+    var entitlementActive: Bool {
+        guard entitled, let expiresAt else { return false }
+        return expiresAt > Date()
+    }
 
     private var updates: Task<Void, Never>?
 
@@ -80,16 +89,32 @@ final class StoreKitManager: ObservableObject {
         do {
             try await AppStore.sync()
             await updateEntitlement()
-            if !entitled {
+            if !entitlementActive {
                 lastError = "No previous purchase found for this Apple ID."
             }
-            return entitled
+            return entitlementActive
         } catch {
             lastError = productsUnavailable
                 ? "The App Store catalog isn't loaded yet. Check your connection and try again."
                 : "Couldn't restore this purchase. Check your Apple ID and try again."
             return false
         }
+    }
+
+    /// Apple's native manage sheet. Unlike the apps.apple.com page it also
+    /// lists TestFlight and sandbox subscriptions. False if it could not open.
+    func showManageSubscriptions() async -> Bool {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+        else { return false }
+        do {
+            try await AppStore.showManageSubscriptions(in: scene)
+        } catch {
+            return false
+        }
+        await updateEntitlement()
+        return true
     }
 
     private func listenForUpdates() async {
@@ -104,38 +129,46 @@ final class StoreKitManager: ObservableObject {
     private func updateEntitlement() async {
         var found = false
         var pid: String?
-        var until: TimeInterval = 0
+        var until: Date?
         var jws: String?
         for await entitlement in Transaction.currentEntitlements {
             guard let (transaction, signed) = try? checkVerifiedTransaction(entitlement) else { continue }
-            if transaction.productID == Self.monthlyId || transaction.productID == Self.yearlyId {
-                if let exp = transaction.expirationDate, exp > Date() {
-                    found = true
-                    pid = transaction.productID
-                    until = exp.timeIntervalSince1970
-                    jws = signed
-                }
-            }
+            guard Self.isPremium(transaction), let exp = transaction.expirationDate else { continue }
+            if let current = until, current >= exp { continue }
+            found = true
+            pid = transaction.productID
+            until = exp
+            jws = signed
         }
         entitled = found
         productId = pid
-        if found {
-            PreferencesStore.localPremiumUntil = until
+        expiresAt = until
+        // StoreKit is the source of truth. The UserDefaults copy is only a
+        // launch hint, so it is cleared as soon as StoreKit reports nothing
+        // (refund, revocation, expiry, or another Apple ID on the device).
+        if found, let until {
+            PreferencesStore.localPremiumUntil = until.timeIntervalSince1970
             PreferencesStore.localPremiumProduct = pid
             if let jws {
                 _ = try? await APIClient.shared.reportPremium(signedTransaction: jws)
             }
-        } else if !PreferencesStore.localPremiumActive {
+        } else {
             PreferencesStore.localPremiumUntil = 0
             PreferencesStore.localPremiumProduct = nil
         }
     }
 
+    private static func isPremium(_ transaction: Transaction) -> Bool {
+        guard transaction.productID == monthlyId || transaction.productID == yearlyId else { return false }
+        guard transaction.revocationDate == nil, let exp = transaction.expirationDate else { return false }
+        return exp > Date()
+    }
+
     private func apply(_ transaction: Transaction) async {
-        guard transaction.productID == Self.monthlyId || transaction.productID == Self.yearlyId else { return }
-        if let exp = transaction.expirationDate, exp > Date() {
+        if Self.isPremium(transaction), let exp = transaction.expirationDate {
             entitled = true
             productId = transaction.productID
+            expiresAt = exp
             PreferencesStore.localPremiumUntil = exp.timeIntervalSince1970
             PreferencesStore.localPremiumProduct = transaction.productID
         }

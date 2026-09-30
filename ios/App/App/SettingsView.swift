@@ -192,7 +192,14 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                     } else if model.tier == .premium {
                         hairline
-                        Button { showManageSub = true } label: {
+                        Button {
+                            Task {
+                                // Native sheet first (shows TestFlight/sandbox too); web page only if it fails.
+                                if !(await model.store.showManageSubscriptions()) {
+                                    showManageSub = true
+                                }
+                            }
+                        } label: {
                             OrionListRow(label: "Manage Subscription", chevron: true)
                         }
                         .buttonStyle(.plain)
@@ -202,8 +209,8 @@ struct SettingsView: View {
                         Button {
                             Task {
                                 _ = await model.store.restore()
-                                restoreNote = model.store.lastError ?? (model.store.entitled ? "Gold Patrol active." : nil)
-                                if model.store.entitled { model.showPremiumToast() }
+                                restoreNote = model.store.lastError ?? (model.store.entitlementActive ? "Gold Patrol active." : nil)
+                                if model.store.entitlementActive { model.showPremiumToast() }
                             }
                         } label: {
                             OrionListRow(label: "Already subscribed? Restore", chevron: true)
@@ -211,6 +218,11 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                     }
                 }
+            }
+            if model.premiumViaAppleID {
+                Text("Gold Patrol via your Apple ID.")
+                    .font(OrionFont.body(12, weight: .regular))
+                    .foregroundStyle(OrionColor.dust)
             }
             if model.tier != .admin {
                 Text("Restore if you paid on another device or reinstalled.")

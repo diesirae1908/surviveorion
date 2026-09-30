@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-30 PT: iOS PREMIUM while signed out (diagnosis + fix)
+
+- **Report:** Lucas, TestFlight build 18: Settings shows PREMIUM with no Orion sign-in. Sandbox Gold Patrol bought Sep 24 on build 17, same Apple ID. "Manage Subscription" opened apps.apple.com, which never lists TestFlight/sandbox subs.
+- **Diagnosis:** signed out always forces `serverTier = .free` (`AppModel.refresh` / `signOut`), so the server, sign-out, and `premium_until` are not the cause (`server/tier.mjs` honors expiry). Signed-out premium can only come from `store.entitled` (a verified, unexpired `Transaction.currentEntitlements` hit on this Apple ID) or the UserDefaults cache `orion.premiumUntil`. Lucas's case is most likely a real still-active TestFlight sub (TestFlight renews daily, several times) and that part is correct under 5.1.1(v).
+- **Real bug found:** `StoreKitManager.updateEntitlement` kept `orion.premiumUntil` whenever it had not yet expired, even when StoreKit reported no entitlement. A refunded/revoked sub or another Apple ID on the device kept premium until the cached expiry (up to a year on yearly). Also `entitled` never dropped while the app stayed open past expiry.
+- **Changed (iOS only):** `StoreKitManager.swift`: StoreKit is the source of truth, cache cleared whenever it reports nothing; revoked transactions ignored; new `expiresAt` + `entitlementActive` (re-checks the clock); `showManageSubscriptions()` uses `AppStore.showManageSubscriptions(in:)`. `AppModel.swift`: tier uses `entitlementActive`; new `premiumViaAppleID`. `SettingsView.swift`: Manage Subscription opens the native sheet, Safari URL only if it throws; signed-out Apple ID premium shows "Gold Patrol via your Apple ID."
+- **Server:** unchanged.
+- **Gate:** `npm test` exit 0, `npm run build` exit 0. xcodebuild not run here; Sam builds.
+- **Follow-ups:** purchases do not pass `appAccountToken` (server relies on the original-transaction claim table). Manage sheet cannot show a Stripe web sub.
+
 ## 2026-09-30 PT: iOS EULA link fix, App Review 3.1.2(c) (build 18)
 
 - **Why:** Apple rejected iOS 1.0 (build 17) on 2026-09-30: "a functional link to the Terms of Use (EULA)" is missing. The paywall's "Terms" link pointed at `surviveorion.com/terms.html`, a web-only Terms of Service (it says the game is free) which Apple does not accept as the EULA.

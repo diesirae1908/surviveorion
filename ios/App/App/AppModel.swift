@@ -85,10 +85,15 @@ final class AppModel: ObservableObject {
 
     var tier: AccountTier {
         if isRealCrew { return previewOverride }
-        if serverTier == .premium || store.entitled || PreferencesStore.localPremiumActive || qaPremium {
+        if serverTier == .premium || store.entitlementActive || PreferencesStore.localPremiumActive || qaPremium {
             return .premium
         }
         return .free
+    }
+
+    /// Signed out, premium only because this Apple ID holds the subscription.
+    var premiumViaAppleID: Bool {
+        !isSignedIn && tier == .premium && store.entitlementActive
     }
 
     var isPremium: Bool { tier == .premium || tier == .admin }
