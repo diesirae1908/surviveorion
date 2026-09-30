@@ -54,6 +54,12 @@ why, commit hash, follow-ups), committed together with the work. See
   entitlement); nobody has hit it yet. `Product.SubscriptionInfo.Status`
   API names were written from spec/memory, not compiled locally; double-check
   against Xcode's autocomplete during the build.
+- **Fix round:** the new `ManageGoldPatrolView.swift` was never registered in
+  `ios/App/App.xcodeproj/project.pbxproj` (this project uses explicit file
+  references, not synchronized folders), so Sam's simulator build failed with
+  "cannot find 'ManageGoldPatrolView' in scope." Added the PBXBuildFile,
+  PBXFileReference, App group child, and PBXSourcesBuildPhase entries
+  (`A100002E`/`B100002E`), mirroring the `PremiumSheet.swift` registration.
 
 ## 2026-09-30 PT: iOS PREMIUM while signed out (diagnosis + fix)
 
