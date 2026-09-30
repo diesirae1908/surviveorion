@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var message: String?
     @State private var confirmDelete = false
     @State private var showPrivacy = false
+    @State private var showTerms = false
     @State private var appeared = false
     @State private var showGoogle = false
     @State private var googleClientId = ""
@@ -121,6 +122,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showPrivacy) {
             SafariSheet(url: URL(string: "https://surviveorion.com/privacy.html")!)
+        }
+        .sheet(isPresented: $showTerms) {
+            SafariSheet(url: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
         }
         .sheet(isPresented: $showManageSub) {
             SafariSheet(url: URL(string: "https://apps.apple.com/account/subscriptions")!)
@@ -404,25 +408,47 @@ struct SettingsView: View {
     }
 
     private var privacySection: some View {
-        Button { showPrivacy = true } label: {
-            HStack {
-                Text("PRIVACY POLICY")
-                    .font(OrionFont.body(13, weight: .bold))
-                    .foregroundStyle(OrionColor.hullGold)
-                    .tracking(2)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(OrionColor.bronze)
+        VStack(spacing: 12) {
+            Button { showPrivacy = true } label: {
+                HStack {
+                    Text("PRIVACY POLICY")
+                        .font(OrionFont.body(13, weight: .bold))
+                        .foregroundStyle(OrionColor.hullGold)
+                        .tracking(2)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(OrionColor.bronze)
+                }
+                .frame(minHeight: OrionLayout.minTap)
             }
-            .frame(minHeight: OrionLayout.minTap)
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 12))
-        .overlay {
-            ChamferedRectangle(chamfer: 12)
-                .strokeBorder(OrionColor.hullLine, lineWidth: 1.5)
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 12))
+            .overlay {
+                ChamferedRectangle(chamfer: 12)
+                    .strokeBorder(OrionColor.hullLine, lineWidth: 1.5)
+            }
+            Button { showTerms = true } label: {
+                HStack {
+                    Text("TERMS OF USE (EULA)")
+                        .font(OrionFont.body(13, weight: .bold))
+                        .foregroundStyle(OrionColor.hullGold)
+                        .tracking(2)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(OrionColor.bronze)
+                }
+                .frame(minHeight: OrionLayout.minTap)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .background(OrionColor.deepSpace, in: ChamferedRectangle(chamfer: 12))
+            .overlay {
+                ChamferedRectangle(chamfer: 12)
+                    .strokeBorder(OrionColor.hullLine, lineWidth: 1.5)
+            }
         }
     }
 

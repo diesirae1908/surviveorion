@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-30 PT: iOS EULA link fix, App Review 3.1.2(c) (build 18)
+
+- **Why:** Apple rejected iOS 1.0 (build 17) on 2026-09-30: "a functional link to the Terms of Use (EULA)" is missing. The paywall's "Terms" link pointed at `surviveorion.com/terms.html`, a web-only Terms of Service (it says the game is free) which Apple does not accept as the EULA.
+- **Changed (`ios/App/App/PremiumSheet.swift`):** footer link relabeled "Terms of Use (EULA)" pointing at Apple's Standard EULA (`https://www.apple.com/legal/internet-services/itunes/dev/stdeula/`); "Privacy" relabeled "Privacy Policy" (same URL, unchanged). Moved the link row up to sit directly under the renewal disclosure, above the Start button, so title/length/price/links are together without extra scrolling. Wrapped in `ViewThatFits` (inline row, falls back to stacked) so it doesn't truncate at compact widths.
+- **Changed (`ios/App/App/SettingsView.swift`):** added a `TERMS OF USE (EULA)` row next to `PRIVACY POLICY`, same `SafariSheet` pattern, same Apple EULA URL.
+- **Untouched:** `public/terms.html` (web ToS, still accurate for the web game), version/build numbers (Sam passes `CURRENT_PROJECT_VERSION=18` at archive).
+- **Gate:** `npm run build` (tsc --noEmit + vite) exit 0. xcodebuild not run from this sandbox; Sam archives and verifies the Xcode build.
+
 ## 2026-09-29 PT: THE FLOOD Buffer IG/TT/YT shareNow (phase 2)
 
 - Lucas authorized live Buffer IG + TikTok + YouTube Shorts, `shareNow`, caption Option A (Sam fixed reset line to "midnight PT" per Aug 26 PT day boundary). `post-buffer.mjs` `--dry=false`, media `https://surviveorion.com/social-drafts/0929_theflood_captain_916.mp4` (video/mp4, 5,087,558 bytes).

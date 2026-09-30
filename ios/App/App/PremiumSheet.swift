@@ -59,6 +59,23 @@ struct PremiumSheet: View {
                         .font(OrionFont.body(12, weight: .regular))
                         .foregroundStyle(OrionColor.dust)
                         .multilineTextAlignment(.center)
+                    ViewThatFits {
+                        HStack(spacing: 8) {
+                            Link("Terms of Use (EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                                .foregroundStyle(OrionColor.dust)
+                            Text("·")
+                                .foregroundStyle(OrionColor.dust)
+                            Link("Privacy Policy", destination: URL(string: "https://surviveorion.com/privacy.html")!)
+                                .foregroundStyle(OrionColor.dust)
+                        }
+                        VStack(spacing: 4) {
+                            Link("Terms of Use (EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                                .foregroundStyle(OrionColor.dust)
+                            Link("Privacy Policy", destination: URL(string: "https://surviveorion.com/privacy.html")!)
+                                .foregroundStyle(OrionColor.dust)
+                        }
+                    }
+                    .font(OrionFont.body(12, weight: .regular))
                     if model.store.productsUnavailable {
                         Text("Premium unavailable")
                             .font(OrionFont.body(13))
@@ -85,15 +102,6 @@ struct PremiumSheet: View {
                             .foregroundStyle(err.contains("No previous") ? OrionColor.bronze : OrionColor.alarm)
                             .multilineTextAlignment(.center)
                     }
-                    HStack(spacing: 8) {
-                        Link("Terms", destination: URL(string: "https://surviveorion.com/terms.html")!)
-                            .foregroundStyle(OrionColor.dust)
-                        Text("·")
-                            .foregroundStyle(OrionColor.dust)
-                        Link("Privacy", destination: URL(string: "https://surviveorion.com/privacy.html")!)
-                            .foregroundStyle(OrionColor.dust)
-                    }
-                    .font(OrionFont.body(12, weight: .regular))
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
