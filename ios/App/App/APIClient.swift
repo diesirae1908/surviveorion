@@ -54,6 +54,11 @@ struct MeResponse: Codable {
     var clipInbox: Bool?
     var tier: String?
     var premiumActive: Bool?
+    var premiumSource: String?
+}
+
+struct BillingPortalResponse: Codable {
+    var url: String
 }
 
 struct LoginResponse: Codable {
@@ -233,6 +238,10 @@ actor APIClient {
 
     func reportPremium(signedTransaction: String) async throws -> PremiumReportResponse {
         try await request("POST", "/api/me/premium", json: ["signedTransaction": signedTransaction])
+    }
+
+    func billingPortal() async throws -> BillingPortalResponse {
+        try await request("POST", "/api/billing/portal")
     }
 
     func uploadClip(video: Data, sidecar: String, basename: String, ext: String) async throws {

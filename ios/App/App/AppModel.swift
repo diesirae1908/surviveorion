@@ -52,6 +52,8 @@ final class AppModel: ObservableObject {
     @Published var pendingWingmates = false
     @Published var pendingAnalytics = false
     @Published var serverTier: AccountTier = .free
+    /// "stripe" for a web subscription; nil for Apple-purchased or manually-granted premium.
+    @Published var premiumSource: String?
     @Published var pendingFriends = 0
     @Published var joinedAt: Date?
     @Published var clipInbox = false
@@ -136,6 +138,7 @@ final class AppModel: ObservableObject {
                     } else {
                         serverTier = clipInbox ? .admin : .free
                     }
+                    premiumSource = me.premiumSource
                     if let ms = me.joinedAt {
                         joinedAt = Date(timeIntervalSince1970: ms / (ms > 10_000_000_000 ? 1000 : 1))
                     }
@@ -146,11 +149,13 @@ final class AppModel: ObservableObject {
                     serverTier = .free
                     clipInbox = false
                     pendingFriends = 0
+                    premiumSource = nil
                 }
             } else {
                 serverTier = .free
                 clipInbox = false
                 pendingFriends = 0
+                premiumSource = nil
             }
         } catch APIError.offline {
             online = false
@@ -201,6 +206,7 @@ final class AppModel: ObservableObject {
         serverTier = .free
         clipInbox = false
         pendingFriends = 0
+        premiumSource = nil
         await refresh()
     }
 
@@ -211,6 +217,7 @@ final class AppModel: ObservableObject {
         isSignedIn = false
         serverTier = .free
         clipInbox = false
+        premiumSource = nil
         await refresh()
     }
 

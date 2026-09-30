@@ -4,6 +4,57 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-09-30 PT: iOS own Gold Patrol management screen (build 20)
+
+- **Why:** Lucas, TestFlight: Settings > Manage Subscription called
+  `AppStore.showManageSubscriptions(in:)`, which renders raw localization
+  keys (MZCommerceInAppBuy...) in TestFlight and whose cancel button does
+  nothing. Apps cannot cancel a subscription themselves either way, so this
+  builds an ORION-styled status screen and hands off to Apple (or Stripe)
+  only for the actual change/cancel step.
+- **Added `ios/App/App/ManageGoldPatrolView.swift`:** sheet with the same
+  chrome as `PremiumSheet` (close X, GoldBloom/PatrolSightMark header, GOLD
+  PATROL title). Four states: Apple subscription (plan + price, renew/cancel
+  status line from StoreKit 2, "Change plan or cancel" opens
+  `apps.apple.com/account/subscriptions` via `UIApplication.shared.open`,
+  never SafariSheet), Stripe web subscription ("Billed on surviveorion.com",
+  "Manage billing" hits `POST /api/billing/portal` and opens the returned
+  URL), premium granted with neither source on record (rare admin-role
+  grant, shows an active message with no manage action), and no entitlement
+  (Restore purchases only). Restore purchases and the EULA/Privacy footer
+  links are present in every state. Refreshes on appear and on
+  `scenePhase == .active`.
+- **`StoreKitManager.swift`:** replaced the removed `showManageSubscriptions()`
+  (nothing else called it) with `autoRenewOn` / `renewalState` published from
+  a new `refreshSubscriptionStatus()`, called at the end of
+  `updateEntitlement()`. Reads `Product.SubscriptionInfo.Status` for the
+  entitled product, matching by transaction `productID`; billing-issue copy
+  keys off `.inBillingRetryPeriod` / `.inGracePeriod`.
+- **`APIClient.swift`:** `MeResponse` decodes the existing server
+  `premiumSource` field (was already returned by `/api/me`, just not
+  decoded); added `billingPortal()` (`POST /api/billing/portal`, no body,
+  matches the existing Settings billing flow's contract).
+- **`AppModel.swift`:** new `premiumSource` published property, set from
+  `/api/me`, cleared on sign-out/delete/signed-out.
+- **`SettingsView.swift`:** Manage Subscription now presents
+  `ManageGoldPatrolView` instead of the native sheet + apps.apple.com
+  fallback; removed the now-dead `showManageSub`/`SafariSheet` pair.
+- **Untouched:** purchase/entitlement/server premium logic (build 19 fix
+  stays as is), Stripe portal endpoint and `premium_source` values (server
+  unchanged, `"stripe"` is the only source string the server ever writes;
+  Apple purchases and admin-granted `role=premium` both leave it null, which
+  is why the screen treats "premiumSource != stripe" as "check StoreKit next"
+  rather than assuming Apple).
+- **Gate:** `npm ci` (node_modules was missing in this worktree), `npm test`
+  exit 0 (all suites, including `test:no-em-dash`), `npm run build`
+  (`tsc --noEmit` + vite) exit 0. No server files changed. xcodebuild not run
+  here; Sam builds and verifies against the 17.0 deployment target.
+- **Follow-ups:** the "granted, no source on record" branch is speculative
+  (admin-set `role=premium` with no Stripe customer and no Apple
+  entitlement); nobody has hit it yet. `Product.SubscriptionInfo.Status`
+  API names were written from spec/memory, not compiled locally; double-check
+  against Xcode's autocomplete during the build.
+
 ## 2026-09-30 PT: iOS PREMIUM while signed out (diagnosis + fix)
 
 - **Report:** Lucas, TestFlight build 18: Settings shows PREMIUM with no Orion sign-in. Sandbox Gold Patrol bought Sep 24 on build 17, same Apple ID. "Manage Subscription" opened apps.apple.com, which never lists TestFlight/sandbox subs.

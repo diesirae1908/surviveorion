@@ -20,7 +20,7 @@ struct SettingsView: View {
     @State private var googleIosClientId: String?
     @State private var appleCoordinator = AppleSignInCoordinator()
     @State private var premium: PremiumContext?
-    @State private var showManageSub = false
+    @State private var showManageGoldPatrol = false
     @State private var photosStatus = ClipStore.photosStatus()
     @State private var recordRuns = PreferencesStore.recordRuns
     @State private var recordingMode = PreferencesStore.recordingMode
@@ -126,8 +126,8 @@ struct SettingsView: View {
         .sheet(isPresented: $showTerms) {
             SafariSheet(url: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
         }
-        .sheet(isPresented: $showManageSub) {
-            SafariSheet(url: URL(string: "https://apps.apple.com/account/subscriptions")!)
+        .sheet(isPresented: $showManageGoldPatrol) {
+            ManageGoldPatrolView { showManageGoldPatrol = false }
         }
         .sheet(item: $premium) { ctx in
             PremiumSheet(context: ctx) { premium = nil }
@@ -193,12 +193,7 @@ struct SettingsView: View {
                     } else if model.tier == .premium {
                         hairline
                         Button {
-                            Task {
-                                // Native sheet first (shows TestFlight/sandbox too); web page only if it fails.
-                                if !(await model.store.showManageSubscriptions()) {
-                                    showManageSub = true
-                                }
-                            }
+                            showManageGoldPatrol = true
                         } label: {
                             OrionListRow(label: "Manage Subscription", chevron: true)
                         }

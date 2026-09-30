@@ -1,6 +1,5 @@
 import Foundation
 import StoreKit
-import UIKit
 
 @MainActor
 final class StoreKitManager: ObservableObject {
@@ -15,6 +14,9 @@ final class StoreKitManager: ObservableObject {
     @Published var entitled = false
     @Published var productId: String?
     @Published var expiresAt: Date?
+    /// nil until a subscription status lookup succeeds (StoreKit call failed, or no entitlement).
+    @Published var autoRenewOn: Bool?
+    @Published var renewalState: Product.SubscriptionInfo.RenewalState?
 
     /// Verified, unrevoked, unexpired StoreKit entitlement on this Apple ID.
     /// Re-checks the clock so an app left open past expiry drops premium.
@@ -101,22 +103,6 @@ final class StoreKitManager: ObservableObject {
         }
     }
 
-    /// Apple's native manage sheet. Unlike the apps.apple.com page it also
-    /// lists TestFlight and sandbox subscriptions. False if it could not open.
-    func showManageSubscriptions() async -> Bool {
-        guard let scene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive })
-        else { return false }
-        do {
-            try await AppStore.showManageSubscriptions(in: scene)
-        } catch {
-            return false
-        }
-        await updateEntitlement()
-        return true
-    }
-
     private func listenForUpdates() async {
         for await update in Transaction.updates {
             guard let (transaction, jws) = try? checkVerifiedTransaction(update) else { continue }
@@ -155,6 +141,38 @@ final class StoreKitManager: ObservableObject {
         } else {
             PreferencesStore.localPremiumUntil = 0
             PreferencesStore.localPremiumProduct = nil
+        }
+        await refreshSubscriptionStatus()
+    }
+
+    /// Auto-renew state for the entitled product, for the Manage Gold Patrol screen.
+    /// Leaves `autoRenewOn`/`renewalState` nil when there's nothing entitled or the
+    /// status lookup fails, so the screen can fall back to a neutral message.
+    private func refreshSubscriptionStatus() async {
+        guard entitled, let pid = productId else {
+            autoRenewOn = nil
+            renewalState = nil
+            return
+        }
+        let product = pid == Self.monthlyId ? monthly : (pid == Self.yearlyId ? yearly : nil)
+        guard let subscription = product?.subscription,
+              let statuses = try? await subscription.status else {
+            autoRenewOn = nil
+            renewalState = nil
+            return
+        }
+        var matched: Product.SubscriptionInfo.Status?
+        for status in statuses {
+            guard case .verified(let transaction) = status.transaction, transaction.productID == pid else { continue }
+            matched = status
+            break
+        }
+        let status = matched ?? statuses.first
+        renewalState = status?.state
+        if let status, case .verified(let renewalInfo) = status.renewalInfo {
+            autoRenewOn = renewalInfo.willAutoRenew
+        } else {
+            autoRenewOn = nil
         }
     }
 
