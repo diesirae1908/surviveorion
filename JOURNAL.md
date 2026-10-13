@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-13 PT: iOS 1.0 approved, App Store launch repost hosted
+
+- iOS build 21 Pending Developer Release from Apple Review as of today. App
+  Store launch live repost: THE FLOOD 0827 (1,269 views across YT+IG, top
+  Buffer post), burned-in "NOW ON THE APP STORE" overlay (0 to 3 s, top band,
+  Anton, white plus gold). Hosted for Buffer IG/TT/YT shareNow pending Lucas
+  release. Commit hosting step.
+
 ## 2026-09-30 PT: iOS own Gold Patrol management screen (build 20)
 
 - **Why:** Lucas, TestFlight: Settings > Manage Subscription called

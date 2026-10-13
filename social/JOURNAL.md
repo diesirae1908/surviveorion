@@ -1,5 +1,14 @@
 # JOURNAL
 
+## 2026-10-13 PT: App Store launch repost (THE FLOOD) hosted for Buffer (phase 1)
+
+- iOS 1.0 approved, Pending Developer Release. App Store launch repost:
+  THE FLOOD 0827, the top Buffer post (1,269 views YT+IG combined),
+  burned-in "NOW ON THE APP STORE" overlay (0 to 3s, top band, Anton, white
+  plus gold). H.264 1080x1920 faststart, no re-encode. Hosted
+  `public/social-drafts/1013_theflood_appstore_916.mp4`. Buffer IG/TT/YT
+  shareNow pending Lucas release (phase 2).
+
 ## 2026-09-29 PT: THE FLOOD Buffer IG/TT/YT shareNow (phase 2)
 
 - Lucas authorized live Buffer IG + TikTok + YouTube Shorts, `shareNow`, caption Option A (Sam fixed reset line to "midnight PT" per Aug 26 PT day boundary). `post-buffer.mjs` `--dry=false`, media `https://surviveorion.com/social-drafts/0929_theflood_captain_916.mp4` (video/mp4, 5,087,558 bytes).
