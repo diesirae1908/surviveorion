@@ -144,6 +144,13 @@ function clientIp(req) {
   return req.socket.remoteAddress ?? "?";
 }
 
+/** Mutator names for a Daily date from the schedule, or null if unknown (-> pool worst case). */
+function scheduledMutatorNames(rawDate) {
+  const date = typeof rawDate === "string" && isValidUtcDateStr(rawDate) ? rawDate : patrolToday();
+  const day = loadMutatorSchedule()[date];
+  return Array.isArray(day) && day.length > 0 ? day.map((m) => m.name) : null;
+}
+
 const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
 
 /** Today's patrol date, 'YYYY-MM-DD' (America/Los_Angeles) — the Daily Patrol board key. */
@@ -791,7 +798,11 @@ const routes = {
       mode: boardMode(body),
       gameMode,
     };
+    // Graze ceilings follow the Daily's actual mutators (GRAZE PROTOCOL pays 8x).
+    // Date permissions are enforced right after; this only loosens the ceiling.
+    run.mutatorNames = body.daily === true ? scheduledMutatorNames(body.dailyDate) : null;
     const err = validateRun(run);
+    delete run.mutatorNames;
     if (err) return json(res, 422, { error: err });
 
     // Daily Patrol: today is always stampable. Past-day full scores need

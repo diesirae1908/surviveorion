@@ -4,6 +4,27 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: server graze ceiling follows the day's mutators (fix/graze-ceiling)
+
+- `server/validate.mjs` assumed 15 pts and 8 grazes/s for every run, but
+  GRAZE PROTOCOL pays 8x (80 pts) with cooldown x0.45, so a clean graze-heavy
+  run on that day could be rejected ("score exceeds possible ceiling").
+- Fix (loosen only): `grazeLimits(mutatorNames)` multiplies graze points and
+  divides cooldown across the day's mutators (Sunday pairs multiply). POST
+  /api/scores passes the Daily's names from `server/mutator-schedule.json`;
+  Classic, Iron Rain, anonymous /api/runs, and unscheduled dates use the pool
+  worst case (120 pts, ~17.8/s). Plain days keep 15 pts, 8/s (floor).
+- Ceilings: GRAZE PROTOCOL 15 -> 80 pts, 8 -> 17.8/s (~11.9x graze term);
+  HUNTING PARTY and plain days unchanged; Classic/anon 15 -> 120 pts, 8 -> 17.8/s.
+- Server mirror table `MUTATOR_GRAZE_SCALES` (by name, server cannot import
+  src/). Parity test `scripts/test-graze-ceiling.ts` (in `npm test`) checks it
+  against `src/mutators.ts` and every scheduled day.
+- No graze bot exists in sim-test.ts, so the rate is derived from the cooldown
+  (band x2 not modelled), not measured.
+- Found: `server/mutator-schedule.json` is stale for 2027-11-04 (file says
+  GRAZE PROTOCOL, live says HOWLERS). Not touched; re-run
+  `scripts/export-mutator-schedule.ts` when convenient.
+
 ## 2026-10-13 PT: iOS 1.0 approved, App Store launch repost hosted
 
 - iOS build 21 Pending Developer Release from Apple Review as of today. App
