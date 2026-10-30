@@ -519,6 +519,8 @@ function run(world: World, seconds: number, invulnerable = true): void {
     const scale = mutatorViewScale();
     const w = createWorld(17.8 * scale, 10 * scale, false, 0, "classic", true, false, rules);
     let lastForce = -1e9;
+    let lastFires = 0;
+    let lastFireT = -1e9;
     const killLog: number[] = [];
     let lastKills = 0;
     const steps = Math.round(SECONDS / FIXED_DT);
@@ -530,9 +532,26 @@ function run(world: World, seconds: number, invulnerable = true): void {
         w.deathTimer = 0;
         w.deathCause = null;
       }
+      // Realistic cadence (minGap > 0) holds TOTAL fires (forced, natural HOT and
+      // armed) to at most one per minGap. Natural grazes charge the meter and,
+      // since armed orbs fire like HOT (arm when clear), they would add fires on
+      // top of the forced cadence and measure the bot, not a skimmer's pace. So
+      // inside the window after a fire the meter is cleared; no threshold moves.
+      if (rules.overdrive && minGap > 0) {
+        if (w.overdrive.fires !== lastFires) {
+          lastFires = w.overdrive.fires;
+          lastFireT = w.time;
+        }
+        if (w.time - lastFireT < minGap) {
+          w.overdrive.hot = false;
+          w.overdrive.armed = false;
+          w.overdrive.armTime = 0;
+          w.overdrive.charge = 0;
+        }
+      }
       // forced HOT before every pickup, ship parked on the nearest one
       if (w.pickups.length > 0) {
-        if (rules.overdrive && w.time - lastForce >= minGap) {
+        if (rules.overdrive && w.time - lastForce >= minGap && (minGap <= 0 || w.time - lastFireT >= minGap)) {
           lastForce = w.time;
           w.overdrive.hot = true;
           w.overdrive.armed = false;
