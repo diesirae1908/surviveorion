@@ -47,14 +47,18 @@ export interface ShareStats {
 
 export const SHARE_URL = "https://surviveorion.com";
 
-function loadMedalSvg(tier: MedalTier): Promise<HTMLImageElement | null> {
+function loadImage(src: string): Promise<HTMLImageElement | null> {
   if (typeof Image === "undefined") return Promise.resolve(null);
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = `/medals/${tier}.svg`;
+    img.src = src;
   });
+}
+
+function loadMedalSvg(tier: MedalTier): Promise<HTMLImageElement | null> {
+  return loadImage(`/medals/${tier}.svg`);
 }
 
 export function buildShareText(s: ShareStats): string {
@@ -82,16 +86,73 @@ export function buildShareText(s: ShareStats): string {
 
 export type ShareOutcome = "shared" | "copied" | "failed";
 
-/** Brand-kit share card (1080 square) as a PNG blob for the native sheet. */
-export async function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
-  if (typeof document === "undefined") return null;
-  const size = 1080;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
+// Share card layout. Rows used to sit at a fixed 130 px pitch, so six rows ran
+// to y=1074, past the frame (1024) and the footer (966). The pitch now comes
+// from the row count so every card ends above ROWS_BOTTOM_MAX.
+const CARD_SIZE = 1080;
+const ROWS_TOP = 360;
+/** Lowest pixel any row may touch: clear of the footer text at y=966. */
+export const SHARE_ROWS_BOTTOM_MAX = 930;
+const ROW_PITCH_MAX = 130;
+/** Below this pitch a row (label + value) would collide with the next one. */
+export const SHARE_ROW_PITCH_MIN = 92;
 
+export interface ShareRowLayout {
+  /** Label baseline per row. */
+  ys: number[];
+  pitch: number;
+  /** Value baseline offset from the label baseline. */
+  valueDy: number;
+  /** Value font size in px. */
+  valueSize: number;
+  /** Lowest pixel any row touches (value baseline plus descender). */
+  bottom: number;
+}
+
+/** Row positions for 1 to 6 rows (more are squeezed the same way). */
+export function shareRowLayout(count: number): ShareRowLayout {
+  const n = Math.max(1, count);
+  const compact = n > 4;
+  const valueDy = compact ? 54 : 64;
+  const valueSize = compact ? 48 : 56;
+  const descent = 12;
+  const lastMax = SHARE_ROWS_BOTTOM_MAX - valueDy - descent;
+  const pitch = n === 1 ? ROW_PITCH_MAX : Math.min(ROW_PITCH_MAX, Math.floor((lastMax - ROWS_TOP) / (n - 1)));
+  const ys = Array.from({ length: n }, (_, i) => ROWS_TOP + pitch * i);
+  return { ys, pitch, valueDy, valueSize, bottom: ys[n - 1] + valueDy + descent };
+}
+
+/** The ORION mark drawn with canvas paths (fallback when the SVG will not load). */
+export function drawOrionMarkPaths(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  const k = size / 100;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(k, k);
+  ctx.strokeStyle = "#ffd700";
+  ctx.lineWidth = 10;
+  // four ring segments, centered at (50,50), radius 37, 45-degree gaps
+  for (let i = 0; i < 4; i++) {
+    const mid = (-Math.PI / 2) + (i * Math.PI) / 2;
+    ctx.beginPath();
+    ctx.arc(50, 50, 37, mid - Math.PI / 4 + 0.13, mid + Math.PI / 4 - 0.13);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#c41e3a";
+  ctx.beginPath();
+  ctx.arc(50, 50, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+export interface ShareCardAssets {
+  medalImg: CanvasImageSource | null;
+  /** ORION mark image; null draws the canvas-path fallback. */
+  markImg: CanvasImageSource | null;
+}
+
+/** Paint the card. Pure drawing so tests can run it against a recording context. */
+export function drawShareCard(ctx: CanvasRenderingContext2D, s: ShareStats, assets: ShareCardAssets): void {
+  const size = CARD_SIZE;
   const bg = ctx.createRadialGradient(size / 2, size / 2, 40, size / 2, size / 2, size * 0.78);
   bg.addColorStop(0, "#12121e");
   bg.addColorStop(1, "#0a0a12");
@@ -105,6 +166,13 @@ export async function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
   gold.addColorStop(0, "#ffee88");
   gold.addColorStop(0.55, "#ffd700");
   gold.addColorStop(1, "#cc8800");
+
+  // mark in the slot left of the wordmark (x 112..226)
+  const MARK_X = 112;
+  const MARK_Y = 126;
+  const MARK_SIZE = 92;
+  if (assets.markImg) ctx.drawImage(assets.markImg, MARK_X, MARK_Y, MARK_SIZE, MARK_SIZE);
+  else drawOrionMarkPaths(ctx, MARK_X, MARK_Y, MARK_SIZE);
 
   ctx.fillStyle = gold;
   ctx.font = "700 72px Rajdhani, system-ui, sans-serif";
@@ -126,30 +194,43 @@ export async function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
     lines.push(["TODAY'S MUTATOR", s.mutatorNames.join(" + "), "#ff4455"]);
   }
 
-  const medalImg = s.medal ? await loadMedalSvg(s.medal) : null;
-
-  let y = 360;
-  for (const [label, value, color] of lines) {
+  const layout = shareRowLayout(lines.length);
+  const medalSize = layout.valueSize;
+  lines.forEach(([label, value, color], i) => {
+    const y = layout.ys[i];
     ctx.fillStyle = "#8a7a55";
     ctx.font = "600 28px Rajdhani, system-ui, sans-serif";
     ctx.fillText(label, 112, y);
     ctx.fillStyle = color;
-    ctx.font = "700 56px Rajdhani, system-ui, sans-serif";
-    if (label === "MEDAL" && medalImg) {
-      ctx.drawImage(medalImg, 112, y + 16, 56, 56);
-      ctx.fillText(value, 184, y + 64);
+    ctx.font = `700 ${layout.valueSize}px Rajdhani, system-ui, sans-serif`;
+    if (label === "MEDAL" && assets.medalImg) {
+      ctx.drawImage(assets.medalImg, 112, y + 16, medalSize, medalSize);
+      ctx.fillText(value, 112 + medalSize + 16, y + layout.valueDy);
     } else {
-      ctx.fillText(value, 112, y + 64);
+      ctx.fillText(value, 112, y + layout.valueDy);
     }
-    y += 130;
-  }
+  });
 
   ctx.fillStyle = "#8a7a55";
   ctx.font = "600 28px Rajdhani, system-ui, sans-serif";
   ctx.textAlign = "right";
   ctx.fillText("surviveorion.com", 968, 966);
   ctx.textAlign = "left";
+}
 
+/** Brand-kit share card (1080 square) as a PNG blob for the native sheet. */
+export async function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = CARD_SIZE;
+  canvas.height = CARD_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const [medalImg, markImg] = await Promise.all([
+    s.medal ? loadMedalSvg(s.medal) : Promise.resolve(null),
+    loadImage("/orion-mark.svg"),
+  ]);
+  drawShareCard(ctx, s, { medalImg, markImg });
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png");
   });
