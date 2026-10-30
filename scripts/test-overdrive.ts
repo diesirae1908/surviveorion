@@ -213,6 +213,49 @@ function run(world: World, seconds: number, invulnerable = true): void {
   check("HOT: a far drone is unchanged", near(hotFar, coldFar, 1e-9));
 }
 
+// --- 1b. review fixes ------------------------------------------------------
+{
+  // freeze chain skips allied drones
+  const w = mkWorld(onRules());
+  w.ship.x = 0;
+  w.ship.y = 0;
+  const a = spawnDroneDirect(w, 1.5, 3, 1);
+  const ally = spawnDroneDirect(w, 1.5, 3.6, 1);
+  const b = spawnDroneDirect(w, 1.5, 4.2, 1);
+  for (const d of [a, ally, b]) d.speedMultiplier = 0;
+  for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+  activatePower(w, "freeze", spendOverdrive(w, "freeze"));
+  ally.allied = true;
+  ally.alliedTimer = 30;
+  killDrone(w, a);
+  tick(w, idle, FIXED_DT);
+  check("freeze chain never shatters an allied drone", ally.alive, `ally=${ally.alive}`);
+
+  // a later plain Cryo orb clears the Overdrive mark (no chain from it)
+  const w2 = mkWorld(onRules());
+  w2.ship.x = 0;
+  w2.ship.y = 0;
+  const c = spawnDroneDirect(w2, 1.5, 3, 1);
+  const d2 = spawnDroneDirect(w2, 1.5, 3.6, 1);
+  for (const d of [c, d2]) d.speedMultiplier = 0;
+  for (let i = 0; i < 12; i++) chargeFromGraze(w2, 0.5);
+  activatePower(w2, "freeze", spendOverdrive(w2, "freeze"));
+  check("overdrive freeze marks drones", c.odFrozen === true);
+  w2.overdrive.lockout = 0;
+  activatePower(w2, "freeze", false);
+  check("plain freeze clears the overdrive mark", c.odFrozen === false && d2.odFrozen === false);
+  killDrone(w2, c);
+  tick(w2, idle, FIXED_DT);
+  check("plain freeze: shattering one does not chain", d2.alive);
+
+  // shield refund never reaches HOT
+  const w3 = mkWorld(onRules((o) => (o.forms.shield.refund = 1)));
+  for (let i = 0; i < 12; i++) chargeFromGraze(w3, 0.5);
+  activatePower(w3, "shield", spendOverdrive(w3, "shield"));
+  detonateShield(w3);
+  check("shield refund capped below HOT", w3.overdrive.charge <= 0.99 && !w3.overdrive.hot, `${w3.overdrive.charge}`);
+}
+
 // --- 2. off is identical ---------------------------------------------------
 {
   const date = "2026-12-09";
@@ -477,12 +520,13 @@ function run(world: World, seconds: number, invulnerable = true): void {
   // to OFF on the same seed; the absolute 80% tripwire is printed for Sam.
   //   stress   : HOT forced before EVERY orb (about one fire per 4 s).
   //   realistic: HOT forced at most once per 15 s (a skimmer's real cadence).
-  // Gates: stress ON/OFF kill-rate ratio <= 1.5; realistic ON keeps >= 10%
+  // Gates: stress ON/OFF kill-rate ratio <= 1.35; realistic ON keeps >= 10%
   // score headroom wherever OFF has it. Absolute tripwire list: report only.
   const rows: string[] = [];
   const tripwire: string[] = [];
   const stressRegress: string[] = [];
   const realRegress: string[] = [];
+  const realRate: string[] = [];
   let maxRatio = 0;
   let maxRatioLabel = "";
   let realMaxAvg = 0;
@@ -500,12 +544,12 @@ function run(world: World, seconds: number, invulnerable = true): void {
     const offHead = headroomOf(off, s.names);
     const stressHead = headroomOf(stress, s.names);
     const realHead = headroomOf(real, s.names);
-    const ratio = offAvg >= 5 ? stressAvg / offAvg : 1;
+    const ratio = offAvg >= 8 ? stressAvg / offAvg : 1;
     if (ratio > maxRatio) {
       maxRatio = ratio;
       maxRatioLabel = s.label;
     }
-    if (ratio > 1.5) stressRegress.push(`${s.label} x${ratio.toFixed(2)}`);
+    if (ratio > 1.35) stressRegress.push(`${s.label} x${ratio.toFixed(2)}`);
     if (offHead >= 1.1) {
       // OFF itself passes the ceiling: realistic ON must keep 10% headroom too
       if (realHead < 1.1) realRegress.push(`${s.label} (avg ${realAvg.toFixed(1)}/s, headroom x${realHead.toFixed(2)})`);
@@ -518,6 +562,7 @@ function run(world: World, seconds: number, invulnerable = true): void {
         realMinHeadLabel = s.label;
       }
     }
+    if (offAvg >= 8 && realAvg / offAvg > 1.1 + 0.01) realRate.push(`${s.label} x${(realAvg / offAvg).toFixed(2)}`);
     if (stressAvg >= 16 || offAvg >= 16) tripwire.push(`${s.label}: OFF ${offAvg.toFixed(1)}/s, stress ON ${stressAvg.toFixed(1)}/s, realistic ON ${realAvg.toFixed(1)}/s`);
     rows.push(
       `  ${s.label}: avg kills/s off ${offAvg.toFixed(2)} stress ${stressAvg.toFixed(2)} realistic ${realAvg.toFixed(2)} | fires stress ${stress.fires} realistic ${real.fires} | headroom off x${offHead.toFixed(2)} stress x${stressHead.toFixed(2)} realistic x${realHead.toFixed(2)}`,
@@ -528,7 +573,8 @@ function run(world: World, seconds: number, invulnerable = true): void {
     `  ceiling observer: ${sets.length} sets x ${SECONDS}s. Stress ON/OFF avg kills/s max ratio x${maxRatio.toFixed(2)} (${maxRatioLabel}). Realistic ON (OFF in range): max avg ${realMaxAvg.toFixed(2)}/s (${realMaxLabel}), min headroom x${realMinHead.toFixed(2)} (${realMinHeadLabel}).`,
   );
   if (tripwire.length) console.log(`  TRIPWIRE (>=80% of the 20/s cap, mostly bot-saturated already OFF): ${tripwire.join("; ")}`);
-  check("observer stress: Overdrive adds at most 50% average kills/s over OFF (same seed, pinned Math.random)", stressRegress.length === 0, stressRegress.join(", "));
+  check("observer stress: Overdrive adds at most 35% average kills/s over OFF (same seed, pinned Math.random)", stressRegress.length === 0, stressRegress.join(", "));
+  check("observer realistic cadence: ON average kills/s at most 1.10x OFF (+0.01 run noise)", realRate.length === 0, realRate.join(", "));
   check("observer realistic cadence: ON stays valid with 10% headroom wherever OFF does", realRegress.length === 0, realRegress.join(", "));
 }
 

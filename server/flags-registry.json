@@ -8,7 +8,7 @@
       "default": {
         "enabled": false,
         "params": {
-          "chargePerGraze": 0.12,
+          "chargePerGraze": 0.15,
           "razorClearance": 0.25,
           "razorGrazeScale": 2,
           "outerClearance": 0.75,

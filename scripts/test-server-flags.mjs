@@ -163,7 +163,7 @@ try {
   const arm = await call("POST", "/api/admin/creator-preview", { admin: true, body: { flags: { overdrive: { enabled: true } }, hours: 2, note: "t" } });
   check("arming appends a row", arm.status === 200 && arm.body.creatorPreview.expiresAt > Date.now());
   const meCrew = await call("GET", "/api/me", { token: crewTok });
-  check("allowlisted account sees creatorPreview with materialized params", meCrew.body.creatorPreview?.flags.overdrive.enabled === true && meCrew.body.creatorPreview.flags.overdrive.params.chargePerGraze === 0.12);
+  check("allowlisted account sees creatorPreview with materialized params", meCrew.body.creatorPreview?.flags.overdrive.enabled === true && meCrew.body.creatorPreview.flags.overdrive.params.chargePerGraze === 0.15);
   const meOther = await call("GET", "/api/me", { token: otherTok });
   check("other accounts never see it", meOther.status === 200 && meOther.body.creatorPreview === undefined);
   check("creator preview never changes /api/config for everyone", JSON.stringify((await call("GET", "/api/config")).body.features.flags.overdrive.versions.map((v) => v.from)) === JSON.stringify([tomorrow]));

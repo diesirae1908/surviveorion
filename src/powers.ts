@@ -165,7 +165,7 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
         const dy = d.y - world.ship.y;
         if (dx * dx + dy * dy <= r * r) {
           d.frozen = duration;
-          if (fz) d.odFrozen = true;
+          d.odFrozen = fz !== null; // a plain Cryo orb clears an earlier Overdrive mark
         }
       }
       freezeMinesInRadius(world, world.ship.x, world.ship.y, r, duration);
@@ -892,7 +892,8 @@ export function detonateShield(world: World): void {
       scale = od.forms.shield.radiusScale;
       const o = world.overdrive;
       if (!o.hot) {
-        o.charge = Math.max(o.charge, od.forms.shield.refund);
+        // never refund to HOT (1.0): that would be a free infinite loop
+        o.charge = Math.max(o.charge, Math.min(0.99, od.forms.shield.refund));
         o.drainTimer = od.drainDelay;
       }
     }

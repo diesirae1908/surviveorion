@@ -94,7 +94,7 @@ check("no rows: BASE_RULES, ruleset base, no overdrive, not preview", (() => {
   return r === BASE_RULES && r.rulesetId === "base" && r.overdrive === null && r.preview === false;
 })());
 check("rulesFromDefaults() is base", rulesFromDefaults().rulesetId === "base" && rulesFromDefaults().overdrive === null);
-check("rulesFromDefaults({overdrive:true}) carries default params", rulesFromDefaults({ overdrive: true }).overdrive?.chargePerGraze === 0.12);
+check("rulesFromDefaults({overdrive:true}) carries default params", rulesFromDefaults({ overdrive: true }).overdrive?.chargePerGraze === 0.15);
 
 // --- ?flags= parsing and preview ---
 check("parsePreviewFlags parses on/off", (() => {
@@ -104,7 +104,7 @@ check("parsePreviewFlags parses on/off", (() => {
 check("parsePreviewFlags drops unknown keys and junk", Object.keys(parsePreviewFlags("?flags=nope:on,overdrive:maybe,:on")).length === 0);
 check("no flags param: empty", Object.keys(parsePreviewFlags("?x=1")).length === 0);
 const pv = resolveRunRules("2026-11-11", { daily: true, previewFlags: { overdrive: true } });
-check("?flags= overdrive:on makes a preview run with defaults", pv.preview && pv.overdrive?.chargePerGraze === 0.12 && pv.rulesetId.startsWith("preview:overdrive@p#"));
+check("?flags= overdrive:on makes a preview run with defaults", pv.preview && pv.overdrive?.chargePerGraze === 0.15 && pv.rulesetId.startsWith("preview:overdrive@p#"));
 const pvOff = resolveRunRules("2026-11-11", { daily: true, previewFlags: { "ui.hud": true } });
 check("a ui-only preview is still a preview run, overdrive stays off", pvOff.preview && pvOff.overdrive === null && pvOff.rulesetId === "preview:base");
 check("hud flag follows the preview override", clientFlagsSnapshot({ "ui.hud": true }).hud !== null && clientFlagsSnapshot().hud === null);

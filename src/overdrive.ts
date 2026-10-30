@@ -179,7 +179,7 @@ function runFreezeChain(world: World): void {
       const f = frontier.pop()!;
       for (const d of world.drones) {
         if (left <= 0) break;
-        if (!d.alive || !d.odFrozen || d.frozen <= 0) continue;
+        if (!d.alive || d.allied || !d.odFrozen || d.frozen <= 0) continue;
         const dx = d.x - f.x;
         const dy = d.y - f.y;
         if (dx * dx + dy * dy > chainRadius * chainRadius) continue;
