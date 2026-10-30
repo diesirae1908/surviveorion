@@ -1981,6 +1981,7 @@ function fxContext(w: World): FxContext {
 function drainEvents(w: World): void {
   if (w.events.length === 0) return;
   const ctx = fxContext(w);
+  feel.primeFire(w.events);
   for (const e of w.events) {
     // presentation modules first; each is gated by its own switch and is a
     // no-op with every switch off. droneKilled and graze live in feel.ts.
@@ -1994,9 +1995,12 @@ function drainEvents(w: World): void {
         break;
       case "pickup":
         particles.burst(e.x, e.y, [POWER_COLORS[e.power], PALETTE.white], 12, 3.5, 0.5, 0.1);
-        popups.spawn(e.x, e.y, POWER_NAMES[e.power].toUpperCase(), POWER_COLORS[e.power], 0.32);
-        // the hint line lingers longer so new pilots learn what they grabbed
-        popups.spawn(e.x, e.y - 0.55, POWER_HINTS[e.power], POWER_COLORS[e.power], 0.22, 1.7);
+        // a form fire drops the pickup text: the form name owns the ship
+        if (!feel.pickupLabelSuppressed(w.events, e.power, ctx)) {
+          popups.spawn(e.x, e.y, POWER_NAMES[e.power].toUpperCase(), POWER_COLORS[e.power], 0.32);
+          // the hint line lingers longer so new pilots learn what they grabbed
+          popups.spawn(e.x, e.y - 0.55, POWER_HINTS[e.power], POWER_COLORS[e.power], 0.22, 1.7);
+        }
         audio.pickup();
         clipPowerLog.push({ id: e.power, name: POWER_NAMES[e.power], time: world.time });
         break;
@@ -2091,11 +2095,11 @@ function drainEvents(w: World): void {
         audio.arcFizzle();
         break;
       case "chainBonus":
-        popups.spawn(e.x, e.y + 0.7, `CHAIN ×${e.count}`, PALETTE.goldPale, 0.5);
+        if (!feel.firePopQuiet(ctx)) popups.spawn(e.x, e.y + 0.7, `CHAIN ×${e.count}`, PALETTE.goldPale, 0.5);
         audio.chainBonus();
         break;
       case "pulseMultiKill":
-        popups.spawn(e.x, e.y + 0.7, `PULSE ×${e.hits}`, PALETTE.pulse, 0.5);
+        if (!feel.firePopQuiet(ctx)) popups.spawn(e.x, e.y + 0.7, `PULSE ×${e.hits}`, PALETTE.pulse, 0.5);
         audio.chainBonus();
         break;
       case "droneSpawn":

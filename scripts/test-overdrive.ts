@@ -23,6 +23,7 @@ import {
 import {
   chargeFromGraze,
   chargeFromKill,
+  overdriveHeatScale,
   spendOverdrive,
   updateOverdrive,
 } from "../src/overdrive";
@@ -206,10 +207,35 @@ function run(world: World, seconds: number, invulnerable = true): void {
   };
   // 2-unit and 6-unit drones, rules on vs off
   const cold = speedOf(onRules(), false, 2);
-  const hotNear = speedOf(onRules(), true, 2);
+  const hotNear = speedOf(onRules((o) => (o.heatRampSeconds = 0)), true, 2);
   const hotFar = speedOf(onRules(), true, 6);
   const coldFar = speedOf(onRules(), false, 6);
   check("HOT: a near loose drone moves hotDroneSpeedScale faster", near(hotNear / cold, 1.2, 0.02), `${(hotNear / cold).toFixed(3)}`);
+  // heat eases in over heatRampSeconds (smoothstep) from HOT onset
+  {
+    const w = mkWorld(onRules((o) => (o.heatRampSeconds = 1.5)));
+    w.ship.x = 0; w.ship.y = 0;
+    w.overdrive.hot = true;
+    const ramp = w.rules.overdrive!.heatRampSeconds!;
+    check("heat ramp default is 0 (dark until tuned)", rulesFromDefaults({ overdrive: true }).overdrive!.heatRampSeconds === 0);
+    const full = w.rules.overdrive!.hotDroneSpeedScale;
+    w.overdrive.hotTime = 0;
+    check("heat ramp: onset scale is 1.0", near(overdriveHeatScale(w, 2), 1, 1e-9));
+    w.overdrive.hotTime = ramp / 2;
+    check("heat ramp: halfway is the midpoint", near(overdriveHeatScale(w, 2), 1 + (full - 1) / 2, 1e-9));
+    w.overdrive.hotTime = ramp;
+    check("heat ramp: full scale at heatRampSeconds", near(overdriveHeatScale(w, 2), full, 1e-9));
+    w.overdrive.hotTime = ramp / 4;
+    const a = overdriveHeatScale(w, 2);
+    w.overdrive.hotTime = ramp / 2;
+    check("heat ramp: monotonic", a < overdriveHeatScale(w, 2));
+    const w0 = mkWorld(onRules((o) => (o.heatRampSeconds = 0)));
+    w0.ship.x = 0; w0.ship.y = 0; w0.overdrive.hot = true; w0.overdrive.hotTime = 0;
+    check("heat ramp 0: instant, as before", near(overdriveHeatScale(w0, 2), full, 1e-9));
+    const wo = mkWorld(onRules((o) => { delete (o as { heatRampSeconds?: number }).heatRampSeconds; }));
+    wo.ship.x = 0; wo.ship.y = 0; wo.overdrive.hot = true; wo.overdrive.hotTime = 0;
+    check("heat ramp absent (older row): instant, as before", near(overdriveHeatScale(wo, 2), full, 1e-9));
+  }
   check("HOT: a far drone is unchanged", near(hotFar, coldFar, 1e-9));
 }
 

@@ -93,7 +93,13 @@ export function chargeFromKill(world: World): void {
 export function overdriveHeatScale(world: World, distToShip: number): number {
   const od = world.rules.overdrive;
   if (!od || !world.overdrive.hot) return 1;
-  return distToShip < od.hotRadius ? od.hotDroneSpeedScale : 1;
+  if (distToShip >= od.hotRadius) return 1;
+  // Ease in (smoothstep) so going HOT is not a same-frame speed spike mid-graze.
+  const ramp = od.heatRampSeconds ?? 0;
+  if (ramp <= 0) return od.hotDroneSpeedScale;
+  const u = Math.min(1, Math.max(0, world.overdrive.hotTime / ramp));
+  const k = u * u * (3 - 2 * u);
+  return 1 + (od.hotDroneSpeedScale - 1) * k;
 }
 
 /**

@@ -22,8 +22,11 @@ export const POP_RISE_WORLD = 0.9;
 export const POP_MS = 450;
 /** At most one kill pop per this many ms, so a mass kill reads as one number. */
 export const KILL_POP_MIN_GAP_MS = 120;
-/** No kill pops this long after an overdriveFire, so the form name owns the moment. */
-export const KILL_POP_AFTER_FIRE_MS = 300;
+/**
+ * No kill, chain or graze pops this long after an overdriveFire, so the form
+ * name is the only text near the ship (was 300 ms and kill pops only).
+ */
+export const KILL_POP_AFTER_FIRE_MS = 500;
 /** Crowding radius for the danger vignette, in drawn ship lengths. */
 export const VIGNETTE_RADIUS_SHIP_LENGTHS = 1.5;
 /** A drawn hull is about 1.1 world units long before visualScale. */
@@ -171,6 +174,25 @@ export function resetKillPopBudget(clock?: () => number): void {
   lastFireAt = -Infinity;
 }
 
+/**
+ * Call once per drained batch, before the events are handled: burst kills are
+ * pushed before the overdriveFire event, so the quiet window must open first.
+ */
+export function primeFire(events: readonly GameEvent[]): void {
+  for (const e of events) if (e.type === "overdriveFire") lastFireAt = popClock();
+}
+
+/** True while the form name owns the ship: popups other than it hold back. */
+export function firePopQuiet(ctx: FxContext): boolean {
+  return !!ctx.flags.overdriveFx?.formPopup && popClock() - lastFireAt < KILL_POP_AFTER_FIRE_MS;
+}
+
+/** True when this pickup's orb is being spent on a form, so its label is dropped. */
+export function pickupLabelSuppressed(events: readonly GameEvent[], power: string, ctx: FxContext): boolean {
+  if (!ctx.flags.overdriveFx?.formPopup) return false;
+  return events.some((o) => o.type === "overdriveFire" && o.form && o.power === power);
+}
+
 /** React to a gameplay event. */
 export function onEvent(e: GameEvent, ctx: FxContext): void {
   const { particles, popups, audio, world } = ctx;
@@ -203,7 +225,7 @@ export function onEvent(e: GameEvent, ctx: FxContext): void {
       particles.grazeArc(Math.atan2(e.y - world.ship.y, e.x - world.ship.x));
       audio.graze();
       void hapticGraze();
-      popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
+      if (!firePopQuiet(ctx)) popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
       if (ctx.flags.hud?.pops && ctx.effects === "full") particles.ringPulse();
       break;
   }

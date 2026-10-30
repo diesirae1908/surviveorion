@@ -16,6 +16,7 @@ import {
   resetKillPopBudget,
   KILL_POP_MIN_GAP_MS,
   KILL_POP_AFTER_FIRE_MS,
+  pickupLabelSuppressed,
   stickAlpha,
   vignetteAmount,
 } from "../src/feel";
@@ -125,7 +126,7 @@ check("killPopAllowed: respects killPopMinChain", killPopAllowed(2, { ...HUD, ki
 
 // OFF path and ON path through onEvent
 type Call = [string, ...unknown[]];
-function run(e: GameEvent, hud: HudParams | null, effects: "full" | "lite", chain: number): Call[] {
+function run(e: GameEvent, hud: HudParams | null, effects: "full" | "lite", chain: number, odFx: unknown = null): Call[] {
   const calls: Call[] = [];
   const w = world();
   w.chainCount = chain;
@@ -142,7 +143,7 @@ function run(e: GameEvent, hud: HudParams | null, effects: "full" | "lite", chai
     },
     audio: { droneKill: () => calls.push(["droneKill"]), graze: () => calls.push(["grazeSfx"]) },
     holdSim: () => {},
-    flags: { overdriveFx: null, hud, result: null },
+    flags: { overdriveFx: odFx, hud, result: null },
     effects,
   } as unknown as FxContext;
   onEvent(e, ctx);
@@ -178,6 +179,25 @@ check("ON: short chain kill has no pop", names(run(kill, HUD, "full", 2)) === "b
   check("ON: no pop right after a fire", !run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
   advance(20);
   check("ON: pop resumes after the fire window", run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
+  advance(1000);
+}
+{
+  // form fire: graze pops hold back for the window, only with ui.overdriveFx formPopup on; pickup label dropped
+  const fx = { heatTint: true, formPopup: true, stings: true };
+  const fire = { type: "overdriveFire", power: "pulse", x: 0, y: 0, form: true } as unknown as GameEvent;
+  advance(1000);
+  run(fire, HUD, "full", 0, fx);
+  check("fire window: graze pop suppressed (fx on)", !names(run(graze, HUD, "full", 0, fx)).includes("popup"));
+  check("fire window: graze pop kept when overdriveFx is off", names(run(graze, HUD, "full", 0, null)).includes("popup"));
+  advance(KILL_POP_AFTER_FIRE_MS + 10);
+  check("after the window: graze pop back", names(run(graze, HUD, "full", 0, fx)).includes("popup"));
+  check("window is 500 ms", KILL_POP_AFTER_FIRE_MS === 500);
+  const ctxOf = (o: unknown) => ({ flags: { overdriveFx: o } }) as unknown as FxContext;
+  const evs = [{ type: "pickup", power: "pulse", x: 0, y: 0 }, fire] as unknown as GameEvent[];
+  check("pickup label dropped for the form's own pickup", pickupLabelSuppressed(evs, "pulse", ctxOf(fx)));
+  check("pickup label kept: other power", !pickupLabelSuppressed(evs, "shield", ctxOf(fx)));
+  check("pickup label kept: burst-only fire", !pickupLabelSuppressed([{ ...(fire as object), form: false } as unknown as GameEvent], "pulse", ctxOf(fx)));
+  check("pickup label kept: fx off", !pickupLabelSuppressed(evs, "pulse", ctxOf(null)));
   advance(1000);
 }
 check("ON + lite: no pop, no ring", names(run(kill, HUD, "lite", 9)) === "burst,droneKill" && names(run(graze, HUD, "lite", 0)) === "burst,grazeArc,grazeSfx,popup");

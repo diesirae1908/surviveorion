@@ -29,6 +29,8 @@ export interface OverdriveParams {
   drainDelay: number;
   drainPerSec: number;
   hotDroneSpeedScale: number;
+  /** Seconds the heat speed-up eases in after HOT onset. Absent in older rows: 0 (instant, as before). */
+  heatRampSeconds?: number;
   hotRadius: number;
   hotMaxSeconds: number;
   burstRadius: number;
