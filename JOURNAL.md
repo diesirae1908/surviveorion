@@ -21,6 +21,12 @@ why, commit hash, follow-ups), committed together with the work. See
 - Safety: no seeded draws, nothing submitted changes, no billing code touched (card moved only). `main.ts`: `onGameOver` unchanged; `showGameOverUi` passes new optional fields; one added CSS import line at the top (not in a CSS-importing module so tsx tests can load ui.ts).
 - Follow-ups: native `GameOverView` parity is Phase 2; `FLASH` timing uses wall clock (performance.now) so it does not depend on `DEATH_VEIL_SECONDS`.
 - Commits: see git log on feat/rg-result.
+## 2026-10-30 PT: WS-C1 OVERDRIVE presentation (feat/overdrive-feel)
+
+- What: `src/fx/overdriveFx.ts` now draws the hull charge ring (gold arc, dark underlay, leading dot), the HOT state (full goldPale ring with bloom, orbiting spark, 2 Hz pulse, faint red heat halo at `hotRadius`), swarm heat tint (loose hostile drones within `hotRadius` of a HOT ship get a hotter palette: inner, outer, stroke, core), form popups (PULSE FAN, SHIELD NOVA, CRYO CHAIN, MAGNET SWEEP, ECHO WAVE, MISSILE STORM; burst only: OVERDRIVE), gold bursts and haptic. `audio.ts` gains `overdriveHot/Fire/Cool` (Web Audio synth). `drawShip` calls `drawShipOverlay`; `drawDrones` takes the `ui.overdriveFx` params and swaps palette for heated drones. `save.ts firstFlightHint(time, touch, overdriveOn = false)` shows "Skim the swarm to run hot. A hot orb hits harder." in the orb window only when `overdriveOn` (default off; Sam/WS-A wires the caller in main.ts). `scripts/test-overdrive-fx.ts` replaces the stub.
+- Why: plan-v2 WS-C1. Everything returns early when `ui.overdriveFx` is null; `heatTint`, `formPopup`, `stings` sub-switches honored; `effects: lite` drops bloom, halo and halves bursts. No seeded draws, no sim writes, no per-frame allocations beyond one gradient while HOT.
+- Deviations: base drone color is already redBright, so "tint to redBright" would be invisible; heated drones use a hotter palette (HEAT_* constants). `drawDroneTint` and `drawShipOverlay` gained params (flags, ship x/y, px scale) because the A stub signatures could not carry them. One call-site edit in `render()`: `drawDrones(world, opts.alpha, opts.flags.overdriveFx)`.
+- Follow-ups: wire `firstFlightHint` third arg in main.ts (A's file); re-check ring contrast on device with WS-B's real charge.
 
 ## 2026-10-30 PT: WS-A switch registry + seams (feat/switch-registry)
 

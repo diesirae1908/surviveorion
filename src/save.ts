@@ -175,12 +175,18 @@ export const FIRST_FLIGHT_PATROL_LINE =
 export const FIRST_FLIGHT_PATROL_STRIP = "Same patrol for everyone. 3 attempts.";
 
 /** Inline First Flight hint for the current survival time. */
-export function firstFlightHint(time: number, touch: boolean): string {
+export const FIRST_FLIGHT_OVERDRIVE_HINT = "Skim the swarm to run hot. A hot orb hits harder.";
+
+/**
+ * `overdriveOn` is true only when OVERDRIVE resolves on for today's patrol
+ * (the caller passes it; default off keeps today's copy byte-identical).
+ */
+export function firstFlightHint(time: number, touch: boolean, overdriveOn = false): string {
   if (time >= FIRST_FLIGHT_HINT_PATROL_AT) {
     return FIRST_FLIGHT_PATROL_STRIP;
   }
   if (time >= FIRST_FLIGHT_HINT_ORB_AT) {
-    return "Grab the glowing orb, it fires itself";
+    return overdriveOn ? FIRST_FLIGHT_OVERDRIVE_HINT : "Grab the glowing orb, it fires itself";
   }
   return touch ? "Drag anywhere to fly" : "WASD or arrows";
 }
