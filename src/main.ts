@@ -384,8 +384,13 @@ function syncPreview(): void {
   PREVIEW_REHEARSAL_DATE = PREVIEW_DAY?.toISOString().slice(0, 10) ?? null;
   // An armed creator preview (GET /api/me, allowlisted account only) sandboxes
   // runs the same way. resolveRunRules re-checks its expiry at every startRun.
+  refreshPreviewActive();
+}
+
+/** Recompute PREVIEW_ACTIVE only (no URL re-parse), so a time-expired creator preview drops out. */
+function refreshPreviewActive(): void {
   PREVIEW_ACTIVE =
-    (allowed && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null)) ||
+    (previewGateOpen() && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null)) ||
     Object.keys(PREVIEW_FLAGS).length > 0 ||
     activeCreatorPreview() !== null;
 }
@@ -1300,6 +1305,8 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
 
 function doLaunch(quick = false): void {
   if (state === "launching") return;
+  // An expired creator preview must not keep sandboxing the next real run.
+  refreshPreviewActive();
   // First launch of a session with stale or no switch rows: give the server a
   // moment (1.5 s max) so the run resolves today's rules, not yesterday's cache.
   if (flagsNeedWait()) {

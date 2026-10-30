@@ -187,8 +187,22 @@ try {
   check("runs.ruleset / od_hot / od_fires written; out-of-range counts NULL", rn.length === 3 && rn[0].ruleset === "base" && rn[0].od_hot === 3 && rn[0].od_fires === 2 && rn[1].ruleset === null && rn[1].od_hot === null && rn[1].od_fires === null && rn[2].ruleset === "overdrive@4#cafe0001" && rn[2].od_fires === 7);
 
   // --- day report mismatch counter ---
+  // --- emergency off: a gameplay row that turns a switch OFF may start today ---
+  const odOn = { key: "overdrive", enabled: true, effectiveFrom: today, params: {}, note: "turn on today" };
+  const eOnRefused = await call("POST", "/api/admin/flags", { admin: true, body: odOn });
+  check("turning a gameplay switch ON the same day stays refused", eOnRefused.status === 400);
+  const eNoNote = await call("POST", "/api/admin/flags", { admin: true, body: { key: "overdrive", enabled: false, effectiveFrom: today, params: {} } });
+  check("emergency off without a reason note is refused", eNoNote.status === 400 && /reason/.test(eNoNote.body.error ?? ""), JSON.stringify(eNoNote.body));
+  const eOk = await call("POST", "/api/admin/flags", { admin: true, body: { key: "overdrive", enabled: false, effectiveFrom: today, params: {}, note: "bad kill rate" } });
+  check("emergency off today is accepted in production mode and flagged", eOk.status === 200 && eOk.body.row.emergency === true, JSON.stringify(eOk.body));
+  const eRows = await peek(`SELECT emergency, note FROM flag_versions WHERE id = ?`, eOk.body.row?.id ?? -1);
+  check("emergency flag and note stored", eRows.length === 1 && eRows[0].emergency === 1 && eRows[0].note === "bad kill rate");
+  const nonEm = await peek(`SELECT COUNT(*) AS c FROM flag_versions WHERE emergency = 1`);
+  check("ordinary rows are not flagged emergency", nonEm[0].c === 1);
+  const gE = await call("GET", "/api/admin/flags", { admin: true });
+  check("admin history shows the emergency row", gE.body.flags.overdrive.history.some((r) => r.emergency === true && r.from === today));
   const st = await call("GET", `/api/admin/stats?date=${today}`, { admin: true });
-  check("admin day report carries rulesetMismatch", st.status === 200 && typeof st.body.day.rulesetMismatch === "number" || st.body.day?.rulesetMismatch === null, JSON.stringify(st.body.day?.rulesetMismatch));
+  check("admin day report: 200, numeric rulesetMismatch, emergencyOff true", st.status === 200 && typeof st.body.day?.rulesetMismatch === "number" && st.body.day.emergencyOff === true, JSON.stringify(st.body.day?.rulesetMismatch));
 } catch (e) {
   check("test run completed", false, String(e?.stack ?? e));
 } finally {

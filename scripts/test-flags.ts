@@ -181,5 +181,12 @@ check("feel: graze keeps the +N popup on every day", same(run({ type: "graze", x
 ]));
 check("feel: other events are untouched (no calls)", run({ type: "mineExploded", x: 0, y: 0, points: 1 }).length === 0 && run({ type: "death", x: 0, y: 0 }).length === 0);
 
+// --- snapshot cache follows creator preview expiry (no change event fires) ---
+resetFlagsForTest();
+setCreatorPreview({ flags: { "ui.hud": { enabled: true, params: { chainBar: true } } }, expiresAt: Date.now() + 80 });
+check("ui flag on while the creator preview is armed", clientFlagsSnapshot().hud !== null);
+await new Promise((r) => setTimeout(r, 120));
+check("ui flag drops after the creator preview expires (cache key includes preview state)", clientFlagsSnapshot().hud === null);
+
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

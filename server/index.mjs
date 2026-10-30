@@ -1234,6 +1234,7 @@ const routes = {
         const m = store.rulesetMismatchForDay(day.date, flags.serverRulesetFor(day.date));
         day.rulesetMismatch = m.mismatch;
         day.rulesetLegacy = m.legacy;
+        day.emergencyOff = flags.emergencyOffOn(day.date);
       } catch {
         day.rulesetMismatch = null;
       }

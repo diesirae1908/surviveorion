@@ -117,7 +117,12 @@ const normalizeRow = (r) => ({
   enabled: !!r.enabled,
   params: JSON.parse(r.params),
   hash: r.params_hash,
+  emergency: !!r.emergency,
 });
+
+/** True when an emergency-off row starts on `dateStr` (that day's board mixes rules). */
+export const emergencyOffOn = (dateStr) =>
+  store.listFlagVersions().some((r) => r.emergency && r.effective_from === dateStr);
 
 /** Normalized rows for one key from the store. */
 export const rowsForKey = (key) => store.listFlagVersions(key).map(normalizeRow);
@@ -153,28 +158,36 @@ export function addFlagVersion(input, todayStr, now = Date.now()) {
     throw new Error("effectiveFrom must be a valid YYYY-MM-DD patrol date");
   }
   if (typeof enabled !== "boolean") throw new Error("enabled must be true or false");
-  if (def.kind === "gameplay") {
+  // Emergency off (Lucas: every switch can be turned off): a gameplay row that
+  // turns a switch OFF may start today, with a reason note. Turning ON the same
+  // day stays refused (unless the staging bypass is set).
+  const cleanNote = typeof note === "string" ? note.trim().slice(0, 500) : "";
+  const emergency = def.kind === "gameplay" && enabled === false && effectiveFrom === todayStr;
+  if (emergency && cleanNote.length < 3) throw new Error("emergency off needs a reason note");
+  if (def.kind === "gameplay" && !emergency) {
     const earliest = sameDayBypass() ? todayStr : addDays(todayStr, GAMEPLAY_MIN_LEAD_DAYS);
     if (effectiveFrom < earliest) {
-      throw new Error(`gameplay rows must start on or after ${earliest} (scheduled ahead)`);
+      throw new Error(
+        `gameplay rows must start on or after ${earliest} (scheduled ahead). Only a row that turns a switch OFF may start today.`,
+      );
     }
-  } else if (effectiveFrom < todayStr) {
+  } else if (def.kind !== "gameplay" && effectiveFrom < todayStr) {
     throw new Error(`rows cannot start before today (${todayStr})`);
   }
   const materialized = materializeParams(def, params);
   const hash = paramsHash(materialized);
-  const cleanNote = typeof note === "string" ? note.slice(0, 500) : null;
   const id = store.insertFlagVersion({
     key,
     effectiveFrom,
     enabled,
     params: JSON.stringify(materialized),
     paramsHash: hash,
-    note: cleanNote,
+    note: cleanNote || null,
+    emergency,
     actor: String(actor ?? "admin").slice(0, 80),
     createdAt: now,
   });
-  return { id, key, from: effectiveFrom, enabled, params: materialized, hash, note: cleanNote };
+  return { id, key, from: effectiveFrom, enabled, params: materialized, hash, note: cleanNote || null, emergency };
 }
 
 /**

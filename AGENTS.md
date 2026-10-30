@@ -411,3 +411,13 @@ first, then:
   ignores it. The public daily board on that report splits real scores from
   filler bots (virtual, not visits, not runs). Crash reports arrive via
   `/api/feedback` with a `[crash]` prefix and show up there too.
+
+## Switch registry: emergency off
+
+Every gameplay switch (`overdrive` and later) can be turned off at any time, without a deploy.
+
+- **Normal path:** `/admin` > Switches. Gameplay rows must start at least 1 patrol day ahead (runbook: 2 days for production). Turning ON the same day is refused (staging `ORION_FLAGS_SAME_DAY=1` lifts it).
+- **Emergency off:** in the switch card write a reason in the note field, then press "Emergency off today" (or save a row with enabled off and effective from today). The row is stored with `emergency = 1`, labelled EMERGENCY OFF in Switches, and the day report shows a red banner. New runs pick it up when `/api/config` is next fetched (next page load or session); a run in progress keeps its rules.
+- **That day's board mixes rules:** scores flown before the cut carry the old `ruleset`, so they count in the day report's `rulesetMismatch` (expected). Boards are not rewritten; decide any fix-up by hand.
+- **Turn back on:** add a normal row for tomorrow or later (enabled on, at least 1 day ahead). Rows are append-only: never edit or delete.
+- Creator preview (`/admin` > Creator preview) is separate: it only affects the allowlisted account, for 1 to 12 hours, and its runs are unscored.

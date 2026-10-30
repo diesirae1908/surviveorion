@@ -9,7 +9,7 @@
 // when present (`params.forms.starshell?.on === true`).
 
 import registry from "../server/flags-registry.json";
-import { patrolDateStr } from "./patrolDate";
+import { nextPatrolMidnight, patrolDateStr } from "./patrolDate";
 
 // --- types ---
 
@@ -195,7 +195,18 @@ let remote: FeaturesPayload | null = null;
 let remoteFetchedAt = 0;
 let creatorPreview: CreatorPreviewPayload | null = null;
 let waited = false;
-let snapshotCache: { date: string; stamp: number; flags: ClientFlags } | null = null;
+let snapshotCache: { date: string; stamp: number; cp: boolean; flags: ClientFlags } | null = null;
+let todayCache: { date: string; until: number } | null = null;
+
+/** Today's patrol date, recomputed only after the next PT midnight (the formatter is costly per frame). */
+function patrolToday(): string {
+  const now = Date.now();
+  if (!todayCache || now >= todayCache.until) {
+    const d = new Date(now);
+    todayCache = { date: patrolDateStr(d), until: nextPatrolMidnight(d).getTime() };
+  }
+  return todayCache.date;
+}
 let stamp = 0;
 const waiters: Array<() => void> = [];
 const listeners: Array<() => void> = [];
@@ -392,8 +403,9 @@ export function shouldSubmit(rules: RunRules, opts: { previewActive?: boolean } 
 /** The three `ui.*` flags for today, cached per patrol date until flags change. */
 export function clientFlagsSnapshot(preview?: Record<string, boolean>): ClientFlags {
   const previewFlags = preview && Object.keys(preview).length > 0 ? preview : undefined;
-  const today = patrolDateStr();
-  if (!previewFlags && snapshotCache && snapshotCache.date === today && snapshotCache.stamp === stamp) {
+  const today = patrolToday();
+  const cp = activeCreatorPreview() !== null; // flips on expiry with no change event
+  if (!previewFlags && snapshotCache && snapshotCache.date === today && snapshotCache.stamp === stamp && snapshotCache.cp === cp) {
     return snapshotCache.flags;
   }
   const pick = <T>(key: string): T | null => {
@@ -405,7 +417,7 @@ export function clientFlagsSnapshot(preview?: Record<string, boolean>): ClientFl
     hud: pick<HudParams>("ui.hud"),
     result: pick<ResultParams>("ui.result"),
   };
-  if (!previewFlags) snapshotCache = { date: today, stamp, flags };
+  if (!previewFlags) snapshotCache = { date: today, stamp, cp, flags };
   return flags;
 }
 
@@ -416,5 +428,6 @@ export function resetFlagsForTest(): void {
   creatorPreview = null;
   waited = false;
   snapshotCache = null;
+  todayCache = null;
   stamp++;
 }

@@ -21,7 +21,7 @@ export function onEvent(e: GameEvent, ctx: FxContext): void {
         particles.burst(e.x, e.y, [PALETTE.redBright, PALETTE.gold, "#ff8866"], 14, 5, 0.6, 0.12);
       }
       // no floating +points: with the dense swarm the numbers cluttered the
-      // view — the HUD score and the kill burst are feedback enough
+      // view: the HUD score and the kill burst are feedback enough
       audio.droneKill();
       break;
     }

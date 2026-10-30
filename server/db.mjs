@@ -246,6 +246,7 @@ for (const stmt of [
   `ALTER TABLE runs ADD COLUMN ruleset TEXT`,
   `ALTER TABLE runs ADD COLUMN od_hot INTEGER`,
   `ALTER TABLE runs ADD COLUMN od_fires INTEGER`,
+  `ALTER TABLE flag_versions ADD COLUMN emergency INTEGER NOT NULL DEFAULT 0`,
 ]) {
   try {
     db.exec(stmt);
@@ -1402,13 +1403,13 @@ export function insertRun(
 
 // --- switch registry (append-only: insert and read only) ---
 
-export function insertFlagVersion({ key, effectiveFrom, enabled, params, paramsHash, note, actor, createdAt }) {
+export function insertFlagVersion({ key, effectiveFrom, enabled, params, paramsHash, note, actor, createdAt, emergency = false }) {
   const r = db
     .prepare(
-      `INSERT INTO flag_versions (key, effective_from, enabled, params, params_hash, note, actor, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO flag_versions (key, effective_from, enabled, params, params_hash, note, actor, created_at, emergency)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(key, effectiveFrom, enabled ? 1 : 0, params, paramsHash, note ?? null, actor, createdAt);
+    .run(key, effectiveFrom, enabled ? 1 : 0, params, paramsHash, note ?? null, actor, createdAt, emergency ? 1 : 0);
   return Number(r.lastInsertRowid);
 }
 

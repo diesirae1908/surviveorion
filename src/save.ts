@@ -425,15 +425,21 @@ export function loadSettings(): Settings {
   }
 }
 
+let reducedMotionMq: MediaQueryList | null | undefined;
+
 /** Effective presentation weight: "lite" when chosen or when the OS asks for reduced motion. */
 export function effectiveEffects(settings: Pick<Settings, "effects">): "full" | "lite" {
   if (settings.effects === "lite") return "lite";
-  try {
-    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return "lite";
-  } catch {
-    // matchMedia unavailable
+  if (reducedMotionMq === undefined) {
+    // one MediaQueryList for the session; .matches stays live
+    try {
+      reducedMotionMq =
+        typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+    } catch {
+      reducedMotionMq = null;
+    }
   }
-  return "full";
+  return reducedMotionMq?.matches ? "lite" : "full";
 }
 
 export function saveSettings(settings: Settings): void {
