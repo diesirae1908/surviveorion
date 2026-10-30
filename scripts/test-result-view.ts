@@ -4,8 +4,7 @@ import type { FormationKind } from "../src/config";
 import { FLASH_ALPHA, FLASH_MS, flashAlphaAt } from "../src/fx/deathFx";
 import { appendDeathPoint, traceToPath, TRACE_MAX_POINTS, type TraceSample } from "../src/flightTrace";
 import {
-  CREATURE_NAMES,
-  FORMATION_NAMES,
+  CAUSE_LINES,
   RESULT_HEADER,
   causeParts,
   causeText,
@@ -67,22 +66,26 @@ const box = { x: 10, y: 20, w: 100, h: 200 };
 // --- cause strings: every kind, every formation, every creature ---
 {
   const at = (kind: DeathCause["kind"], detail?: string): DeathCause => ({ kind, detail, time: 47.9, x: 0, y: 0 });
-  assert.equal(causeText(at("formation", "pincer")), "Downed by a pincer at 0:47");
-  assert.equal(causeText(at("formation", "megawall")), "Downed by a Great Wall at 0:47");
-  assert.equal(causeText(at("drone")), "Downed by a drone at 0:47");
+  assert.equal(causeText(at("formation", "pincer")), "Caught in a pincer at 0:47");
+  assert.equal(causeText(at("formation", "megawall")), "Downed by the Great Wall at 0:47");
+  assert.equal(causeText(at("formation", "swarm")), "Downed by the swarm at 0:47");
+  assert.equal(causeText(at("formation", "line")), "Downed by a drone line at 0:47");
+  assert.equal(causeText(at("formation", "tightring")), "Caught in a closing ring at 0:47");
+  assert.equal(causeText(at("creature", "lance")), "Downed by a LANCE at 0:47");
+  assert.equal(causeText(at("drone")), "Downed by a loose drone at 0:47");
   assert.equal(causeText(at("mine")), "Hit a mine at 0:47");
-  assert.equal(causeText(at("beam")), "Caught in a scanner beam at 0:47");
+  assert.equal(causeText(at("beam")), "Caught by a lighthouse at 0:47");
   assert.equal(causeText(at("crater")), "Hit a meteor crater at 0:47");
-  const formations = Object.keys(FORMATION_NAMES) as FormationKind[];
+  const formations = Object.keys(CAUSE_LINES.formation) as FormationKind[];
   assert.equal(formations.length, 10, "all ten formation kinds named");
   for (const f of formations) {
     const t = causeText({ kind: "formation", detail: f, time: 83, x: 0, y: 0 });
-    assert.ok(t.startsWith("Downed by a") && t.endsWith("at 1:23"), t);
-    assert.ok(t.includes(FORMATION_NAMES[f]), t);
+    assert.ok(/^(Downed by|Caught in) /.test(t) && t.endsWith("at 1:23"), t);
+    assert.ok(t.includes(CAUSE_LINES.formation[f].name), t);
   }
   for (const c of ["lance", "wheel", "hunter", "bomb"]) {
     const t = causeText({ kind: "creature", detail: c, time: 5, x: 0, y: 0 });
-    assert.ok(t.includes(CREATURE_NAMES[c]) && t.endsWith("at 0:05"), t);
+    assert.ok(t.includes(CAUSE_LINES.creature[c].name) && t.endsWith("at 0:05"), t);
   }
   // unknown detail never prints "undefined"
   assert.ok(!causeText(at("formation", "nope")).includes("undefined"));

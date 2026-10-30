@@ -600,6 +600,11 @@ const FLASH_SECONDS = 0.55;
 const DEATH_VEIL_SECONDS = 1.9;
 /** Veil progress at which the game-over screen starts fading in. */
 const DEATH_UI_AT = 0.55;
+/** ui.result deathMoment: show the result earlier in the veil (about 0.47 s sooner). Off path keeps DEATH_UI_AT. */
+const DEATH_UI_AT_MOMENT = 0.3;
+function deathUiAt(): number {
+  return clientFlagsSnapshot(PREVIEW_FLAGS).result?.deathMoment ? DEATH_UI_AT_MOMENT : DEATH_UI_AT;
+}
 /** Any tap/key after this much death cinematic skips straight to the results. */
 const DEATH_SKIP_AFTER = 0.5;
 
@@ -1394,7 +1399,7 @@ function startRun(): void {
   state = "playing";
   ui.hideAll();
   if (runIsFirstFlight) {
-    lastFirstFlightHint = firstFlightHint(0, isTouchDevice());
+    lastFirstFlightHint = firstFlightHint(0, isTouchDevice(), world.rules.overdrive !== null);
     ui.showFirstFlightHud(() => skipFirstFlight());
     ui.setTutorialHint(lastFirstFlightHint);
   }
@@ -1514,7 +1519,7 @@ function resume(): void {
   ui.hideAll();
   if (runIsFirstFlight) {
     ui.showFirstFlightHud(() => skipFirstFlight());
-    ui.setTutorialHint(lastFirstFlightHint || firstFlightHint(world.time, isTouchDevice()));
+    ui.setTutorialHint(lastFirstFlightHint || firstFlightHint(world.time, isTouchDevice(), world.rules.overdrive !== null));
   }
   audio.resumeMusic();
 }
@@ -2173,7 +2178,7 @@ function frame(now: number): void {
     if (fx.t >= 1) fx = null;
   } else if (state === "gameover" && fx?.kind === "death") {
     fx.t = Math.min(1, fx.t + dt / DEATH_VEIL_SECONDS);
-    if (!gameOverUiShown && fx.t >= DEATH_UI_AT) showGameOverUi();
+    if (!gameOverUiShown && fx.t >= deathUiAt()) showGameOverUi();
   }
 
   if (state === "tutorial" && tutorial?.waiting) {
@@ -2222,7 +2227,7 @@ function frame(now: number): void {
     }
 
     if (state === "playing" && runIsFirstFlight && world.phase === "playing") {
-      const hint = firstFlightHint(world.time, isTouchDevice());
+      const hint = firstFlightHint(world.time, isTouchDevice(), world.rules.overdrive !== null);
       if (hint !== lastFirstFlightHint) {
         lastFirstFlightHint = hint;
         ui.setTutorialHint(hint);
@@ -2336,7 +2341,7 @@ function skipDeathCinematic(): void {
   if (state === "playing" && world.phase === "dying" && world.deathTimer >= DEATH_SKIP_AFTER) {
     world.deathTimer = DEATH_TO_GAMEOVER_SECONDS; // next tick flips to game over
   } else if (state === "gameover" && fx?.kind === "death" && !gameOverUiShown) {
-    fx.t = Math.max(fx.t, DEATH_UI_AT);
+    fx.t = Math.max(fx.t, deathUiAt());
   }
 }
 

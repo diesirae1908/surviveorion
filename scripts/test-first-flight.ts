@@ -32,6 +32,8 @@ assert.equal(
 assert.equal(firstFlightHint(0, true), "Drag anywhere to fly");
 assert.equal(firstFlightHint(0, false), "WASD or arrows");
 assert.equal(firstFlightHint(8, true), "Grab the glowing orb, it fires itself");
+assert.equal(firstFlightHint(8, true, false), firstFlightHint(8, true), "overdrive off: hint unchanged");
+assert.notEqual(firstFlightHint(8, true, true), firstFlightHint(8, true), "overdrive on: orb hint changes");
 assert.equal(firstFlightHint(18, false), FIRST_FLIGHT_PATROL_STRIP);
 assert.equal(FIRST_FLIGHT_PATROL_STRIP, "Same patrol for everyone. 3 attempts.");
 assert.ok(

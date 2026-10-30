@@ -284,6 +284,14 @@ export class Renderer {
     if (opts.showHud) this.drawPauseHudRings(world, opts.alpha);
     if (opts.touch?.active) this.drawTouchOverlay(opts.touch);
 
+    // death moment (ui.result deathMoment): red flash over the first 150 ms after
+    // the hit. Drawn here, not in drawDeathFx, which only runs once gameover starts.
+    const flash = deathFx.flashAlpha();
+    if (flash > 0) {
+      this.ctx.fillStyle = `rgba(196, 30, 58, ${flash.toFixed(3)})`;
+      this.ctx.fillRect(0, 0, this.cssW, this.cssH);
+    }
+
     // cinematic overlays (drawn above everything, below the DOM UI)
     if (opts.fx) {
       if (opts.fx.kind === "warp") this.drawWarpFx(opts.fx.t, opts.uiTime, opts.daily);
@@ -929,13 +937,6 @@ export class Renderer {
     vig.addColorStop(1, `rgba(60, 4, 12, ${0.75 * ease})`);
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, this.cssW, this.cssH);
-
-    // death moment (ui.result deathMoment): red flash over the first 150 ms
-    const flash = deathFx.flashAlpha();
-    if (flash > 0) {
-      ctx.fillStyle = `rgba(196, 30, 58, ${flash.toFixed(3)})`;
-      ctx.fillRect(0, 0, this.cssW, this.cssH);
-    }
   }
 
   // --- world drawing ---

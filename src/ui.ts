@@ -24,7 +24,7 @@ import {
   type WeekCell,
 } from "./lobbyState";
 import { provisionalRank } from "./gameOverGoal";
-import { buildResultTop, SLIDE_MS } from "./resultView";
+import { buildResultTop, GOLD_CARD_BELOW, SLIDE_MS } from "./resultView";
 import { DAILY_EPOCH_DATE } from "./share";
 import type {
   BooleanSetting,
@@ -3596,6 +3596,8 @@ export class Ui {
       actions.appendChild(this.el("div", "daily-locked", "All patrols complete."));
       actions.appendChild(this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`));
     }
+    // GOLD_CARD_BELOW (resultView.ts): false puts the card right under FLY AGAIN
+    if (!GOLD_CARD_BELOW && stats.showGoldPatrolCta) actions.appendChild(this.goldPatrolPitch());
     const navRow = this.el("div", "gameover-row", "");
     if (stats.showShare) {
       const share = this.shareButton();
@@ -3616,8 +3618,8 @@ export class Ui {
       rank.id = "rank-line";
       actions.appendChild(rank);
     }
-    // GOLD_CARD_BELOW (resultView.ts): below the actions, the chips and the board
-    if (stats.showGoldPatrolCta) actions.appendChild(this.goldPatrolPitch());
+    // GOLD_CARD_BELOW (resultView.ts): true = below the actions, the chips and the board
+    if (GOLD_CARD_BELOW && stats.showGoldPatrolCta) actions.appendChild(this.goldPatrolPitch());
     if (stats.showAnalyticsLink && this.cb.onNativeAnalytics) {
       const analytics = this.el("button", "link-btn", "View Analytics");
       analytics.addEventListener("click", () => this.cb.onNativeAnalytics?.());

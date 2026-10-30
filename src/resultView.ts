@@ -60,33 +60,49 @@ export interface ResultViewStats {
 
 // --- pure helpers (tested in scripts/test-result-view.ts) ---
 
-export const FORMATION_NAMES: Record<FormationKind, string> = {
-  line: "line",
-  ring: "ring",
-  burst: "burst",
-  wall: "wall",
-  serpent: "serpent train",
-  pincer: "pincer",
-  corners: "corner trap",
-  tightring: "tight ring",
-  swarm: "swarm",
-  megawall: "Great Wall",
-};
-
-export const CREATURE_NAMES: Record<string, string> = {
-  lance: "Lance",
-  wheel: "Wheel",
-  hunter: "Hunter",
-  bomb: "Bomb",
+/**
+ * Every death-cause line in one place (copy approval: Lucas edits only this
+ * table). A line reads "<verb> <article> <name> at M:SS"; the name is the
+ * highlighted noun. An empty article means the name carries its own ("the swarm").
+ */
+export interface CauseLine {
+  verb: string;
+  article: string;
+  name: string;
+}
+const DOWNED = "Downed by";
+const CAUGHT = "Caught in";
+export const CAUSE_LINES = {
+  drone: { verb: DOWNED, article: "a", name: "loose drone" },
+  mine: { verb: "Hit", article: "a", name: "mine" },
+  beam: { verb: "Caught by", article: "a", name: "lighthouse" },
+  crater: { verb: "Hit", article: "a", name: "meteor crater" },
+  formation: {
+    line: { verb: DOWNED, article: "a", name: "drone line" },
+    ring: { verb: CAUGHT, article: "a", name: "drone ring" },
+    burst: { verb: DOWNED, article: "a", name: "spawn burst" },
+    wall: { verb: DOWNED, article: "a", name: "drone wall" },
+    serpent: { verb: DOWNED, article: "a", name: "serpent train" },
+    pincer: { verb: CAUGHT, article: "a", name: "pincer" },
+    corners: { verb: CAUGHT, article: "a", name: "corner trap" },
+    tightring: { verb: CAUGHT, article: "a", name: "closing ring" },
+    swarm: { verb: DOWNED, article: "", name: "the swarm" },
+    megawall: { verb: DOWNED, article: "", name: "the Great Wall" },
+  } satisfies Record<FormationKind, CauseLine>,
+  creature: {
+    lance: { verb: DOWNED, article: "a", name: "LANCE" },
+    wheel: { verb: DOWNED, article: "a", name: "WHEEL" },
+    hunter: { verb: DOWNED, article: "a", name: "HUNTER" },
+    bomb: { verb: DOWNED, article: "a", name: "BOMB" },
+  } as Record<string, CauseLine>,
+  /** Unknown detail never prints "undefined". */
+  formationFallback: { verb: DOWNED, article: "a", name: "formation" },
+  creatureFallback: { verb: DOWNED, article: "a", name: "creature" },
 };
 
 export function fmtClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-}
-
-function article(noun: string): string {
-  return /^[aeiou]/i.test(noun) ? "an" : "a";
 }
 
 export interface CauseParts {
@@ -96,28 +112,32 @@ export interface CauseParts {
   after: string;
 }
 
-/** "Downed by a pincer at 0:47" in Mission Control voice (brand/VOICE.md). */
-export function causeParts(cause: DeathCause): CauseParts {
-  const at = ` at ${fmtClock(cause.time)}`;
+function lineFor(cause: DeathCause): CauseLine {
   switch (cause.kind) {
-    case "formation": {
-      const name = FORMATION_NAMES[cause.detail as FormationKind] ?? "formation";
-      return { before: `Downed by ${article(name)} `, name, after: at };
-    }
-    case "creature": {
-      const name = CREATURE_NAMES[cause.detail ?? ""] ?? "creature";
-      return { before: `Downed by ${article(name)} `, name, after: at };
-    }
+    case "formation":
+      return (CAUSE_LINES.formation as Record<string, CauseLine>)[cause.detail ?? ""] ?? CAUSE_LINES.formationFallback;
+    case "creature":
+      return CAUSE_LINES.creature[cause.detail ?? ""] ?? CAUSE_LINES.creatureFallback;
     case "mine":
-      return { before: "Hit a ", name: "mine", after: at };
+      return CAUSE_LINES.mine;
     case "beam":
-      return { before: "Caught in a ", name: "scanner beam", after: at };
+      return CAUSE_LINES.beam;
     case "crater":
-      return { before: "Hit a ", name: "meteor crater", after: at };
+      return CAUSE_LINES.crater;
     case "drone":
     default:
-      return { before: "Downed by a ", name: "drone", after: at };
+      return CAUSE_LINES.drone;
   }
+}
+
+/** "Downed by a drone line at 0:47" in Mission Control voice (brand/VOICE.md). */
+export function causeParts(cause: DeathCause): CauseParts {
+  const l = lineFor(cause);
+  return {
+    before: `${l.verb} ${l.article ? `${l.article} ` : ""}`,
+    name: l.name,
+    after: ` at ${fmtClock(cause.time)}`,
+  };
 }
 
 export function causeText(cause: DeathCause): string {

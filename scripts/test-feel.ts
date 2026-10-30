@@ -13,6 +13,9 @@ import {
   hudLayout,
   killPopAllowed,
   onEvent,
+  resetKillPopBudget,
+  KILL_POP_MIN_GAP_MS,
+  KILL_POP_AFTER_FIRE_MS,
   stickAlpha,
   vignetteAmount,
 } from "../src/feel";
@@ -145,15 +148,37 @@ function run(e: GameEvent, hud: HudParams | null, effects: "full" | "lite", chai
   onEvent(e, ctx);
   return calls;
 }
+let clockNow = 1000;
+resetKillPopBudget(() => clockNow);
 const kill: GameEvent = { type: "droneKilled", x: 1, y: 2, scale: 1, wasFrozen: false, points: 120 };
 const graze: GameEvent = { type: "graze", x: 3, y: 1, points: 42 };
 const names = (c: Call[]) => c.map((x) => x[0]).join(",");
+function advance(ms: number): void {
+  clockNow += ms;
+}
 check("OFF: kill is burst + sfx, even deep in a chain", names(run(kill, null, "full", 30)) === "burst,droneKill");
 check("OFF: graze unchanged (burst, arc, sfx, popup)", names(run(graze, null, "full", 0)) === "burst,grazeArc,grazeSfx,popup");
 check("ON: short chain kill has no pop", names(run(kill, HUD, "full", 2)) === "burst,droneKill");
 {
   const c = run(kill, HUD, "full", 7);
   check("ON: chain kill adds a rising +N", names(c) === "burst,droneKill,rising" && c[2][3] === "+120" && c[2][4] === PALETTE.goldPale);
+}
+{
+  // budget: 30 kills in one tick yield one pop; one more after the gap
+  advance(1000);
+  let pops = 0;
+  for (let i = 0; i < 30; i++) pops += run(kill, HUD, "full", 20).filter((c) => c[0] === "rising").length;
+  check("ON: 30 kills in one tick make 1 pop", pops === 1, String(pops));
+  advance(KILL_POP_MIN_GAP_MS);
+  check("ON: next pop after the gap", run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
+  // overdriveFire suppresses pops for KILL_POP_AFTER_FIRE_MS
+  advance(1000);
+  run({ type: "overdriveFire", power: "pulse", x: 0, y: 0, form: true } as unknown as GameEvent, HUD, "full", 20);
+  advance(KILL_POP_AFTER_FIRE_MS - 10);
+  check("ON: no pop right after a fire", !run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
+  advance(20);
+  check("ON: pop resumes after the fire window", run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
+  advance(1000);
 }
 check("ON + lite: no pop, no ring", names(run(kill, HUD, "lite", 9)) === "burst,droneKill" && names(run(graze, HUD, "lite", 0)) === "burst,grazeArc,grazeSfx,popup");
 check("ON: graze adds a gold ring", names(run(graze, HUD, "full", 0)) === "burst,grazeArc,grazeSfx,popup,ring");

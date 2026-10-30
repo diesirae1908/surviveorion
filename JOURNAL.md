@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: wave 1 visual fix round 1 (integ/wave1-visual)
+
+- What (from the Opus review): (1) death flash moved from `drawDeathFx` into `render()` just before the cinematic overlays, so it shows in the first 150 ms after the hit (still gated on `ui.result.deathMoment` and effects full inside `deathFx.onEvent`). (2) `firstFlightHint(..., world.rules.overdrive !== null)` at the three main.ts call sites; test added that false leaves the hint unchanged. (3) `feel.ts` kill pops: at most one per `KILL_POP_MIN_GAP_MS` (120), none for `KILL_POP_AFTER_FIRE_MS` (300) after an `overdriveFire`; injectable clock via `resetKillPopBudget`; tests in `test-feel.ts` (30 kills in a tick = 1 pop). (4) All death-cause copy in one exported table, `CAUSE_LINES` in `resultView.ts` (verb, article, name; review wording incl. "Caught by a lighthouse" for beam); header stays `RESULT_HEADER = "GAME OVER"`. Copy still needs Lucas's approval. (5) `GOLD_CARD_BELOW` is now read by `showGameOverV2` (true = card below actions, as before). (6) With `deathMoment` on, the result shows at veil 0.3 (`deathUiAt()` in main.ts, ~2.0 s instead of ~2.45 s); the off path keeps 0.55.
+- (e) documented: kill pop rise stays 0.9 world units on purpose (scales with the ship, about 30 to 55 CSS px); the plan's 24 px was dropped.
+- Verified: npm test, sim-test, npm run build green. Screenshots (390x844, `?flags=` on, temp DB) in sam `reports/orion-revamp-2026-10-29/build-shots/fix1/`. The 70 ms death frame uses a frozen `performance.now` because screenshot latency exceeds the 150 ms flash; rAF pixel sampling confirmed the red decays 44 to 12 over ~150 ms.
+
 ## 2026-10-30 PT: WS-B OVERDRIVE core (feat/overdrive-core)
 
 - What: the OVERDRIVE sim, behind the `overdrive` switch (default off). `src/overdrive.ts` (new): hull charge from grazes (razor x2, outer x0.5) and a capped kill trickle, HOT at full charge, drain after a delay, HOT expires after `hotMaxSeconds` unspent, `spendOverdrive` on the next orb (universal burst plus a per-power form), swarm heat (`overdriveHeatScale`), freeze chain and shockwave echo queues. Six forms: pulse fan, shield nova (wider detonation, refunds charge), cryo chain, magnet sweep, shockwave echo, missile storm. GRAZE PROTOCOL charges 2x through new mutator knob `overdriveChargeScale` (read only when `mutatorHooks`).

@@ -1,5 +1,5 @@
 // Death moment presentation: a short freeze beat, the hull breaking into gold
-// shards, and a red flash over the first 150 ms of the death veil. Gated by
+// shards, and a red flash over the first 150 ms after the hit (drawn by render() above the world). Gated by
 // `ui.result` (param `deathMoment`); a no-op with the switch off. Presentation
 // only: it never mutates the sim (the freeze is `ctx.holdSim`, which does not
 // advance sim time) and it draws no seeded random numbers (shards use the
@@ -25,7 +25,7 @@ export function flashAlphaAt(elapsedMs: number): number {
   return FLASH_ALPHA * (1 - elapsedMs / FLASH_MS);
 }
 
-/** Alpha for drawDeathFx this frame. 0 when the switch or the flash is off. */
+/** Alpha for the render() flash overlay this frame. 0 when the switch or the flash is off. */
 export function flashAlpha(now: number = performance.now()): number {
   if (flashStartedAt === null) return 0;
   const a = flashAlphaAt(now - flashStartedAt);

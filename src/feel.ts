@@ -13,9 +13,17 @@ import type { FxContext, GameEvent, World } from "./types";
 /** Score size in CSS px: the one big number. */
 export const SCORE_PX_PHONE = 34;
 export const SCORE_PX_DESKTOP = 40;
-/** Kill pop rise and life (see popups.ts, rise is in world units). */
+/**
+ * Kill pop rise and life (see popups.ts). The rise is deliberately in WORLD
+ * units (0.9, about 30 to 55 CSS px depending on field scale) so it scales with
+ * the ship; the plan's flat 24 px was dropped on purpose (review item e).
+ */
 export const POP_RISE_WORLD = 0.9;
 export const POP_MS = 450;
+/** At most one kill pop per this many ms, so a mass kill reads as one number. */
+export const KILL_POP_MIN_GAP_MS = 120;
+/** No kill pops this long after an overdriveFire, so the form name owns the moment. */
+export const KILL_POP_AFTER_FIRE_MS = 300;
 /** Crowding radius for the danger vignette, in drawn ship lengths. */
 export const VIGNETTE_RADIUS_SHIP_LENGTHS = 1.5;
 /** A drawn hull is about 1.1 world units long before visualScale. */
@@ -152,6 +160,17 @@ export function fitScorePx(chars: number, maxW: number, basePx: number): number 
   return Math.max(20, Math.floor((maxW / (chars * 0.56)) * 10) / 10);
 }
 
+// Kill pop budget (cosmetic, wall clock). The clock is injectable for tests.
+let popClock: () => number = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+let lastPopAt = -Infinity;
+let lastFireAt = -Infinity;
+/** Test seam: replace the clock and clear the budget. */
+export function resetKillPopBudget(clock?: () => number): void {
+  if (clock) popClock = clock;
+  lastPopAt = -Infinity;
+  lastFireAt = -Infinity;
+}
+
 /** React to a gameplay event. */
 export function onEvent(e: GameEvent, ctx: FxContext): void {
   const { particles, popups, audio, world } = ctx;
@@ -168,10 +187,17 @@ export function onEvent(e: GameEvent, ctx: FxContext): void {
       // numbers cluttered the view. ui.hud adds a rising +N inside chains only.
       audio.droneKill();
       if (killPopAllowed(world.chainCount, ctx.flags.hud, ctx.effects)) {
-        popups.spawnRising(e.x, e.y + 0.3, `+${e.points}`, PALETTE.goldPale, 0.5, POP_MS / 1000, POP_RISE_WORLD);
+        const now = popClock();
+        if (now - lastPopAt >= KILL_POP_MIN_GAP_MS && now - lastFireAt >= KILL_POP_AFTER_FIRE_MS) {
+          lastPopAt = now;
+          popups.spawnRising(e.x, e.y + 0.3, `+${e.points}`, PALETTE.goldPale, 0.5, POP_MS / 1000, POP_RISE_WORLD);
+        }
       }
       break;
     }
+    case "overdriveFire":
+      lastFireAt = popClock();
+      break;
     case "graze":
       particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
       particles.grazeArc(Math.atan2(e.y - world.ship.y, e.x - world.ship.x));
