@@ -112,6 +112,9 @@ export interface MutatorOverrides {
   grazeCooldownScale?: number;
   /** Multiplies SCORING.grazeMultiplier. */
   grazeMultiplierScale?: number;
+  /** Multiplies the OVERDRIVE charge a graze/kill adds (only read while the
+   * `overdrive` switch is on and its `mutatorHooks` param is true). */
+  overdriveChargeScale?: number;
   /** GRAZE PROTOCOL only: float the point number. */
   grazePopups?: boolean;
   /** Hold-one days (GOLD DASH, RAM RAID): always exactly one pickup.
@@ -748,6 +751,7 @@ export const MUTATOR_POOL: Mutator[] = [
       grazeBandScale: 2,
       grazeCooldownScale: 0.45,
       grazeMultiplierScale: 3,
+      overdriveChargeScale: 2,
       grazePopups: true,
     },
   },
@@ -1439,6 +1443,11 @@ export function mutatorGrazeBandScale(): number {
 
 export function mutatorGrazeCooldownScale(): number {
   return scaleOf((o) => o.grazeCooldownScale);
+}
+
+/** Raw OVERDRIVE charge scale for the day; overdrive.ts applies the hook switch. */
+export function mutatorOverdriveChargeScaleRaw(): number {
+  return scaleOf((o) => o.overdriveChargeScale);
 }
 
 export function mutatorGrazeMultiplierScale(): number {

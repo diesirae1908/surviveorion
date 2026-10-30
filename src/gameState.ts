@@ -7,6 +7,7 @@ import { isMineArmed, killMine, mineRadius, shatterFrozenMine, updateMines } fro
 import { circlesOverlap, clampToBounds } from "./physics";
 import { initPickups, updatePickups } from "./pickups";
 import { blastRadius, createPowersState, detonateShield, updatePowers } from "./powers";
+import { chargeFromGraze, createOverdriveState, updateOverdrive } from "./overdrive";
 import { registerGraze, updateScoring } from "./scoring";
 import { createShip, updateShip } from "./ship";
 import { updateStarfallRain } from "./starfall";
@@ -48,16 +49,7 @@ export function createWorld(
     daily,
     grace: gameMode === "ironrain" ? 0 : grace, // Iron Rain never softens
     rules,
-    overdrive: {
-      charge: 0,
-      hot: false,
-      hotTime: 0,
-      drainTimer: 0,
-      lockout: 0,
-      killChargeWindow: 0,
-      hotCount: 0,
-      fires: 0,
-    },
+    overdrive: createOverdriveState(),
     grazes: 0,
     deathCause: null,
     phase: "playing",
@@ -152,6 +144,7 @@ export function tick(world: World, input: InputState, dt: number): void {
   updatePickups(world, dt);
   updatePowers(world, dt);
   updateScoring(world, dt);
+  updateOverdrive(world, dt);
   handleShipDroneCollisions(world);
   handleShipMineCollisions(world);
   handleShipLighthouseCollisions(world);
@@ -413,6 +406,7 @@ function handleGrazes(world: World): void {
       d.grazeTimer = SCORING.grazeCooldown * mutatorGrazeCooldownScale();
       registerGraze(world, d.x, d.y);
       const clearance = grazeClearance(Math.sqrt(sq), contact, band);
+      chargeFromGraze(world, clearance);
       const candidate = {
         time: world.time,
         x: d.x,

@@ -4,6 +4,7 @@
  */
 import { ASSEMBLY, FIXED_DT, IRONRAIN, PICKUPS, POWERS, SCORING, SHIP, SPAWNABLE_POWER_IDS, TRAINING } from "../src/config";
 import { droneRadius, spawnAssemblyDirect, spawnDroneDirect } from "../src/enemies";
+import { BASE_RULES, rulesFromDefaults, type RunRules } from "../src/flags";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
@@ -2697,6 +2698,193 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
       setRunSeed(null);
     }
   }
+}
+
+// --- 7b. OVERDRIVE is player-side: the Daily's script never moves, and the meter is reachable ---
+//
+// Same recorder idea as section 7, plus assembly/creature events (kind + time).
+// Three pilots on one seed: (a) switch off + ram, (b) switch on + ram, (c)
+// switch on + a grazer that shaves drones and spends HOT on the next orb.
+// Heat (faster loose drones near a HOT hull), bursts and forms all change
+// who dies where, but must never change what spawns or when.
+//
+// R5 tuning (plan v2): a graze-seeking bot reaches HOT by 0:25 on at least 8
+// of 10 seeds (gating). The grazer flies with a ghost hull (a lethal hit is
+// undone) because the opening kills every simple bot by ~12 s, which would
+// measure the bot's survival, not the meter. The plain evade bot (section 10
+// harness) is flown for real and its HOT rate is only reported.
+{
+  /** Orbit the nearest drone at a graze-band stand-off, dodge the rest. */
+  const grazeHeading = (world: World): { x: number; y: number } => {
+    const s = world.ship;
+    if (world.overdrive.hot && world.pickups.length > 0) {
+      const p = world.pickups[0];
+      const l = Math.hypot(p.x - s.x, p.y - s.y) || 1;
+      return { x: (p.x - s.x) / l, y: (p.y - s.y) / l };
+    }
+    let best: World["drones"][number] | null = null;
+    let bd = Infinity;
+    for (const d of world.drones) {
+      if (!d.alive || d.allied || d.frozen > 0) continue;
+      const dist = Math.hypot(d.x - s.x, d.y - s.y);
+      if (dist < bd) {
+        bd = dist;
+        best = d;
+      }
+    }
+    if (!best) return { x: 0, y: 0 };
+    let rx = 0;
+    let ry = 0;
+    for (const d of world.drones) {
+      if (!d.alive || d === best) continue;
+      const dx = s.x - d.x;
+      const dy = s.y - d.y;
+      const sq = dx * dx + dy * dy;
+      if (sq > 9) continue;
+      const dist = Math.sqrt(sq) || 0.05;
+      rx += (dx / dist) / (sq + 0.2);
+      ry += (dy / dist) / (sq + 0.2);
+    }
+    for (const m of world.mines) {
+      if (!m.alive) continue;
+      const dx = s.x - m.x;
+      const dy = s.y - m.y;
+      const sq = dx * dx + dy * dy;
+      if (sq > 9) continue;
+      const dist = Math.sqrt(sq) || 0.05;
+      rx += (1.5 * dx) / dist / (sq + 0.2);
+      ry += (1.5 * dy) / dist / (sq + 0.2);
+    }
+    const stand = SHIP.radius + droneRadius(best) + SCORING.grazeBand * 0.15;
+    const dx = best.x - s.x;
+    const dy = best.y - s.y;
+    const dist = Math.hypot(dx, dy) || 0.05;
+    const radial = Math.max(-1, Math.min(1, (dist - stand) / Math.max(0.5, stand)));
+    const hx = (dx / dist) * radial + (-dy / dist) * 0.6 + rx * 0.5;
+    const hy = (dy / dist) * radial + (dx / dist) * 0.6 + ry * 0.5;
+    const l = Math.hypot(hx, hy) || 1;
+    return { x: hx / l, y: hy / l };
+  };
+
+  interface Script7b {
+    formations: string[];
+    powers: string[];
+    mines: string[];
+    assemblies: string[];
+  }
+  const recordOd = (
+    rules: RunRules,
+    style: "ram" | "grazer",
+    mutators: Mutator[] = [],
+  ): { script: Script7b; fires: number; hot: number } => {
+    setRunSeed(1234567);
+    setActiveMutators(mutators, new Date("2026-12-09T00:00:00Z"));
+    const world = createWorld(17.8 * mutatorViewScale(), 10 * mutatorViewScale(), false, 0, "classic", true, false, rules);
+    const script: Script7b = { formations: [], powers: [], mines: [], assemblies: [] };
+    const driveInput: InputState = { ...input, inertia: false, moveVector: { x: 0, y: 0 } };
+    const steps = Math.round(180 / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      if (style === "ram") {
+        world.powers.starshellTimer = 9999;
+        driveInput.moveVector = { x: 0, y: 0 };
+      } else {
+        if (world.phase !== "playing") {
+          world.phase = "playing"; // ghost hull
+          world.deathTimer = 0;
+          world.deathCause = null;
+        }
+        driveInput.moveVector = grazeHeading(world);
+      }
+      tick(world, driveInput, FIXED_DT);
+      for (const e of world.events) {
+        if (e.type === "formation") script.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+        if (e.type === "pickupSpawn") {
+          script.powers.push(`${world.time.toFixed(2)}:${e.power}@${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+        }
+        if (e.type === "assembly") script.assemblies.push(`${world.time.toFixed(2)}:${e.kind}`);
+      }
+      world.events.length = 0;
+      for (const m of world.mines) script.mines.push(`${world.time.toFixed(2)}:${m.x.toFixed(2)},${m.y.toFixed(2)}`);
+      world.mines.length = 0;
+    }
+    clearActiveMutators();
+    setRunSeed(null);
+    return { script, fires: world.overdrive.fires, hot: world.overdrive.hotCount };
+  };
+
+  const onRules = rulesFromDefaults({ overdrive: true });
+  const a = recordOd(BASE_RULES, "ram");
+  const b = recordOd(onRules, "ram");
+  const c = recordOd(onRules, "grazer");
+  const same = (x: Script7b, y: Script7b): boolean =>
+    x.formations.join("|") === y.formations.join("|") &&
+    x.powers.join("|") === y.powers.join("|") &&
+    x.mines.join("|") === y.mines.join("|") &&
+    x.assemblies.join("|") === y.assemblies.join("|");
+  // Plain-day assemblies are conscripted from the live swarm (Math.random,
+  // player-dependent by design), so only the creature day's SCRIPTED
+  // assemblies (seeded) are compared below.
+  const sameBase = (x: Script7b, y: Script7b): boolean =>
+    x.formations.join("|") === y.formations.join("|") &&
+    x.powers.join("|") === y.powers.join("|") &&
+    x.mines.join("|") === y.mines.join("|");
+  check(
+    "overdrive off vs on (ram): formations, drops, mines identical",
+    a.script.formations.length > 10 && a.script.powers.length > 5 && sameBase(a.script, b.script),
+    `${a.script.formations.length} formations, ${a.script.powers.length} drops`,
+  );
+  check(
+    "overdrive on + grazer that went HOT and spent it: script identical to off + ram",
+    c.hot > 0 && c.fires > 0 && sameBase(a.script, c.script),
+    `${c.hot} HOT, ${c.fires} fires`,
+  );
+  const lancer = [getMutatorById("lancer-doctrine")!];
+  const ca = recordOd(BASE_RULES, "ram", lancer);
+  const cb = recordOd(onRules, "ram", lancer);
+  const cc = recordOd(onRules, "grazer", lancer);
+  check(
+    "creature day: scripted assemblies (kind + time) identical off+ram vs on+ram vs on+grazer",
+    ca.script.assemblies.length > 3 && same(ca.script, cb.script) && same(ca.script, cc.script) && cc.fires > 0,
+    `${ca.script.assemblies.length} assemblies, grazer ${cc.hot} HOT ${cc.fires} fires`,
+  );
+
+  // R5: graze-seeking bot reaches HOT by 0:25 on >= 8 of 10 seeds (gating)
+  const odTrial = (seed: number, kind: "graze" | "evade", cap: number): { firstHot: number } => {
+    setRunSeed(seed);
+    const world = createWorld(17.8, 10, false, 0, "classic", true, false, rulesFromDefaults({ overdrive: true }));
+    const inp: InputState = { ...input, inertia: false, moveVector: { x: 0, y: 0 } };
+    let firstHot = -1;
+    const n = Math.round(cap / FIXED_DT);
+    for (let i = 0; i < n; i++) {
+      if (world.phase !== "playing") {
+        if (kind === "graze") {
+          world.phase = "playing"; // ghost hull
+          world.deathTimer = 0;
+          world.deathCause = null;
+        } else break;
+      }
+      inp.moveVector = kind === "graze" ? grazeHeading(world) : evasiveHeading(world);
+      tick(world, inp, FIXED_DT);
+      world.events.length = 0;
+      if (firstHot < 0 && world.overdrive.hotCount > 0) firstHot = world.time;
+    }
+    setRunSeed(null);
+    return { firstHot };
+  };
+  const grazeRuns = Array.from({ length: 10 }, (_, i) => odTrial(i + 1, "graze", 25));
+  const grazeHot = grazeRuns.filter((r) => r.firstHot >= 0 && r.firstHot <= 25).length;
+  const grazeTimes = grazeRuns.filter((r) => r.firstHot >= 0).map((r) => r.firstHot).sort((x, y) => x - y);
+  check(
+    "overdrive tuning: graze bot reaches HOT by 0:25 on >= 8 of 10 seeds",
+    grazeHot >= 8,
+    `${grazeHot}/10, median first HOT ${grazeTimes.length ? grazeTimes[Math.floor(grazeTimes.length / 2)].toFixed(1) : "-"}s`,
+  );
+  const evadeRuns = Array.from({ length: 10 }, (_, i) => odTrial(i + 1, "evade", 60));
+  const evadeHot = evadeRuns.filter((r) => r.firstHot >= 0).length;
+  const evadeTimes = evadeRuns.filter((r) => r.firstHot >= 0).map((r) => r.firstHot).sort((x, y) => x - y);
+  console.log(
+    `INFO  overdrive tuning (reported, not gating): plain evade bot reaches HOT in ${evadeHot}/10 runs, median first HOT ${evadeTimes.length ? evadeTimes[Math.floor(evadeTimes.length / 2)].toFixed(1) + "s" : "-"}`,
+  );
 }
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);

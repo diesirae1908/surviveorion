@@ -1,5 +1,6 @@
 import { SCORING } from "./config";
 import { mutatorGrazeMultiplierScale, mutatorGrazePointsScale } from "./mutators";
+import { chargeFromKill } from "./overdrive";
 import type { World } from "./types";
 
 /**
@@ -113,5 +114,6 @@ export function registerKill(
 
   world.score += points;
   world.kills += 1;
+  chargeFromKill(world);
   return Math.round(points);
 }

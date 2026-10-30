@@ -18,6 +18,7 @@ import {
   takeHoldOneSpawnKey,
 } from "./mutators";
 import { circlesOverlap } from "./physics";
+import { spendOverdrive } from "./overdrive";
 import { activatePower } from "./powers";
 import type { Pickup, World } from "./types";
 
@@ -109,7 +110,9 @@ export function updatePickups(world: World, dt: number): void {
     if (circlesOverlap(ship.x, ship.y, SHIP.radius, p.x, p.y, PICKUPS.radius)) {
       world.pickups.splice(i, 1);
       world.events.push({ type: "pickup", power: p.power, x: p.x, y: p.y });
-      activatePower(world, p.power);
+      // OVERDRIVE: a HOT hull spends its charge on this orb (burst + form)
+      const form = spendOverdrive(world, p.power);
+      activatePower(world, p.power, form);
       if (mutatorPickupHoldOne()) {
         const delay = mutatorPickupHoldOneDelay();
         if (delay <= 0) spawnHoldOnePickup(world);

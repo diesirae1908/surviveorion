@@ -26,6 +26,7 @@ import {
   mutatorWindVector,
 } from "./mutators";
 import { halfDiagonal, randomEdgePoint } from "./physics";
+import { overdriveHeatScale } from "./overdrive";
 import { registerKill } from "./scoring";
 import type { Assembly, AssemblyKind, Drone, KillSource, World } from "./types";
 
@@ -348,6 +349,12 @@ export function updateDrones(world: World, dt: number): void {
     // Opening ramp: only loose homing (no script, no assembly, not flare-piled).
     if (!scripted && !flare) {
       speed *= openingHoming(world);
+      // OVERDRIVE: a HOT hull makes nearby loose chasers faster. Only the
+      // homing branch (scripted, assembly, flare-piled and allied drones keep
+      // their own pace), and only while HOT so the common path costs one flag.
+      if (world.overdrive.hot && chase && !d.allied) {
+        speed *= overdriveHeatScale(world, Math.hypot(ship.x - d.x, ship.y - d.y));
+      }
     }
     d.vx = hx * speed;
     d.vy = hy * speed;
@@ -376,6 +383,13 @@ export function killDrone(world: World, d: Drone, source?: KillSource): void {
   if (wasFrozen) {
     pointsScale *= SCORING.frozenPointsScale;
     multiplierScale *= SCORING.frozenMultiplierScale;
+  }
+
+  // OVERDRIVE freeze form: a shattered drone pulls its frozen neighbors along
+  const od = world.rules.overdrive;
+  if (od && d.odFrozen && wasFrozen) {
+    d.odFrozen = false;
+    world.overdrive.chainQueue.push({ x: d.x, y: d.y, left: od.forms.freeze.chainMax });
   }
 
   const points = registerKill(world, d.x, d.y, { pointsScale, multiplierScale });

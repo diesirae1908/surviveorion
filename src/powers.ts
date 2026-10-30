@@ -7,7 +7,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { freezeMinesInRadius, isMineArmed, killMine, killMinesInRadius } from "./mines";
 import { killLighthousesInRadius } from "./lighthouse";
 import { mutatorPowerAmpScale, mutatorStarshellDurationScale } from "./mutators";
-import type { ArcChainState, Drone, Mine, Pickup, PowersState, ThunderChainState, World } from "./types";
+import type { ArcChainState, Drone, Mine, PowersState, ThunderChainState, World } from "./types";
 import { clamp01 } from "./math";
 
 export function createPowersState(): PowersState {
@@ -94,8 +94,11 @@ function updateBlasts(world: World, dt: number): void {
 }
 
 /** Auto-activate on pickup (port of Unity PowerManager.Trigger). */
-export function activatePower(world: World, power: PowerId): void {
+export function activatePower(world: World, power: PowerId, overdrive = false): void {
   const p = world.powers;
+  // OVERDRIVE form params, only when a HOT orb was spent on this power and the
+  // switch is on. Null means the base power, exactly as before.
+  const od = overdrive ? world.rules.overdrive : null;
   // OVERCHARGE: drop RATE is untouched (see mutators.ts); this scales the
   // magnitude of whichever power lands, so it reads the same at the moment
   // of activation regardless of when the drop happened.
@@ -103,6 +106,7 @@ export function activatePower(world: World, power: PowerId): void {
   switch (power) {
     case "shield":
       p.shieldActive = true;
+      world.overdrive.shieldCharged = od?.forms.shield.on === true;
       world.events.push({ type: "shieldUp" });
       break;
     case "starshell":
@@ -110,47 +114,35 @@ export function activatePower(world: World, power: PowerId): void {
       world.events.push({ type: "starshellUp" });
       break;
     case "shockwave": {
-      // instant core kill, then the sweep stays lethal out to the full wave
-      // and lingers there — the "nuclear" afterglow
-      const radius = POWERS.shockwave.radius * amp;
-      const waveMaxRadius = POWERS.shockwave.waveMaxRadius * amp;
-      killDronesInRadius(world, world.ship.x, world.ship.y, radius);
-      killMinesInRadius(world, world.ship.x, world.ship.y, radius);
-      spawnBlast(world, world.ship.x, world.ship.y, waveMaxRadius, {
-        expandTime: POWERS.shockwave.waveLifetime,
-        holdTime: POWERS.shockwave.blastLifetime,
-        color: PALETTE.gold,
-      });
-      p.waves.push({
-        x: world.ship.x,
-        y: world.ship.y,
-        elapsed: 0,
-        lifetime: POWERS.shockwave.waveLifetime,
-        maxRadius: waveMaxRadius,
-        color: PALETTE.gold,
-      });
-      world.events.push({ type: "shockwave", x: world.ship.x, y: world.ship.y });
-      world.shake = Math.max(world.shake, 0.35);
+      detonateShockwave(world, world.ship.x, world.ship.y, 1);
+      // OVERDRIVE: a second, slightly smaller wave from wherever the ship is by then
+      if (od?.forms.shockwave.on) {
+        world.overdrive.pending.push({
+          kind: "echo",
+          t: od.forms.shockwave.echoDelay,
+          scale: od.forms.shockwave.echoScale,
+        });
+      }
       break;
     }
     case "pulse":
       p.pulseTimer = POWERS.pulse.chargeTime;
+      world.overdrive.pulseFan = od?.forms.pulse.on
+        ? { count: od.forms.pulse.fanCount, spreadDeg: od.forms.pulse.fanSpreadDeg }
+        : null;
       world.events.push({ type: "pulseCharge" });
       break;
     case "magnet": {
       // one-shot grab: claim the nearest unclaimed pickup; if the board is
       // empty, stay armed and take the next drop instead (see spawnPickup)
-      let nearest: Pickup | undefined;
-      let best = Infinity;
-      for (const pu of world.pickups) {
-        if (pu.magnetized) continue;
-        const d = Math.hypot(pu.x - world.ship.x, pu.y - world.ship.y);
-        if (d < best) {
-          best = d;
-          nearest = pu;
-        }
-      }
-      if (nearest) nearest.magnetized = true;
+      // OVERDRIVE: sweep up to `maxPull` of the nearest instead of one.
+      const pulls = od?.forms.magnet.on ? Math.max(1, Math.round(od.forms.magnet.maxPull)) : 1;
+      const free = world.pickups
+        .filter((pu) => !pu.magnetized)
+        .map((pu) => ({ pu, d: Math.hypot(pu.x - world.ship.x, pu.y - world.ship.y) }))
+        .sort((x, y) => x.d - y.d)
+        .slice(0, pulls);
+      if (free.length > 0) for (const f of free) f.pu.magnetized = true;
       else p.magnetPending++;
       break;
     }
@@ -163,13 +155,18 @@ export function activatePower(world: World, power: PowerId): void {
       break;
     case "freeze": {
       // OVERCHARGE: a bigger, longer-lasting cryo field.
-      const r = POWERS.freeze.radius * amp;
+      // OVERDRIVE: wider field, and shattering one frozen drone chains.
+      const fz = od?.forms.freeze.on ? od.forms.freeze : null;
+      const r = POWERS.freeze.radius * amp * (fz ? fz.radiusScale : 1);
       const duration = POWERS.freeze.freezeDuration * amp;
       for (const d of world.drones) {
         if (!d.alive) continue;
         const dx = d.x - world.ship.x;
         const dy = d.y - world.ship.y;
-        if (dx * dx + dy * dy <= r * r) d.frozen = duration;
+        if (dx * dx + dy * dy <= r * r) {
+          d.frozen = duration;
+          if (fz) d.odFrozen = true;
+        }
       }
       freezeMinesInRadius(world, world.ship.x, world.ship.y, r, duration);
       p.waves.push({
@@ -185,7 +182,7 @@ export function activatePower(world: World, power: PowerId): void {
       break;
     }
     case "missiles":
-      fireMissileSwarm(world);
+      fireMissileSwarm(world, od?.forms.missiles.on ? od.forms.missiles : null);
       break;
     case "arc":
       startArcChain(world);
@@ -239,10 +236,40 @@ export function activatePower(world: World, power: PowerId): void {
   }
 }
 
-/** Launch a ring of guided missiles that curve toward the nearest enemies. */
-function fireMissileSwarm(world: World): void {
+/**
+ * Shockwave detonation at a point. `scale` 1 is the base power (identical to
+ * the pre-OVERDRIVE inline code); the Overdrive echo calls it again smaller.
+ */
+export function detonateShockwave(world: World, x: number, y: number, scale: number): void {
   const p = world.powers;
-  const cfg = POWERS.missiles;
+  // instant core kill, then the sweep stays lethal out to the full wave
+  // and lingers there — the "nuclear" afterglow
+  const amp = mutatorPowerAmpScale() * scale;
+  const radius = POWERS.shockwave.radius * amp;
+  const waveMaxRadius = POWERS.shockwave.waveMaxRadius * amp;
+  killDronesInRadius(world, x, y, radius);
+  killMinesInRadius(world, x, y, radius);
+  spawnBlast(world, x, y, waveMaxRadius, {
+    expandTime: POWERS.shockwave.waveLifetime,
+    holdTime: POWERS.shockwave.blastLifetime,
+    color: PALETTE.gold,
+  });
+  p.waves.push({
+    x,
+    y,
+    elapsed: 0,
+    lifetime: POWERS.shockwave.waveLifetime,
+    maxRadius: waveMaxRadius,
+    color: PALETTE.gold,
+  });
+  world.events.push({ type: "shockwave", x, y });
+  world.shake = Math.max(world.shake, 0.35);
+}
+
+/** Launch a ring of guided missiles that curve toward the nearest enemies. */
+function fireMissileSwarm(world: World, form: { count: number; maxAlive: number } | null = null): void {
+  const p = world.powers;
+  const cfg = form ? { ...POWERS.missiles, count: form.count, maxAlive: form.maxAlive } : POWERS.missiles;
   // OVERCHARGE: more missiles per swarm, still capped by maxAlive so two
   // stacked pickups can't runaway the missile count.
   const amp = mutatorPowerAmpScale();
@@ -855,20 +882,31 @@ export function updatePowers(world: World, dt: number): void {
 export function detonateShield(world: World): void {
   const p = world.powers;
   p.shieldActive = false;
-  killDronesInRadius(
-    world,
-    world.ship.x,
-    world.ship.y,
-    POWERS.shield.detonationRadius,
-  );
-  killMinesInRadius(world, world.ship.x, world.ship.y, POWERS.shield.detonationRadius);
-  killLighthousesInRadius(world, world.ship.x, world.ship.y, POWERS.shield.detonationRadius);
+  // OVERDRIVE: a shield banked from a HOT orb detonates wider and refunds
+  // part of the meter (so the second hit of a skim run is closer).
+  const od = world.rules.overdrive;
+  let scale = 1;
+  if (world.overdrive.shieldCharged) {
+    world.overdrive.shieldCharged = false;
+    if (od?.forms.shield.on) {
+      scale = od.forms.shield.radiusScale;
+      const o = world.overdrive;
+      if (!o.hot) {
+        o.charge = Math.max(o.charge, od.forms.shield.refund);
+        o.drainTimer = od.drainDelay;
+      }
+    }
+  }
+  const radius = POWERS.shield.detonationRadius * scale;
+  killDronesInRadius(world, world.ship.x, world.ship.y, radius);
+  killMinesInRadius(world, world.ship.x, world.ship.y, radius);
+  killLighthousesInRadius(world, world.ship.x, world.ship.y, radius);
   p.waves.push({
     x: world.ship.x,
     y: world.ship.y,
     elapsed: 0,
     lifetime: POWERS.shockwave.waveLifetime,
-    maxRadius: POWERS.shield.detonationRadius * 2,
+    maxRadius: radius * 2,
     color: PALETTE.shield,
   });
   world.events.push({ type: "shieldDetonate", x: world.ship.x, y: world.ship.y });
@@ -881,16 +919,26 @@ function firePulse(world: World): void {
   const dirY = Math.sin(s.angle);
   const x = s.x + dirX * POWERS.pulse.spawnOffset;
   const y = s.y + dirY * POWERS.pulse.spawnOffset;
-  world.powers.projectiles.push({
-    x,
-    y,
-    prevX: x,
-    prevY: y,
-    dirX,
-    dirY,
-    elapsed: 0,
-    hit: new Set(),
-  });
+  // OVERDRIVE fan: extra shots at fixed angular steps, sharing one hit set so
+  // a drone dies once and the multi-kill bonus counts the fan as one shot.
+  const fan = world.overdrive.pulseFan;
+  world.overdrive.pulseFan = null;
+  const count = fan ? Math.max(1, Math.round(fan.count)) : 1;
+  const step = fan ? (fan.spreadDeg * Math.PI) / 180 : 0;
+  const hit = new Set<Drone>();
+  for (let i = 0; i < count; i++) {
+    const a = s.angle + (i - (count - 1) / 2) * step;
+    world.powers.projectiles.push({
+      x,
+      y,
+      prevX: x,
+      prevY: y,
+      dirX: count === 1 ? dirX : Math.cos(a),
+      dirY: count === 1 ? dirY : Math.sin(a),
+      elapsed: 0,
+      hit,
+    });
+  }
   world.events.push({ type: "pulseFire", x, y });
   world.shake = Math.max(world.shake, 0.15);
 }

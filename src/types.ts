@@ -62,6 +62,8 @@ export interface Drone {
    */
   slotX?: number;
   slotY?: number;
+  /** Frozen by an Overdrive freeze: shattering it chains to frozen neighbors. */
+  odFrozen?: boolean;
 }
 
 /**
@@ -427,6 +429,22 @@ export interface OverdriveState {
   hotCount: number;
   /** Overdrive forms fired this run. */
   fires: number;
+  /** Pulse form: fan armed while the pulse charges (null = single shot). */
+  pulseFan: { count: number; spreadDeg: number } | null;
+  /** Shield form: the banked shield detonates bigger and refunds charge. */
+  shieldCharged: boolean;
+  /** Delayed Overdrive effects (shockwave echoes). */
+  pending: OverdrivePending[];
+  /** Freeze form: shattered frozen drones whose neighbors may shatter next. */
+  chainQueue: { x: number; y: number; left: number }[];
+}
+
+/** A delayed Overdrive effect, resolved by updateOverdrive. */
+export interface OverdrivePending {
+  kind: "echo";
+  /** Seconds until it fires. */
+  t: number;
+  scale: number;
 }
 
 export interface World {
