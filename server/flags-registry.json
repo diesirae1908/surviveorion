@@ -4,7 +4,7 @@
     "overdrive": {
       "kind": "gameplay",
       "area": "gameplay",
-      "description": "Grazes charge the hull. Full charge = HOT (held until no drone is in the graze band, max 3 s, when armWhenClear is on): the next orb fires its Overdrive form. Loose drones near a HOT ship speed up,",
+      "description": "Grazes charge the hull. Full charge = HOT (held until no drone is in the graze band, max 3 s, when armWhenClear is on): the next orb fires its Overdrive form. Loose drones near a HOT ship speed up.",
       "default": {
         "enabled": false,
         "params": {

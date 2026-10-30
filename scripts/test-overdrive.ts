@@ -259,6 +259,12 @@ function run(world: World, seconds: number, invulnerable = true): void {
     check("arm: a frozen drone in the band does not hold HOT", w.overdrive.hot && !w.overdrive.armed);
   }
   {
+    const { w } = mk(true, near);
+    chargeFromGraze(w, 0.5);
+    const fired = spendOverdrive(w, "pulse");
+    check("arm: an orb grabbed while armed fires the form and clears armed + meter", fired === true && !w.overdrive.armed && !w.overdrive.hot && w.overdrive.charge === 0 && w.overdrive.fires === 1 && w.overdrive.armTime === 0);
+  }
+  {
     const { w } = mk(true, 6);
     chargeFromGraze(w, 0.5);
     check("arm: nothing in the band goes HOT at once", w.overdrive.hot && !w.overdrive.armed);

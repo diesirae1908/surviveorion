@@ -136,8 +136,11 @@ export function overdriveHeatScale(world: World, distToShip: number): number {
 export function spendOverdrive(world: World, power: PowerId): boolean {
   const od = world.rules.overdrive;
   const o = world.overdrive;
-  if (!od || !o.hot) return false;
+  // an armed (full, held) meter spends exactly like HOT: the orb is not wasted
+  if (!od || !(o.hot || o.armed)) return false;
   o.hot = false;
+  o.armed = false;
+  o.armTime = 0;
   o.charge = 0;
   o.hotTime = 0;
   o.fires++;

@@ -174,11 +174,14 @@ check("ON: short chain kill has no pop", names(run(kill, HUD, "full", 2)) === "b
   check("ON: next pop after the gap", run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
   // overdriveFire suppresses pops for KILL_POP_AFTER_FIRE_MS
   advance(1000);
-  run({ type: "overdriveFire", power: "pulse", x: 0, y: 0, form: true } as unknown as GameEvent, HUD, "full", 20);
+  const fxOn = { heatTint: true, formPopup: true, stings: true };
+  run({ type: "overdriveFire", power: "pulse", x: 0, y: 0, form: true } as unknown as GameEvent, HUD, "full", 20, fxOn);
   advance(KILL_POP_AFTER_FIRE_MS - 10);
-  check("ON: no pop right after a fire", !run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
+  check("ON: no pop right after a fire (overdriveFx formPopup on)", !run(kill, HUD, "full", 20, fxOn).some((c) => c[0] === "rising"));
+  check("ui.hud on + overdriveFx off: kill pops keep showing after a fire", run(kill, HUD, "full", 20, null).some((c) => c[0] === "rising"));
+  advance(1000);
   advance(20);
-  check("ON: pop resumes after the fire window", run(kill, HUD, "full", 20).some((c) => c[0] === "rising"));
+  check("ON: pop resumes after the fire window", run(kill, HUD, "full", 20, fxOn).some((c) => c[0] === "rising"));
   advance(1000);
 }
 {

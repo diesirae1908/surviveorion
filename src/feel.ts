@@ -210,7 +210,7 @@ export function onEvent(e: GameEvent, ctx: FxContext): void {
       audio.droneKill();
       if (killPopAllowed(world.chainCount, ctx.flags.hud, ctx.effects)) {
         const now = popClock();
-        if (now - lastPopAt >= KILL_POP_MIN_GAP_MS && now - lastFireAt >= KILL_POP_AFTER_FIRE_MS) {
+        if (now - lastPopAt >= KILL_POP_MIN_GAP_MS && !firePopQuiet(ctx)) {
           lastPopAt = now;
           popups.spawnRising(e.x, e.y + 0.3, `+${e.points}`, PALETTE.goldPale, 0.5, POP_MS / 1000, POP_RISE_WORLD);
         }
