@@ -20,6 +20,7 @@ import type { Popups } from "./popups";
 import type { World } from "./types";
 import type { ClientFlags } from "./flags";
 import * as feel from "./feel";
+import * as deathFx from "./fx/deathFx";
 
 interface Star {
   x: number;
@@ -913,6 +914,13 @@ export class Renderer {
     vig.addColorStop(1, `rgba(60, 4, 12, ${0.75 * ease})`);
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, this.cssW, this.cssH);
+
+    // death moment (ui.result deathMoment): red flash over the first 150 ms
+    const flash = deathFx.flashAlpha();
+    if (flash > 0) {
+      ctx.fillStyle = `rgba(196, 30, 58, ${flash.toFixed(3)})`;
+      ctx.fillRect(0, 0, this.cssW, this.cssH);
+    }
   }
 
   // --- world drawing ---

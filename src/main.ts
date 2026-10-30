@@ -1,4 +1,5 @@
 import "./style.css";
+import "./styles/result.css"; // result v2 + death-moment slide (ui.result)
 import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type PaywallSource, type PaywallStep, type SubmitResult } from "./api";
 import { AudioSystem, PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME } from "./audio";
 import { badgeInfo } from "./badges";
@@ -1707,6 +1708,7 @@ function showGameOverUi(): void {
   // preview run is the same story for a different reason: it's sandboxed by
   // design, so it never touches the best-of-day record either.
   let dailyMedal: { tier: import("./medals").MedalTier | null; hint: string | null } | undefined;
+  let resultThresholds: import("./medals").MedalThresholds | undefined;
   if (cappedDaily && !runRefunded) {
     if (!PREVIEW_ACTIVE) {
       // remember the run for the share card (rank arrives with the submit)
@@ -1725,6 +1727,7 @@ function showGameOverUi(): void {
     // exactly like it did before this feature shipped.
     if (mutatorsToday.length > 0) {
       const thresholds = medalThresholdsFor(mutatorsToday);
+      resultThresholds = thresholds;
       const scoreNow = Math.floor(world.score);
       const bestScoreToday = PREVIEW_ACTIVE ? scoreNow : dailyBestScoreToday();
       const medalTier = medalForScore(bestScoreToday, thresholds);
@@ -1749,7 +1752,19 @@ function showGameOverUi(): void {
       preview: PREVIEW_ACTIVE,
     };
   }
+  // ui.result (presentation only, resolved for this run): result v2, the slide
+  // after the death moment. Nothing below is submitted anywhere.
+  const resultFlags = clientFlagsSnapshot(PREVIEW_FLAGS).result;
   ui.showGameOver({
+    resultV2: !!resultFlags?.resultV2,
+    deathMoment: !!resultFlags?.deathMoment,
+    effects: effectiveEffects(settings),
+    track: world.shipTrack,
+    field: world.clipArena,
+    deathCause: world.deathCause,
+    grazes: world.grazes,
+    hotCount: world.overdrive.hotCount,
+    medalThresholds: resultThresholds,
     score: world.score,
     scoreKills: world.scoreKills,
     scoreSurvival: world.scoreSurvival,

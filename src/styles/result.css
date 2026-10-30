@@ -1,0 +1,356 @@
+/* Result screen v2 + death-moment slide (switch ui.result). Brand tokens only
+   (brand/tokens/orion.tokens.css, mirrored at the top of src/style.css). */
+
+/* --- death moment: the result slides up out of the veil --- */
+.screen.gameover-screen.rv-slide {
+  animation: rv-slide-up var(--rv-slide-ms, 400ms) var(--orion-ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+@keyframes rv-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --- result v2 --- */
+.screen.gameover-screen.result-v2 {
+  gap: 10px;
+  justify-content: flex-start;
+  /* dim the replay behind the result so drones never fight the digits */
+  background: radial-gradient(ellipse at 50% 35%, rgba(10, 10, 18, 0.3) 0%, rgba(10, 10, 18, 0.62) 100%);
+}
+
+.result-v2 .rv-stage {
+  position: relative;
+  width: min(420px, 100%);
+  min-height: clamp(280px, 42vh, 400px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 18px;
+}
+
+.result-v2 .rv-trace {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.result-v2 .rv-trace svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.result-v2 .rv-trace-glow,
+.result-v2 .rv-trace-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: rv-trace-draw 900ms var(--orion-ease-out, ease-out) 150ms forwards;
+}
+
+.result-v2 .rv-trace-glow {
+  stroke: rgba(255, 215, 0, 0.22);
+  stroke-width: 9;
+  filter: blur(3px);
+}
+
+.result-v2 .rv-trace-line {
+  stroke-width: 3;
+}
+
+@keyframes rv-trace-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.result-v2 .rv-impact {
+  opacity: 0;
+  animation: rv-impact-pop 420ms var(--orion-ease-out, ease-out) 900ms forwards;
+}
+
+@keyframes rv-impact-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.result-v2 .rv-eyebrow,
+.result-v2 .rv-hero,
+.result-v2 .rv-tags {
+  position: relative;
+  z-index: 1;
+}
+
+.result-v2 .rv-eyebrow {
+  color: var(--orion-alarm);
+  font-size: 12px;
+  font-weight: var(--orion-weight-label, 600);
+  letter-spacing: var(--orion-tracking-label);
+  margin-right: -0.14em;
+  text-transform: uppercase;
+}
+
+.result-v2 .rv-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.result-v2 .rv-score {
+  font-size: clamp(64px, 22vw, 96px);
+  font-weight: var(--orion-weight-display, 700);
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+  background: var(--orion-gradient-gold);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 28px rgba(255, 215, 0, 0.28));
+}
+
+.result-v2 .rv-sub {
+  color: var(--orion-dust);
+  font-size: 13px;
+  font-weight: var(--orion-weight-label, 600);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
+}
+
+.result-v2 .rv-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.result-v2 .rv-tag {
+  --c: var(--orion-chamfer-sm);
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: var(--orion-weight-display, 700);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
+}
+
+.result-v2 .rv-tag[hidden] {
+  display: none;
+}
+
+.result-v2 .rv-tag.light {
+  background: var(--orion-starlight);
+  color: #1a1208;
+}
+
+.result-v2 .rv-tag.gold {
+  background: var(--orion-gold);
+  color: #1a1208;
+}
+
+/* medal bar */
+.result-v2 .rv-medal {
+  --c: var(--orion-chamfer-lg);
+  width: min(420px, 100%);
+  box-sizing: border-box;
+  padding: 10px 14px 9px;
+  background: linear-gradient(135deg, rgba(42, 42, 58, 0.78) 0%, rgba(18, 18, 30, 0.88) 100%);
+  border: 1px solid var(--orion-hull-line);
+  text-align: left;
+}
+
+.result-v2 .rv-medal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: var(--orion-weight-label, 600);
+  letter-spacing: var(--orion-tracking-label);
+  text-transform: uppercase;
+  color: var(--orion-brass);
+}
+
+.result-v2 .rv-medal-head b {
+  color: var(--orion-gold);
+}
+
+.result-v2 .rv-medal-track {
+  position: relative;
+  height: 6px;
+  margin: 8px 0 6px;
+  background: rgba(255, 247, 224, 0.1);
+}
+
+.result-v2 .rv-medal-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--orion-medal-copper), var(--orion-medal-silver) 70%, var(--orion-medal-gold));
+}
+
+.result-v2 .rv-tick {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: var(--orion-void);
+}
+
+.result-v2 .rv-medal-marker {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 14px;
+  margin-left: -2px;
+  background: var(--orion-flare);
+  box-shadow: 0 0 10px rgba(255, 238, 136, 0.9);
+}
+
+.result-v2 .rv-medal-tiers {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: var(--orion-weight-label, 600);
+  letter-spacing: var(--orion-tracking-label);
+  color: var(--orion-dust);
+}
+
+.result-v2 .rv-tier.got.copper {
+  color: var(--orion-medal-copper);
+}
+
+.result-v2 .rv-tier.got.silver {
+  color: var(--orion-medal-silver);
+}
+
+.result-v2 .rv-tier.got.gold {
+  color: var(--orion-medal-gold);
+}
+
+/* chips */
+.result-v2 .rv-chips-wrap {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.result-v2 .rv-chips {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.result-v2 .rv-chip {
+  --c: var(--orion-chamfer-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px 7px;
+  background: linear-gradient(135deg, rgba(42, 42, 58, 0.7) 0%, rgba(18, 18, 30, 0.85) 100%);
+  border: 1px solid var(--orion-hull-line);
+}
+
+.result-v2 .rv-chip b {
+  color: var(--orion-gold);
+  font-size: 24px;
+  font-weight: var(--orion-weight-display, 700);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-v2 .rv-chip span {
+  color: var(--orion-dust);
+  font-size: 10px;
+  font-weight: var(--orion-weight-label, 600);
+  letter-spacing: var(--orion-tracking-label);
+}
+
+.result-v2 .rv-hot {
+  color: var(--orion-power-pulse);
+  font-size: 12px;
+  font-weight: var(--orion-weight-label, 600);
+  letter-spacing: var(--orion-tracking-display);
+}
+
+/* cause of death */
+.result-v2 .rv-cause {
+  color: var(--orion-brass);
+  font-size: 15px;
+  font-weight: var(--orion-weight-body, 500);
+}
+
+.result-v2 .rv-cause b {
+  color: var(--orion-alarm);
+  font-weight: var(--orion-weight-display, 700);
+}
+
+/* FLY AGAIN, two-line label */
+.result-v2 .gameover-actions button.primary.gameover-primary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 24px;
+  font-size: 22px;
+  letter-spacing: var(--orion-tracking-strapline, 0.25em);
+}
+
+.result-v2 .gameover-primary .rv-primary-sub {
+  font-size: 11px;
+  letter-spacing: var(--orion-tracking-label);
+}
+
+/* effects lite (setting or reduced motion): no draw-in, no pops, no slide */
+.result-v2.rv-lite .rv-trace-glow,
+.result-v2.rv-lite .rv-trace-line {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+
+.result-v2.rv-lite .rv-impact {
+  animation: none;
+  opacity: 1;
+}
+
+.screen.gameover-screen.rv-slide.rv-lite {
+  animation: fadeIn 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-v2 .rv-trace-glow,
+  .result-v2 .rv-trace-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .result-v2 .rv-impact {
+    animation: none;
+    opacity: 1;
+  }
+
+  .screen.gameover-screen.rv-slide {
+    animation: fadeIn 0.35s ease-out;
+  }
+}

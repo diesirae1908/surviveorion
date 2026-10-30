@@ -24,6 +24,7 @@ import {
   type WeekCell,
 } from "./lobbyState";
 import { provisionalRank } from "./gameOverGoal";
+import { buildResultTop, SLIDE_MS } from "./resultView";
 import { DAILY_EPOCH_DATE } from "./share";
 import type {
   BooleanSetting,
@@ -189,6 +190,20 @@ export interface GameOverStats {
   showGoldPatrolCta?: boolean;
   /** Native play: premium pilots can jump to native Analytics. */
   showAnalyticsLink?: boolean;
+  /** `ui.result` params, resolved when the screen opens (absent = off). */
+  resultV2?: boolean;
+  /** The death moment is on: the screen slides up out of the veil. */
+  deathMoment?: boolean;
+  /** "lite" (setting or reduced motion): no count-up, no draw-in, no slide. */
+  effects?: "full" | "lite";
+  /** Result v2 inputs, all read from the finished world (never submitted). */
+  track?: ReadonlyArray<[number, number, number]>;
+  field?: { w: number; h: number };
+  deathCause?: import("./types").DeathCause | null;
+  grazes?: number;
+  hotCount?: number;
+  /** Today's medal thresholds (daily with mutators only). */
+  medalThresholds?: MedalThresholds;
 }
 
 /**
@@ -3334,9 +3349,14 @@ export class Ui {
   showGameOver(stats: GameOverStats): void {
     this.clear();
     this.pauseBtn.style.display = "none";
+    if (stats.resultV2) {
+      this.showGameOverV2(stats);
+      return;
+    }
 
     // transparent + slow fade: the canvas death veil provides the backdrop
     const screen = this.el("div", "screen gameover-screen", "");
+    this.applyGameOverSlide(screen, stats);
     screen.appendChild(this.el("div", "heading", "GAME OVER"));
     if (stats.daily) {
       const today = patrolDateStr();
@@ -3452,6 +3472,40 @@ export class Ui {
       actions.appendChild(this.el("div", "field-hint center gameover-space-hint", "Space to fly again"));
     }
 
+    this.appendGameOverClipControls(actions, stats);
+
+    // DETAILS: everything that isn't the hero/highlight/medal/board —
+    // all-time best, peak multiplier, kills, the score breakdown, the
+    // PB-time comparison, country rank. Demoted behind one toggle so none
+    // of it competes with the score above; one tap gets it back.
+    actions.appendChild(this.gameOverDetailsToggle(stats));
+
+    if (stats.showGoldPatrolCta) actions.appendChild(this.goldPatrolPitch());
+    if (stats.showAnalyticsLink && this.cb.onNativeAnalytics) {
+      const analytics = this.el("button", "link-btn", "View Analytics");
+      analytics.addEventListener("click", () => this.cb.onNativeAnalytics?.());
+      actions.appendChild(analytics);
+    }
+
+    // feedback CTA: post-run is when testers actually have something to say
+    const feedback = this.el("button", "link-btn", "Found a bug? Send feedback");
+    feedback.addEventListener("click", () => this.showFeedback(null));
+    actions.appendChild(feedback);
+    screen.appendChild(actions);
+
+    this.root.appendChild(screen);
+  }
+
+  /** Result-screen slide: eased up out of the death veil (ui.result deathMoment). */
+  private applyGameOverSlide(screen: HTMLElement, stats: GameOverStats): void {
+    if (!stats.deathMoment) return;
+    screen.classList.add("rv-slide");
+    screen.style.setProperty("--rv-slide-ms", `${SLIDE_MS}ms`);
+    if (stats.effects === "lite") screen.classList.add("rv-lite");
+  }
+
+  /** Opt-in clip controls (Lucas-only inbox, recording): shared by both result screens. */
+  private appendGameOverClipControls(actions: HTMLElement, stats: GameOverStats): void {
     if (stats.clipInbox) {
       if (stats.clipReady) {
         const clipRow = this.el("div", "clip-save-row gameover-row", "");
@@ -3471,45 +3525,108 @@ export class Ui {
         actions.appendChild(this.recordNextRunControl());
       }
     }
+  }
 
-    // DETAILS: everything that isn't the hero/highlight/medal/board —
-    // all-time best, peak multiplier, kills, the score breakdown, the
-    // PB-time comparison, country rank. Demoted behind one toggle so none
-    // of it competes with the score above; one tap gets it back.
-    actions.appendChild(this.gameOverDetailsToggle(stats));
+  /** Gold Patrol pitch card. Same copy and button on both result screens. */
+  private goldPatrolPitch(): HTMLElement {
+    const pitch = this.el("div", "gameover-gold-pitch chamfer", "");
+    pitch.appendChild(this.el("div", "gameover-gold-glow", ""));
+    const eyebrow = this.el("div", "gameover-gold-eyebrow", "");
+    eyebrow.appendChild(this.el("span", "gameover-gold-crown", "♛"));
+    eyebrow.appendChild(document.createTextNode("GOLD PATROL"));
+    pitch.appendChild(eyebrow);
+    pitch.appendChild(this.el("div", "gameover-gold-headline", "Fly every patrol."));
+    pitch.appendChild(
+      this.el(
+        "div",
+        "field-hint center",
+        "Unlimited Daily runs, every past patrol, full history.",
+      ),
+    );
+    const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.("gameover"));
+    unlock.classList.add("small-btn", "chamfer");
+    pitch.appendChild(unlock);
+    return pitch;
+  }
 
-    if (stats.showGoldPatrolCta) {
-      const pitch = this.el("div", "gameover-gold-pitch chamfer", "");
-      pitch.appendChild(this.el("div", "gameover-gold-glow", ""));
-      const eyebrow = this.el("div", "gameover-gold-eyebrow", "");
-      eyebrow.appendChild(this.el("span", "gameover-gold-crown", "♛"));
-      eyebrow.appendChild(document.createTextNode("GOLD PATROL"));
-      pitch.appendChild(eyebrow);
-      pitch.appendChild(this.el("div", "gameover-gold-headline", "Fly every patrol."));
-      pitch.appendChild(
+  /**
+   * Result screen v2 (ui.result resultV2): content from resultView.ts, actions
+   * and callbacks wired here. FLY AGAIN primary, SHARE and BASE secondary,
+   * Details keeps the breakdown, the Gold Patrol card sits below all of it.
+   */
+  private showGameOverV2(stats: GameOverStats): void {
+    const today = patrolDateStr();
+    const archive = stats.patrolDate && stats.patrolDate !== today ? stats.patrolDate : null;
+    const screen = this.el("div", "screen gameover-screen result-v2", "");
+    this.applyGameOverSlide(screen, stats);
+    if (stats.effects === "lite") screen.classList.add("rv-lite");
+    for (const part of buildResultTop({
+      ...stats,
+      archiveTag: archive ? archivePatrolTag(archive) : null,
+    })) {
+      screen.appendChild(part);
+    }
+
+    if (stats.refunded) {
+      screen.appendChild(
         this.el(
           "div",
-          "field-hint center",
-          "Unlimited Daily runs, every past patrol, full history.",
+          "run-delta gold",
+          `Down inside ${DAILY_FREE_DEATH_SECONDS}s: that one's free, no attempt spent`,
         ),
       );
-      const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.("gameover"));
-      unlock.classList.add("small-btn", "chamfer");
-      pitch.appendChild(unlock);
-      actions.appendChild(pitch);
     }
+
+    const capped = stats.attemptsLeft !== undefined;
+    const canRetry = !capped || stats.attemptsLeft! > 0;
+    const actions = this.el("div", "gameover-actions", "");
+    if (canRetry) {
+      const sub = capped
+        ? `${stats.attemptsLeft} ${stats.attemptsLeft === 1 ? "ATTEMPT" : "ATTEMPTS"} LEFT`
+        : stats.daily
+          ? "DAILY PATROL"
+          : stats.gameMode === "ironrain"
+            ? "IRON RAIN"
+            : "";
+      const retry = this.button("", true, () => this.cb.onRestart());
+      retry.classList.add("gameover-primary");
+      retry.innerHTML = `<span>FLY AGAIN</span>${sub ? `<span class="rv-primary-sub">${sub}</span>` : ""}`;
+      actions.appendChild(retry);
+    } else {
+      actions.appendChild(this.el("div", "daily-locked", "All patrols complete."));
+      actions.appendChild(this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`));
+    }
+    const navRow = this.el("div", "gameover-row", "");
+    if (stats.showShare) {
+      const share = this.shareButton();
+      share.classList.add("small-btn");
+      navRow.appendChild(share);
+    }
+    const menuBtn = this.button(capped ? "Base" : "Main menu", false, () => this.cb.onQuitToMenu());
+    menuBtn.classList.add("small-btn", "chamfer");
+    navRow.appendChild(menuBtn);
+    actions.appendChild(navRow);
+    if (!stats.touchDevice && canRetry) {
+      actions.appendChild(this.el("div", "field-hint center gameover-space-hint", "Space to fly again"));
+    }
+    this.appendGameOverClipControls(actions, stats);
+    actions.appendChild(this.gameOverDetailsToggle(stats));
+    if (!stats.preview) {
+      const rank = this.el("div", "rank-line", `<div class="field-hint center dim">Scoring…</div>`);
+      rank.id = "rank-line";
+      actions.appendChild(rank);
+    }
+    // GOLD_CARD_BELOW (resultView.ts): below the actions, the chips and the board
+    if (stats.showGoldPatrolCta) actions.appendChild(this.goldPatrolPitch());
     if (stats.showAnalyticsLink && this.cb.onNativeAnalytics) {
       const analytics = this.el("button", "link-btn", "View Analytics");
       analytics.addEventListener("click", () => this.cb.onNativeAnalytics?.());
       actions.appendChild(analytics);
     }
-
-    // feedback CTA: post-run is when testers actually have something to say
     const feedback = this.el("button", "link-btn", "Found a bug? Send feedback");
     feedback.addEventListener("click", () => this.showFeedback(null));
     actions.appendChild(feedback);
     screen.appendChild(actions);
-
     this.root.appendChild(screen);
   }
 
@@ -3621,6 +3738,12 @@ export class Ui {
     if (!line) return;
     line.innerHTML = "";
     this.setGameOverCountryRank(data.country);
+    // result v2: "#N TODAY" tag on a real daily rank only
+    const rankTag = document.getElementById("result-rank-tag");
+    if (rankTag && data.primaryLabel === "Daily Patrol" && data.primaryRank !== null) {
+      rankTag.textContent = `#${data.primaryRank} TODAY`;
+      rankTag.hidden = false;
+    }
     if (data.boardCaption) {
       line.appendChild(this.el("div", "field-hint center dim", escapeHtml(data.boardCaption)));
     }
