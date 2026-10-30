@@ -23,6 +23,14 @@ interface GrazeArc {
   maxLife: number;
 }
 
+/** Gold ring that expands off the hull on a graze (ui.hud pops). Visual only. */
+interface RingPulse {
+  life: number;
+}
+const RING_LIFE = 0.32;
+const RING_R0 = 0.5;
+const RING_R1 = 1.05;
+
 const GRAZE_ARC_LIFE = 0.34;
 const GRAZE_ARC_HALF = 0.82;
 const GRAZE_ARC_RADIUS = 0.52;
@@ -30,6 +38,7 @@ const GRAZE_ARC_RADIUS = 0.52;
 export class Particles {
   private pool: Particle[] = [];
   private grazeArcs: GrazeArc[] = [];
+  private rings: RingPulse[] = [];
 
   burst(
     x: number,
@@ -61,6 +70,11 @@ export class Particles {
     this.grazeArcs.push({ angle, life: GRAZE_ARC_LIFE, maxLife: GRAZE_ARC_LIFE });
   }
 
+  /** Gold ring around the ship (position follows the hull at draw time). */
+  ringPulse(): void {
+    this.rings.push({ life: RING_LIFE });
+  }
+
   update(dt: number): void {
     for (let i = this.pool.length - 1; i >= 0; i--) {
       const p = this.pool[i];
@@ -78,11 +92,16 @@ export class Particles {
       this.grazeArcs[i].life -= dt;
       if (this.grazeArcs[i].life <= 0) this.grazeArcs.splice(i, 1);
     }
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      this.rings[i].life -= dt;
+      if (this.rings[i].life <= 0) this.rings.splice(i, 1);
+    }
   }
 
   clear(): void {
     this.pool.length = 0;
     this.grazeArcs.length = 0;
+    this.rings.length = 0;
   }
 
   /** Draw in world space; assumes the world transform is already applied. */
@@ -114,6 +133,17 @@ export class Particles {
         ctx.globalAlpha = 0.85 * t;
         ctx.beginPath();
         ctx.arc(ship.x, ship.y, r, a.angle - GRAZE_ARC_HALF, a.angle + GRAZE_ARC_HALF);
+        ctx.stroke();
+      }
+    }
+    if (ship && this.rings.length > 0) {
+      ctx.strokeStyle = PALETTE.gold;
+      for (const r of this.rings) {
+        const k = 1 - r.life / RING_LIFE; // 0 -> 1
+        ctx.globalAlpha = 0.8 * (1 - k);
+        ctx.lineWidth = 0.07 * (1 - k * 0.6);
+        ctx.beginPath();
+        ctx.arc(ship.x, ship.y, RING_R0 + (RING_R1 - RING_R0) * (1 - (1 - k) * (1 - k)), 0, Math.PI * 2);
         ctx.stroke();
       }
     }
