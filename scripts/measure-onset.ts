@@ -1,7 +1,8 @@
 // Onset observer: how many lethal hits land while HOT, and how soon after HOT
 // began. Ghost-hull graze bot (a lethal hit is counted, then undone) so the run
-// keeps going and the same seeds are comparable with heatRampSeconds 0 vs the
-// default. Usage: npx tsx scripts/measure-onset.ts [rampSeconds ...] (default: 0 1.5)
+// keeps going and the same seeds are comparable with armWhenClear on vs off.
+// NO_BEELINE=1 keeps the bot grazing while HOT instead of flying at the orb (isolates the game from the bot).
+// Usage: npx tsx scripts/measure-onset.ts [arm|off ...] (default: off arm)
 import { FIXED_DT, SCORING, SHIP } from "../src/config";
 import { droneRadius } from "../src/enemies";
 import { rulesFromDefaults } from "../src/flags";
@@ -12,7 +13,7 @@ import type { World } from "../src/types";
 
 function grazeHeading(world: World): { x: number; y: number } {
   const s = world.ship;
-  if (world.overdrive.hot && world.pickups.length > 0) {
+  if (!process.env.NO_BEELINE && world.overdrive.hot && world.pickups.length > 0) {
     const p = world.pickups[0];
     const l = Math.hypot(p.x - s.x, p.y - s.y) || 1;
     return { x: (p.x - s.x) / l, y: (p.y - s.y) / l };
@@ -61,10 +62,10 @@ function grazeHeading(world: World): { x: number; y: number } {
   return { x: hx / l, y: hy / l };
 }
 
-function trial(seed: number, ramp: number, cap: number) {
+function trial(seed: number, arm: boolean, cap: number) {
   setRunSeed(seed);
   const rules = rulesFromDefaults({ overdrive: true });
-  rules.overdrive!.heatRampSeconds = ramp;
+  rules.overdrive!.armWhenClear = arm;
   if (process.env.HEAT_SCALE) rules.overdrive!.hotDroneSpeedScale = Number(process.env.HEAT_SCALE);
   const world = createWorld(17.8, 10, false, 0, "classic", true, false, rules);
   const inp: InputState = { turn: 0, thrust: 0, heading: null, moveVector: { x: 0, y: 0 }, inertia: false, cruiseSpeed: 8 };
@@ -103,12 +104,13 @@ function trial(seed: number, ramp: number, cap: number) {
   return { hits, hotHits, near1, hotTicks, hotCount: world.overdrive.hotCount, grazeCtl, ctlHit };
 }
 
-const ramps = process.argv.slice(2).map(Number);
-for (const ramp of ramps.length ? ramps : [0, 1.5]) {
+const modes = process.argv.slice(2);
+for (const mode of modes.length ? modes : ["off", "arm"]) {
+  const arm = mode === "arm";
   const t = { hits: 0, hotHits: 0, near1: 0, hotTicks: 0, hotCount: 0, grazeCtl: 0, ctlHit: 0 };
   for (let seed = 1; seed <= 40; seed++) {
-    const r = trial(seed, ramp, 60);
+    const r = trial(seed, arm, 60);
     t.hits += r.hits; t.hotHits += r.hotHits; t.near1 += r.near1; t.hotTicks += r.hotTicks; t.hotCount += r.hotCount; t.grazeCtl += r.grazeCtl; t.ctlHit += r.ctlHit;
   }
-  console.log(`ramp ${ramp}s: 40 seeds x 60 s, lethal hits ${t.hits}, while HOT ${t.hotHits}, within 1 s of HOT onset ${t.near1}, HOT share ${((t.hotTicks * FIXED_DT) / (40 * 60) * 100).toFixed(1)}%, HOT onsets ${t.hotCount}, onsets with a hit inside 1 s ${((t.near1 / t.hotCount) * 100).toFixed(1)}%; control: non-HOT grazes ${t.grazeCtl}, hit inside 1 s ${((t.ctlHit / t.grazeCtl) * 100).toFixed(1)}%`);
+  console.log(`armWhenClear ${arm ? "on" : "off"}: 40 seeds x 60 s, lethal hits ${t.hits}, while HOT ${t.hotHits}, within 1 s of HOT onset ${t.near1}, HOT share ${((t.hotTicks * FIXED_DT) / (40 * 60) * 100).toFixed(1)}%, HOT onsets ${t.hotCount}, onsets with a hit inside 1 s ${((t.near1 / t.hotCount) * 100).toFixed(1)}%; control: non-HOT grazes ${t.grazeCtl}, hit inside 1 s ${((t.ctlHit / t.grazeCtl) * 100).toFixed(1)}%`);
 }

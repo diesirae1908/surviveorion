@@ -11,10 +11,10 @@
 // Tuning lives in the switch registry (server/flags-registry.json), read from
 // `world.rules.overdrive`. Design constants below are not switches.
 
-import type { PowerId } from "./config";
-import { killDrone, killDronesInRadius } from "./enemies";
+import { SCORING, SHIP, type PowerId } from "./config";
+import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { killMinesInRadius } from "./mines";
-import { mutatorOverdriveChargeScaleRaw } from "./mutators";
+import { mutatorGrazeBandScale, mutatorOverdriveChargeScaleRaw } from "./mutators";
 import { detonateShockwave } from "./powers";
 import type { OverdriveState, World } from "./types";
 
@@ -32,6 +32,8 @@ export function createOverdriveState(): OverdriveState {
   return {
     charge: 0,
     hot: false,
+    armed: false,
+    armTime: 0,
     hotTime: 0,
     drainTimer: 0,
     lockout: 0,
@@ -51,22 +53,52 @@ export function mutatorOverdriveChargeScale(world: World): number {
   return od && od.mutatorHooks ? mutatorOverdriveChargeScaleRaw() : 1;
 }
 
+/** Design constant: contact longer than this cannot hold HOT off (armWhenClear). */
+export const ARM_MAX_SECONDS = 3;
+
+/** True when a hostile, non-frozen drone is inside the graze band (the hull is in contact range). */
+function inGrazeBand(world: World): boolean {
+  const s = world.ship;
+  const band = SCORING.grazeBand * mutatorGrazeBandScale();
+  for (const d of world.drones) {
+    if (!d.alive || d.allied || d.frozen > 0) continue;
+    const outer = SHIP.radius + droneRadius(d) + band;
+    const dx = d.x - s.x;
+    const dy = d.y - s.y;
+    if (dx * dx + dy * dy <= outer * outer) return true;
+  }
+  return false;
+}
+
+function startHot(world: World): void {
+  const o = world.overdrive;
+  o.armed = false;
+  o.armTime = 0;
+  o.hot = true;
+  o.hotTime = 0;
+  o.hotCount++;
+  world.events.push({ type: "overdriveHot" });
+}
+
 function addCharge(world: World, amount: number): void {
   const o = world.overdrive;
-  if (o.hot || amount <= 0) return;
+  if (o.hot || o.armed || amount <= 0) return;
   o.charge = Math.min(1, o.charge + amount);
   if (o.charge >= 1) {
-    o.hot = true;
-    o.hotTime = 0;
-    o.hotCount++;
-    world.events.push({ type: "overdriveHot" });
+    // Full meter in contact range: wait for a clear hull so HOT never starts mid-graze.
+    if (world.rules.overdrive?.armWhenClear === true && inGrazeBand(world)) {
+      o.armed = true;
+      o.armTime = 0;
+    } else {
+      startHot(world);
+    }
   }
 }
 
 /** A graze charges the hull; razor-thin ones charge more, loose ones less. */
 export function chargeFromGraze(world: World, clearance: number): void {
   const od = world.rules.overdrive;
-  if (!od || world.overdrive.hot) return;
+  if (!od || world.overdrive.hot || world.overdrive.armed) return;
   const tier =
     clearance < od.razorClearance
       ? od.razorGrazeScale
@@ -81,7 +113,7 @@ export function chargeFromGraze(world: World, clearance: number): void {
 export function chargeFromKill(world: World): void {
   const od = world.rules.overdrive;
   const o = world.overdrive;
-  if (!od || o.hot || o.lockout > 0) return;
+  if (!od || o.hot || o.armed || o.lockout > 0) return;
   const room = Math.max(0, od.maxKillChargePerSec - o.killChargeWindow);
   const gain = Math.min(od.chargePerKill, room);
   if (gain <= 0) return;
@@ -93,13 +125,7 @@ export function chargeFromKill(world: World): void {
 export function overdriveHeatScale(world: World, distToShip: number): number {
   const od = world.rules.overdrive;
   if (!od || !world.overdrive.hot) return 1;
-  if (distToShip >= od.hotRadius) return 1;
-  // Ease in (smoothstep) so going HOT is not a same-frame speed spike mid-graze.
-  const ramp = od.heatRampSeconds ?? 0;
-  if (ramp <= 0) return od.hotDroneSpeedScale;
-  const u = Math.min(1, Math.max(0, world.overdrive.hotTime / ramp));
-  const k = u * u * (3 - 2 * u);
-  return 1 + (od.hotDroneSpeedScale - 1) * k;
+  return distToShip < od.hotRadius ? od.hotDroneSpeedScale : 1;
 }
 
 /**
@@ -139,7 +165,11 @@ export function updateOverdrive(world: World, dt: number): void {
   o.killChargeWindow = Math.max(0, o.killChargeWindow - od.maxKillChargePerSec * dt);
   if (o.lockout > 0) o.lockout = Math.max(0, o.lockout - dt);
 
-  if (o.hot) {
+  if (o.armed) {
+    // meter held full; HOT starts once clear, or after ARM_MAX_SECONDS regardless
+    o.armTime += dt;
+    if (!inGrazeBand(world) || o.armTime >= ARM_MAX_SECONDS) startHot(world);
+  } else if (o.hot) {
     o.hotTime += dt;
     if (od.hotMaxSeconds > 0 && o.hotTime >= od.hotMaxSeconds) {
       o.hot = false;

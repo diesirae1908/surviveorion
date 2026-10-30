@@ -29,12 +29,12 @@ export interface OverdriveParams {
   drainDelay: number;
   drainPerSec: number;
   hotDroneSpeedScale: number;
-  /** Seconds the heat speed-up eases in after HOT onset. Absent in older rows: 0 (instant, as before). */
-  heatRampSeconds?: number;
   hotRadius: number;
   hotMaxSeconds: number;
   burstRadius: number;
   mutatorHooks: boolean;
+  /** Full charge waits (armed) until no hostile drone is in the graze band. Absent in older rows: false (as before). */
+  armWhenClear?: boolean;
   forms: {
     pulse: { on: boolean; fanCount: number; fanSpreadDeg: number };
     shield: { on: boolean; radiusScale: number; refund: number };

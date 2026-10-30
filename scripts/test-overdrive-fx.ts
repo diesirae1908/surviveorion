@@ -65,10 +65,10 @@ assert.equal(drawDroneTint(mkWorld(false, 3), drone(1, 0), PALETTE.redBright, fx
 
 // events: recorder context
 function recorder(fx: typeof fxOn | null, effects: "full" | "lite" = "full") {
-  const log = { bursts: 0, popups: [] as string[], sounds: [] as string[] };
+  const log = { bursts: 0, rings: 0, popups: [] as string[], sounds: [] as string[] };
   const ctx = {
     world: { ship: { x: 1, y: 2 } },
-    particles: { burst: () => void log.bursts++ },
+    particles: { burst: () => void log.bursts++, ringPulse: () => void log.rings++ },
     popups: { spawn: (_x: number, _y: number, t: string) => void log.popups.push(t) },
     audio: {
       overdriveHot: () => void log.sounds.push("hot"),
@@ -89,7 +89,7 @@ const fire = (power: string, form: boolean) => ({ type: "overdriveFire", power, 
 {
   const { ctx, log } = recorder(null);
   for (const e of [hot, cool, fire("pulse", true)]) onEvent(e, ctx);
-  assert.deepEqual(log, { bursts: 0, popups: [], sounds: [] });
+  assert.deepEqual(log, { bursts: 0, rings: 0, popups: [], sounds: [] });
 }
 // on: popups per form and burst; stings gated
 {
@@ -100,6 +100,7 @@ const fire = (power: string, form: boolean) => ({ type: "overdriveFire", power, 
   onEvent(fire("pulse", false), ctx);
   assert.deepEqual(log.popups, [...Object.values(expect), "OVERDRIVE"]);
   assert.equal(log.sounds[0], "hot");
+  assert.equal(log.rings, 1, "ring pulses once when HOT starts");
   assert.ok(log.bursts >= 8);
 }
 {

@@ -417,6 +417,10 @@ export interface OverdriveState {
   charge: number;
   /** Full charge reached: the next orb fires its Overdrive form. */
   hot: boolean;
+  /** Meter is full but HOT is held until the hull is clear of the graze band (visual: full ring). */
+  armed: boolean;
+  /** Seconds spent armed so far (HOT starts anyway at ARM_MAX_SECONDS). */
+  armTime: number;
   /** Seconds spent HOT in the current heat. */
   hotTime: number;
   /** Seconds until charge starts to drain. */

@@ -71,6 +71,7 @@ export function onEvent(e: GameEvent, ctx: FxContext): void {
       if (fx.stings) audio.overdriveHot();
       const s = world.ship;
       particles.burst(s.x, s.y, [PALETTE.gold, PALETTE.goldPale, PALETTE.white], lite ? 10 : 26, 5, 0.6, 0.1);
+      if (!lite) particles.ringPulse();
       void hapticGraze();
       break;
     }

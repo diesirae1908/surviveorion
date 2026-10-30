@@ -162,7 +162,7 @@ function run(world: World, seconds: number, invulnerable = true): void {
   check("a form switched off falls back to the burst", spendOverdrive(w7, "pulse") === false && w7.overdrive.fires === 1);
 
   // burst kills a drone at the hull, none outside
-  const w8 = mkWorld(onRules((o) => (o.burstRadius = 1.2)));
+  const w8 = mkWorld(onRules((o) => { o.burstRadius = 1.2; o.armWhenClear = false; }));
   w8.ship.x = 0;
   w8.ship.y = 0;
   const near1 = spawnDroneDirect(w8, 0.6, 0, 1);
@@ -207,36 +207,74 @@ function run(world: World, seconds: number, invulnerable = true): void {
   };
   // 2-unit and 6-unit drones, rules on vs off
   const cold = speedOf(onRules(), false, 2);
-  const hotNear = speedOf(onRules((o) => (o.heatRampSeconds = 0)), true, 2);
+  const hotNear = speedOf(onRules(), true, 2);
   const hotFar = speedOf(onRules(), true, 6);
   const coldFar = speedOf(onRules(), false, 6);
   check("HOT: a near loose drone moves hotDroneSpeedScale faster", near(hotNear / cold, 1.2, 0.02), `${(hotNear / cold).toFixed(3)}`);
-  // heat eases in over heatRampSeconds (smoothstep) from HOT onset
-  {
-    const w = mkWorld(onRules((o) => (o.heatRampSeconds = 1.5)));
-    w.ship.x = 0; w.ship.y = 0;
-    w.overdrive.hot = true;
-    const ramp = w.rules.overdrive!.heatRampSeconds!;
-    check("heat ramp default is 0 (dark until tuned)", rulesFromDefaults({ overdrive: true }).overdrive!.heatRampSeconds === 0);
-    const full = w.rules.overdrive!.hotDroneSpeedScale;
-    w.overdrive.hotTime = 0;
-    check("heat ramp: onset scale is 1.0", near(overdriveHeatScale(w, 2), 1, 1e-9));
-    w.overdrive.hotTime = ramp / 2;
-    check("heat ramp: halfway is the midpoint", near(overdriveHeatScale(w, 2), 1 + (full - 1) / 2, 1e-9));
-    w.overdrive.hotTime = ramp;
-    check("heat ramp: full scale at heatRampSeconds", near(overdriveHeatScale(w, 2), full, 1e-9));
-    w.overdrive.hotTime = ramp / 4;
-    const a = overdriveHeatScale(w, 2);
-    w.overdrive.hotTime = ramp / 2;
-    check("heat ramp: monotonic", a < overdriveHeatScale(w, 2));
-    const w0 = mkWorld(onRules((o) => (o.heatRampSeconds = 0)));
-    w0.ship.x = 0; w0.ship.y = 0; w0.overdrive.hot = true; w0.overdrive.hotTime = 0;
-    check("heat ramp 0: instant, as before", near(overdriveHeatScale(w0, 2), full, 1e-9));
-    const wo = mkWorld(onRules((o) => { delete (o as { heatRampSeconds?: number }).heatRampSeconds; }));
-    wo.ship.x = 0; wo.ship.y = 0; wo.overdrive.hot = true; wo.overdrive.hotTime = 0;
-    check("heat ramp absent (older row): instant, as before", near(overdriveHeatScale(wo, 2), full, 1e-9));
-  }
   check("HOT: a far drone is unchanged", near(hotFar, coldFar, 1e-9));
+}
+
+// --- 1a. arm when clear: a full meter in contact range waits for a clear hull ---
+{
+  const mk = (arm: boolean, droneDist: number | null) => {
+    const w = mkWorld(onRules((o) => (o.armWhenClear = arm)));
+    w.ship.x = 0;
+    w.ship.y = 0;
+    w.powers.starshellTimer = 9999;
+    let d: ReturnType<typeof spawnDroneDirect> | null = null;
+    if (droneDist !== null) {
+      d = spawnDroneDirect(w, droneDist, 0, 1);
+      d.speedMultiplier = 0; // parked
+    }
+    w.overdrive.charge = 0.99;
+    return { w, d };
+  };
+  const near = 0.9; // inside ship radius + drone radius + graze band
+  check("armWhenClear default is on", rulesFromDefaults({ overdrive: true }).overdrive!.armWhenClear === true);
+  {
+    const { w } = mk(true, near);
+    chargeFromGraze(w, 0.5);
+    check("arm: full meter in the band does not go HOT", w.overdrive.armed && !w.overdrive.hot && w.overdrive.charge === 1 && w.overdrive.hotCount === 0);
+    const before = w.overdrive.charge;
+    chargeFromGraze(w, 0.1);
+    check("arm: further grazes add nothing while armed", w.overdrive.charge === before && w.overdrive.hotCount === 0);
+    updateOverdrive(w, 1);
+    check("arm: stays armed while the drone is in the band, meter does not drain", w.overdrive.armed && w.overdrive.charge === 1);
+    for (const d of w.drones) d.x = 20;
+    updateOverdrive(w, FIXED_DT);
+    check("arm: HOT starts the tick the band clears (event once)", !w.overdrive.armed && w.overdrive.hot && w.overdrive.hotCount === 1 && w.events.filter((e) => e.type === "overdriveHot").length === 1);
+  }
+  {
+    const { w } = mk(true, near);
+    chargeFromGraze(w, 0.5);
+    for (let i = 0; i < Math.round(2.9 / FIXED_DT); i++) updateOverdrive(w, FIXED_DT);
+    check("arm: still held at 2.9 s of contact", w.overdrive.armed && !w.overdrive.hot);
+    for (let i = 0; i < Math.round(0.2 / FIXED_DT); i++) updateOverdrive(w, FIXED_DT);
+    check("arm: contact past ARM_MAX_SECONDS starts HOT anyway", !w.overdrive.armed && w.overdrive.hot);
+  }
+  {
+    const { w, d } = mk(true, near);
+    d!.frozen = 2;
+    chargeFromGraze(w, 0.5);
+    check("arm: a frozen drone in the band does not hold HOT", w.overdrive.hot && !w.overdrive.armed);
+  }
+  {
+    const { w } = mk(true, 6);
+    chargeFromGraze(w, 0.5);
+    check("arm: nothing in the band goes HOT at once", w.overdrive.hot && !w.overdrive.armed);
+  }
+  {
+    const { w } = mk(false, near);
+    chargeFromGraze(w, 0.5);
+    check("armWhenClear off: HOT at once, as before", w.overdrive.hot && !w.overdrive.armed);
+  }
+  {
+    const { w } = mk(true, near);
+    const rules = w.rules.overdrive as { armWhenClear?: boolean };
+    delete rules.armWhenClear;
+    chargeFromGraze(w, 0.5);
+    check("armWhenClear absent (older row): HOT at once, as before", w.overdrive.hot && !w.overdrive.armed);
+  }
 }
 
 // --- 1b. review fixes ------------------------------------------------------
@@ -491,6 +529,7 @@ function run(world: World, seconds: number, invulnerable = true): void {
         if (rules.overdrive && w.time - lastForce >= minGap) {
           lastForce = w.time;
           w.overdrive.hot = true;
+          w.overdrive.armed = false;
           w.overdrive.charge = 1;
           w.overdrive.hotTime = 0;
           w.overdrive.lockout = 0;
