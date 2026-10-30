@@ -19,6 +19,19 @@ import {
 } from "./dailyHistory";
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { closestCallLabel } from "./highlights";
+import {
+  clientFlagsSnapshot,
+  flagsNeedWait,
+  flagsReady,
+  onFlagsChange,
+  parsePreviewFlags,
+  resolveRunRules,
+  shouldSubmit,
+  activeCreatorPreview,
+} from "./flags";
+import * as feel from "./feel";
+import * as overdriveFx from "./fx/overdriveFx";
+import * as deathFx from "./fx/deathFx";
 import { Input, isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
 import { patrolDateStr } from "./patrolDate";
@@ -54,6 +67,7 @@ import {
   type RecordingHandle,
 } from "./recorder";
 import {
+  effectiveEffects,
   loadBestScore,
   loadBestTime,
   loadControlPrefs,
@@ -95,7 +109,6 @@ import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE, renderShareCardPng, buildSh
 import {
   bootNativeShell,
   hapticDeath,
-  hapticGraze,
   isNativeApp,
   isNativePlay,
   parseNativeGoldPatrol,
@@ -109,7 +122,7 @@ import {
 } from "./native";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
-import type { World } from "./types";
+import type { FxContext, World } from "./types";
 import { deriveGameOverRank, Ui, type CalendarCell, type MenuCommunity, type PatrolCalendarMonth } from "./ui";
 import { consumeWebOverride, shouldShowPhoneLanding } from "./webGate";
 
@@ -346,6 +359,8 @@ let PREVIEW_DAY: Date | null = null;
 let PREVIEW_MUTATORS: Mutator[] = [];
 let PREVIEW_ACTIVE = false;
 let PREVIEW_REHEARSAL_DATE: string | null = null;
+/** `?flags=` switch overrides (only while the preview gate is open). */
+let PREVIEW_FLAGS: Record<string, boolean> = {};
 
 function previewGateOpen(): boolean {
   // Localhost keeps ?day= / ?mutator= for tuning. Production is allowlist
@@ -364,11 +379,19 @@ function syncPreview(): void {
     PREVIEW_DAY = null;
     PREVIEW_MUTATORS = [];
   }
+  // ?flags=overdrive:on,ui.hud:on previews switches, behind the same gate.
+  PREVIEW_FLAGS = allowed ? parsePreviewFlags(location.search) : {};
   PREVIEW_REHEARSAL_DATE = PREVIEW_DAY?.toISOString().slice(0, 10) ?? null;
-  PREVIEW_ACTIVE = allowed && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null);
+  // An armed creator preview (GET /api/me, allowlisted account only) sandboxes
+  // runs the same way. resolveRunRules re-checks its expiry at every startRun.
+  PREVIEW_ACTIVE =
+    (allowed && (PREVIEW_MUTATORS.length > 0 || PREVIEW_DAY !== null)) ||
+    Object.keys(PREVIEW_FLAGS).length > 0 ||
+    activeCreatorPreview() !== null;
 }
 
 syncPreview();
+onFlagsChange(syncPreview);
 
 function addIsoDays(dateStr: string, n: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -1248,7 +1271,7 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   }
   if (IS_NATIVE_PLAY && NATIVE_AUTO === "stick") {
     setStickMode();
-    doLaunch();
+    void flagsReady(1500).then(() => doLaunch());
     return;
   }
   if (IS_NATIVE_PLAY && NATIVE_AUTO === "tiltconfirm") {
@@ -1277,6 +1300,12 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
 
 function doLaunch(quick = false): void {
   if (state === "launching") return;
+  // First launch of a session with stale or no switch rows: give the server a
+  // moment (1.5 s max) so the run resolves today's rules, not yesterday's cache.
+  if (flagsNeedWait()) {
+    void flagsReady(1500).then(() => doLaunch(quick));
+    return;
+  }
   // daily-only retry path (Fly again / Space): the attempt budget still
   // rules, except for a preview run, which never spends one.
   if (pendingDaily && dailyLaunchBlocked()) {
@@ -1329,6 +1358,15 @@ function startRun(): void {
   // normal runs soften the opening for a player's first few flights.
   setRunSeed(runIsDaily ? dailySeed() : null);
   const grace = runIsDaily || runIsTraining ? 0 : clamp01(1 - loadRunCount() / 3);
+  // Switch rules resolve once, from the run's patrol date (archive and
+  // rehearsal dates included), so a board never mixes rules.
+  const rules = resolveRunRules(currentPatrolDateStr(), {
+    daily: runIsDaily,
+    training: runIsTraining,
+    gameMode: runGameMode,
+    sandbox: false,
+    previewFlags: PREVIEW_FLAGS,
+  });
   world = createWorld(
     renderer.viewW * currentViewScale,
     renderer.viewH * currentViewScale,
@@ -1337,6 +1375,7 @@ function startRun(): void {
     runGameMode,
     runIsDaily,
     runIsTraining,
+    rules,
   );
   world.clipView = { w: canvas.clientWidth, h: canvas.clientHeight };
   void setPlayChrome(true);
@@ -1784,7 +1823,9 @@ function renderRankResult(r: SubmitResult): void {
 
 /** Push the finished run to the leaderboards and show the resulting ranks. */
 function submitRun(): void {
-  // preview runs are sandboxed from every board: no submission, period
+  // preview runs are sandboxed from every board: no submission, period.
+  // A switch preview (rules.preview) never submits in any mode.
+  if (!shouldSubmit(world.rules)) return;
   if (runIsDaily && PREVIEW_ACTIVE) return;
   if (!api.online) return;
   const run = {
@@ -1797,6 +1838,9 @@ function submitRun(): void {
     platform: isTouchDevice() ? "touch" : "desktop",
     daily: (runIsDaily && !runRefunded) || undefined,
     dailyDate: runIsDaily ? (NATIVE_PATROL_DATE ?? webArchiveDate ?? undefined) : undefined,
+    ruleset: world.rules.rulesetId,
+    odHot: world.overdrive.hotCount,
+    odFires: world.overdrive.fires,
   };
   if (!api.signedIn) {
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget
@@ -1886,23 +1930,37 @@ function isTouchDevice(): boolean {
   return input.touchUsed || "ontouchstart" in window;
 }
 
+/** Wall-clock time (uiTime seconds) until which sim ticks are held. */
+let simHoldUntil = 0;
+
+/** Hold the sim for `ms` of wall-clock time. Sim time does not advance, so score and determinism are untouched. */
+function holdSim(ms: number): void {
+  simHoldUntil = Math.max(simHoldUntil, uiTime + ms / 1000);
+}
+
+function fxContext(w: World): FxContext {
+  return {
+    world: w,
+    particles,
+    popups,
+    audio,
+    holdSim,
+    flags: clientFlagsSnapshot(PREVIEW_FLAGS),
+    effects: effectiveEffects(settings),
+  };
+}
+
 /** Route gameplay events to audio, particles, and state transitions. */
 function drainEvents(w: World): void {
+  if (w.events.length === 0) return;
+  const ctx = fxContext(w);
   for (const e of w.events) {
+    // presentation modules first; each is gated by its own switch and is a
+    // no-op with every switch off. droneKilled and graze live in feel.ts.
+    overdriveFx.onEvent(e, ctx);
+    feel.onEvent(e, ctx);
+    deathFx.onEvent(e, ctx);
     switch (e.type) {
-      case "droneKilled": {
-        if (e.wasFrozen) {
-          particles.burst(e.x, e.y, [PALETTE.freeze, PALETTE.white, "#dffaff"], 16, 4, 0.7, 0.1);
-        } else if (e.source === "pulse") {
-          particles.burst(e.x, e.y, [PALETTE.pulse, PALETTE.goldPale, "#ffcc77"], 16, 5, 0.65, 0.12);
-        } else {
-          particles.burst(e.x, e.y, [PALETTE.redBright, PALETTE.gold, "#ff8866"], 14, 5, 0.6, 0.12);
-        }
-        // no floating +points: with the dense swarm the numbers cluttered the
-        // view — the HUD score and the kill burst are feedback enough
-        audio.droneKill();
-        break;
-      }
       case "mineExploded":
         particles.burst(e.x, e.y, ["#ff8844", PALETTE.gold, PALETTE.redBright], 26, 7, 0.8, 0.15);
         audio.mineBoom();
@@ -1959,13 +2017,6 @@ function drainEvents(w: World): void {
       case "missileBlast":
         particles.burst(e.x, e.y, [PALETTE.missiles, PALETTE.gold, "#ff9966"], 14, 4.5, 0.5, 0.11);
         audio.missileBlast();
-        break;
-      case "graze":
-        particles.burst(e.x, e.y, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06);
-        particles.grazeArc(Math.atan2(e.y - world.ship.y, e.x - world.ship.x));
-        audio.graze();
-        void hapticGraze();
-        popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
         break;
       case "assembly": {
         // crowded drones just fused into a creature — name the threat
@@ -2109,12 +2160,17 @@ function frame(now: number): void {
     accumulator = 0;
     audio.setThrustLevel(0);
   } else if (state === "playing" || state === "tutorial") {
-    accumulator += dt;
-    while (accumulator >= FIXED_DT) {
-      tick(world, input.sample(), FIXED_DT);
-      if (state === "tutorial") tutorial?.update(FIXED_DT);
-      drainEvents(world);
-      accumulator -= FIXED_DT;
+    if (uiTime < simHoldUntil) {
+      // hold beat (death freeze, hit-stop): no ticks, no banked catch-up time
+      accumulator = 0;
+    } else {
+      accumulator += dt;
+      while (accumulator >= FIXED_DT) {
+        tick(world, input.sample(), FIXED_DT);
+        if (state === "tutorial") tutorial?.update(FIXED_DT);
+        drainEvents(world);
+        accumulator -= FIXED_DT;
+      }
     }
 
     audio.setThrustLevel(world.phase === "playing" ? world.ship.thrusting : 0);
@@ -2179,6 +2235,8 @@ function frame(now: number): void {
         : (state === "playing" || state === "paused") && runIsDaily,
     touch: state === "playing" || state === "tutorial" ? input.getTouchView() : null,
     fx,
+    flags: clientFlagsSnapshot(PREVIEW_FLAGS),
+    effects: effectiveEffects(settings),
   });
 
   requestAnimationFrame(frame);

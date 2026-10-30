@@ -32,6 +32,7 @@ import { validateRun, MODES, GAME_MODES } from "./validate.mjs";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname.mjs";
 import { qualifyingBadges } from "./badges.mjs";
 import { isValidUtcDateStr } from "./dateUtils.mjs";
+import * as flags from "./flags.mjs";
 import {
   dailyLeaderboardCombinedWithBots,
   dailyRankCombinedWithBots,
@@ -208,6 +209,20 @@ function bodyRunIndex(body) {
   const i = Math.floor(n);
   if (i < 0 || i > 1_000_000) return null;
   return i;
+}
+
+/** Ruleset stamp from a score/run body; null when absent or malformed. */
+function bodyRuleset(body) {
+  const r = body?.ruleset;
+  if (typeof r !== "string" || r.length === 0 || r.length > 120) return null;
+  return /^[a-z0-9.@#:+]+$/.test(r) ? r : null;
+}
+
+/** Overdrive counters (odHot, odFires): int 0..10,000 or null. */
+function bodyOdCount(v) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  const i = Math.floor(v);
+  return i < 0 || i > 10_000 ? null : i;
 }
 
 /** Game mode from a leaderboard query (?gameMode=); null = invalid. */
@@ -416,6 +431,14 @@ const routes = {
       googleIosClientId: GOOGLE_IOS_CLIENT_ID,
       clerkPublishableKey: clerkPublishableKey(),
       billing: billingPublicConfig(),
+      // Switch registry; a failure here must never break the boot path.
+      features: (() => {
+        try {
+          return flags.publicFeatures(patrolToday());
+        } catch {
+          return null;
+        }
+      })(),
     });
   },
 
@@ -599,6 +622,12 @@ const routes = {
   "GET /api/me": (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
     const t = userTier(user);
+    let creatorPreview;
+    try {
+      creatorPreview = clipInboxAllowed(user) ? flags.activeCreatorPreview() : null;
+    } catch {
+      creatorPreview = null;
+    }
     json(res, 200, {
       user: publicUser(user),
       best: store.getUserBest(user.id),
@@ -616,6 +645,8 @@ const routes = {
       premiumSource: user.premium_source ?? null,
       stripeCustomer: !!user.stripe_customer_id,
       stripeBilling: billingConfigured(),
+      // Allowlisted creator only; absent for everyone else.
+      ...(creatorPreview ? { creatorPreview } : {}),
     });
   },
 
@@ -817,12 +848,16 @@ const routes = {
     if (dailyDate && dailyAttemptBlocked(user, store.countDailyScores(user.id, dailyDate), DAILY_MAX_ATTEMPTS))
       return json(res, 429, { error: "daily attempt limit reached, next patrol at midnight Pacific" });
 
-    store.insertScore(user.id, { ...run, dailyDate });
+    const ruleset = bodyRuleset(body);
+    store.insertScore(user.id, { ...run, dailyDate, ruleset });
     store.insertRun(user.id, {
       ...run,
       platform: cleanPlatform(body.platform),
       deviceHash: bodyDeviceHash(body),
       runIndex: bodyRunIndex(body),
+      ruleset,
+      odHot: bodyOdCount(body.odHot),
+      odFires: bodyOdCount(body.odFires),
     });
 
     const worldRank = store.rankOf(user.id, { mode: run.mode, gameMode });
@@ -929,6 +964,9 @@ const routes = {
       platform: cleanPlatform(body.platform),
       deviceHash: bodyDeviceHash(body),
       runIndex: bodyRunIndex(body),
+      ruleset: bodyRuleset(body),
+      odHot: bodyOdCount(body.odHot),
+      odFires: bodyOdCount(body.odFires),
     });
     json(res, 200, { ok: true });
   },
@@ -1189,7 +1227,59 @@ const routes = {
         sameTimeUntilMs: day.date === todayDate ? Date.now() : undefined,
       });
     }
+    if (day) {
+      // Daily scores whose ruleset differs from what the server resolves for
+      // that date. NULL = old bundle, counted as a mismatch (and shown apart).
+      try {
+        const m = store.rulesetMismatchForDay(day.date, flags.serverRulesetFor(day.date));
+        day.rulesetMismatch = m.mismatch;
+        day.rulesetLegacy = m.legacy;
+      } catch {
+        day.rulesetMismatch = null;
+      }
+    }
     json(res, 200, { ...store.adminStats(), day });
+  },
+
+  // --- switch registry admin (Bearer ORION_ADMIN_KEY; 404 otherwise) ---
+
+  "GET /api/admin/flags": (req, res) => {
+    if (!isAdmin(req)) return json(res, 404, { error: "not found" });
+    if (!rateLimit("flags:admin", 20)) return json(res, 429, { error: "slow down" });
+    json(res, 200, flags.adminFlagsView(patrolToday()));
+  },
+
+  "POST /api/admin/flags": async (req, res) => {
+    if (!isAdmin(req)) return json(res, 404, { error: "not found" });
+    if (!rateLimit("flags:admin", 20)) return json(res, 429, { error: "slow down" });
+    const body = await readBody(req);
+    try {
+      const row = flags.addFlagVersion({ ...body, actor: "admin" }, patrolToday());
+      json(res, 200, { ok: true, row });
+    } catch (e) {
+      json(res, 400, { error: e?.message ?? "bad request" });
+    }
+  },
+
+  "POST /api/admin/creator-preview": async (req, res) => {
+    if (!isAdmin(req)) return json(res, 404, { error: "not found" });
+    if (!rateLimit("flags:admin", 20)) return json(res, 429, { error: "slow down" });
+    const body = await readBody(req);
+    try {
+      if (body.disarm === true) {
+        flags.disarmCreatorPreview("admin");
+        return json(res, 200, { ok: true, creatorPreview: null });
+      }
+      const armed = flags.armCreatorPreview({
+        flags: body.flags,
+        hours: body.hours,
+        note: body.note,
+        actor: "admin",
+      });
+      json(res, 200, { ok: true, creatorPreview: { flags: armed.flags, expiresAt: armed.expiresAt } });
+    } catch (e) {
+      json(res, 400, { error: e?.message ?? "bad request" });
+    }
   },
 
   "GET /api/admin/feedback": (req, res) => {

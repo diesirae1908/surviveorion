@@ -47,9 +47,17 @@
     "test:first-flight": "npx tsx scripts/test-first-flight.ts",
     "test:lobby-state": "npx tsx scripts/test-lobby-state.ts",
     "test:graze-ceiling": "npx tsx scripts/test-graze-ceiling.ts",
+    "test:flags": "npx tsx scripts/test-flags.ts",
+    "test:server-flags": "node scripts/test-server-flags.mjs",
+    "test:flag-parity": "npx tsx scripts/test-flag-parity.ts",
+    "test:overdrive": "npx tsx scripts/test-overdrive.ts",
+    "test:result-view": "npx tsx scripts/test-result-view.ts",
+    "test:share-card": "npx tsx scripts/test-share-card.ts",
+    "test:feel": "npx tsx scripts/test-feel.ts",
+    "test:overdrive-fx": "npx tsx scripts/test-overdrive-fx.ts",
     "cap:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:server-devices && npm run test:server-paywall && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutator-music && npm run test:patrol-complete && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play && npm run test:premium-gates && npm run test:apple-iap && npm run test:apple-transaction && npm run test:guest-reclaim && npm run test:stripe-billing && npm run test:web-gate && npm run test:updates && npm run test:play-viewport && npm run test:gameover-goal && npm run test:first-flight && npm run test:lobby-state && npm run test:graze-ceiling"
+    "test": "npm run test:nickname && npm run test:touch-input && npm run test:gameover-rank && npm run test:crash-filter && npm run test:highlights && npm run test:clip-sidecar && npm run test:recorder && npm run test:daily-history && npm run test:server-daily-history && npm run test:server-devices && npm run test:server-paywall && npm run test:serve-static && npm run test:clip-inbox && npm run test:notion-clips && npm run test:daily-combined-rank && npm run test:no-em-dash && npm run test:mutator-music && npm run test:patrol-complete && npm run test:mutators && npm run test:cors-origins && npm run test:account-delete && npm run test:native-play && npm run test:premium-gates && npm run test:apple-iap && npm run test:apple-transaction && npm run test:guest-reclaim && npm run test:stripe-billing && npm run test:web-gate && npm run test:updates && npm run test:play-viewport && npm run test:gameover-goal && npm run test:first-flight && npm run test:lobby-state && npm run test:graze-ceiling && npm run test:flags && npm run test:server-flags && npm run test:flag-parity && npm run test:overdrive && npm run test:result-view && npm run test:share-card && npm run test:feel && npm run test:overdrive-fx"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

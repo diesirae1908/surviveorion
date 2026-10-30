@@ -1,0 +1,50 @@
+{
+  "cases": [
+    {
+      "name": "no rows: bundled default, overdrive off",
+      "date": "2026-11-10",
+      "rows": [],
+      "expect": { "overdrive": { "versionId": "d", "enabled": false }, "rulesetId": "base" }
+    },
+    {
+      "name": "row effective on the date wins",
+      "date": "2026-11-10",
+      "rows": [{ "id": 1, "from": "2026-11-10", "enabled": true, "hash": "abcd1234", "params": { "chargePerGraze": 0.2 } }],
+      "expect": { "overdrive": { "versionId": "1", "enabled": true }, "rulesetId": "overdrive@1#abcd1234" }
+    },
+    {
+      "name": "row scheduled after the date is ignored",
+      "date": "2026-11-09",
+      "rows": [{ "id": 1, "from": "2026-11-10", "enabled": true, "hash": "abcd1234", "params": {} }],
+      "expect": { "overdrive": { "versionId": "d", "enabled": false }, "rulesetId": "base" }
+    },
+    {
+      "name": "greatest effective_from wins",
+      "date": "2026-11-12",
+      "rows": [
+        { "id": 1, "from": "2026-11-10", "enabled": true, "hash": "aaaaaaaa", "params": {} },
+        { "id": 2, "from": "2026-11-11", "enabled": false, "hash": "bbbbbbbb", "params": {} }
+      ],
+      "expect": { "overdrive": { "versionId": "2", "enabled": false }, "rulesetId": "base" }
+    },
+    {
+      "name": "tie on effective_from goes to the greatest id",
+      "date": "2026-11-12",
+      "rows": [
+        { "id": 7, "from": "2026-11-11", "enabled": true, "hash": "77777777", "params": {} },
+        { "id": 3, "from": "2026-11-11", "enabled": false, "hash": "33333333", "params": {} },
+        { "id": 9, "from": "2026-11-11", "enabled": true, "hash": "99999999", "params": {} }
+      ],
+      "expect": { "overdrive": { "versionId": "9", "enabled": true }, "rulesetId": "overdrive@9#99999999" }
+    },
+    {
+      "name": "archive date resolves to that day's rows",
+      "date": "2026-11-10",
+      "rows": [
+        { "id": 1, "from": "2026-11-10", "enabled": true, "hash": "aaaaaaaa", "params": {} },
+        { "id": 2, "from": "2026-11-15", "enabled": false, "hash": "bbbbbbbb", "params": {} }
+      ],
+      "expect": { "overdrive": { "versionId": "1", "enabled": true }, "rulesetId": "overdrive@1#aaaaaaaa" }
+    }
+  ]
+}

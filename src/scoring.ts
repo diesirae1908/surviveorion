@@ -51,6 +51,7 @@ export function updateScoring(world: World, dt: number): void {
 export function registerGraze(world: World, x = 0, y = 0): number {
   if (world.phase !== "playing") return 0;
 
+  world.grazes++;
   world.multiplier = Math.min(
     SCORING.multiplierMax,
     world.multiplier + SCORING.grazeMultiplier * mutatorGrazeMultiplierScale(),

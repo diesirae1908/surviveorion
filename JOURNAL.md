@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: WS-A switch registry + seams (feat/switch-registry)
+
+- What: one visible switch registry for OVERDRIVE and the three UI layers, plus the seams the next workstreams plug into. All four switches (`overdrive`, `ui.overdriveFx`, `ui.hud`, `ui.result`) default OFF; with no rows the game is identical to dev and every score writes ruleset `base`.
+- Server: `server/flags-registry.json` (definitions, bounds), `server/flags.mjs` (materialize/clamp, sha256 params hash, resolve, ruleset id, creator preview), append-only tables `flag_versions` and `creator_preview`, additive columns `scores.ruleset`, `runs.ruleset/od_hot/od_fires`. `GET /api/config` gains `features`; `GET /api/me` gains `creatorPreview` for the clip-inbox allowlist only; `GET/POST /api/admin/flags`, `POST /api/admin/creator-preview` (Bearer, 404 otherwise, `flags:admin` 20/min). Gameplay rows must start at least 1 patrol day ahead; staging `ORION_FLAGS_SAME_DAY=1` lifts it and shows a red banner in `/admin` Switches. Day report adds `rulesetMismatch` (and an old-bundle count).
+- Client: `src/flags.ts` (same algorithm as the server, parity-tested), `World.rules/overdrive/grazes/deathCause`, `createWorld(..., rules = BASE_RULES)`, death cause recorded at the four dying sites, drones tagged with their formation (tag only, no draws), `Settings.effects` + `effectiveEffects`, `config.ts OVERDRIVE` view of the registry defaults.
+- Seams in `main.ts`: `overdriveFx/feel/deathFx.onEvent` before the drainEvents switch (graze and droneKilled bodies moved unchanged into `feel.ts`), one `holdSim(ms)` in the frame loop, `feel.drawOverlay` in `render()`, rules resolved once in `startRun`, `?flags=` and creator preview both make the run an unscored preview (`shouldSubmit`), ruleset/odHot/odFires on both submit paths, `flagsReady(1500)` on native auto-start and stale-cache first launch.
+- Housekeeping: stub test files for the five later-owned tests, `.gitattributes` `JOURNAL.md merge=union`, `PRODUCT.md` "No gun"/"arena" line fixed, `tsconfig` `resolveJsonModule`.
+- Verified: `npm test` (new `test:flags`, `test:server-flags`, `test:flag-parity`), `npx tsx scripts/sim-test.ts`, `npm run build`; no new `rand`/`scheduleRand` calls. `server/validate.mjs`, billing, ios, native, updates.json untouched.
+- Deviations: default-on ruleset id is the literal `overdrive@d#default` on both sides (client has no sync sha256; never occurs since defaults are off). `POST /api/admin/creator-preview` also accepts `{ disarm: true }`. The server test uses a temp SQLite file, not `:memory:`, because it spawns the real server.
+- Follow-ups: Opus diff review; WS-B owns `overdrive.ts` and the real use of `world.overdrive`; WS-C2 edits `feel.ts`; WS-D uses `holdSim` and `deathCause`. Commit: see `git log feat/switch-registry`.
+
 ## 2026-10-30 PT: server graze ceiling follows the day's mutators (fix/graze-ceiling)
 
 - `server/validate.mjs` assumed 15 pts and 8 grazes/s for every run, but

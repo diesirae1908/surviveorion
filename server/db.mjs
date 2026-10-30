@@ -213,6 +213,47 @@ db.exec(`
   );
 `);
 
+// Switch registry (OVERDRIVE and friends). Append-only: rows are never updated
+// or deleted, a change is a new row. See server/flags.mjs.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS flag_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL,
+    effective_from TEXT NOT NULL,
+    enabled INTEGER NOT NULL,
+    params TEXT NOT NULL,
+    params_hash TEXT NOT NULL,
+    note TEXT,
+    actor TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS flag_versions_key_from ON flag_versions(key, effective_from);
+
+  CREATE TABLE IF NOT EXISTS creator_preview (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    flags TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    actor TEXT NOT NULL,
+    note TEXT,
+    created_at INTEGER NOT NULL
+  );
+`);
+
+// Ruleset stamp: which switch set a run was flown under (null = old bundle).
+// Additive nullable columns; od_hot / od_fires feed Phase 2 medal tuning.
+for (const stmt of [
+  `ALTER TABLE scores ADD COLUMN ruleset TEXT`,
+  `ALTER TABLE runs ADD COLUMN ruleset TEXT`,
+  `ALTER TABLE runs ADD COLUMN od_hot INTEGER`,
+  `ALTER TABLE runs ADD COLUMN od_fires INTEGER`,
+]) {
+  try {
+    db.exec(stmt);
+  } catch {
+    // column already exists
+  }
+}
+
 // Migration for databases created before tilt controls (per-mode leaderboards).
 try {
   db.exec(`ALTER TABLE scores ADD COLUMN mode TEXT NOT NULL DEFAULT 'classic'`);
@@ -517,11 +558,14 @@ export const purgeExpiredSessions = () =>
 
 // --- scores ---
 
-export function insertScore(userId, { score, timeSurvived, kills, maxMultiplier, mode, gameMode, dailyDate = null }) {
+export function insertScore(
+  userId,
+  { score, timeSurvived, kills, maxMultiplier, mode, gameMode, dailyDate = null, ruleset = null },
+) {
   db.prepare(
-    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, daily_date, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "desktop", gameMode ?? "classic", dailyDate, Date.now());
+    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, daily_date, ruleset, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "desktop", gameMode ?? "classic", dailyDate, ruleset, Date.now());
 }
 
 export const getUserBest = (userId, mode = "desktop", gameMode = "classic") =>
@@ -1318,11 +1362,25 @@ export function trafficStats() {
 
 export function insertRun(
   userId,
-  { score, timeSurvived, kills, maxMultiplier, mode, gameMode, platform, deviceHash = null, runIndex = null, at = Date.now() },
+  {
+    score,
+    timeSurvived,
+    kills,
+    maxMultiplier,
+    mode,
+    gameMode,
+    platform,
+    deviceHash = null,
+    runIndex = null,
+    ruleset = null,
+    odHot = null,
+    odFires = null,
+    at = Date.now(),
+  },
 ) {
   db.prepare(
-    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, platform, device_hash, run_index, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, platform, device_hash, run_index, ruleset, od_hot, od_fires, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     userId,
     score,
@@ -1334,9 +1392,56 @@ export function insertRun(
     platform ?? "",
     deviceHash,
     runIndex,
+    ruleset,
+    odHot,
+    odFires,
     at,
   );
   if (deviceHash) upsertDevice(deviceHash, at);
+}
+
+// --- switch registry (append-only: insert and read only) ---
+
+export function insertFlagVersion({ key, effectiveFrom, enabled, params, paramsHash, note, actor, createdAt }) {
+  const r = db
+    .prepare(
+      `INSERT INTO flag_versions (key, effective_from, enabled, params, params_hash, note, actor, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(key, effectiveFrom, enabled ? 1 : 0, params, paramsHash, note ?? null, actor, createdAt);
+  return Number(r.lastInsertRowid);
+}
+
+/** Rows oldest first; one key, or every key when omitted. */
+export const listFlagVersions = (key) =>
+  key
+    ? db.prepare(`SELECT * FROM flag_versions WHERE key = ? ORDER BY id`).all(key)
+    : db.prepare(`SELECT * FROM flag_versions ORDER BY id`).all();
+
+export function insertCreatorPreview({ flags, expiresAt, actor, note, createdAt }) {
+  const r = db
+    .prepare(`INSERT INTO creator_preview (flags, expires_at, actor, note, created_at) VALUES (?, ?, ?, ?, ?)`)
+    .run(flags, expiresAt, actor, note ?? null, createdAt);
+  return Number(r.lastInsertRowid);
+}
+
+export const latestCreatorPreview = () =>
+  db.prepare(`SELECT * FROM creator_preview ORDER BY id DESC LIMIT 1`).get() ?? null;
+
+/**
+ * Daily scores on `date` whose ruleset differs from `expectedId`. NULL counts
+ * as an old bundle (reported separately as `legacy`, and included in `mismatch`).
+ */
+export function rulesetMismatchForDay(date, expectedId) {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(CASE WHEN ruleset IS NULL THEN 1 ELSE 0 END), 0) AS legacy,
+              COALESCE(SUM(CASE WHEN ruleset IS NULL OR ruleset != ? THEN 1 ELSE 0 END), 0) AS mismatch
+       FROM scores WHERE daily_date = ?`,
+    )
+    .get(expectedId, date);
+  return { total: row.total, legacy: row.legacy, mismatch: row.mismatch };
 }
 
 /** Nth-percentile of a runs column (0..1), by sorted offset. */

@@ -18,6 +18,8 @@ import { lighthouseBeamLength, lighthouseBeamWidth, lighthouseBodyRadius } from 
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
 import type { World } from "./types";
+import type { ClientFlags } from "./flags";
+import * as feel from "./feel";
 
 interface Star {
   x: number;
@@ -45,6 +47,10 @@ export interface RenderOpts {
   daily: boolean;
   touch: TouchStickView | null;
   fx: TransitionFx | null;
+  /** Presentation switches for today (null entry = off). */
+  flags: ClientFlags;
+  /** "lite" trims screen-wide effects (setting or prefers-reduced-motion). */
+  effects: "full" | "lite";
 }
 
 const pingPong = (t: number): number => {
@@ -252,6 +258,7 @@ export class Renderer {
     if (world.daily && world.phase === "playing" && mutatorBlackoutPulse()) {
       this.drawBlackoutVignette(world);
     }
+    feel.drawOverlay(ctx, world, opts);
     ctx.restore();
     if (opts.showHud) this.drawHud(world, opts);
     else {

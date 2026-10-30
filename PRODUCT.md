@@ -12,7 +12,7 @@ Casual-to-competitive arcade players looking for a quick daily skill challenge â
 
 ## Product Purpose
 
-ORION is a daily dodging game: pilot your ship through a bounded arena while escalating drone swarms close in. No gun, so staying alive is movement plus defensive power pickups. The daily patrol gives everyone the same seed, the same mutators, the same conditions; your rank is earned, not bought. A paid tier unlocks unlimited daily attempts and all mutators, removing the caps that throttle free players.
+ORION is a daily dodging game: pilot your ship through the swarm as escalating drones close in. Staying alive is movement plus powers. The daily patrol gives everyone the same seed, the same mutators, the same conditions; your rank is earned, not bought. A paid tier unlocks unlimited daily attempts and all mutators, removing the caps that throttle free players.
 
 ## Positioning
 

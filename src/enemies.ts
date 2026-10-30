@@ -441,7 +441,9 @@ export function initSpawner(world: World): void {
   // and the first regular formation lands seconds later.
   if (world.gameMode === "ironrain") {
     world.nextFormationDelay = IRONRAIN.firstFormationDelay;
+    const before = world.drones.length; // tag only: no draws
     spawnMegaWallFormation(world, IRONRAIN.pinnedMinutes);
+    for (let i = before; i < world.drones.length; i++) world.drones[i].formation = "megawall";
     world.events.push({ type: "formation", kind: "megawall" });
     world.sustainedSpawnCooldown = SPAWNER.formations.postFormationDelay;
     return;
@@ -747,6 +749,7 @@ function handleFormations(world: World, minutes: number, dt: number): void {
 
   const kind = rollFormationKind(world, minutes);
   world.events.push({ type: "formation", kind });
+  const dronesBefore = world.drones.length; // tag only: no draws
   switch (kind) {
     case "line":
       spawnLineFormation(world, minutes);
@@ -779,6 +782,7 @@ function handleFormations(world: World, minutes: number, dt: number): void {
       spawnMegaWallFormation(world, minutes);
       break;
   }
+  for (let i = dronesBefore; i < world.drones.length; i++) world.drones[i].formation = kind;
 
   world.spawnAccumulator = 0;
   world.sustainedSpawnCooldown = SPAWNER.formations.postFormationDelay;

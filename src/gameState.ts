@@ -24,7 +24,8 @@ import {
 import { updateFloodSurge } from "./flood";
 import { grazeClearance, trackClosestCall, trackTopGrazes } from "./highlights";
 import { sampleShipTrack } from "./clipSidecar";
-import type { World } from "./types";
+import { BASE_RULES, type RunRules } from "./flags";
+import type { DeathCause, World } from "./types";
 
 export const DEATH_TO_GAMEOVER_SECONDS = 1.4;
 
@@ -36,6 +37,7 @@ export function createWorld(
   gameMode: GameMode = "classic",
   daily = false,
   training = false,
+  rules: RunRules = BASE_RULES,
 ): World {
   const world: World = {
     viewW,
@@ -45,6 +47,19 @@ export function createWorld(
     gameMode,
     daily,
     grace: gameMode === "ironrain" ? 0 : grace, // Iron Rain never softens
+    rules,
+    overdrive: {
+      charge: 0,
+      hot: false,
+      hotTime: 0,
+      drainTimer: 0,
+      lockout: 0,
+      killChargeWindow: 0,
+      hotCount: 0,
+      fires: 0,
+    },
+    grazes: 0,
+    deathCause: null,
     phase: "playing",
     time: 0,
     deathTimer: 0,
@@ -218,9 +233,22 @@ function handleShipDroneCollisions(world: World): void {
     world.phase = "dying";
     world.deathTimer = 0;
     world.shake = Math.max(world.shake, 0.7);
-    world.events.push({ type: "death", x: s.x, y: s.y });
+    const cause = recordDeathCause(
+      world,
+      d.formation ? "formation" : d.assembly ? "creature" : "drone",
+      d.formation ?? d.assembly?.kind,
+    );
+    world.events.push({ type: "death", x: s.x, y: s.y, cause });
     return;
   }
+}
+
+/** Remember what ended the run and where (the ship's position now). */
+function recordDeathCause(world: World, kind: DeathCause["kind"], detail?: string): DeathCause {
+  const cause: DeathCause = { kind, time: world.time, x: world.ship.x, y: world.ship.y };
+  if (detail !== undefined) cause.detail = detail;
+  world.deathCause = cause;
+  return cause;
 }
 
 function handleShipMineCollisions(world: World): void {
@@ -260,7 +288,7 @@ function handleShipMineCollisions(world: World): void {
     killMine(world, m); // it blows up with you
     world.deathTimer = 0;
     world.shake = Math.max(world.shake, 0.7);
-    world.events.push({ type: "death", x: s.x, y: s.y });
+    world.events.push({ type: "death", x: s.x, y: s.y, cause: recordDeathCause(world, "mine") });
     return;
   }
 }
@@ -289,7 +317,7 @@ function handleShipLighthouseCollisions(world: World): void {
     world.phase = "dying";
     world.deathTimer = 0;
     world.shake = Math.max(world.shake, 0.7);
-    world.events.push({ type: "death", x: s.x, y: s.y });
+    world.events.push({ type: "death", x: s.x, y: s.y, cause: recordDeathCause(world, "beam") });
     return;
   }
 }
@@ -354,7 +382,7 @@ function handleShipBlastCollisions(world: World): void {
     world.phase = "dying";
     world.deathTimer = 0;
     world.shake = Math.max(world.shake, 0.7);
-    world.events.push({ type: "death", x: s.x, y: s.y });
+    world.events.push({ type: "death", x: s.x, y: s.y, cause: recordDeathCause(world, "crater") });
     return;
   }
 }

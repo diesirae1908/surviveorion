@@ -6,6 +6,7 @@ import type { GameMode } from "./config";
 import { apiBase } from "./native";
 import { loadDeviceId } from "./device";
 import { loadRunCount } from "./save";
+import { setCreatorPreview, setRemoteFeatures } from "./flags";
 
 export const PAYWALL_SOURCES = [
   "calendar_unlock",
@@ -245,8 +246,15 @@ export class Api {
     premiumSource?: string | null;
     stripeCustomer?: boolean;
     stripeBilling?: boolean;
+    creatorPreview?: unknown;
   }): void {
     this.clipInbox = !!me.clipInbox;
+    // Switch registry creator preview: only the allowlisted account ever gets one.
+    try {
+      setCreatorPreview(me.creatorPreview ?? null);
+    } catch {
+      // never break /api/me handling
+    }
     this.tier = me.tier ?? (this.clipInbox ? "admin" : "free");
     this.premiumActive = !!me.premiumActive || this.clipInbox;
     this.premiumSource = me.premiumSource ?? null;
@@ -263,8 +271,14 @@ export class Api {
           monthly: { plan: string; displayAmount: string; interval: string };
           yearly: { plan: string; displayAmount: string; interval: string };
         };
+        features?: unknown;
       }>("GET", "/api/config");
       this.googleClientId = cfg.googleClientId;
+      try {
+        setRemoteFeatures(cfg.features);
+      } catch {
+        // bad features payload must never break boot
+      }
       if (cfg.billing?.stripeCheckout) {
         this.stripeBilling = true;
         this.billingDisplay = {
@@ -432,6 +446,7 @@ export class Api {
   async refreshClipInbox(): Promise<void> {
     if (!this.token) {
       this.clipInbox = false;
+      setCreatorPreview(null);
       this.tier = "free";
       this.premiumActive = false;
       this.premiumSource = null;
@@ -524,6 +539,10 @@ export class Api {
     daily?: boolean;
     /** Past-day / rehearsal Daily (server gates: premium for past, admin for future). */
     dailyDate?: string;
+    /** Switch set the run was flown under ("base" or overdrive@id#hash). */
+    ruleset?: string;
+    odHot?: number;
+    odFires?: number;
   }): Promise<SubmitResult> {
     return this.request<SubmitResult>("POST", "/api/scores", {
       ...run,
@@ -543,6 +562,9 @@ export class Api {
     gameMode: GameMode;
     platform: string;
     daily?: boolean;
+    ruleset?: string;
+    odHot?: number;
+    odFires?: number;
   }): Promise<{ ok: boolean }> {
     return this.request("POST", "/api/runs", {
       ...run,

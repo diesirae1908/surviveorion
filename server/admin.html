@@ -170,6 +170,17 @@
   .tag-real { background: var(--green-bg); color: var(--green); }
   .tag-fill { background: var(--amber-bg); color: #5c4e00; }
   .board-wrap { overflow-x: auto; }
+  .sw-banner { background: var(--red); color: #fff; padding: 8px 14px; border-radius: 8px; font-weight: 650; margin-bottom: 14px; }
+  .sw-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: #fafbfb; margin-bottom: 14px; }
+  .sw-card h3 { margin: 0 0 4px; font-size: 14px; }
+  .sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 16px; margin: 10px 0; }
+  .sw-grid label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+  .sw-grid input[type="number"] { width: 84px; padding: 4px 6px; border: 1px solid var(--line-strong); border-radius: 6px; }
+  .sw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0; }
+  .sw-row input[type="text"], .sw-row input[type="date"] { padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 6px; }
+  .sw-err { color: var(--red); margin-top: 6px; }
+  .sw-on { background: var(--green-bg); color: var(--green); }
+  .sw-off { background: #e4e5e7; color: #5c5f62; }
   @media (max-width: 720px) {
     .topbar, .shell { padding-left: 16px; padding-right: 16px; }
     .hbar-label { width: 96px; }
@@ -372,6 +383,10 @@ function renderDay(day) {
       stat("D1 return", pctRate(day.retention && day.retention.d1Return), vs(day.retention && day.retention.d1Return, prev && prev.retention && prev.retention.d1Return)) +
       stat("D7 return", pctRate(day.retention && day.retention.d7Return), vs(day.retention && day.retention.d7Return, prev && prev.retention && prev.retention.d7Return)) +
     "</div>" +
+    '<div class="metrics">' +
+      stat("Ruleset mismatches", day.rulesetMismatch == null ? "-" : fmt(day.rulesetMismatch)) +
+      stat("Of which old bundle (no ruleset)", day.rulesetLegacy == null ? "-" : fmt(day.rulesetLegacy)) +
+    "</div>" +
     renderPaywall(day.paywall, (curr, key) => {
       if (key === "open") return vs(curr, prev && prev.paywall && prev.paywall.byStep && prev.paywall.byStep.open);
       return vs(curr, prev && prev.paywall && prev.paywall[key]);
@@ -460,6 +475,135 @@ async function loadDay(dateStr) {
 
 function navDay(delta) { loadDay(shiftDate(currentDay, delta)); }
 function jumpToday() { loadDay(TODAY); }
+
+// --- Switches (feature registry) ---
+let SW = null;
+function swLeaves(obj, prefix, out) {
+  Object.keys(obj).forEach((k) => {
+    const path = prefix ? prefix + "." + k : k;
+    if (obj[k] !== null && typeof obj[k] === "object") swLeaves(obj[k], path, out);
+    else out.push({ path, value: obj[k] });
+  });
+  return out;
+}
+function swParamsDiff(params, def) {
+  const a = swLeaves(params, "", []);
+  const d = {};
+  swLeaves(def, "", []).forEach((x) => { d[x.path] = x.value; });
+  const diff = a.filter((x) => d[x.path] !== x.value).map((x) => x.path + "=" + x.value);
+  return diff.length ? diff.join(", ") : "defaults";
+}
+function swCard(key, f, current) {
+  const bounds = f.bounds || {};
+  const params = current || f.default.params;
+  const fields = swLeaves(params, "", []).map((leaf) => {
+    const id = "sw-" + key + "-" + leaf.path;
+    if (typeof leaf.value === "boolean") {
+      return '<label>' + esc(leaf.path) + '<input type="checkbox" data-sw="' + esc(key) + '" data-path="' + esc(leaf.path) + '" data-type="bool"' + (leaf.value ? " checked" : "") + "></label>";
+    }
+    const b = bounds[leaf.path];
+    return '<label>' + esc(leaf.path) + '<input type="number" step="any" data-sw="' + esc(key) + '" data-path="' + esc(leaf.path) + '" data-type="num" value="' + esc(leaf.value) + '"' +
+      (b ? ' min="' + b[0] + '" max="' + b[1] + '" title="' + b[0] + ' to ' + b[1] + '"' : "") + "></label>";
+  }).join("");
+  const minDate = f.kind === "gameplay" && !SW.sameDayBypass ? shiftDate(SW.today, SW.minLeadDays) : SW.today;
+  const tag = (v) => '<span class="tag ' + (v.enabled ? "sw-on" : "sw-off") + '">' + (v.enabled ? "ON" : "off") + " (v" + esc(v.versionId) + ")</span>";
+  const hist = f.history.length
+    ? "<table><tr><th>Id</th><th>From</th><th>On</th><th>Params vs default</th><th>Hash</th><th>Actor</th><th>Note</th></tr>" +
+      f.history.map((r) => "<tr><td>" + r.id + "</td><td>" + esc(r.from) + "</td><td>" + (r.enabled ? "on" : "off") + "</td><td>" + esc(swParamsDiff(r.params, f.default.params)) + "</td><td>" + esc(r.hash) + "</td><td>" + esc(r.actor) + "</td><td>" + esc(r.note) + "</td></tr>").join("") + "</table>"
+    : "<span class='muted'>No rows yet: the bundled default applies.</span>";
+  return '<div class="sw-card" data-card="' + esc(key) + '"><h3>' + esc(key) + ' <span class="muted">' + esc(f.kind) + " / " + esc(f.area) + "</span></h3>" +
+    '<div class="muted">' + esc(f.description) + "</div>" +
+    '<div class="sw-row">Today: ' + tag(f.today) + " Tomorrow: " + tag(f.tomorrow) +
+      (f.next ? " Next scheduled: " + esc(f.next.from) + " (" + (f.next.enabled ? "on" : "off") + ")" : "") + "</div>" +
+    '<div class="sw-grid">' + fields + "</div>" +
+    '<div class="sw-row">' +
+      '<label><input type="checkbox" id="sw-en-' + esc(key) + '"> enabled</label>' +
+      'Effective from <input type="date" id="sw-from-' + esc(key) + '" min="' + esc(minDate) + '" value="' + esc(minDate) + '">' +
+      '<input type="text" id="sw-note-' + esc(key) + '" placeholder="note" size="28">' +
+      "<button class='btn' onclick='swSave(" + JSON.stringify(key).replace(/"/g, "&quot;") + ")'>Save row</button>" +
+    "</div>" +
+    '<div class="sw-err" id="sw-err-' + esc(key) + '"></div>' +
+    "<details><summary class='muted'>History</summary>" + hist + "</details></div>";
+}
+function swPreviewPanel(v) {
+  const cp = v.creatorPreview;
+  const boxes = Object.keys(v.flags).map((k) => '<label style="margin-right:12px"><input type="checkbox" class="sw-cp" value="' + esc(k) + '"> ' + esc(k) + "</label>").join("");
+  return '<div class="sw-card"><h3>Creator preview</h3><div class="muted">Lets the allowlisted creator account try switches in production. Preview runs are unscored and never submit. Other players are unaffected.</div>' +
+    '<div class="sw-row">Status: ' + (cp ? "<strong>armed</strong> until " + new Date(cp.expiresAt).toLocaleString() + " (" + esc(Object.keys(cp.flags).join(", ")) + ")" : "off") + "</div>" +
+    '<div class="sw-row">' + boxes + "</div>" +
+    '<div class="sw-row">Hours (1 to 12) <input type="text" id="sw-cp-hours" value="4" size="3"><input type="text" id="sw-cp-note" placeholder="note" size="24">' +
+      "<button class='btn' onclick='swArm()'>Arm</button><button class='btn btn-secondary' onclick='swDisarm()'>Disarm</button></div>" +
+    '<div class="sw-err" id="sw-cp-err"></div></div>';
+}
+function swRender() {
+  const el = document.getElementById("sw-body");
+  if (!el || !SW) return;
+  el.innerHTML =
+    (SW.sameDayBypass ? '<div class="sw-banner">SAME-DAY BYPASS ON (staging only)</div>' : "") +
+    "<table><tr><th>Key</th><th>Kind</th><th>Area</th><th>Today</th><th>Tomorrow</th><th>Next row</th></tr>" +
+    Object.keys(SW.flags).map((k) => {
+      const f = SW.flags[k];
+      return "<tr><td>" + esc(k) + "</td><td>" + esc(f.kind) + "</td><td>" + esc(f.area) + "</td><td>" + (f.today.enabled ? "ON" : "off") + "</td><td>" + (f.tomorrow.enabled ? "ON" : "off") + "</td><td>" + (f.next ? esc(f.next.from) : "-") + "</td></tr>";
+    }).join("") + "</table><div style='height:14px'></div>" +
+    Object.keys(SW.flags).map((k) => {
+      const f = SW.flags[k];
+      const cur = f.history.length ? f.history[0].params : null;
+      return swCard(k, f, cur);
+    }).join("") + swPreviewPanel(SW);
+  Object.keys(SW.flags).forEach((k) => {
+    const f = SW.flags[k];
+    const en = document.getElementById("sw-en-" + k);
+    if (en) en.checked = f.history.length ? !!f.history[0].enabled : !!f.default.enabled;
+  });
+}
+async function loadSwitches() {
+  const el = document.getElementById("sw-body");
+  try {
+    const res = await fetch("/api/admin/flags", ADMIN_AUTH);
+    const v = await res.json();
+    if (!res.ok) { el.innerHTML = "<p class='err'>" + esc(v.error ?? "failed") + "</p>"; return; }
+    SW = v;
+    swRender();
+  } catch (e) { el.innerHTML = "<p class='err'>Could not load switches.</p>"; }
+}
+function swCollect(key) {
+  const params = {};
+  document.querySelectorAll('[data-sw="' + key + '"]').forEach((inp) => {
+    const parts = inp.getAttribute("data-path").split(".");
+    let o = params;
+    for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]] = o[parts[i]] || {};
+    o[parts[parts.length - 1]] = inp.getAttribute("data-type") === "bool" ? inp.checked : Number(inp.value);
+  });
+  return params;
+}
+async function swPost(url, body, errId) {
+  const err = document.getElementById(errId);
+  err.textContent = "";
+  const res = await fetch(url, { method: "POST", headers: { Authorization: ADMIN_AUTH.headers.Authorization, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) { err.textContent = j.error ?? "failed"; return false; }
+  await loadSwitches();
+  return true;
+}
+function swSave(key) {
+  swPost("/api/admin/flags", {
+    key: key,
+    effectiveFrom: document.getElementById("sw-from-" + key).value,
+    enabled: document.getElementById("sw-en-" + key).checked,
+    params: swCollect(key),
+    note: document.getElementById("sw-note-" + key).value,
+  }, "sw-err-" + key);
+}
+function swArm() {
+  const flags = {};
+  document.querySelectorAll(".sw-cp:checked").forEach((c) => { flags[c.value] = { enabled: true }; });
+  swPost("/api/admin/creator-preview", {
+    flags: flags,
+    hours: Number(document.getElementById("sw-cp-hours").value),
+    note: document.getElementById("sw-cp-note").value,
+  }, "sw-cp-err");
+}
+function swDisarm() { swPost("/api/admin/creator-preview", { disarm: true }, "sw-cp-err"); }
 
 async function go() {
   const key = document.getElementById("key").value.trim();
@@ -583,10 +727,17 @@ async function go() {
       fb.map((f) => "<tr><td class='muted'>" + new Date(f.createdAt).toLocaleString() + "</td><td>" +
         esc(f.callsign ?? "anon") + "</td><td>" + esc(f.email ?? "") + "</td><td><pre>" +
         esc(f.message) + "</pre><span class='muted'>" + esc(f.context) + "</span></td></tr>").join("") +
-    "</table></div></section>";
+    "</table></div></section>" +
+    '<section class="report" id="switches">' +
+      '<div class="report-head"><div><h2>Switches</h2>' +
+        "<p>Rules and features that can be turned on or off without a deploy. Gameplay switches start at a patrol-day boundary (PT), scheduled ahead. Rows are append-only: a change is a new row.</p>" +
+      "</div></div>" +
+      '<div class="report-body" id="sw-body"><span class="muted">Loading...</span></div>' +
+    "</section>";
   document.getElementById("day-date").addEventListener("change", (e) => loadDay(e.target.value));
   if (s.day) { renderDay(s.day); setDayControls(s.day.date); }
   startDayRefresh();
+  loadSwitches();
 }
 const saved = localStorage.getItem("orion.adminKey");
 if (saved) { document.getElementById("key").value = saved; go(); }

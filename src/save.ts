@@ -55,6 +55,12 @@ export interface Settings {
    * Desktop Chrome uses getDisplayMedia (this tab). Persist like recordRuns.
    */
   recordingMode: boolean;
+  /**
+   * Presentation weight. "lite" trims screen-wide effects (heat tint, vignettes,
+   * freeze frames). The settings row is Phase 1b; until then
+   * prefers-reduced-motion drives it (see effectiveEffects).
+   */
+  effects: "full" | "lite";
 }
 
 /** Mobile control preference + tilt calibration (separate from the boolean toggles). */
@@ -401,6 +407,7 @@ export function loadSettings(): Settings {
     directSpeed: "med",
     recordRuns: false,
     recordingMode: false,
+    effects: "full",
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -411,10 +418,22 @@ export function loadSettings(): Settings {
       ...parsed,
       tiltSensitivity: parseSense(parsed.tiltSensitivity, defaults.tiltSensitivity),
       directSpeed: parseSense(parsed.directSpeed, defaults.directSpeed),
+      effects: parsed.effects === "lite" ? "lite" : "full",
     };
   } catch {
     return defaults;
   }
+}
+
+/** Effective presentation weight: "lite" when chosen or when the OS asks for reduced motion. */
+export function effectiveEffects(settings: Pick<Settings, "effects">): "full" | "lite" {
+  if (settings.effects === "lite") return "lite";
+  try {
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return "lite";
+  } catch {
+    // matchMedia unavailable
+  }
+  return "full";
 }
 
 export function saveSettings(settings: Settings): void {

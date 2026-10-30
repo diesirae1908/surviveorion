@@ -1,4 +1,8 @@
-import type { GameMode, PowerId } from "./config";
+import type { FormationKind, GameMode, PowerId } from "./config";
+import type { ClientFlags, RunRules } from "./flags";
+import type { AudioSystem } from "./audio";
+import type { Particles } from "./particles";
+import type { Popups } from "./popups";
 import type { ClosestCall } from "./highlights";
 
 export interface Ship {
@@ -50,6 +54,8 @@ export interface Drone {
   scriptSpeedScale?: number;
   /** Assembly this drone is conscripted into (null/undefined = free). */
   assembly?: Assembly | null;
+  /** Formation that spawned this drone (tag only, used for death attribution). */
+  formation?: FormationKind;
   /**
    * Slot offset in the assembly's local frame: slotX along the travel
    * direction, slotY perpendicular — the shape rotates with its heading.
@@ -388,7 +394,40 @@ export type GameEvent =
   | { type: "howlersUp" }
   | { type: "lighthouseSpawn"; x: number; y: number }
   | { type: "lighthouseKill"; x: number; y: number; points: number }
-  | { type: "death"; x: number; y: number };
+  | { type: "overdriveHot" }
+  | { type: "overdriveCool" }
+  | { type: "overdriveFire"; power: PowerId; x: number; y: number; form: boolean }
+  | { type: "death"; x: number; y: number; cause?: DeathCause };
+
+/** What ended the run, and where (the ship's position at the moment of death). */
+export interface DeathCause {
+  kind: "drone" | "formation" | "creature" | "mine" | "beam" | "crater";
+  /** Formation kind or creature (assembly) kind when known. */
+  detail?: string;
+  time: number;
+  x: number;
+  y: number;
+}
+
+/** OVERDRIVE run state (inert until the switch is on; owned by overdrive.ts later). */
+export interface OverdriveState {
+  /** 0..1 hull charge. */
+  charge: number;
+  /** Full charge reached: the next orb fires its Overdrive form. */
+  hot: boolean;
+  /** Seconds spent HOT in the current heat. */
+  hotTime: number;
+  /** Seconds until charge starts to drain. */
+  drainTimer: number;
+  /** Seconds of kill-charge lockout remaining. */
+  lockout: number;
+  /** Kill charge gained in the current one-second window. */
+  killChargeWindow: number;
+  /** Times the hull went HOT this run. */
+  hotCount: number;
+  /** Overdrive forms fired this run. */
+  fires: number;
+}
 
 export interface World {
   // view size in world units (recomputed on resize)
@@ -416,6 +455,14 @@ export interface World {
    * and early ambient spawn rate for a player's first few runs. 0 = normal.
    */
   grace: number;
+
+  /** Switch set this run was flown under (resolved once at startRun; BASE_RULES by default). */
+  rules: RunRules;
+  overdrive: OverdriveState;
+  /** Grazes registered this run. */
+  grazes: number;
+  /** Set at the moment the run ends; null while alive. */
+  deathCause: DeathCause | null;
 
   phase: RunPhase;
   time: number; // seconds survived
@@ -500,4 +547,20 @@ export interface World {
   shipTrack: [number, number, number][];
   clipArena: { w: number; h: number };
   clipView: { w: number; h: number };
+}
+
+/**
+ * What a presentation module (fx/overdriveFx, feel, fx/deathFx) may touch when
+ * it reacts to a gameplay event. Presentation never mutates the sim: to hold
+ * the sim for a beat it calls `holdSim(ms)`.
+ */
+export interface FxContext {
+  world: World;
+  particles: Particles;
+  popups: Popups;
+  audio: AudioSystem;
+  /** Freeze sim ticks for `ms` of wall-clock time (sim time does not advance). */
+  holdSim(ms: number): void;
+  flags: ClientFlags;
+  effects: "full" | "lite";
 }

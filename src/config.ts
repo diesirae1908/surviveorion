@@ -2,7 +2,18 @@
 // Values ported from the Unity prototype (ShipController, EnemySpawner,
 // GameRules, PickupSpawner, power effect ScriptableObjects).
 
+import flagsRegistry from "../server/flags-registry.json";
+import type { OverdriveParams } from "./flags";
+
 export const FIXED_DT = 1 / 60;
+
+/**
+ * OVERDRIVE tuning defaults, a read-only view of the switch registry
+ * (server/flags-registry.json is the single source). The live values for a run
+ * come from `world.rules.overdrive`; this is for tools and tests. Pinned equal
+ * to the registry by scripts/test-flag-parity.ts.
+ */
+export const OVERDRIVE: Readonly<OverdriveParams> = flagsRegistry.flags.overdrive.default.params;
 
 /**
  * Game modes (each ranks on its own leaderboards):
