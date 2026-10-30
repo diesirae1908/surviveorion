@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: WS-D result v2, death moment, share card fix (feat/rg-result)
+
+- What: (1) share card bugfix, NOT switchable: row pitch now comes from the row count (`shareRowLayout`), so 1 to 6 rows end above y=930 (was 1074 at 6 rows); the ORION mark (`public/orion-mark.svg`, copy of `brand/assets/logo/orion-mark-gold.svg`) fills the empty logo slot, canvas-path fallback if it fails to load; drawing split into pure `drawShareCard` for tests. (2) `ui.result` `deathMoment`: `fx/deathFx.ts` throws gold shards, `holdSim(freezeMs)`, red flash 0.2 alpha fading over 150 ms (flash drawn in `drawDeathFx`; lite = shards only), result slides up over 400 ms (`SLIDE_MS`). (3) `ui.result` `resultV2`: `src/resultView.ts` + `src/styles/result.css` + `src/flightTrace.ts`; `ui.showGameOver` delegates to `showGameOverV2` when on, old path untouched when off (gold card and clip controls extracted into shared private methods, same markup). Hero count-up 900 ms, flight trace SVG (death point from `world.deathCause`), medal bar, KILLS/PEAK CHAIN/GRAZES chips, "Ran hot N times", cause line ("Downed by a pincer at 0:47"), FLY AGAIN primary, SHARE + BASE, Details, rank line + "#N TODAY" tag filled by `setGameOverRank`, Gold Patrol card below everything (`GOLD_CARD_BELOW`).
+- Why: plan-v2 WS-D, Lucas approved 2026-10-30. Header stays `RESULT_HEADER = "GAME OVER"` (one-line swap to SIGNAL LOST once approved).
+- Safety: no seeded draws, nothing submitted changes, no billing code touched (card moved only). `main.ts`: `onGameOver` unchanged; `showGameOverUi` passes new optional fields; one added CSS import line at the top (not in a CSS-importing module so tsx tests can load ui.ts).
+- Follow-ups: native `GameOverView` parity is Phase 2; `FLASH` timing uses wall clock (performance.now) so it does not depend on `DEATH_VEIL_SECONDS`.
+- Commits: see git log on feat/rg-result.
+
 ## 2026-10-30 PT: WS-A switch registry + seams (feat/switch-registry)
 
 - What: one visible switch registry for OVERDRIVE and the three UI layers, plus the seams the next workstreams plug into. All four switches (`overdrive`, `ui.overdriveFx`, `ui.hud`, `ui.result`) default OFF; with no rows the game is identical to dev and every score writes ruleset `base`.
