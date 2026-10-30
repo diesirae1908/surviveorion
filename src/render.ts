@@ -18,8 +18,18 @@ import { lighthouseBeamLength, lighthouseBeamWidth, lighthouseBodyRadius } from 
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
 import type { World } from "./types";
-import type { ClientFlags, OverdriveFxParams } from "./flags";
+import type { ClientFlags, HudParams, OverdriveFxParams } from "./flags";
 import * as feel from "./feel";
+import {
+  SCORE_PX_DESKTOP,
+  SCORE_PX_PHONE,
+  chainBarFill,
+  chainBarFlicker,
+  fitScorePx,
+  hudLayout,
+  stickAlpha,
+  type HudLayout,
+} from "./feel";
 import * as deathFx from "./fx/deathFx";
 import * as overdriveFx from "./fx/overdriveFx";
 
@@ -78,6 +88,10 @@ export class Renderer {
   private cssH = 0;
   /** Notch / home-indicator insets so the HUD never hides under phone chrome. */
   private safe = { top: 0, right: 0, bottom: 0, left: 0 };
+  /** ui.hud flag as of the last drawHud (drawTouchOverlay has no opts). */
+  private hudFlag: HudParams | null = null;
+  private touchHeldFrom = 0;
+  private touchLastDraw = 0;
   viewW = VIEW_MIN;
   viewH = VIEW_MIN;
   private field: FieldLayout = { scale: 1, ox: 0, oy: 0, fieldCssW: 0, fieldCssH: 0 };
@@ -2558,7 +2572,12 @@ export class Renderer {
     const mutators = opts.daily ? getActiveMutators() : [];
     const ship = world.ship;
     const playing = world.phase === "playing";
-    const leftRect = { x: 0, y: 0, w: 240, h: padTop + 78 };
+    // Rising Gold HUD (ui.hud): same corners, new score block. null = today's HUD.
+    const hud = opts.flags.hud;
+    this.hudFlag = hud;
+    const scorePx = this.cssW >= 768 ? SCORE_PX_DESKTOP : SCORE_PX_PHONE;
+    const lay = hud ? hudLayout(this.cssW, this.cssH, this.safe, opts.daily, scorePx) : null;
+    const leftRect = lay ? lay.leftRect : { x: 0, y: 0, w: 240, h: padTop + 78 };
     const centerBottom = opts.daily ? padTop + 76 : padTop + 28;
     const centerRect = { x: this.cssW / 2 - 160, y: 0, w: 320, h: centerBottom };
     const pauseRect = {
@@ -2573,30 +2592,34 @@ export class Renderer {
     ctx.save();
     if (playing) ctx.globalAlpha = this.hudAlpha(ship, leftRect);
 
-    // score (top-left)
-    ctx.textAlign = "left";
-    ctx.fillStyle = PALETTE.gold;
-    ctx.font = canvasFont("bold 28px");
-    ctx.fillText(Math.floor(world.score).toLocaleString(), pad, padTop);
+    if (lay && hud) {
+      this.drawRisingGoldScore(world, opts, hud, lay, scorePx);
+    } else {
+      // score (top-left)
+      ctx.textAlign = "left";
+      ctx.fillStyle = PALETTE.gold;
+      ctx.font = canvasFont("bold 28px");
+      ctx.fillText(Math.floor(world.score).toLocaleString(), pad, padTop);
 
-    // multiplier (gold-hot as it climbs toward the cap)
-    const m = world.multiplier;
-    const heat = clamp01((m - 1) / (SCORING.multiplierMax - 1));
-    ctx.font = canvasFont("bold 18px");
-    ctx.fillStyle = heat > 0.55 ? PALETTE.gold : m > 1.01 ? PALETTE.redBright : PALETTE.bronze;
-    ctx.fillText(`x${m.toFixed(1)}`, pad, padTop + 34);
+      // multiplier (gold-hot as it climbs toward the cap)
+      const m = world.multiplier;
+      const heat = clamp01((m - 1) / (SCORING.multiplierMax - 1));
+      ctx.font = canvasFont("bold 18px");
+      ctx.fillStyle = heat > 0.55 ? PALETTE.gold : m > 1.01 ? PALETTE.redBright : PALETTE.bronze;
+      ctx.fillText(`x${m.toFixed(1)}`, pad, padTop + 34);
 
-    // active kill chain
-    if (world.chainCount >= 3 && world.chainTimer > 0) {
-      ctx.fillStyle = PALETTE.goldPale;
-      ctx.font = canvasFont("bold 14px");
-      ctx.fillText(`CHAIN ×${world.chainCount}`, pad + 64, padTop + 37);
+      // active kill chain
+      if (world.chainCount >= 3 && world.chainTimer > 0) {
+        ctx.fillStyle = PALETTE.goldPale;
+        ctx.font = canvasFont("bold 14px");
+        ctx.fillText(`CHAIN ×${world.chainCount}`, pad + 64, padTop + 37);
+      }
+
+      // best (under the score, clear of the pause button top-right)
+      ctx.fillStyle = PALETTE.bronze;
+      ctx.font = canvasFont("14px");
+      ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, pad, padTop + 60);
     }
-
-    // best (under the score, clear of the pause button top-right)
-    ctx.fillStyle = PALETTE.bronze;
-    ctx.font = canvasFont("14px");
-    ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, pad, padTop + 60);
     ctx.restore();
 
     ctx.save();
@@ -2726,6 +2749,57 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** ui.hud score block: one big number, multiplier, chain bar, best. */
+  private drawRisingGoldScore(world: World, opts: RenderOpts, hud: HudParams, lay: HudLayout, scorePx: number): void {
+    const { ctx } = this;
+    const text = Math.floor(world.score).toLocaleString();
+    const px = fitScorePx(text.length, lay.scoreMaxW, scorePx);
+    const hot = world.overdrive.hot;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = canvasFont(`700 ${px}px`);
+    ctx.fillStyle = hot ? PALETTE.goldPale : PALETTE.white;
+    if (opts.effects === "full") {
+      ctx.shadowColor = hot ? PALETTE.gold : "rgba(255,215,0,0.55)";
+      ctx.shadowBlur = hot ? 16 : 10;
+    }
+    ctx.fillText(text, lay.pad, lay.scoreY);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+
+    const m = world.multiplier;
+    const heat = clamp01((m - 1) / (SCORING.multiplierMax - 1));
+    ctx.font = canvasFont("700 18px");
+    ctx.fillStyle = heat > 0.55 ? PALETTE.gold : m > 1.01 ? PALETTE.redBright : PALETTE.bronze;
+    ctx.fillText(`x${m.toFixed(1)}`, lay.pad, lay.multY);
+
+    if (hud.chainBar) {
+      const barX = lay.pad;
+      const barW = Math.min(120, lay.scoreMaxW);
+      const fill = chainBarFill(world);
+      const flicker = chainBarFlicker(world) && opts.effects === "full";
+      const prevA = ctx.globalAlpha;
+      ctx.globalAlpha = prevA * 0.25;
+      ctx.fillStyle = PALETTE.bronze;
+      ctx.fillRect(barX, lay.barY, barW, lay.barH);
+      if (fill > 0) {
+        ctx.globalAlpha = prevA * (flicker ? (Math.sin(opts.uiTime * 40) > 0 ? 1 : 0.35) : 1);
+        ctx.fillStyle = heat > 0.55 ? PALETTE.gold : PALETTE.redBright;
+        ctx.fillRect(barX, lay.barY, barW * fill, lay.barH);
+      }
+      ctx.globalAlpha = prevA;
+    }
+    if (world.chainCount >= 3 && world.chainTimer > 0) {
+      ctx.fillStyle = PALETTE.goldPale;
+      ctx.font = canvasFont("700 14px");
+      ctx.fillText(`CHAIN ×${world.chainCount}`, lay.pad + 64, lay.multY + 3);
+    }
+
+    ctx.fillStyle = PALETTE.bronze;
+    ctx.font = canvasFont("14px");
+    ctx.fillText(`BEST ${Math.floor(opts.bestScore).toLocaleString()}`, lay.pad, lay.bestY);
+  }
+
   /** Red ring over any drone sitting under the top-right pause HUD rect. */
   private drawPauseHudRings(world: World, alpha: number): void {
     if (world.phase !== "playing") return;
@@ -2766,8 +2840,15 @@ export class Renderer {
     const { ctx } = this;
     const origin = this.canvasLocal(touch.originX, touch.originY);
     const stick = this.canvasLocal(touch.stickX, touch.stickY);
+    // ui.hud stickFade: dim after a second of continuous use, hide when idle.
+    const now = typeof performance !== "undefined" ? performance.now() : 0;
+    if (now - this.touchLastDraw > 200) this.touchHeldFrom = now; // a new hold
+    this.touchLastDraw = now;
+    const idleStick = Math.hypot(stick.x - origin.x, stick.y - origin.y) < 10;
+    const fade = stickAlpha((now - this.touchHeldFrom) / 1000, idleStick, this.hudFlag);
+    if (fade <= 0) return;
     ctx.save();
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.25 * fade;
     ctx.strokeStyle = PALETTE.gold;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -2778,7 +2859,7 @@ export class Renderer {
     const dy = stick.y - origin.y;
     const d = Math.hypot(dx, dy);
     const cl = d > 60 ? 60 / d : 1;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.5 * fade;
     ctx.fillStyle = PALETTE.gold;
     ctx.beginPath();
     ctx.arc(origin.x + dx * cl, origin.y + dy * cl, 24, 0, Math.PI * 2);

@@ -8,13 +8,20 @@ interface Popup {
   age: number;
   lifetime: number;
   size: number; // world units of text height
+  /** Rising style: ease-out rise (world units) with a pop-in scale. 0 = classic float. */
+  rise: number;
 }
 
 export class Popups {
   private items: Popup[] = [];
 
   spawn(x: number, y: number, text: string, color: string, size = 0.45, lifetime = 0.9): void {
-    this.items.push({ x, y, text, color, age: 0, lifetime, size });
+    this.items.push({ x, y, text, color, age: 0, lifetime, size, rise: 0 });
+  }
+
+  /** Short rising pop (ui.hud kill pops): scales in, floats up with ease-out, fades. */
+  spawnRising(x: number, y: number, text: string, color: string, size: number, lifetime: number, rise: number): void {
+    this.items.push({ x, y, text, color, age: 0, lifetime, size, rise });
   }
 
   update(dt: number): void {
@@ -34,12 +41,13 @@ export class Popups {
     for (const p of this.items) {
       const t = p.age / p.lifetime;
       const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
-      const rise = t * 0.8;
+      const rise = p.rise > 0 ? p.rise * (1 - (1 - t) * (1 - t)) : t * 0.8;
+      const pop = p.rise > 0 ? 0.7 + 0.3 * Math.min(1, t / 0.2) : 1;
 
       ctx.save();
       ctx.translate(p.x, p.y + rise);
       // world transform is y-flipped; draw text at ~32px then scale to world units
-      const s = p.size / 32;
+      const s = (p.size * pop) / 32;
       ctx.scale(s, -s);
       ctx.globalAlpha = alpha;
       ctx.font = "700 32px Rajdhani, sans-serif";

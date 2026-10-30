@@ -27,6 +27,11 @@ why, commit hash, follow-ups), committed together with the work. See
 - Why: plan-v2 WS-C1. Everything returns early when `ui.overdriveFx` is null; `heatTint`, `formPopup`, `stings` sub-switches honored; `effects: lite` drops bloom, halo and halves bursts. No seeded draws, no sim writes, no per-frame allocations beyond one gradient while HOT.
 - Deviations: base drone color is already redBright, so "tint to redBright" would be invisible; heated drones use a hotter palette (HEAT_* constants). `drawDroneTint` and `drawShipOverlay` gained params (flags, ship x/y, px scale) because the A stub signatures could not carry them. One call-site edit in `render()`: `drawDrones(world, opts.alpha, opts.flags.overdriveFx)`.
 - Follow-ups: wire `firstFlightHint` third arg in main.ts (A's file); re-check ring contrast on device with WS-B's real charge.
+## 2026-10-30 PT: WS-C2 Rising Gold in-run HUD + feel (feat/rg-hud-feel)
+
+- What: everything behind `ui.hud` (off = today's HUD, byte-for-byte path kept as the else branch; test-flags pure-move assertions still pass). `src/feel.ts`: pure helpers (`chainBarFill/Flicker`, `stickAlpha`, `vignetteAmount`, `killPopAllowed`, `hudLayout`, `fitScorePx`), `onEvent` adds a rising `+N` only in chains >= `killPopMinChain` (full effects) and a gold ring on graze (`pops`), `drawOverlay` draws the eased danger vignette (`vignette`, full effects only, gradient cached per size). `src/render.ts` `drawHud`/`drawTouchOverlay`: one big score (34 phone / 40 desktop, shrinks to fit left of the time readout, glow turns gold while HOT), chain bar (`chainBar`), BEST in Bronze, stick dims after 1 s and hides when idle (`stickFade`). `popups.ts` `spawnRising`, `particles.ts` `ringPulse`. `scripts/test-feel.ts` replaces the stub.
+- Why/notes: no seeded draws, no sim or score change, no per-frame allocation in the new paths (no splice-free pool: spawn/ring objects are per-event like today). Kill pop rise is in world units (0.9) since popups draw in world space. The +N graze popup still fires every day (mutatorGrazePopups() is never called); left unchanged.
+- Follow-ups: device check at 500 drones (QA); band HUD stays Phase 1b. No screenshots: the in-run state needs sign-in/server in the headless browser.
 
 ## 2026-10-30 PT: WS-A switch registry + seams (feat/switch-registry)
 

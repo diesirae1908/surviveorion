@@ -1,3 +1,163 @@
-// Stub registered by the switch registry workstream so `npm test` has a stable
-// shape. The owning workstream replaces this file with real checks.
-console.log("PASS stub (owned by feel)");
+/**
+ * Rising Gold in-run feel: pure helpers, layout, and the OFF path.
+ * Run: npx tsx scripts/test-feel.ts
+ */
+import { PALETTE, SCORING } from "../src/config";
+import { createWorld } from "../src/gameState";
+import type { HudParams } from "../src/flags";
+import {
+  STICK_FADE_ALPHA,
+  chainBarFill,
+  chainBarFlicker,
+  fitScorePx,
+  hudLayout,
+  killPopAllowed,
+  onEvent,
+  stickAlpha,
+  vignetteAmount,
+} from "../src/feel";
+import type { Drone, FxContext, GameEvent } from "../src/types";
+
+let failures = 0;
+function check(name: string, ok: boolean, detail = ""): void {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? ` - ${detail}` : ""}`);
+  if (!ok) failures++;
+}
+
+const HUD: HudParams = {
+  chainBar: true,
+  pops: true,
+  vignette: true,
+  stickFade: true,
+  killPopMinChain: 5,
+  vignetteMaxAlpha: 0.35,
+};
+const world = () => createWorld(17.8, 10);
+const drone = (x: number, y: number, extra: Partial<Drone> = {}): Drone =>
+  ({ x, y, prevX: x, prevY: y, vx: 0, vy: 0, scale: 1, speedMultiplier: 1, mass: 1, jitterSeed: 0, spin: 0, frozen: 0, alive: true, ...extra }) as Drone;
+
+// chain bar
+{
+  const w = world();
+  w.multiplier = 1;
+  check("chainBarFill: x1 is empty", chainBarFill(w) === 0);
+  w.multiplier = 3;
+  w.multiplierDecayTimer = SCORING.multiplierDecayDelay;
+  check("chainBarFill: full right after a kill", chainBarFill(w) === 1);
+  w.multiplierDecayTimer = SCORING.multiplierDecayDelay / 2;
+  check("chainBarFill: drains with the hold timer", Math.abs(chainBarFill(w) - 0.5) < 1e-9);
+  w.multiplierDecayTimer = 0;
+  check("chainBarFill: empty once decaying", chainBarFill(w) === 0);
+  w.multiplier = 1.5;
+  w.multiplierDecayTimer = 0.3;
+  check("chainBarFlicker: below x2 and nearly out", chainBarFlicker(w));
+  w.multiplierDecayTimer = 1.5;
+  check("chainBarFlicker: calm while the timer is high", !chainBarFlicker(w));
+  w.multiplier = 4;
+  w.multiplierDecayTimer = 0.3;
+  check("chainBarFlicker: never at x2 and above", !chainBarFlicker(w));
+}
+
+// stick
+check("stickAlpha: flag off is always 1", stickAlpha(5, false, null) === 1 && stickAlpha(5, true, null) === 1);
+check("stickAlpha: stickFade false is always 1", stickAlpha(5, true, { ...HUD, stickFade: false }) === 1);
+check("stickAlpha: full for the first second", stickAlpha(0.5, false, HUD) === 1 && stickAlpha(1, false, HUD) === 1);
+check("stickAlpha: dims to the floor", Math.abs(stickAlpha(3, false, HUD) - STICK_FADE_ALPHA) < 1e-9);
+check("stickAlpha: eases between", stickAlpha(1.2, false, HUD) < 1 && stickAlpha(1.2, false, HUD) > STICK_FADE_ALPHA);
+check("stickAlpha: hidden when idle", stickAlpha(0.1, true, HUD) === 0);
+
+// vignette
+{
+  const w = world();
+  w.ship.x = 0;
+  w.ship.y = 0;
+  check("vignetteAmount: empty field is 0", vignetteAmount(w) === 0);
+  w.drones.push(drone(50, 50), drone(0.5, 0.2), drone(0.3, -0.3, { frozen: 2 }), drone(0.2, 0.2, { alive: false }));
+  const one = vignetteAmount(w);
+  check("vignetteAmount: counts only near, live, mobile drones", one > 0 && one < 1, String(one));
+  for (let i = 0; i < 6; i++) w.drones.push(drone(0.4, 0.4));
+  check("vignetteAmount: saturates at 1", vignetteAmount(w) === 1);
+}
+
+// kill pop gate
+check("killPopAllowed: needs the chain", !killPopAllowed(4, HUD, "full") && killPopAllowed(5, HUD, "full"));
+check("killPopAllowed: flag off", !killPopAllowed(20, null, "full"));
+check("killPopAllowed: pops false", !killPopAllowed(20, { ...HUD, pops: false }, "full"));
+check("killPopAllowed: lite", !killPopAllowed(20, HUD, "lite"));
+check("killPopAllowed: respects killPopMinChain", killPopAllowed(2, { ...HUD, killPopMinChain: 2 }, "full"));
+
+// layout: never overlaps the pause button or the time readout, stays on screen
+{
+  const viewports: Array<[number, number]> = [[390, 844], [428, 926], [1440, 900], [1024, 768]];
+  const tops = [0, 47, 59];
+  const bottoms = [0, 34];
+  let bad = "";
+  for (const [w, h] of viewports) {
+    for (const top of tops) {
+      for (const bottom of bottoms) {
+        for (const daily of [false, true]) {
+          const px = w >= 768 ? 40 : 34;
+          const safe = { top, right: 0, bottom, left: 0 };
+          const L = hudLayout(w, h, safe, daily, px);
+          // widest realistic score (8 chars) after fitting
+          const fitted = fitScorePx(8, L.scoreMaxW, px);
+          const textRight = L.pad + 8 * 0.56 * fitted;
+          const blockBottom = L.bestY + 14;
+          const p = L.pauseRect;
+          const hitsPause = textRight > p.x && blockBottom > p.y;
+          const timeLeft = w / 2 - 24;
+          const hitsTime = textRight > timeLeft && L.scoreY < 30 + top;
+          const topOk = L.scoreY >= top && L.multY > L.scoreY + fitted * 0.9 && L.barY > L.multY + 18 && L.bestY > L.barY + L.barH;
+          const bottomOk = L.leftRect.h < L.bottomLimit - 120;
+          if (hitsPause || hitsTime || !topOk || !bottomOk) bad += ` ${w}x${h}/t${top}/b${bottom}/${daily ? "d" : "n"}`;
+        }
+      }
+    }
+  }
+  check("hudLayout: no overlap with pause/time, ordered, in bounds", bad === "", bad);
+  const L = hudLayout(390, 844, { top: 59, right: 0, bottom: 34, left: 0 }, false, 34);
+  check("hudLayout: keeps today's corner padding", L.pad === 18 && L.padTop === 18 + 59 && L.bottomLimit === 844 - 34);
+  check("fitScorePx: shrinks a long score, never grows", fitScorePx(12, 150, 34) < 34 && fitScorePx(3, 150, 34) === 34);
+}
+
+// OFF path and ON path through onEvent
+type Call = [string, ...unknown[]];
+function run(e: GameEvent, hud: HudParams | null, effects: "full" | "lite", chain: number): Call[] {
+  const calls: Call[] = [];
+  const w = world();
+  w.chainCount = chain;
+  const ctx = {
+    world: w,
+    particles: {
+      burst: (...a: unknown[]) => calls.push(["burst", ...a]),
+      grazeArc: (...a: unknown[]) => calls.push(["grazeArc", ...a]),
+      ringPulse: (...a: unknown[]) => calls.push(["ring", ...a]),
+    },
+    popups: {
+      spawn: (...a: unknown[]) => calls.push(["popup", ...a]),
+      spawnRising: (...a: unknown[]) => calls.push(["rising", ...a]),
+    },
+    audio: { droneKill: () => calls.push(["droneKill"]), graze: () => calls.push(["grazeSfx"]) },
+    holdSim: () => {},
+    flags: { overdriveFx: null, hud, result: null },
+    effects,
+  } as unknown as FxContext;
+  onEvent(e, ctx);
+  return calls;
+}
+const kill: GameEvent = { type: "droneKilled", x: 1, y: 2, scale: 1, wasFrozen: false, points: 120 };
+const graze: GameEvent = { type: "graze", x: 3, y: 1, points: 42 };
+const names = (c: Call[]) => c.map((x) => x[0]).join(",");
+check("OFF: kill is burst + sfx, even deep in a chain", names(run(kill, null, "full", 30)) === "burst,droneKill");
+check("OFF: graze unchanged (burst, arc, sfx, popup)", names(run(graze, null, "full", 0)) === "burst,grazeArc,grazeSfx,popup");
+check("ON: short chain kill has no pop", names(run(kill, HUD, "full", 2)) === "burst,droneKill");
+{
+  const c = run(kill, HUD, "full", 7);
+  check("ON: chain kill adds a rising +N", names(c) === "burst,droneKill,rising" && c[2][3] === "+120" && c[2][4] === PALETTE.goldPale);
+}
+check("ON + lite: no pop, no ring", names(run(kill, HUD, "lite", 9)) === "burst,droneKill" && names(run(graze, HUD, "lite", 0)) === "burst,grazeArc,grazeSfx,popup");
+check("ON: graze adds a gold ring", names(run(graze, HUD, "full", 0)) === "burst,grazeArc,grazeSfx,popup,ring");
+check("ON pops=false: graze has no ring", names(run(graze, { ...HUD, pops: false }, "full", 0)) === "burst,grazeArc,grazeSfx,popup");
+
+console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
+process.exit(failures === 0 ? 0 : 1);
