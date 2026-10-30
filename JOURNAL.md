@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: WS-C1 OVERDRIVE presentation (feat/overdrive-feel)
+
+- What: `src/fx/overdriveFx.ts` now draws the hull charge ring (gold arc, dark underlay, leading dot), the HOT state (full goldPale ring with bloom, orbiting spark, 2 Hz pulse, faint red heat halo at `hotRadius`), swarm heat tint (loose hostile drones within `hotRadius` of a HOT ship get a hotter palette: inner, outer, stroke, core), form popups (PULSE FAN, SHIELD NOVA, CRYO CHAIN, MAGNET SWEEP, ECHO WAVE, MISSILE STORM; burst only: OVERDRIVE), gold bursts and haptic. `audio.ts` gains `overdriveHot/Fire/Cool` (Web Audio synth). `drawShip` calls `drawShipOverlay`; `drawDrones` takes the `ui.overdriveFx` params and swaps palette for heated drones. `save.ts firstFlightHint(time, touch, overdriveOn = false)` shows "Skim the swarm to run hot. A hot orb hits harder." in the orb window only when `overdriveOn` (default off; Sam/WS-A wires the caller in main.ts). `scripts/test-overdrive-fx.ts` replaces the stub.
+- Why: plan-v2 WS-C1. Everything returns early when `ui.overdriveFx` is null; `heatTint`, `formPopup`, `stings` sub-switches honored; `effects: lite` drops bloom, halo and halves bursts. No seeded draws, no sim writes, no per-frame allocations beyond one gradient while HOT.
+- Deviations: base drone color is already redBright, so "tint to redBright" would be invisible; heated drones use a hotter palette (HEAT_* constants). `drawDroneTint` and `drawShipOverlay` gained params (flags, ship x/y, px scale) because the A stub signatures could not carry them. One call-site edit in `render()`: `drawDrones(world, opts.alpha, opts.flags.overdriveFx)`.
+- Follow-ups: wire `firstFlightHint` third arg in main.ts (A's file); re-check ring contrast on device with WS-B's real charge.
+
 ## 2026-10-30 PT: WS-A switch registry + seams (feat/switch-registry)
 
 - What: one visible switch registry for OVERDRIVE and the three UI layers, plus the seams the next workstreams plug into. All four switches (`overdrive`, `ui.overdriveFx`, `ui.hud`, `ui.result`) default OFF; with no rows the game is identical to dev and every score writes ruleset `base`.

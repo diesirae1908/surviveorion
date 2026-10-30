@@ -18,8 +18,9 @@ import { lighthouseBeamLength, lighthouseBeamWidth, lighthouseBodyRadius } from 
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
 import type { World } from "./types";
-import type { ClientFlags } from "./flags";
+import type { ClientFlags, OverdriveFxParams } from "./flags";
 import * as feel from "./feel";
+import * as overdriveFx from "./fx/overdriveFx";
 
 interface Star {
   x: number;
@@ -235,7 +236,7 @@ export class Renderer {
     this.drawProjectiles(world, opts.alpha);
     this.drawBullets(world, opts.alpha);
     this.drawMissiles(world, opts.alpha);
-    this.drawDrones(world, opts.alpha);
+    this.drawDrones(world, opts.alpha, opts.flags.overdriveFx);
     if (opts.showShip && world.phase === "playing") this.drawShip(world, opts);
     particles.draw(ctx, {
       x: lerp(world.ship.prevX, world.ship.x, opts.alpha),
@@ -1020,6 +1021,9 @@ export class Renderer {
 
     ctx.restore();
 
+    // OVERDRIVE hull ring + HOT glow (no-op while ui.overdriveFx is off)
+    overdriveFx.drawShipOverlay(ctx, world, opts, x, y, this.field.scale);
+
     // ion charge: aimed cone in world space so you can steer the shove
     if (world.powers.ionTimer > 0) {
       this.drawIonChargeCone(x, y, angle, world.powers.ionTimer, opts.uiTime);
@@ -1579,7 +1583,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawDrones(world: World, alpha: number): void {
+  private drawDrones(world: World, alpha: number, odFx: OverdriveFxParams | null): void {
     const { ctx } = this;
     for (const d of world.drones) {
       if (!d.alive) continue;
@@ -1677,6 +1681,9 @@ export class Renderer {
       }
       ctx.closePath();
       const dg = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
+      // OVERDRIVE heat: loose drones near a HOT ship read hotter than base red
+      const heatInner = odFx ? overdriveFx.drawDroneTint(world, d, PALETTE.redBright, odFx) : PALETTE.redBright;
+      const heated = heatInner !== PALETTE.redBright;
       if (frozen && !thawFlicker) {
         dg.addColorStop(0, "#e8f8ff");
         dg.addColorStop(1, "#4d88b8");
@@ -1688,19 +1695,19 @@ export class Renderer {
           dg.addColorStop(0, "#e8fbff");
           dg.addColorStop(1, "#1a6a88");
         } else {
-          dg.addColorStop(0, PALETTE.redBright);
-          dg.addColorStop(1, PALETTE.redDark);
+          dg.addColorStop(0, heatInner);
+          dg.addColorStop(1, heated ? overdriveFx.HEAT_OUTER : PALETTE.redDark);
         }
       }
       ctx.fillStyle = dg;
       ctx.fill();
-      ctx.strokeStyle = frozen && !thawFlicker ? "#2a4a66" : slamming ? "#0a4458" : "#3d0810";
+      ctx.strokeStyle = frozen && !thawFlicker ? "#2a4a66" : slamming ? "#0a4458" : heated ? overdriveFx.HEAT_STROKE : "#3d0810";
       ctx.lineWidth = 0.05;
       ctx.stroke();
 
       // core: warm glow normally, ice crystal when frozen
       ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = frozen && !thawFlicker ? "#dffaff" : d.allied ? PALETTE.gold : slamming ? PALETTE.ion : "#ff8866";
+      ctx.fillStyle = frozen && !thawFlicker ? "#dffaff" : d.allied ? PALETTE.gold : slamming ? PALETTE.ion : heated ? overdriveFx.HEAT_CORE : "#ff8866";
       ctx.beginPath();
       ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2);
       ctx.fill();

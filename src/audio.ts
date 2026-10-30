@@ -275,6 +275,28 @@ export class AudioSystem {
     this.tone(990, 1320, 0.14, "sine", 0.2, 0.08);
   }
 
+  /** OVERDRIVE HOT: bright rising gold sting (three stacked rising steps + shimmer). */
+  overdriveHot(): void {
+    this.tone(523, 784, 0.16, "sine", 0.2);
+    this.tone(784, 1175, 0.18, "sine", 0.18, 0.09);
+    this.tone(1175, 1760, 0.26, "sine", 0.16, 0.18);
+    this.tone(2349, 3136, 0.3, "triangle", 0.05, 0.2);
+  }
+
+  /** OVERDRIVE form fires: a heavier pickup, low thump under a rising chord. */
+  overdriveFire(): void {
+    this.noiseBurst(0.25, 0.25, 2400);
+    this.tone(140, 55, 0.3, "sine", 0.35);
+    this.tone(660, 1320, 0.2, "sine", 0.22);
+    this.tone(990, 1980, 0.26, "sine", 0.18, 0.06);
+    this.tone(1320, 2640, 0.3, "triangle", 0.08, 0.1);
+  }
+
+  /** OVERDRIVE heat expires unspent: soft fall. */
+  overdriveCool(): void {
+    this.tone(880, 330, 0.4, "sine", 0.1);
+  }
+
   shieldUp(): void {
     this.tone(330, 880, 0.4, "sine", 0.2);
   }
