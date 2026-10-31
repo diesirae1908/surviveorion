@@ -248,6 +248,7 @@ for (const stmt of [
   `ALTER TABLE runs ADD COLUMN od_hot INTEGER`,
   `ALTER TABLE runs ADD COLUMN od_fires INTEGER`,
   `ALTER TABLE flag_versions ADD COLUMN emergency INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE users ADD COLUMN cosmetics TEXT`,
 ]) {
   try {
     db.exec(stmt);
@@ -255,6 +256,29 @@ for (const stmt of [
     // column already exists
   }
 }
+
+// Daily Orders (server credited) + Pilot Ladder. Additive and idempotent.
+// order_completions is per-user, so it cascades with the account (App Store
+// deletion); merit is the value at award time and is never edited afterwards.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS order_completions (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    daily_date TEXT NOT NULL,
+    order_id TEXT NOT NULL,
+    tier INTEGER NOT NULL,
+    merit INTEGER NOT NULL,
+    params_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, daily_date, order_id)
+  );
+  CREATE INDEX IF NOT EXISTS order_completions_user ON order_completions(user_id);
+  CREATE INDEX IF NOT EXISTS order_completions_date ON order_completions(daily_date);
+  CREATE TABLE IF NOT EXISTS order_rejects (
+    daily_date TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS order_rejects_date ON order_rejects(daily_date);
+`);
 
 // Migration for databases created before tilt controls (per-mode leaderboards).
 try {
@@ -553,6 +577,79 @@ export const deleteSession = (token) => db.prepare(`DELETE FROM sessions WHERE t
 export function deleteUser(id) {
   db.prepare(`DELETE FROM users WHERE id = ?`).run(id);
 }
+
+// --- Daily Orders / Pilot Ladder ---
+
+/** Insert a completion; true when it was new (INSERT OR IGNORE keeps the first award). */
+export function insertOrderCompletion(userId, { dailyDate, orderId, tier, merit, paramsHash }) {
+  const r = db
+    .prepare(
+      `INSERT OR IGNORE INTO order_completions (user_id, daily_date, order_id, tier, merit, params_hash, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(userId, dailyDate, orderId, tier, merit, paramsHash, Date.now());
+  return Number(r.changes) > 0;
+}
+
+/** Order ids a pilot completed on a patrol date. */
+export const ordersDoneForDay = (userId, dailyDate) =>
+  db
+    .prepare(`SELECT order_id FROM order_completions WHERE user_id = ? AND daily_date = ? ORDER BY tier, order_id`)
+    .all(userId, dailyDate)
+    .map((r) => r.order_id);
+
+/** Total Merit for one pilot. */
+export const meritForUser = (userId) =>
+  Number(
+    db.prepare(`SELECT COALESCE(SUM(merit), 0) AS m FROM order_completions WHERE user_id = ?`).get(userId).m,
+  );
+
+/** Merit for many pilots in one GROUP BY: Map<userId, merit>. */
+export function meritForUsers(ids) {
+  const out = new Map();
+  const list = [...new Set(ids.filter((i) => Number.isInteger(i)))];
+  if (list.length === 0) return out;
+  const rows = db
+    .prepare(
+      `SELECT user_id, SUM(merit) AS m FROM order_completions WHERE user_id IN (${list.map(() => "?").join(",")}) GROUP BY user_id`,
+    )
+    .all(...list);
+  for (const r of rows) out.set(r.user_id, Number(r.m));
+  return out;
+}
+
+/** Day report: completions per order, distinct pilots, rejected counters. */
+export function ordersDayStats(dateStr) {
+  const per = db
+    .prepare(`SELECT order_id, COUNT(*) AS n FROM order_completions WHERE daily_date = ? GROUP BY order_id ORDER BY order_id`)
+    .all(dateStr);
+  const pilots = db
+    .prepare(`SELECT COUNT(DISTINCT user_id) AS n FROM order_completions WHERE daily_date = ?`)
+    .get(dateStr).n;
+  const rejected = db.prepare(`SELECT COUNT(*) AS n FROM order_rejects WHERE daily_date = ?`).get(dateStr).n;
+  return {
+    completions: Object.fromEntries(per.map((r) => [r.order_id, Number(r.n)])),
+    pilots: Number(pilots),
+    rejected: Number(rejected),
+  };
+}
+
+export const insertOrderReject = (dailyDate) =>
+  db.prepare(`INSERT INTO order_rejects (daily_date, created_at) VALUES (?, ?)`).run(dailyDate, Date.now());
+
+/** Equipped cosmetics ({ trail }) or {}. */
+export function getUserCosmetics(userId) {
+  const row = db.prepare(`SELECT cosmetics FROM users WHERE id = ?`).get(userId);
+  try {
+    const v = row?.cosmetics ? JSON.parse(row.cosmetics) : {};
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+export const setUserCosmetics = (userId, cosmetics) =>
+  db.prepare(`UPDATE users SET cosmetics = ? WHERE id = ?`).run(JSON.stringify(cosmetics), userId);
 
 /** Drop expired sessions (they're already invisible to reads; this reclaims space). */
 export const purgeExpiredSessions = () =>

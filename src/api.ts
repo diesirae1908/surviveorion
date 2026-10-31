@@ -7,6 +7,7 @@ import { apiBase } from "./native";
 import { loadDeviceId } from "./device";
 import { loadRunCount } from "./save";
 import { setCreatorPreview, setRemoteFeatures } from "./flags";
+import { setOrdersSession } from "./orders";
 
 export const PAYWALL_SOURCES = [
   "calendar_unlock",
@@ -50,6 +51,8 @@ export interface LeaderboardEntry {
   best: number;
   runs: number;
   bestTime: number;
+  /** Pilot Ladder tier chip; absent for bots and while the `orders` switch is off. */
+  ladder?: { tier: number };
 }
 
 export interface LeaderboardResponse {
@@ -78,6 +81,19 @@ export interface ArenaInfo {
   members?: number;
 }
 
+/** Pilot Ladder summary. `tier` indexes LADDER (0 = Ensign). */
+export interface LadderInfo {
+  tier: number;
+  merit: number;
+}
+
+/** Orders fields of GET /api/me; all absent while the `orders` switch is off. */
+export interface MeOrders {
+  ladder: LadderInfo;
+  cosmetics: { trail?: string | null };
+  ordersToday: { date: string; done: string[] } | null;
+}
+
 export interface SubmitResult {
   best: number;
   worldRank: number | null;
@@ -90,6 +106,8 @@ export interface SubmitResult {
   nextWingmate?: { callsign: string; score: number } | null;
   /** Rank on today's Daily Patrol board (daily runs only). */
   dailyRank?: number | null;
+  /** Daily Orders result, present only while the `orders` switch is on for the date. */
+  orders?: { done: string[]; new: string[]; ladder: LadderInfo & { tierUp: boolean } };
 }
 
 /** Viewer's relationship with a pilot (null = viewing yourself / signed out). */
@@ -102,6 +120,8 @@ export interface PlayerProfile {
   joinedAt: number;
   best: Record<BoardMode, number>;
   rank: Record<BoardMode, number | null>;
+  /** Pilot Ladder tier, present only while the `orders` switch is on. */
+  ladder?: { tier: number };
   runs: number;
   totalKills: number;
   totalTime: number;
@@ -247,6 +267,9 @@ export class Api {
     stripeCustomer?: boolean;
     stripeBilling?: boolean;
     creatorPreview?: unknown;
+    ladder?: LadderInfo;
+    cosmetics?: { trail?: string | null };
+    ordersToday?: { date: string; done: string[] };
   }): void {
     this.clipInbox = !!me.clipInbox;
     // Switch registry creator preview: only the allowlisted account ever gets one.
@@ -260,6 +283,32 @@ export class Api {
     this.premiumSource = me.premiumSource ?? null;
     this.stripeCustomer = !!me.stripeCustomer;
     if (me.stripeBilling !== undefined) this.stripeBilling = !!me.stripeBilling;
+    this.setMeOrders(me.ladder
+      ? { ladder: me.ladder, cosmetics: me.cosmetics ?? {}, ordersToday: me.ordersToday ?? null }
+      : null);
+  }
+
+  /** Daily Orders / Pilot Ladder account fields; null signed out or while `orders` is off. */
+  me: MeOrders | null = null;
+
+  /** Fold a score response's orders block into the cached account fields. */
+  private applyOrdersResult(o: SubmitResult["orders"], dailyDate?: string): void {
+    if (!o || !this.me) return;
+    const date = this.me.ordersToday?.date ?? dailyDate ?? null;
+    this.setMeOrders({
+      ...this.me,
+      ladder: { tier: o.ladder.tier, merit: o.ladder.merit },
+      ordersToday: date ? { date, done: o.done } : this.me.ordersToday,
+    });
+  }
+
+  private setMeOrders(next: MeOrders | null): void {
+    this.me = next;
+    setOrdersSession(
+      next
+        ? { signedIn: true, date: next.ordersToday?.date ?? null, done: next.ordersToday?.done ?? [] }
+        : { signedIn: !!this.token && !!this.user },
+    );
   }
 
   async init(): Promise<void> {
@@ -403,6 +452,7 @@ export class Api {
     this.hasPassword = true;
     this.joinedAt = null;
     this.pendingFriends = 0;
+    this.setMeOrders(null);
     localStorage.removeItem(TOKEN_KEY);
   }
 
@@ -451,6 +501,7 @@ export class Api {
       this.premiumActive = false;
       this.premiumSource = null;
       this.stripeCustomer = false;
+      this.setMeOrders(null);
       return;
     }
     try {
@@ -520,9 +571,12 @@ export class Api {
     country?: string;
     /** Guest-account upgrade — only accepted while no password is set. */
     password?: string;
+    /** Equip a ladder-unlocked trail (`trail: null` = default). */
+    cosmetics?: { trail: string | null };
   }): Promise<void> {
-    const r = await this.request<{ user: UserInfo }>("PATCH", "/api/me", patch);
+    const r = await this.request<{ user: UserInfo; cosmetics?: { trail?: string | null } }>("PATCH", "/api/me", patch);
     this.user = r.user;
+    if (r.cosmetics && this.me) this.me = { ...this.me, cosmetics: r.cosmetics };
     if (patch.password !== undefined) this.hasPassword = true;
   }
 
@@ -551,6 +605,9 @@ export class Api {
       deviceId: loadDeviceId(),
       // 0-based index of the run just finished. onGameOver bumps the count first.
       runIndex: Math.max(0, loadRunCount() - 1),
+    }).then((r) => {
+      this.applyOrdersResult(r.orders, run.dailyDate);
+      return r;
     });
   }
 

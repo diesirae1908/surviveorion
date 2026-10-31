@@ -316,6 +316,18 @@ function renderBoard(board) {
     rows + "</table></div>";
 }
 
+function renderOrders(o) {
+  if (!o) return "";
+  if (!o.on) return "<h3>Daily Orders</h3><p class='muted'>Switch off for this day.</p>";
+  var rows = (o.picks || []).map(function (p) {
+    return "<tr><td>T" + p.tier + "</td><td>" + esc(p.id) + "</td><td>" + fmt(p.target) + "</td><td>" + fmt((o.completions || {})[p.id] || 0) + "</td></tr>";
+  }).join("");
+  return "<h3>Daily Orders</h3><div class='metrics'>" +
+    stat("Pilots with a completion", fmt(o.pilots)) +
+    stat("Rejected counters", fmt(o.rejected)) +
+    "</div><table><tr><th>Tier</th><th>Order</th><th>Target</th><th>Completions</th></tr>" + rows + "</table>";
+}
+
 function renderPaywall(p, vsPay, title) {
   if (!p) return "";
   const steps = p.byStep || {};
@@ -390,6 +402,7 @@ function renderDay(day) {
       stat("Of which old bundle (no ruleset)", day.rulesetLegacy == null ? "-" : fmt(day.rulesetLegacy)) +
       stat("Stale bundle (needs gen " + (day.requiredGen == null ? "?" : day.requiredGen) + ")", day.staleBundle == null ? "-" : fmt(day.staleBundle)) +
     "</div>" +
+    renderOrders(day.orders) +
     renderPaywall(day.paywall, (curr, key) => {
       if (key === "open") return vs(curr, prev && prev.paywall && prev.paywall.byStep && prev.paywall.byStep.open);
       return vs(curr, prev && prev.paywall && prev.paywall[key]);

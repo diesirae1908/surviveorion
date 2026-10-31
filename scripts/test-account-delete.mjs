@@ -11,7 +11,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orion-delete-"));
 const dbPath = path.join(tmp, "orion.db");
 process.env.ORION_DB = dbPath;
 
-const { createUser, insertScore, deleteUser, getUserById, getUserBest } = await import(
+const { createUser, insertScore, deleteUser, getUserById, getUserBest, insertOrderCompletion, meritForUser, ordersDoneForDay, db } = await import(
   "../server/db.mjs"
 );
 
@@ -33,9 +33,24 @@ insertScore(user.id, {
 });
 assert.equal(getUserBest(user.id, "touch", "classic"), 1000);
 
+// Daily Orders: completions are per-user and must go with the account.
+assert.ok(insertOrderCompletion(user.id, { dailyDate: "2026-09-11", orderId: "kills-25", tier: 1, merit: 1, paramsHash: "h1" }));
+assert.ok(insertOrderCompletion(user.id, { dailyDate: "2026-09-11", orderId: "chain-5", tier: 2, merit: 2, paramsHash: "h1" }));
+assert.equal(insertOrderCompletion(user.id, { dailyDate: "2026-09-11", orderId: "chain-5", tier: 2, merit: 9, paramsHash: "h2" }), false);
+assert.equal(meritForUser(user.id), 3);
+assert.deepEqual(ordersDoneForDay(user.id, "2026-09-11"), ["kills-25", "chain-5"]);
+
 deleteUser(user.id);
 assert.equal(getUserById(user.id), undefined);
 assert.equal(getUserBest(user.id, "touch", "classic"), 0);
+assert.equal(db.prepare(`SELECT COUNT(*) AS c FROM order_completions WHERE user_id = ?`).get(user.id).c, 0);
+assert.equal(meritForUser(user.id), 0);
+assert.deepEqual(ordersDoneForDay(user.id, "2026-09-11"), []);
+
+// A new account reusing the freed id (SQLite rowid reuse) starts at merit 0.
+const next = createUser({ callsign: "Reuser", country: "CA", passSalt: "s", passHash: "h" });
+assert.equal(meritForUser(next.id), 0);
+assert.deepEqual(ordersDoneForDay(next.id, "2026-09-11"), []);
 
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log("PASS  DELETE user cascades scores (daily budget / rate limits unchanged)");
+console.log("PASS  DELETE user cascades scores and order completions (daily budget / rate limits unchanged)");
