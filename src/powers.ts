@@ -7,6 +7,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { freezeMinesInRadius, isMineArmed, killMine, killMinesInRadius } from "./mines";
 import { killLighthousesInRadius } from "./lighthouse";
 import { mutatorPowerAmpScale, mutatorStarshellDurationScale } from "./mutators";
+import type { OverdriveRules } from "./flags";
 import type { ArcChainState, Drone, Mine, PowersState, ThunderChainState, World } from "./types";
 import { clamp01 } from "./math";
 
@@ -93,6 +94,16 @@ function updateBlasts(world: World, dt: number): void {
   }
 }
 
+/** An enabled Overdrive form's params, or null (form off, row older than the form, or plain pickup). */
+function formOf(od: OverdriveRules | null, id: string): Record<string, number | boolean> | null {
+  const f = (od?.forms as Record<string, { on?: boolean } | undefined> | undefined)?.[id];
+  return f && f.on === true ? (f as Record<string, number | boolean>) : null;
+}
+function numOf(f: Record<string, number | boolean> | null, key: string, fallback: number): number {
+  const v = f?.[key];
+  return typeof v === "number" ? v : fallback;
+}
+
 /** Auto-activate on pickup (port of Unity PowerManager.Trigger). */
 export function activatePower(world: World, power: PowerId, overdrive = false): void {
   const p = world.powers;
@@ -109,10 +120,15 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       world.overdrive.shieldCharged = od?.forms.shield.on === true;
       world.events.push({ type: "shieldUp" });
       break;
-    case "starshell":
-      p.starshellTimer = POWERS.starshell.duration * mutatorStarshellDurationScale();
+    case "starshell": {
+      const f = formOf(od, "starshell");
+      p.starshellTimer = POWERS.starshell.duration * mutatorStarshellDurationScale() * numOf(f, "durationScale", 1);
+      p.odStarshell = f
+        ? { perKillExtend: numOf(f, "perKillExtend", 0), maxExtend: numOf(f, "maxExtend", 0), extended: 0 }
+        : undefined;
       world.events.push({ type: "starshellUp" });
       break;
+    }
     case "shockwave": {
       detonateShockwave(world, world.ship.x, world.ship.y, 1);
       // OVERDRIVE: a second, slightly smaller wave from wherever the ship is by then
@@ -185,14 +201,15 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       fireMissileSwarm(world, od?.forms.missiles.on ? od.forms.missiles : null);
       break;
     case "arc":
-      startArcChain(world);
+      startArcChain(world, numOf(formOf(od, "arc"), "radiusScale", 1));
       break;
     case "autocannon":
       p.autocannonTimer = POWERS.autocannon.duration;
       p.autocannonCooldown = 0; // first shot fires immediately
+      p.autocannonBarrels = formOf(od, "autocannon") ? Math.max(1, Math.round(numOf(formOf(od, "autocannon"), "barrels", 1))) : undefined;
       break;
     case "meteors":
-      p.meteorTimer = POWERS.meteors.duration;
+      p.meteorTimer = POWERS.meteors.duration * numOf(formOf(od, "meteors"), "durationScale", 1);
       p.meteorCooldown = 0;
       break;
     case "vortex":
@@ -379,7 +396,7 @@ function zapTarget(
 }
 
 /** Chain lightning: first zap on pickup, then jumps to nearby enemies. */
-function startArcChain(world: World): void {
+function startArcChain(world: World, radiusScale = 1): void {
   const p = world.powers;
   const cfg = POWERS.arc;
   // OVERCHARGE: a wider jump radius reaches more targets, so the chain runs
@@ -390,7 +407,7 @@ function startArcChain(world: World): void {
     world,
     ship.x,
     ship.y,
-    cfg.initialRadius * amp,
+    cfg.initialRadius * amp * radiusScale,
     new Set(),
     new Set(),
   );
@@ -415,6 +432,7 @@ function startArcChain(world: World): void {
     jumpTimer: cfg.jumpInterval,
     hitDrones: new Set(),
     hitMines: new Set(),
+    radiusScale: radiusScale === 1 ? undefined : radiusScale,
   };
   p.arcChain = chain;
   zapTarget(world, p, ship.x, ship.y, first, chain);
@@ -434,7 +452,7 @@ function updateArcChain(world: World, dt: number): void {
     world,
     chain.x,
     chain.y,
-    cfg.jumpRadius * mutatorPowerAmpScale(),
+    cfg.jumpRadius * mutatorPowerAmpScale() * (chain.radiusScale ?? 1),
     chain.hitDrones,
     chain.hitMines,
   );
@@ -564,13 +582,25 @@ function updateAutocannon(world: World, dt: number): void {
   const p = world.powers;
   const cfg = POWERS.autocannon;
 
+  if (p.autocannonTimer <= 0 && p.autocannonBarrels !== undefined) p.autocannonBarrels = undefined;
   if (p.autocannonTimer > 0) {
     p.autocannonTimer -= dt;
     p.autocannonCooldown -= dt;
     if (p.autocannonCooldown <= 0 && world.phase === "playing") {
       const ship = world.ship;
-      const target = nearestEnemyInRadius(world, ship.x, ship.y, cfg.range, NO_DRONES, NO_MINES);
-      if (target) {
+      const barrels = p.autocannonBarrels ?? 1;
+      // OVERDRIVE twin cannon: one round at each of the N nearest distinct targets
+      // (nearest first, ties by array order; no draws). Plain: the single nearest.
+      const usedDrones = barrels > 1 ? new Set<Drone>() : NO_DRONES;
+      const usedMines = barrels > 1 ? new Set<Mine>() : NO_MINES;
+      let fired = false;
+      for (let b = 0; b < barrels; b++) {
+        const target = nearestEnemyInRadius(world, ship.x, ship.y, cfg.range, usedDrones, usedMines);
+        if (!target) break;
+        if (barrels > 1) {
+          if (isDroneTarget(target)) usedDrones.add(target);
+          else usedMines.add(target);
+        }
         const angle = Math.atan2(target.y - ship.y, target.x - ship.x);
         p.autocannonAngle = angle;
         p.bullets.push({
@@ -582,6 +612,9 @@ function updateAutocannon(world: World, dt: number): void {
           dirY: Math.sin(angle),
           elapsed: 0,
         });
+        fired = true;
+      }
+      if (fired) {
         // OVERCHARGE: faster fire rate (smaller interval between rounds).
         p.autocannonCooldown = cfg.fireInterval / mutatorPowerAmpScale();
         world.events.push({ type: "autocannonFire", x: ship.x, y: ship.y });
@@ -742,6 +775,7 @@ export function updatePowers(world: World, dt: number): void {
   const p = world.powers;
 
   if (p.starshellTimer > 0) p.starshellTimer -= dt;
+  else if (p.odStarshell) p.odStarshell = undefined;
 
   // afterburner: charge -> dash -> burning trail
   if (p.afterburnerCharge > 0) {

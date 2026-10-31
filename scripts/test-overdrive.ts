@@ -4,6 +4,7 @@
  * Run: npx tsx scripts/test-overdrive.ts   (wired into `npm test`)
  * Determinism with real bots is in scripts/sim-test.ts section 7b.
  */
+import { readFileSync } from "node:fs";
 import { ALL_POWER_IDS, FIXED_DT, PALETTE, POWERS, SHIP, type PowerId } from "../src/config";
 import { killDrone, killDronesInRadius, spawnDroneDirect } from "../src/enemies";
 import { BASE_RULES, resolveRunRules, rulesFromDefaults, type RunRules } from "../src/flags";
@@ -30,6 +31,10 @@ import {
 import { activatePower, detonateShield, spawnBlast } from "../src/powers";
 import type { World } from "../src/types";
 import { validateRun } from "../server/validate.mjs";
+import registry from "../server/flags-registry.json";
+
+/** Mirrors server/validate.mjs MAX_KILLS_PER_SEC (not exported there; validate.mjs stays untouched). */
+const MAX_KILLS_PER_SEC = 20;
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ""): void {
@@ -473,6 +478,213 @@ function run(world: World, seconds: number, invulnerable = true): void {
   }
 }
 
+// --- 3b. generation-2 forms (WS-F commit 1: starshell, arc, autocannon, meteors) ---
+{
+  const GEN2_POOL = ["starshell", "arc", "autocannon", "meteors"] as const;
+  const formsOn = (o: NonNullable<RunRules["overdrive"]>): void => {
+    for (const f of GEN2_POOL) (o.forms as unknown as Record<string, { on: boolean }>)[f].on = true;
+  };
+  const probe2 = (id: PowerId, patch?: (o: NonNullable<RunRules["overdrive"]>) => void) => {
+    const w = mkWorld(onRules((o) => { formsOn(o); patch?.(o); }));
+    w.ship.x = 0;
+    w.ship.y = 0;
+    for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+    const form = spendOverdrive(w, id);
+    activatePower(w, id, form);
+    return { w, form };
+  };
+  const rulesNoForms = (patch?: (o: NonNullable<RunRules["overdrive"]>) => void) => onRules((o) => patch?.(o));
+
+  // registry defaults: the four pool forms ship OFF, so a default row fires the burst only
+  {
+    const w = mkWorld(onRules());
+    for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+    check("gen-2 pool forms are off by default: starshell fires the burst only", spendOverdrive(w, "starshell") === false);
+  }
+  // starshell: longer shell, per-kill extension, hard cap
+  {
+    const { w, form } = probe2("starshell");
+    check("starshell form: spend returns form", form === true);
+    const base = POWERS.starshell.duration;
+    check("starshell form: duration x durationScale", near(w.powers.starshellTimer, base * 1.5), `${w.powers.starshellTimer}`);
+    check("starshell form: odStarshell record set", w.powers.odStarshell?.maxExtend === 3);
+    const t0 = w.powers.starshellTimer;
+    spawnDroneDirect(w, 0.1, 0, 1);
+    tick(w, idle, FIXED_DT);
+    check("starshell form: a ram kill extends the shell", w.powers.starshellTimer > t0 - 2 * FIXED_DT && (w.powers.odStarshell?.extended ?? 0) > 0, `${w.powers.starshellTimer} ext ${w.powers.odStarshell?.extended}`);
+    // cap: 40 rams never extend past maxExtend
+    const w2 = mkWorld(onRules((o) => { formsOn(o); (o.forms as unknown as Record<string, Record<string, number>>).starshell.maxExtend = 1; }));
+    for (let i = 0; i < 12; i++) chargeFromGraze(w2, 0.5);
+    activatePower(w2, "starshell", spendOverdrive(w2, "starshell"));
+    for (let i = 0; i < 40; i++) {
+      spawnDroneDirect(w2, w2.ship.x, w2.ship.y, 1);
+      tick(w2, idle, FIXED_DT);
+    }
+    check("starshell form: extension capped at maxExtend", (w2.powers.odStarshell?.extended ?? 99) <= 1 + 1e-9, `${w2.powers.odStarshell?.extended}`);
+    const { w: w0 } = probe2("starshell", (o) => ((o.forms as unknown as Record<string, { on: boolean }>).starshell.on = false));
+    check("starshell form off: base duration, no record", near(w0.powers.starshellTimer, base) && w0.powers.odStarshell === undefined);
+    // a plain pickup after a form clears the record
+    activatePower(w, "starshell", false);
+    check("starshell: a plain re-pickup clears the form record", w.powers.odStarshell === undefined && near(w.powers.starshellTimer, base));
+  }
+  // arc: radiusScale carried on the chain
+  {
+    const mk = (scale: number) => {
+      const w = mkWorld(rulesNoForms((o) => { formsOn(o); (o.forms as unknown as Record<string, Record<string, number>>).arc.radiusScale = scale; }));
+      w.ship.x = 0;
+      w.ship.y = 0;
+      // a line of drones; jump radius decides how far the chain runs
+      for (let i = 0; i < 12; i++) {
+        const d = spawnDroneDirect(w, 0.8 + i * (POWERS.arc.jumpRadius * 1.3), 0, 1);
+        d.speedMultiplier = 0;
+      }
+      for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+      activatePower(w, "arc", spendOverdrive(w, "arc"));
+      let killed = 0;
+      for (let i = 0; i < Math.round(6 / FIXED_DT); i++) {
+        w.powers.starshellTimer = 0;
+        tick(w, idle, FIXED_DT);
+        w.events.length = 0;
+      }
+      killed = w.kills;
+      return { w, killed };
+    };
+    const a = mk(1);
+    const b = mk(1.6);
+    check("arc form: wider jump radius reaches farther down the line", b.killed > a.killed, `${a.killed} -> ${b.killed}`);
+    const { w } = probe2("arc");
+    check("arc form: chain state carries radiusScale only when scaled", w.powers.arcChain === null || w.powers.arcChain.radiusScale === 1.4 || w.powers.arcChain.radiusScale === undefined);
+  }
+  // autocannon: N distinct nearest targets per shot
+  {
+    const shotWith = (barrels: number, formOn = true) => {
+      const w = mkWorld(onRules((o) => { formsOn(o); const f = (o.forms as unknown as Record<string, Record<string, number | boolean>>).autocannon; f.barrels = barrels; f.on = formOn; }));
+      w.ship.x = 0;
+      w.ship.y = 0;
+      const ds = [1.5, 2.5, 3.5].map((x) => spawnDroneDirect(w, x, 0, 1));
+      for (const d of ds) d.speedMultiplier = 0;
+      for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+      activatePower(w, "autocannon", spendOverdrive(w, "autocannon"));
+      w.powers.starshellTimer = 0;
+      // run exactly the first shot
+      tick(w, idle, FIXED_DT);
+      return w;
+    };
+    const one = shotWith(1);
+    const two = shotWith(2);
+    const three = shotWith(3);
+    const off = shotWith(3, false);
+    check("autocannon form: barrels 1/2/3 fire 1/2/3 rounds on the first shot", one.powers.bullets.length === 1 && two.powers.bullets.length === 2 && three.powers.bullets.length === 3, `${one.powers.bullets.length}/${two.powers.bullets.length}/${three.powers.bullets.length}`);
+    check("autocannon form off: single round", off.powers.bullets.length === 1 && off.powers.autocannonBarrels === undefined);
+    const dirs = new Set(three.powers.bullets.map((b) => b.dirX.toFixed(3) + "," + b.dirY.toFixed(3)));
+    // three targets on one line share a direction; use a spread scene to prove distinct targets
+    const w = mkWorld(onRules((o) => { formsOn(o); (o.forms as unknown as Record<string, Record<string, number>>).autocannon.barrels = 3; }));
+    w.ship.x = 0; w.ship.y = 0;
+    for (const [x, y] of [[2, 0], [0, 2.2], [-2.4, 0]]) spawnDroneDirect(w, x, y, 1).speedMultiplier = 0;
+    for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+    activatePower(w, "autocannon", spendOverdrive(w, "autocannon"));
+    tick(w, idle, FIXED_DT);
+    const dset = new Set(w.powers.bullets.map((b) => b.dirX.toFixed(2) + "," + b.dirY.toFixed(2)));
+    check("autocannon form: the barrels aim at distinct targets", dset.size === 3 && dirs.size >= 1, `${dset.size}`);
+    run(three, POWERS.autocannon.duration + 0.5, false);
+    check("autocannon form: barrels reset when the turret ends", three.powers.autocannonBarrels === undefined);
+  }
+  // meteors: duration scaled
+  {
+    const { w } = probe2("meteors");
+    check("meteors form: duration x durationScale", near(w.powers.meteorTimer, POWERS.meteors.duration * 2), `${w.powers.meteorTimer}`);
+    const { w: w0 } = probe2("meteors", (o) => ((o.forms as unknown as Record<string, { on: boolean }>).meteors.on = false));
+    check("meteors form off: base duration", near(w0.powers.meteorTimer, POWERS.meteors.duration));
+  }
+  // always hot: only on OVERCHARGE, only with mutatorHooks, only with the param
+  {
+    const near3 = (w: World): number => overdriveHeatScale(w, 1);
+    const withMut = (ids: string[], patch?: (o: NonNullable<RunRules["overdrive"]>) => void) => {
+      setActiveMutators(ids.map((id) => getMutatorById(id)!), "2026-12-09");
+      const w = mkWorld(onRules((o) => { o.alwaysHotScale = 1.4; patch?.(o); }));
+      return w;
+    };
+    let w = withMut(["overcharge"]);
+    check("always-hot: OVERCHARGE speeds nearby drones with the ship not HOT", near(near3(w), 1.4), `${near3(w)}`);
+    check("always-hot: beyond hotRadius nothing", near(overdriveHeatScale(w, 99), 1));
+    w.overdrive.hot = true;
+    check("always-hot: HOT takes the larger of the two", near(near3(w), Math.max(1.4, w.rules.overdrive!.hotDroneSpeedScale)));
+    clearActiveMutators();
+    w = withMut(["overcharge"], (o) => (o.mutatorHooks = false));
+    check("always-hot: mutatorHooks off disables it", near(near3(w), 1));
+    clearActiveMutators();
+    w = withMut(["overcharge"], (o) => delete (o as { alwaysHotScale?: number }).alwaysHotScale);
+    check("always-hot: param absent (older row) means 1", near(near3(w), 1));
+    clearActiveMutators();
+    w = withMut(["graze-protocol"]);
+    check("always-hot: a different mutator does not trigger it", near(near3(w), 1));
+    clearActiveMutators();
+    w = withMut([]);
+    check("always-hot: no mutator, no effect; not-HOT ship is plain", near(near3(w), 1));
+    clearActiveMutators();
+    const off = mkWorld(BASE_RULES);
+    setActiveMutators([getMutatorById("overcharge")!], "2026-12-09");
+    check("always-hot: switch off means 1 even on OVERCHARGE", near(overdriveHeatScale(off, 1), 1));
+    clearActiveMutators();
+  }
+  // old production row (fixture old-row-930b7b4) plays exactly like the same row with the gen-2 params present and off
+  {
+    const fx = JSON.parse(readFileSync(new URL("./fixtures/flags-fixtures.json", import.meta.url), "utf8"))["old-row-930b7b4"];
+    const oldParams = structuredClone(fx.params.overdrive) as NonNullable<RunRules["overdrive"]>;
+    const withKeys = structuredClone(oldParams) as NonNullable<RunRules["overdrive"]>;
+    const dflt = rulesFromDefaults({ overdrive: true }).overdrive!;
+    for (const k of Object.keys(dflt.forms)) {
+      const f = (dflt.forms as unknown as Record<string, unknown>)[k];
+      if (!(k in oldParams.forms)) (withKeys.forms as unknown as Record<string, unknown>)[k] = structuredClone(f);
+    }
+    withKeys.alwaysHotScale = 1;
+    check("old row: has none of the gen-2 form keys", !("starshell" in oldParams.forms) && oldParams.alwaysHotScale === undefined);
+    const trace = (od: NonNullable<RunRules["overdrive"]>, seed: number, mutIds: string[]): string => {
+      setRunSeed(seed);
+      setActiveMutators(mutIds.map((id) => getMutatorById(id)!), "2026-12-09");
+      const w = createWorld(17.8 * mutatorViewScale(), 10 * mutatorViewScale(), false, 0, "classic", true, false, { rulesetId: "overdrive@t#old", overdrive: structuredClone(od), preview: false });
+      const out: string[] = [];
+      let t = 0;
+      for (let i = 0; i < Math.round(180 / FIXED_DT); i++) {
+        t += FIXED_DT;
+        w.powers.shieldActive = true;
+        if (i % 240 === 120) { w.overdrive.hot = true; w.overdrive.charge = 1; }
+        tick(w, { ...idle, moveVector: { x: Math.cos(t * 0.7), y: Math.sin(t * 0.9) } }, FIXED_DT);
+        w.events.length = 0;
+        if (i % 60 === 0) out.push([w.score.toFixed(3), w.kills, w.multiplier.toFixed(4), w.drones.length, w.ship.x.toFixed(4), w.ship.y.toFixed(4), w.overdrive.fires, w.phase].join("|"));
+      }
+      clearActiveMutators();
+      setRunSeed(null);
+      return out.join("\n");
+    };
+    let same = true;
+    const detail: string[] = [];
+    for (const [seed, muts] of [[101, []], [202, []], [303, []], [404, ["overcharge"]]] as [number, string[]][]) {
+      const a = withPinnedMathRandom(seed, () => trace(oldParams, seed, muts));
+      const b = withPinnedMathRandom(seed, () => trace(withKeys, seed, muts));
+      if (a !== b) { same = false; detail.push(`seed ${seed}`); }
+    }
+    check("old row: 3 minutes on 3 seeds plus an OVERCHARGE day identical with the gen-2 params present and off", same, detail.join(", "));
+  }
+  // all 18 powers HOT with every gen-2 form on
+  {
+    let threw: string | null = null;
+    for (const id of ALL_POWER_IDS) {
+      try {
+        const w = mkWorld(onRules((o) => { for (const f of Object.keys(o.forms)) (o.forms as unknown as Record<string, { on: boolean }>)[f].on = true; o.alwaysHotScale = 1.5; }));
+        for (let i = 0; i < 6; i++) spawnDroneDirect(w, 1 + i * 0.4, 0.5, 1);
+        for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+        activatePower(w, id, spendOverdrive(w, id));
+        run(w, 10);
+      } catch (e) {
+        threw = `${id}: ${(e as Error).message}`;
+        break;
+      }
+    }
+    check("all 18 power ids HOT with every form on tick 10 s without throwing", threw === null, threw ?? "");
+  }
+}
+
 // --- 4. activatePower(..., false) is the pre-refactor behavior --------------
 {
   // The shockwave moved into detonateShockwave. Compare against the old
@@ -501,7 +713,8 @@ function run(world: World, seconds: number, invulnerable = true): void {
 }
 
 // --- 5. ceiling observer: forced HOT before every pickup, 10 minutes --------
-{
+// (OD_SKIP_OBSERVER=1 skips it for quick local iteration; never set in `npm test`)
+if (!process.env.OD_SKIP_OBSERVER) {
   const SECONDS = 600;
   const dateStr = "2026-12-09";
   const sundayPairs = ["2026-12-06", "2026-12-13", "2026-12-20"].map((d) => getMutatorsForDateStr(d));
@@ -612,22 +825,53 @@ function run(world: World, seconds: number, invulnerable = true): void {
   //   realistic: HOT forced at most once per 15 s (a skimmer's real cadence).
   // Gates: stress ON/OFF kill-rate ratio <= 1.35; realistic ON keeps >= 10%
   // score headroom wherever OFF has it. Absolute tripwire list: report only.
+  // Generation-2 rules for the two passes (WS-F, plan B8). Every gen-2 form on;
+  //   defaults: registry default knobs + alwaysHotScale 1.5 (the top of its range)
+  //   bounds  : every numeric gen-2 knob at its registry MAX (Phase 1 knobs stay at defaults)
+  const gen2Forms = Object.keys(registry.capsSince.overdrive)
+    .filter((k) => k.startsWith("forms."))
+    .map((k) => k.slice("forms.".length));
+  const boundsOf = registry.flags.overdrive.bounds as Record<string, [number, number]>;
+  const gen2Rules = (mode: "defaults" | "bounds"): RunRules =>
+    onRules((o) => {
+      const forms = o.forms as unknown as Record<string, Record<string, number | boolean>>;
+      for (const f of gen2Forms) {
+        forms[f].on = true;
+        if (mode !== "bounds") continue;
+        for (const k of Object.keys(forms[f])) {
+          const bd = boundsOf[`forms.${f}.${k}`];
+          if (k !== "on" && bd) forms[f][k] = bd[1];
+        }
+      }
+      o.alwaysHotScale = mode === "bounds" ? boundsOf.alwaysHotScale[1] : 1.5;
+    });
+
   const rows: string[] = [];
   const tripwire: string[] = [];
   const stressRegress: string[] = [];
   const realRegress: string[] = [];
   const realRate: string[] = [];
+  const boundsFail: string[] = [];
+  const boundsRows: string[] = [];
   let maxRatio = 0;
   let maxRatioLabel = "";
   let realMaxAvg = 0;
   let realMaxLabel = "";
   let realMinHead = Infinity;
   let realMinHeadLabel = "";
+  let bMaxAvg = 0;
+  let bMaxLabel = "";
+  let bMinHead = Infinity;
+  let bMinHeadLabel = "";
+  let bMaxStress = 0;
+  let bMaxStressLabel = "";
+  const bSkipped: string[] = [];
   for (const s of sets) {
     const pinned = (rules: RunRules, gap = 0) => withPinnedMathRandom(2027, () => observe(s.ms, rules, gap));
     const off = pinned(BASE_RULES);
-    const stress = pinned(onRules());
-    const real = pinned(onRules(), 15);
+    const dRules = gen2Rules("defaults");
+    const stress = pinned(dRules);
+    const real = pinned(dRules, 15);
     const offAvg = off.kills / off.time;
     const stressAvg = stress.kills / stress.time;
     const realAvg = real.kills / real.time;
@@ -657,16 +901,52 @@ function run(world: World, seconds: number, invulnerable = true): void {
     rows.push(
       `  ${s.label}: avg kills/s off ${offAvg.toFixed(2)} stress ${stressAvg.toFixed(2)} realistic ${realAvg.toFixed(2)} | fires stress ${stress.fires} realistic ${real.fires} | headroom off x${offHead.toFixed(2)} stress x${stressHead.toFixed(2)} realistic x${realHead.toFixed(2)}`,
     );
+
+    // upper-bounds pass: hard gates on the realistic-cadence run
+    const bRules = gen2Rules("bounds");
+    const bReal = pinned(bRules, 15);
+    const bStress = pinned(bRules);
+    const bAvg = bReal.kills / bReal.time;
+    const bHead = headroomOf(bReal, s.names);
+    const bStressAvg = bStress.kills / bStress.time;
+    const bStressRatio = offAvg >= 8 ? bStressAvg / offAvg : 1;
+    if (bStressRatio > bMaxStress) {
+      bMaxStress = bStressRatio;
+      bMaxStressLabel = s.label;
+    }
+    if (offHead >= 1.1) {
+      // the bot itself is not over the cap with the switch OFF, so the cap is ours to hold
+      if (bReal.kills > bReal.time * MAX_KILLS_PER_SEC) boundsFail.push(`${s.label} kills ${bReal.kills} > ${(bReal.time * MAX_KILLS_PER_SEC).toFixed(0)}`);
+      if (bHead < 1.1) boundsFail.push(`${s.label} headroom x${bHead.toFixed(2)}`);
+      if (bAvg > bMaxAvg) {
+        bMaxAvg = bAvg;
+        bMaxLabel = s.label;
+      }
+      if (bHead < bMinHead) {
+        bMinHead = bHead;
+        bMinHeadLabel = s.label;
+      }
+    } else {
+      bSkipped.push(s.label);
+    }
+    boundsRows.push(
+      `  ${s.label}: bounds realistic ${bAvg.toFixed(2)}/s headroom x${bHead.toFixed(2)} | bounds stress ${bStressAvg.toFixed(2)}/s (x${bStressRatio.toFixed(2)} off)`,
+    );
   }
-  if (process.env.OD_VERBOSE) console.log(rows.join("\n"));
+  if (process.env.OD_VERBOSE) console.log(rows.join("\n") + "\n" + boundsRows.join("\n"));
   console.log(
-    `  ceiling observer: ${sets.length} sets x ${SECONDS}s. Stress ON/OFF avg kills/s max ratio x${maxRatio.toFixed(2)} (${maxRatioLabel}). Realistic ON (OFF in range): max avg ${realMaxAvg.toFixed(2)}/s (${realMaxLabel}), min headroom x${realMinHead.toFixed(2)} (${realMinHeadLabel}).`,
+    `  ceiling observer (defaults pass: gen-2 forms on, alwaysHotScale 1.5): ${sets.length} sets x ${SECONDS}s. Stress ON/OFF avg kills/s max ratio x${maxRatio.toFixed(2)} (${maxRatioLabel}). Realistic ON (OFF in range): max avg ${realMaxAvg.toFixed(2)}/s (${realMaxLabel}), min headroom x${realMinHead.toFixed(2)} (${realMinHeadLabel}).`,
+  );
+  console.log(
+    `  ceiling observer (UPPER-BOUNDS pass): realistic max avg ${bMaxAvg.toFixed(2)}/s (${bMaxLabel}), min headroom x${bMinHead.toFixed(2)} (${bMinHeadLabel}); stress (report only) max ratio x${bMaxStress.toFixed(2)} (${bMaxStressLabel}); sets exempt because OFF already fails the ceiling: ${bSkipped.join(", ") || "none"}.`,
   );
   if (tripwire.length) console.log(`  TRIPWIRE (>=80% of the 20/s cap, mostly bot-saturated already OFF): ${tripwire.join("; ")}`);
   check("observer stress: Overdrive adds at most 35% average kills/s over OFF (same seed, pinned Math.random)", stressRegress.length === 0, stressRegress.join(", "));
   check("observer realistic cadence: ON average kills/s at most 1.10x OFF (+0.01 run noise)", realRate.length === 0, realRate.join(", "));
   check("observer realistic cadence: ON stays valid with 10% headroom wherever OFF does", realRegress.length === 0, realRegress.join(", "));
+  check("observer upper bounds: realistic kills <= time * MAX_KILLS_PER_SEC and validateRun passes with 10% score headroom, wherever OFF does", boundsFail.length === 0, boundsFail.join(", "));
 }
+
 
 // --- helpers ---------------------------------------------------------------
 

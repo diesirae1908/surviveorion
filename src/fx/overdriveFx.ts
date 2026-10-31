@@ -7,6 +7,7 @@
 import { PALETTE, POWER_COLORS, type PowerId } from "../config";
 import type { OverdriveFxParams } from "../flags";
 import { hapticGraze } from "../native";
+import { alwaysHotScale } from "../overdrive";
 import type { RenderOpts } from "../render";
 import type { Drone, FxContext, GameEvent, World } from "../types";
 
@@ -36,6 +37,10 @@ export const FORM_NAMES: Partial<Record<PowerId, string>> = {
   magnet: "MAGNET SWEEP",
   shockwave: "ECHO WAVE",
   missiles: "MISSILE STORM",
+  starshell: "STAR NOVA",
+  arc: "ARC STORM",
+  autocannon: "TWIN CANNON",
+  meteors: "METEOR SIEGE",
 };
 export const BURST_NAME = "OVERDRIVE";
 
@@ -52,7 +57,9 @@ export function ringSweep(charge: number): number {
 
 /** True when this drone should read as heated: HOT ship, loose, hostile, in range. */
 export function isHeated(world: World, d: Drone, fx: OverdriveFxParams | null): boolean {
-  if (!fx || !fx.heatTint || !world.overdrive.hot) return false;
+  if (!fx || !fx.heatTint) return false;
+  // HOT hull, or a mutator (OVERCHARGE) that keeps the swarm hot (alwaysHotScale > 1)
+  if (!world.overdrive.hot && alwaysHotScale(world) <= 1) return false;
   if (d.allied || d.assembly || d.frozen > 0 || (d.slamTimer ?? 0) > 0) return false;
   const r = world.rules.overdrive?.hotRadius ?? DEFAULT_HOT_RADIUS;
   const dx = d.x - world.ship.x;

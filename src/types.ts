@@ -208,6 +208,8 @@ export interface ArcChainState {
   jumpTimer: number;
   hitDrones: Set<Drone>;
   hitMines: Set<Mine>;
+  /** OVERDRIVE arc form: scales the jump radius. Absent = 1. */
+  radiusScale?: number;
 }
 
 /** A single autocannon tracer round: flies straight, kills the first drone hit. */
@@ -333,6 +335,10 @@ export interface PowersState {
   flares: FlareDecoy[];
   thunderBolts: ThunderBolt[];
   thunderChain: ThunderChainState | null;
+  /** OVERDRIVE starshell form: each ram kill extends the shell, up to `maxExtend` seconds. Absent = plain. */
+  odStarshell?: { perKillExtend: number; maxExtend: number; extended: number };
+  /** OVERDRIVE autocannon form: barrels fired per shot. Absent = 1. */
+  autocannonBarrels?: number;
 }
 
 export type RunPhase = "playing" | "dying" | "dead";

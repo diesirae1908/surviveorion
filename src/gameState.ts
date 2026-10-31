@@ -202,6 +202,13 @@ function handleShipDroneCollisions(world: World): void {
     // starshell / dash / charge / vortex / ion: contact ram-kills
     if (isRamInvulnerable(world)) {
       killDrone(world, d);
+      // OVERDRIVE star nova: each ram kill buys a little more shell, capped
+      const od = world.powers.odStarshell;
+      if (od && world.powers.starshellTimer > 0 && od.extended < od.maxExtend) {
+        const add = Math.min(od.perKillExtend, od.maxExtend - od.extended);
+        world.powers.starshellTimer += add;
+        od.extended += add;
+      }
       continue;
     }
 
