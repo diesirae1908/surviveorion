@@ -1,6 +1,7 @@
 import "./style.css";
 import "./styles/result.css"; // result v2 + death-moment slide (ui.result)
 import "./styles/pilot.css"; // pilot dossier (lobby v3 PILOT tab)
+import "./styles/lobby.css"; // lobby v3 + tab bar (ui.lobby)
 import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type PaywallSource, type PaywallStep, type SubmitResult } from "./api";
 import { AudioSystem, PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME } from "./audio";
 import { badgeInfo } from "./badges";
