@@ -53,6 +53,8 @@ export interface LobbyV3Model {
   desktop: boolean;
   /** The tab bar replaces the hamburger. */
   tabBar: boolean;
+  /** Hamburger + tier chip shown: unless the tab bar is on AND the Pilot tab carries the menu rows. */
+  hamburger: boolean;
   header: {
     callsign: string | null;
     /** Metal word from today's best medal (until the ladder ships), else "PILOT". */
@@ -193,6 +195,7 @@ export function lobbyV3Model(info: LobbyV3Info, params: LobbyParams | null, env:
     sections,
     desktop,
     tabBar: params.tabBar,
+    hamburger: !(params.tabBar && params.pilotTab),
     header: {
       callsign: info.callsign ?? null,
       metalWord: metalWordFor(info.best, info.medalThresholds),

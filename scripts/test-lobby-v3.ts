@@ -74,7 +74,10 @@ check("hero: Sunday double = one chip each, smaller emblems, no single line", ((
   return d.hero.double && d.hero.chips.length === 2 && d.hero.emblemPx < 160 && d.hero.line === null && d.hero.mutators.every((x) => x.nameSizePx <= 28);
 })());
 check("desktop flag at 900 px", !isDesktop(899) && isDesktop(900) && lobbyV3Model(info(), ON, { ...ENV, width: 1440 })!.desktop);
-check("tabBar param mirrors the model (off keeps the hamburger)", m.tabBar && !lobbyV3Model(info(), NO_BAR, ENV)!.tabBar);
+check("hamburger is hidden only when tabBar AND pilotTab (all 4 combos)", [[true, true, false], [true, false, true], [false, true, true], [false, false, true]].every(([tb, pt, ham]) => {
+  const mm = lobbyV3Model(info(), { tabBar: tb, briefing: true, pilotTab: pt }, ENV)!;
+  return mm.tabBar === tb && mm.hamburger === ham;
+}));
 check("name size: short 46, mid 40, long 32 (2-line safe)", nameSizePx("OVERCHARGE", false) === 46 && nameSizePx("GRAZE PROTOCOL", false) === 40 && nameSizePx("YEAR OF THE SERPENT", false) === 32);
 
 // ---- chips over every mutator ----
@@ -132,6 +135,7 @@ check("launch slab carries a Training Ground link wired to onTraining", /v3-trai
 
 // ---- gates in source ----
 check("showDailyLobby gates v3 on params AND lobbyAllowed()", /showDailyLobby\(info: DailyLobbyInfo\): void \{\s*if \(this\.lobbyParams && this\.lobbyAllowed\(\)\) return this\.showDailyLobbyV3\(info\);/.test(uiSource));
+check("ui.ts uses model.hamburger for the hamburger", /if \(model\.hamburger\) \{\s*const lobbyTier/.test(uiSource));
 check("v3 falls back to today's lobby when the model is null", /if \(!model \|\| !params\) return this\.showDailyLobbyCurrent\(info\);/.test(uiSource));
 check("v3 root is div.screen.menu.daily-lobby.lobby-v3", /screen menu daily-lobby lobby-v3/.test(uiSource));
 check("every fill target still emitted by ui.ts (ids and classes)", LOBBY_FILL_TARGETS.filter((t) => t !== "#daily-hint" && t !== "#daily-board-search" && t !== "#daily-lobby-board").every((t) => uiSource.includes(t.slice(1))));

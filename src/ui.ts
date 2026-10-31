@@ -1490,7 +1490,7 @@ export class Ui {
         `<span class="v3-id-sub">${escapeHtml(model.header.metalWord)}</span></span>`;
       id.setAttribute("aria-label", `Pilot, ${sanitizeCallsignForDisplay(model.header.callsign)}`);
       id.addEventListener("click", () => (model.tabBar ? this.tabCallbacks().onPilot() : this.cb.onProfile()));
-      if ((info.pendingFriends ?? 0) > 0 && !model.tabBar) id.appendChild(this.el("span", "notif-dot", ""));
+      if ((info.pendingFriends ?? 0) > 0 && model.hamburger) id.appendChild(this.el("span", "notif-dot", ""));
     } else {
       id.innerHTML = `${mark}<span class="v3-id-text"><b class="v3-id-name">SIGN IN</b></span>`;
       id.setAttribute("aria-label", "Sign in");
@@ -1506,7 +1506,7 @@ export class Ui {
         `<b>${model.header.streak}</b> DAY STREAK`,
       ),
     );
-    if (!model.tabBar) {
+    if (model.hamburger) {
       const lobbyTier: "free" | "premium" | "admin" = info.tier ?? (info.unlimitedDaily ? "premium" : "free");
       right.appendChild(
         this.buildTierChip(

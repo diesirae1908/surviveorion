@@ -780,6 +780,11 @@
     justify-content: flex-start;
   }
 
+  .lobby-v3 .preview-badge,
+  .lobby-v3 .creator-days {
+    align-self: flex-start;
+  }
+
   .lobby-v3 .v3-emblem {
     grid-area: emblem;
     --emblem: 200px !important;
