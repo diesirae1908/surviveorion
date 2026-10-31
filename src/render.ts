@@ -260,7 +260,7 @@ export class Renderer {
 
     this.drawArenaBoundary(world);
     this.drawWindCurrent(world, opts.uiTime);
-    this.drawOffscreenThreats(world, opts.uiTime);
+    this.drawOffscreenThreats(world, opts.uiTime, opts.effects === "full" && opts.flags.hud?.edgeRadar === true);
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawMeteorTelegraphs(world, opts.uiTime);
     this.drawCreatureTelegraphs(world, opts.uiTime);
@@ -1434,8 +1434,12 @@ export class Renderer {
   }
 
   /** Alarm chevrons at the screen edge pointing at approaching off-screen drones. */
-  private drawOffscreenThreats(world: World, time: number): void {
+  private drawOffscreenThreats(world: World, time: number, radar = false): void {
     if (world.phase !== "playing") return;
+    if (radar) {
+      this.drawEdgeRadar(world, time);
+      return;
+    }
     const { ctx } = this;
     const hw = this.viewW / 2;
     const hh = this.viewH / 2;
@@ -1478,6 +1482,79 @@ export class Renderer {
       ctx.moveTo(0.352 * sizeMul, 0);
       ctx.lineTo(-0.128 * sizeMul, 0.224 * sizeMul);
       ctx.lineTo(-0.128 * sizeMul, -0.224 * sizeMul);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * ui.hud.edgeRadar: chevrons scale with time to the visible edge (closing
+   * speed from the drone velocity), formation members draw wider, nearest
+   * EDGE_RADAR_MAX only. Scratch arrays are reused so a swarm does not allocate.
+   */
+  private radarDist: number[] = [];
+  private radarIdx: number[] = [];
+  private drawEdgeRadar(world: World, time: number): void {
+    const { ctx } = this;
+    const hw = this.viewW / 2;
+    const hh = this.viewH / 2;
+    const inset = 0.35;
+    const warnR = 8;
+    const ship = world.ship;
+    const drones = world.drones;
+    const dist = this.radarDist;
+    const idx = this.radarIdx;
+    dist.length = 0;
+    idx.length = 0;
+    for (let i = 0; i < drones.length; i++) {
+      const d = drones[i];
+      if (!d.alive) continue;
+      if (Math.abs(d.x) <= hw && Math.abs(d.y) <= hh) continue;
+      const x = Math.max(-hw + inset, Math.min(hw - inset, d.x));
+      const y = Math.max(-hh + inset, Math.min(hh - inset, d.y));
+      const sq = (d.x - x) * (d.x - x) + (d.y - y) * (d.y - y);
+      if (sq > warnR * warnR) continue;
+      // insertion by distance, capped at EDGE_RADAR_MAX
+      let k = idx.length;
+      while (k > 0 && dist[k - 1] > sq) k--;
+      if (k >= feel.EDGE_RADAR_MAX) continue;
+      dist.splice(k, 0, sq);
+      idx.splice(k, 0, i);
+      if (idx.length > feel.EDGE_RADAR_MAX) {
+        dist.length = feel.EDGE_RADAR_MAX;
+        idx.length = feel.EDGE_RADAR_MAX;
+      }
+    }
+    const pulse = 0.85 + 0.15 * Math.sin(time * 8);
+    for (let n = 0; n < idx.length; n++) {
+      const d = drones[idx[n]];
+      const x = Math.max(-hw + inset, Math.min(hw - inset, d.x));
+      const y = Math.max(-hh + inset, Math.min(hh - inset, d.y));
+      const dx = d.x - x;
+      const dy = d.y - y;
+      const edgeDist = Math.sqrt(dx * dx + dy * dy);
+      const speed = d.frozen > 0 ? 0 : Math.hypot(d.vx, d.vy);
+      // closing speed along the line to the edge point
+      const closing = edgeDist > 1e-6 ? Math.max(0, -(d.vx * dx + d.vy * dy) / edgeDist) : speed;
+      const c = feel.radarChevron(edgeDist, closing);
+      const cornered =
+        (d.x < -hw && ship.x <= -hw + 2) ||
+        (d.x > hw && ship.x >= hw - 2) ||
+        (d.y < -hh && ship.y <= -hh + 2) ||
+        (d.y > hh && ship.y >= hh - 2);
+      const sizeMul = c.size * (cornered ? 1.25 : 1);
+      const wide = d.scriptMode ? 1.7 : 1; // formation members read as a wider front
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.atan2(dy, dx));
+      ctx.globalAlpha = Math.min(1, c.alpha * pulse * (cornered ? 1.2 : 1));
+      ctx.fillStyle = PALETTE.redBright;
+      ctx.beginPath();
+      ctx.moveTo(0.352 * sizeMul, 0);
+      ctx.lineTo(-0.128 * sizeMul, 0.224 * sizeMul * wide);
+      ctx.lineTo(-0.128 * sizeMul, -0.224 * sizeMul * wide);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
