@@ -275,6 +275,15 @@ export class AudioSystem {
     this.tone(990, 1320, 0.14, "sine", 0.2, 0.08);
   }
 
+  /** Mission briefing name stamp: a short brass hit (low thump, bright metallic ring). */
+  briefingStamp(): void {
+    this.noiseBurst(0.12, 0.3, 1800);
+    this.tone(110, 55, 0.28, "sine", 0.4);
+    this.tone(392, 392, 0.45, "triangle", 0.16, 0.02);
+    this.tone(587, 587, 0.4, "triangle", 0.1, 0.02);
+    this.tone(784, 780, 0.5, "sine", 0.07, 0.03);
+  }
+
   /** OVERDRIVE HOT: bright rising gold sting (three stacked rising steps + shimmer). */
   overdriveHot(): void {
     this.tone(523, 784, 0.16, "sine", 0.2);

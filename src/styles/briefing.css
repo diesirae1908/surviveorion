@@ -1,0 +1,63 @@
+/* Mission briefing (switch ui.lobby.briefing). Brand tokens only. */
+.screen.briefing {
+  z-index: 60;
+  justify-content: space-between;
+  gap: 12px;
+  background: radial-gradient(ellipse at 50% 38%, #12121e 0%, #0a0a12 100%);
+  font-family: var(--orion-font);
+  color: var(--orion-starlight);
+}
+.briefing-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.briefing-kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.28em; color: var(--orion-alarm); }
+.briefing-kicker::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 10px;
+  border-radius: 50%; background: var(--orion-alarm); vertical-align: 1px;
+}
+.briefing-patrol { font-size: 12px; letter-spacing: 0.2em; color: var(--orion-dust); }
+.briefing-preview {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.24em; padding: 2px 10px;
+  border: 1px solid var(--orion-gold); border-radius: 4px; color: var(--orion-gold);
+}
+.briefing-emblem { width: min(46vw, 200px); aspect-ratio: 1; filter: drop-shadow(0 0 22px rgba(255, 215, 0, 0.35)); }
+.briefing-emblem svg { width: 100%; height: 100%; display: block; }
+.briefing-cond { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.briefing-cond-label { font-size: 12px; letter-spacing: 0.3em; color: var(--orion-dust); }
+.briefing-name {
+  font-size: clamp(26px, 8vw, 44px); font-weight: 700; letter-spacing: 0.12em; line-height: 1.05;
+  background: var(--orion-gradient-gold); -webkit-background-clip: text; background-clip: text; color: transparent;
+  max-width: 100%; overflow-wrap: anywhere;
+}
+.briefing-rows { display: flex; flex-direction: column; gap: 8px; width: min(100%, 420px); }
+.briefing-row {
+  text-align: left; padding: 10px 14px; border: 1px solid var(--orion-hull-line);
+  border-left: 3px solid var(--orion-gold); border-radius: 8px; background: var(--orion-deep-space);
+}
+.briefing-row-title { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--orion-starlight); }
+.briefing-row-detail { margin-top: 2px; font-size: 13px; color: var(--orion-brass); }
+.briefing-foot { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(100%, 420px); }
+.briefing-same { font-size: 11px; letter-spacing: 0.24em; color: var(--orion-dust); }
+.briefing-launch {
+  width: 100%; min-height: 52px; border-radius: 28px; border: 2px solid var(--orion-gold);
+  background: var(--orion-deep-space); color: var(--orion-gold); font: inherit; font-size: 16px;
+  font-weight: 700; letter-spacing: 0.3em; cursor: pointer; opacity: 0.35; pointer-events: none;
+}
+.briefing-ready .briefing-launch { opacity: 1; pointer-events: auto; background: var(--orion-gradient-gold); color: var(--orion-void); }
+
+/* animated sequence: emblem spins in, name stamps, rows resolve, launch arms */
+.briefing-anim .briefing-emblem { animation: bf-spin 0.9s var(--orion-ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both; }
+.briefing-anim .briefing-name { animation: bf-stamp 0.3s ease-out 1.4s both; }
+.briefing-anim .briefing-cond-label { animation: bf-fade 0.3s ease-out 1.2s both; }
+.briefing-anim .briefing-row { animation: bf-row 0.35s ease-out calc(2s + var(--bf-i, 0) * 0.5s) both; }
+.briefing-anim .briefing-foot { animation: bf-fade 0.4s ease-out 3.4s both; }
+.briefing-anim .briefing-name.briefing-shake { animation: bf-stamp 0.3s ease-out 1.4s both, bf-shake 0.24s linear 1.4s 1; }
+@keyframes bf-spin { from { opacity: 0; transform: rotate(-120deg) scale(0.5); } to { opacity: 1; transform: none; } }
+@keyframes bf-stamp { from { opacity: 0; transform: scale(1.5); } to { opacity: 1; transform: none; } }
+@keyframes bf-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bf-row { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes bf-shake { 0%, 100% { translate: 0 0; } 25% { translate: 3px -3px; } 50% { translate: -3px 3px; } 75% { translate: 3px 3px; } }
+/* tap-to-skip: once ready, show every part at once */
+.briefing-ready .briefing-emblem, .briefing-ready .briefing-name, .briefing-ready .briefing-cond-label,
+.briefing-ready .briefing-row, .briefing-ready .briefing-foot { animation: none; opacity: 1; transform: none; translate: 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .briefing-anim * { animation: none !important; }
+}
