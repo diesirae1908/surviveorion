@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: WS-H live pace chip + QA bug 4 (feat/pace-chip)
+
+- Bug 4 (plain fix): CHAIN label x is now measured multiplier width + `CHAIN_GAP_PX` (10), in both HUD paths. New pure `hudTextBoxes` (feel.ts, measure injected) places every top-HUD text box; mutator subtitle and wind warning drop to padTop + 58 (then under whatever they hit) only when they would touch the left block; unchanged y otherwise.
+- Pace chip (`ui.hud.paceChip`, default off, already in registry): `src/pace.ts` does one board fetch at run start (only when the switch is on, daily, today, online, not preview), own row removed, sorted desc; `snapshot` = binary-search rank, places gained, next pilot + gap, cached per integer score; fetch failure/empty board hides the chip; stale fetches from an earlier run ignored. Drawn in `drawHud` (both paths) as a two-line plate under the pause button, right-aligned, sliding below any center line it would touch. Copy: "PACE #14 ▲3" / "NEXT GLINT +1,204" / "LEADING".
+- Old production rows (no `paceChip` param): no fetch, no chip (tested). `scripts/test-pace.ts`: rank math, wiring, 1152 box-overlap combos (8 viewports, safe top 0/47/59, bottom 0/34, both paths, longest Sunday pair at x10.0). Note: chip only shows on non-preview runs, so `?flags=` cannot show it; QA must use a staging row or intercept /api/config.
+- Test geometry note: score box height uses digit cap height (0.75 em); flag-off HUD chain row vs spaced DAILY PATROL label can graze ~3 px at 360 (pre-existing, excluded from the test).
+- Screenshots: Sam `reports/orion-revamp-2026-10-29/build-shots/pace/` (m390, m360, d1440 chip on; m390 off and old-row = no chip).
+- Gates: npm test, sim-test, build green.
+
 ## 2026-10-30 PT: WS-R fix round (feat/v3-seams)
 
 - Opus review fixes: admin Switches card now merges registry defaults under the current row for display (`swMergeDefaults`), so new params and "needs bundle gen N" show for switches whose latest row predates them (saving still materializes server-side; no unit test, admin JS is inline: manual check = open /admin > Switches on a DB with an old `ui.hud` row and see `sky`, `paceChip` fields). `TrailCosmetic` moved to new `src/cosmetics.ts` (WS-O2 owns it). Ownership note: `src/lobby/menuRows.ts` and `src/lobby/fillTargets.ts` belong to WS-L.
