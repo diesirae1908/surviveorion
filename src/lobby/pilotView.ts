@@ -5,8 +5,9 @@
 // (scripts/test-pilot-view.ts). `buildPilotDossier` only maps a model to
 // elements. Styles: src/styles/pilot.css (imported by main.ts).
 //
-// The ladder (rank, Merit bar, trail picker) is WS-O2's: `ladder` is null here
-// and the model leaves a `ladderSlot` the O2 branch fills.
+// The ladder section (insignia tier, Merit bar, trail picker) is WS-O2's: it
+// shows only when `data.ladder` is set (signed in with `orders` on) and fills
+// the `#pd-ladder-slot` WS-P left.
 
 import type { DailyHistoryEntry, PlayerProfile } from "../api";
 import { BADGES, TIER_LABEL, type BadgeProgressStats } from "../badges";
@@ -14,6 +15,7 @@ import { countryFlag } from "../countries";
 import { dayInfoFor, daysInMonth, leadingPadding, utcDateStr } from "../dailyHistory";
 import { medalForScore, medalThresholdsForDate, MEDAL_LABEL, type MedalTier } from "../medals";
 import type { DailyDayLog } from "../save";
+import { ORDERS_UI_COPY, insigniaMarkup, ladderModel, trailPickerModel, type TrailPickItem } from "../ladder";
 
 /** Weeks start on Sunday here, same as the Patrol Calendar grid (leadingPadding). */
 const DOW_LETTERS = ["S", "M", "T", "W", "T", "F", "S"] as const;
@@ -56,8 +58,36 @@ export interface PilotDossierData {
   goldPlate: { show: boolean; priceLabel: string | null };
   /** Gold Patrol / admin: past days can be flown. Free: past days with no result read as locked. */
   canFlyArchive: boolean;
-  /** WS-O2 fills this (tier, Merit, trails). Null until then. */
-  ladder: null;
+  /** Pilot Ladder state (WS-O2). Null for guests and while the `orders` switch is off. */
+  ladder: { merit: number; equippedTrail: string | null } | null;
+}
+
+/** The ladder section of the dossier (pure model; see `ladderSectionModel`). */
+export interface LadderSectionModel {
+  kicker: string;
+  /** Ladder tier index (0 = Ensign). */
+  tier: number;
+  name: string;
+  insignia: string;
+  bar: { progress: number; text: string };
+  creed: string;
+  trailsTitle: string;
+  trails: TrailPickItem[];
+}
+
+export function ladderSectionModel(data: PilotDossierData): LadderSectionModel | null {
+  if (!data.ladder || data.guest || !data.signedIn) return null;
+  const m = ladderModel(data.ladder.merit);
+  return {
+    kicker: ORDERS_UI_COPY.ladderKicker,
+    tier: m.tier,
+    name: m.name.toUpperCase(),
+    insignia: insigniaMarkup(m.tier),
+    bar: { progress: m.progress, text: m.barText },
+    creed: ORDERS_UI_COPY.ladderCreed,
+    trailsTitle: ORDERS_UI_COPY.trailsTitle,
+    trails: trailPickerModel(m.tier, data.ladder.equippedTrail),
+  };
 }
 
 export type PilotMetal = MedalTier | "none";
@@ -90,8 +120,8 @@ export interface PilotDossierModel {
   flag: string;
   insignia: { metal: PilotMetal; caption: string };
   stats: Array<{ id: "streak" | "patrols" | "bestRank"; value: string; label: string }>;
-  /** Reserved for WS-O2 (tier name, Merit bar, trail picker). Always null in WS-P. */
-  ladderSlot: null;
+  /** Tier name, Merit bar, trail picker (WS-O2). Null when the orders switch is off or for a guest. */
+  ladderSlot: LadderSectionModel | null;
   flightLog: { title: string; dow: readonly string[]; cells: PilotCell[]; monthKey: string };
   goldPlate: { title: string; sub: string; go: string } | null;
   /** Ghost only: the sign-in call to action. */
@@ -113,6 +143,8 @@ export interface PilotDossierCallbacks {
   onGoldPlate: () => void;
   onSignIn: () => void;
   onAccount: () => void;
+  /** Equip a trail (`null` = Hull Gold). Resolves true when saved. Absent: the picker is read-only. */
+  onTrail?: (id: string | null) => Promise<boolean>;
 }
 
 const MEDAL_RANK: Record<MedalTier, number> = { gold: 3, silver: 2, copper: 1 };
@@ -312,7 +344,7 @@ export function pilotDossierModel(data: PilotDossierData): PilotDossierModel {
     flag: !ghost && data.country ? countryFlag(data.country) : "",
     insignia: { metal, caption },
     stats,
-    ladderSlot: null,
+    ladderSlot: ladderSectionModel(data),
     flightLog: log,
     goldPlate: data.goldPlate.show
       ? { title: "GOLD PATROL", sub: "Keep flying today. Unlimited runs.", go: data.goldPlate.priceLabel ?? "" }
@@ -367,6 +399,66 @@ function badgeHex(item: PilotBadgeItem, detail: HTMLElement): HTMLElement {
   return b;
 }
 
+/** Ladder section: insignia, tier, Merit bar, creed, trail picker (WS-O2). */
+function buildLadderSection(slot: HTMLElement, m: LadderSectionModel, cb: PilotDossierCallbacks): void {
+  slot.classList.add("lad");
+  const ins = el("div", "lad-insignia");
+  ins.dataset.tier = String(m.tier);
+  ins.innerHTML = m.insignia;
+  const head = el("div", "lad-head");
+  head.append(el("div", "pd-section", m.kicker), el("div", "lad-name", m.name));
+  const top = el("div", "lad-top");
+  top.append(ins, head);
+  const bar = el("div", "lad-bar");
+  const fill = el("i", "lad-bar-fill");
+  fill.style.width = `${Math.round(m.bar.progress * 100)}%`;
+  bar.append(fill);
+  bar.setAttribute("role", "progressbar");
+  bar.setAttribute("aria-valuemin", "0");
+  bar.setAttribute("aria-valuemax", "100");
+  bar.setAttribute("aria-valuenow", String(Math.round(m.bar.progress * 100)));
+  bar.setAttribute("aria-label", m.bar.text);
+  const note = el("div", "lad-note");
+  const picker = el("div", "lad-trails");
+  const buttons = new Map<string, HTMLButtonElement>();
+  const mark = (id: string): void => {
+    for (const [tid, b] of buttons) {
+      const on = tid === id;
+      b.classList.toggle("equipped", on);
+      b.setAttribute("aria-pressed", String(on));
+    }
+  };
+  for (const t of m.trails) {
+    const b = el("button", `lad-trail${t.locked ? " locked" : ""}${t.equipped ? " equipped" : ""}`);
+    b.type = "button";
+    b.dataset.trail = t.id;
+    b.setAttribute("aria-pressed", String(t.equipped));
+    b.setAttribute("aria-label", t.locked ? `${t.label}. ${t.hint}` : t.label);
+    b.title = t.hint;
+    b.append(el("span", "lad-trail-label", t.label));
+    b.append(el("span", "lad-trail-sub", t.locked ? t.unlockName.toUpperCase() : t.equipped ? ORDERS_UI_COPY.trailEquipped : ""));
+    b.addEventListener("click", () => {
+      if (t.locked) {
+        note.textContent = t.hint;
+        return;
+      }
+      if (!cb.onTrail) return;
+      const prev = [...buttons.entries()].find(([, x]) => x.classList.contains("equipped"))?.[0] ?? "hull";
+      note.textContent = "";
+      mark(t.id);
+      void cb.onTrail(t.id === "hull" ? null : t.id).then((ok) => {
+        if (!ok) {
+          mark(prev);
+          note.textContent = ORDERS_UI_COPY.trailFailed;
+        }
+      });
+    });
+    buttons.set(t.id, b);
+    picker.append(b);
+  }
+  slot.append(top, bar, el("div", "lad-bar-text", m.bar.text), el("div", "lad-creed", m.creed), el("div", "pd-section", m.trailsTitle), picker, note);
+}
+
 /** Map a model to elements. Appended inside the tab screen (showCustomScreen). */
 export function buildPilotDossier(model: PilotDossierModel | null, cb: PilotDossierCallbacks): HTMLElement {
   const root = el("div", "pd");
@@ -403,9 +495,9 @@ export function buildPilotDossier(model: PilotDossierModel | null, cb: PilotDoss
     root.append(el("div", "pd-signin-text", model.signIn.text), btn);
   }
 
-  // WS-O2 mounts the ladder section here (insignia tier, Merit bar, trail picker).
   const ladder = el("div", "pd-ladder-slot");
   ladder.id = "pd-ladder-slot";
+  if (model.ladderSlot) buildLadderSection(ladder, model.ladderSlot, cb);
   root.append(ladder);
 
   const log = el("div", "pd-log chamfer");
