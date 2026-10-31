@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30: WS-S share card v2, Stories, EFFECTS row (feat/rg-share-v2)
+
+- `src/shareCardV2.ts` (new): pure `shareCardV2Model(stats, format)` + `drawShareCardV2`. Flight-trace art (fitted to the art box), hero gold score, medal insignia + word, mutator in red on the patrol line, cause line, SURVIVED / PEAK / RANK (KILLS when no rank), footer. Square 1080 and story 1080x1920 (nothing in the top 250 / bottom 300 px). Lobby share without a trace draws the large ORION mark.
+- `src/share.ts`: `renderShareCardPng(s, format)` picks v2 only with `ui.result.shareV2` (via `ShareStats.resultParams`), story only with `shareV2` + `stories`, else today's card. `canShareFiles()`. v1 medal word now uses the silver/copper tokens (nit). Text share unchanged.
+- `src/ui.ts`: STORY button next to Share result on the v2 result nav rows (needs `stories` and file share); settings GAMEPLAY gets "EFFECTS: FULL / LITE" (always visible, disabled "LITE (reduced motion)" when the OS forces it).
+- `src/main.ts` (2 lines, outside WS-S matrix, flagged to Sam): `resultParams` into the share stats, `stories` into showGameOver. Needed because PREVIEW_FLAGS lives in main.
+- Tests: `scripts/test-share-card.ts` (model boxes in frame and safe zones over ranks/medals/long names/scores, trace fit, v1 fallback, story fallback, medal colors).
+- Screenshots: reports/orion-revamp-2026-10-29/build-shots/v3-share/. Follow-up: real-DOM check of the STORY button on a touch device (QA).
+
 ## 2026-10-30 PT: WS-R fix round (feat/v3-seams)
 
 - Opus review fixes: admin Switches card now merges registry defaults under the current row for display (`swMergeDefaults`), so new params and "needs bundle gen N" show for switches whose latest row predates them (saving still materializes server-side; no unit test, admin JS is inline: manual check = open /admin > Switches on a DB with an old `ui.hud` row and see `sky`, `paceChip` fields). `TrailCosmetic` moved to new `src/cosmetics.ts` (WS-O2 owns it). Ownership note: `src/lobby/menuRows.ts` and `src/lobby/fillTargets.ts` belong to WS-L.

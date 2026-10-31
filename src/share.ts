@@ -6,6 +6,9 @@ import { isNativeApp, isNativePlay, nativeShare, postNativeShare } from "./nativ
 import { patrolDateStr } from "./patrolDate";
 import { DAILY_MAX_ATTEMPTS } from "./save";
 import type { TraceBox, TracePath } from "./flightTrace";
+import { MEDAL_WORD_COLOR, shareCardV2Model, drawShareCardV2, STORY_HEIGHT } from "./shareCardV2";
+
+export { MEDAL_WORD_COLOR };
 
 /**
  * Day the daily site went live, that date is Daily/Patrol #1. Reused as the
@@ -50,9 +53,12 @@ export interface ShareStats {
   grazes?: number;
   /** "Rammed by a Lancer at 1:12" style line (resultView causeText). */
   causeLabel?: string;
+  /** ui.result params resolved by the caller (preview flags included). Absent = v1 card, square only. */
+  resultParams?: { shareV2?: boolean; stories?: boolean } | null;
 }
 
-/** Card format: the square card or the 1080x1920 story. Stories are drawn by WS-S; until then both render the square card. */
+
+/** Card format: the square card or the 1080x1920 story (story needs `ui.result.stories`, else it renders square). */
 export type ShareFormat = "square" | "story";
 
 /** Box the share trace is fitted into (box units; WS-S may change it when it draws the trace). */
@@ -95,6 +101,17 @@ export function buildShareText(s: ShareStats): string {
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
+}
+
+/** True when this device can share a PNG file (native app, or the Web Share API with files). Stories need it. */
+export function canShareFiles(): boolean {
+  if (isNativePlay() || isNativeApp()) return true;
+  try {
+    if (typeof navigator === "undefined" || typeof navigator.canShare !== "function" || typeof File === "undefined") return false;
+    return navigator.canShare({ files: [new File([""], "orion-patrol.png", { type: "image/png" })] });
+  } catch {
+    return false;
+  }
 }
 
 export type ShareOutcome = "shared" | "copied" | "failed";
@@ -202,7 +219,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, s: ShareStats, asse
     ["PEAK", `×${s.maxMultiplier.toFixed(1)}`, "#fff7e0"],
   ];
   if (s.rank !== null) lines.push(["RANK", `#${s.rank} today`, "#fff7e0"]);
-  if (s.medal) lines.push(["MEDAL", MEDAL_LABEL[s.medal], "#ffd700"]);
+  if (s.medal) lines.push(["MEDAL", MEDAL_LABEL[s.medal], MEDAL_WORD_COLOR[s.medal]]);
   if (s.mutatorNames && s.mutatorNames.length > 0) {
     lines.push(["TODAY'S MUTATOR", s.mutatorNames.join(" + "), "#ff4455"]);
   }
@@ -231,19 +248,40 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, s: ShareStats, asse
   ctx.textAlign = "left";
 }
 
-/** Brand-kit share card (1080 square) as a PNG blob for the native sheet. */
-export async function renderShareCardPng(s: ShareStats): Promise<Blob | null> {
+/** True when this run may draw the v2 card (`ui.result.shareV2`). */
+export function useShareV2(s: ShareStats): boolean {
+  return s.resultParams?.shareV2 === true;
+}
+
+/** The format actually drawn: stories only with `ui.result.stories` (and v2 art), else square. */
+export function effectiveShareFormat(s: ShareStats, format: ShareFormat): ShareFormat {
+  return format === "story" && s.resultParams?.stories === true && useShareV2(s) ? "story" : "square";
+}
+
+/** Brand-kit share card as a PNG blob: 1080 square, or 1080x1920 for Stories (v2 only). */
+export async function renderShareCardPng(s: ShareStats, format: ShareFormat = "square"): Promise<Blob | null> {
   if (typeof document === "undefined") return null;
+  const v2 = useShareV2(s);
+  const fmt = effectiveShareFormat(s, format);
   const canvas = document.createElement("canvas");
   canvas.width = CARD_SIZE;
-  canvas.height = CARD_SIZE;
+  canvas.height = v2 && fmt === "story" ? STORY_HEIGHT : CARD_SIZE;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
+  if (v2) {
+    try {
+      await document.fonts?.load("700 64px Rajdhani");
+      await document.fonts?.load("600 22px Rajdhani");
+    } catch {
+      /* system fallback font */
+    }
+  }
   const [medalImg, markImg] = await Promise.all([
     s.medal ? loadMedalSvg(s.medal) : Promise.resolve(null),
     loadImage("/orion-mark.svg"),
   ]);
-  drawShareCard(ctx, s, { medalImg, markImg });
+  if (v2) drawShareCardV2(ctx, shareCardV2Model(s, fmt), { medalImg, markImg, markFallback: drawOrionMarkPaths });
+  else drawShareCard(ctx, s, { medalImg, markImg });
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png");
   });
@@ -303,10 +341,9 @@ export async function shareText(text: string, preferNative: boolean, png?: Blob 
 export async function sharePatrol(
   stats: ShareStats,
   preferNative: boolean,
-  _format: ShareFormat = "square",
+  format: ShareFormat = "square",
 ): Promise<ShareOutcome> {
-  void _format; // WS-S draws the story format
   const text = buildShareText(stats);
-  const png = await renderShareCardPng(stats);
+  const png = await renderShareCardPng(stats, format);
   return shareText(text, preferNative, png);
 }

@@ -756,6 +756,7 @@ function shareCurrent(format: ShareFormat): Promise<ShareOutcome> {
       mutatorNames: sourceMutatorNames ?? todaysMutatorNames,
       medal,
       preview: PREVIEW_ACTIVE,
+      resultParams: clientFlagsSnapshot(PREVIEW_FLAGS).result,
     },
     isTouchDevice(),
     format,
@@ -1894,6 +1895,7 @@ function showGameOverUi(): void {
   ui.showGameOver({
     resultV2: !!resultFlags?.resultV2,
     deathMoment: !!resultFlags?.deathMoment,
+    stories: !!resultFlags?.shareV2 && !!resultFlags?.stories,
     effects: effectiveEffects(settings),
     track: world.shipTrack,
     field: world.clipArena,

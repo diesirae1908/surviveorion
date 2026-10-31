@@ -47,8 +47,10 @@ import {
   loadDailyAttempts,
   loadDailyHistory,
   loadRunCount,
+  effectiveEffects,
+  saveSettings,
 } from "./save";
-import type { ShareOutcome } from "./share";
+import { canShareFiles, type ShareOutcome } from "./share";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
 import { RECORDING_MAX_SECONDS, recordingSupported, recordingUnavailableReason } from "./recorder";
 import {
@@ -183,6 +185,8 @@ export interface GameOverStats {
   attemptsLeft?: number;
   /** Daily-only site: show the share-result button. */
   showShare?: boolean;
+  /** ui.result.stories: show the STORY share button (file share only). */
+  stories?: boolean;
   /** Daily-only site: death inside the free-death window — attempt returned. */
   refunded?: boolean;
   /** Daily-only site: today's mutator name(s), for the "DAILY PATROL" tag. */
@@ -773,6 +777,32 @@ export class Ui {
     return row;
   }
 
+  /**
+   * EFFECTS: FULL / LITE (player setting, always visible). LITE trims the
+   * screen-wide effects. When the OS asks for reduced motion the game is forced
+   * to LITE, so the button reads that and is disabled.
+   */
+  private effectsRow(): HTMLElement {
+    const row = this.el("div", "toggles", "");
+    const btn = document.createElement("button");
+    const forced = (): boolean => this.settings.effects !== "lite" && effectiveEffects(this.settings) === "lite";
+    const paint = (): void => {
+      btn.textContent = forced()
+        ? "Effects: LITE (reduced motion)"
+        : `Effects: ${this.settings.effects === "lite" ? "LITE" : "FULL"}`;
+      btn.disabled = forced();
+    };
+    paint();
+    btn.addEventListener("click", () => {
+      if (forced()) return;
+      this.settings.effects = this.settings.effects === "lite" ? "full" : "lite";
+      saveSettings(this.settings);
+      paint();
+    });
+    row.appendChild(btn);
+    return row;
+  }
+
   /** Cycle button for Low/Med/High sensitivity settings. */
   private senseButton(key: "tiltSensitivity" | "directSpeed", label: string): HTMLButtonElement {
     const btn = document.createElement("button");
@@ -1175,6 +1205,21 @@ export class Ui {
       });
     });
     btn.classList.add("share-btn", "chamfer");
+    return btn;
+  }
+
+  /** STORY button (ui.result.stories, file share only): shares the 1080x1920 card. */
+  private storyButton(): HTMLButtonElement {
+    const btn = this.button("Story", false, () => {
+      btn.disabled = true;
+      void (this.cb.onShareStory?.() ?? Promise.resolve("failed" as const)).then((outcome) => {
+        btn.disabled = false;
+        btn.textContent =
+          outcome === "copied" ? "Copied!" : outcome === "shared" ? "Shared!" : "Couldn't share";
+        setTimeout(() => (btn.textContent = "Story"), 1600);
+      });
+    });
+    btn.classList.add("share-btn", "story-btn", "chamfer");
     return btn;
   }
 
@@ -2977,6 +3022,7 @@ export class Ui {
       senseRow.appendChild(this.senseButton("tiltSensitivity", "Tilt sense"));
     }
     gameplaySection.appendChild(senseRow);
+    gameplaySection.appendChild(this.effectsRow());
 
     gameplaySection.appendChild(
       this.el(
@@ -3560,6 +3606,11 @@ export class Ui {
       const share = this.shareButton();
       share.classList.add("small-btn");
       navRow.appendChild(share);
+      if (stats.stories && this.cb.onShareStory && canShareFiles()) {
+        const story = this.storyButton();
+        story.classList.add("small-btn");
+        navRow.appendChild(story);
+      }
     }
     actions.appendChild(navRow);
     if (!stats.touchDevice && canRetry) {
@@ -3697,6 +3748,11 @@ export class Ui {
       const share = this.shareButton();
       share.classList.add("small-btn");
       navRow.appendChild(share);
+      if (stats.stories && this.cb.onShareStory && canShareFiles()) {
+        const story = this.storyButton();
+        story.classList.add("small-btn");
+        navRow.appendChild(story);
+      }
     }
     const menuBtn = this.button(capped ? "Base" : "Main menu", false, () => this.cb.onQuitToMenu());
     menuBtn.classList.add("small-btn", "chamfer");
