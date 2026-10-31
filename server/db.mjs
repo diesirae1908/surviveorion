@@ -1187,33 +1187,39 @@ function ptOffsetMs(now = Date.now()) {
   return Math.round((now - wallAsUtc) / 60000) * 60000;
 }
 
+/** Epoch ms of midnight America/Vancouver on civil date y-mo-d (DST-safe: one refinement step). */
+function ptDayStart(y, mo, d) {
+  const wall = Date.UTC(y, mo - 1, d, 0, 0, 0);
+  const guess = wall + ptOffsetMs(Date.UTC(y, mo - 1, d, 12, 0, 0));
+  return wall + ptOffsetMs(guess);
+}
+
 /** Epoch ms of the most recent midnight in America/Vancouver. */
 function ptMidnightEpoch(now = Date.now()) {
-  const off = ptOffsetMs(now);
-  const day = 24 * 3600 * 1000;
-  return Math.floor((now - off) / day) * day + off;
+  const [y, mo, d] = ptDateStr(now).split("-").map(Number);
+  return ptDayStart(y, mo, d);
 }
 
 /**
  * [start, end) epoch ms bounding one Pacific Time calendar day, for the
  * admin dashboard's date selector. `dateStr` is "YYYY-MM-DD"; omitted means
  * today (PT). Returns null on a malformed string so the caller can 400.
+ * end is the next civil day's start, so 23h/25h DST days are exact.
  */
 export function ptDateBounds(dateStr) {
-  const day = 24 * 3600 * 1000;
+  const nextDay = (y, mo, d) => {
+    const dt = new Date(Date.UTC(y, mo - 1, d + 1));
+    return ptDayStart(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  };
   if (!dateStr) {
-    const start = ptMidnightEpoch();
-    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver" }).format(start);
-    return { start, end: start + day, dateStr: parts };
+    const today = ptDateStr(Date.now());
+    const [y, mo, d] = today.split("-").map(Number);
+    return { start: ptDayStart(y, mo, d), end: nextDay(y, mo, d), dateStr: today };
   }
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
   if (!m) return null;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  // Noon UTC on that date is close enough to the real day to pick the right
-  // PDT/PST offset (same DST tolerance already accepted elsewhere here).
-  const off = ptOffsetMs(Date.UTC(y, mo - 1, d, 12, 0, 0));
-  const start = Date.UTC(y, mo - 1, d, 0, 0, 0) + off;
-  return { start, end: start + day, dateStr };
+  return { start: ptDayStart(y, mo, d), end: nextDay(y, mo, d), dateStr };
 }
 
 /** YYYY-MM-DD in America/Vancouver for an epoch ms. */

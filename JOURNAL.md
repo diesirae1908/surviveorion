@@ -70,6 +70,11 @@ why, commit hash, follow-ups), committed together with the work. See
 - Safety: no seeded draws (diff grep clean), no validate/tier/billing/ios/updates.json edits. Old production rows (fixture `old-row-930b7b4`) are used as stored: tests prove no new param appears and the ui flags/lobby/orders stay off.
 - Deviations: new tiny `server/rulesetStamp.mjs` (parseStamp shared by db.mjs and flags.mjs without an import cycle); `ordersParamsFor(date, previewFlags?)` takes the `?flags=` map; `orders.onRunStart.today` compares to the real patrol date (the plan's expression is a tautology); `audio.briefingStamp` is called through a cast until WS-B adds it; `scripts/test-updates.ts` source pins updated because the hamburger labels moved to `menuRows.ts`; `SHARE_TRACE_BOX` is a 1000x1000 placeholder for WS-S.
 - Follow-ups: Opus diff review; QA Playwright for the lobby/menu screenshots (the local headless run stayed on the gate screen, so the 390/1440 unchanged check is unverified here).
+## 2026-10-31 PT: DST midnight fix (fix/dst-midnight)
+
+- What: `patrolDayStartMs` (src/patrolDate.ts + server/patrolDate.mjs) took the PT offset at NOON of the date, so on DST-change days midnight was an hour off (2026-11-01 came out 01:00 PDT; 2026-03-08 also wrong). Now one refinement step: guess = UTC midnight + offset(noon), result = UTC midnight + offset(guess). Same fix in `server/db.mjs`: new `ptDayStart`, used by `ptMidnightEpoch` (admin "today" window; old floor-by-24h math was wrong after a DST switch) and `ptDateBounds` (end is now next civil day start, so 23h/25h days are exact).
+- Left alone: patrol DATE string derivation (correct, now tested across both transitions); db.mjs per-day SQL buckets that use the current offset for the whole 14-day window (documented hobby-dashboard tolerance, only rows within an hour of midnight, admin only).
+- Tests: `scripts/test-patrol-date.ts` extended (Nov 1, Mar 8, neighbors, nextPatrolMidnight around both transitions, client/server parity); green under TZ=UTC, America/Los_Angeles, Europe/Paris.
 
 ## 2026-10-30 PT: result header SIGNAL LOST (copy/signal-lost)
 
