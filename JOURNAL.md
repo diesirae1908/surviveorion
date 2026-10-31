@@ -27,6 +27,14 @@ why, commit hash, follow-ups), committed together with the work. See
 - Perf (headless Chromium, software raster, 1440x900, 400 rAF frames): off 5.3 to 5.7 ms mean, sky on 9.5 to 9.7 ms mean (software compositing of two full-field alpha layers; with GPU raster flags on the Mac both read under 1 ms). Sky JS cost measured at 0.006 ms per frame, 2 drawImage calls per frame (budget was under 1 ms). Edge radar adds nothing measurable. Hit-stop measured in browser: max sim stall 66 ms on, 10 ms off.
 - Screenshots: reports/orion-revamp-2026-10-29/build-shots/v3-feel-sky/ (d-/m- red-alert, starfall, cryo-winter, the-flood, blackout, graze-protocol; radar on/off).
 - Follow-ups: sky/radar need a second look on a real iPhone for raster cost; `monopower` days share one cool Starlight tint (no per-power look without an id branch).
+## 2026-10-30: WS-S share card v2, Stories, EFFECTS row (feat/rg-share-v2)
+
+- `src/shareCardV2.ts` (new): pure `shareCardV2Model(stats, format)` + `drawShareCardV2`. Flight-trace art (fitted to the art box), hero gold score, medal insignia + word, mutator in red on the patrol line, cause line, SURVIVED / PEAK / RANK (KILLS when no rank), footer. Square 1080 and story 1080x1920 (nothing in the top 250 / bottom 300 px). Lobby share without a trace draws the large ORION mark.
+- `src/share.ts`: `renderShareCardPng(s, format)` picks v2 only with `ui.result.shareV2` (via `ShareStats.resultParams`), story only with `shareV2` + `stories`, else today's card. `canShareFiles()`. v1 medal word now uses the silver/copper tokens (nit). Text share unchanged.
+- `src/ui.ts`: STORY button next to Share result on the v2 result nav rows (needs `stories` and file share); settings GAMEPLAY gets "EFFECTS: FULL / LITE" (always visible, disabled "LITE (reduced motion)" when the OS forces it).
+- `src/main.ts` (2 lines, outside WS-S matrix, flagged to Sam): `resultParams` into the share stats, `stories` into showGameOver. Needed because PREVIEW_FLAGS lives in main.
+- Tests: `scripts/test-share-card.ts` (model boxes in frame and safe zones over ranks/medals/long names/scores, trace fit, v1 fallback, story fallback, medal colors).
+- Screenshots: reports/orion-revamp-2026-10-29/build-shots/v3-share/. Follow-up: real-DOM check of the STORY button on a touch device (QA).
 
 ## 2026-10-30 PT: WS-R fix round (feat/v3-seams)
 
