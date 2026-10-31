@@ -496,9 +496,19 @@ function swParamsDiff(params, def) {
   const diff = a.filter((x) => d[x.path] !== x.value).map((x) => x.path + "=" + x.value);
   return diff.length ? diff.join(", ") : "defaults";
 }
+// Display only: registry defaults with the current row laid over them (row wins), so params
+// added after the row was written still show. Saving materializes server-side as before.
+function swMergeDefaults(def, cur) {
+  const out = {};
+  Object.keys(def).forEach((k) => {
+    const d = def[k], c = cur && cur[k];
+    out[k] = d !== null && typeof d === "object" ? swMergeDefaults(d, c && typeof c === "object" ? c : null) : (c === undefined || c === null ? d : c);
+  });
+  return out;
+}
 function swCard(key, f, current) {
   const bounds = f.bounds || {};
-  const params = current || f.default.params;
+  const params = swMergeDefaults(f.default.params, current);
   const caps = f.capsSince || {};
   const genNote = (path) => {
     const hit = Object.keys(caps).filter((c) => path === c || path.indexOf(c + ".") === 0);

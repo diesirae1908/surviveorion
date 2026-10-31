@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: WS-R fix round (feat/v3-seams)
+
+- Opus review fixes: admin Switches card now merges registry defaults under the current row for display (`swMergeDefaults`), so new params and "needs bundle gen N" show for switches whose latest row predates them (saving still materializes server-side; no unit test, admin JS is inline: manual check = open /admin > Switches on a DB with an old `ui.hud` row and see `sky`, `paceChip` fields). `TrailCosmetic` moved to new `src/cosmetics.ts` (WS-O2 owns it). Ownership note: `src/lobby/menuRows.ts` and `src/lobby/fillTargets.ts` belong to WS-L.
+
 ## 2026-10-30 PT: WS-R wave 0, registry additions, generation stamp, seams (feat/v3-seams)
 
 - What: plan v3.1 wave 0. Registry: new switches `ui.lobby` (client) and `orders` (gameplay kind, area meta, not in the ruleset); new params under `overdrive` (11 gen-2 forms, `alwaysHotScale`), `ui.hud` (edgeRadar, hitStop, hitStopShieldMs, sky, paceChip), `ui.result` (shareV2, stories); all default off or no-op; `capsSince` generation map. Bundle stamp: `rulesetStamp()` writes `<rulesetId>+g<ENGINE_GEN>` (ENGINE_GEN computed from `capsSince`, 2 now) on submitted runs; server `requiredGen`, `parseStamp`, `rulesetHealthForDay`; admin day report shows `staleBundle`/`requiredGen`, Switches form shows "needs bundle gen N". Emergency off scoped to `overdrive` only (`emergencyRowsOn` lists all). Bug 7: admin save shows clamped params. Bug 6: preview runs no longer refund an attempt, bump the run count or save local bests (`shouldRecordLocalBest`).

@@ -34,6 +34,7 @@ import * as deathFx from "./fx/deathFx";
 import * as overdriveFx from "./fx/overdriveFx";
 import * as sky from "./sky";
 import type { PaceView } from "./pace";
+import type { TrailCosmetic } from "./cosmetics";
 
 interface Star {
   x: number;
@@ -69,11 +70,6 @@ export interface RenderOpts {
   pace: PaceView | null;
   /** Equipped cosmetics (WS-O2); `trail: null` = the default hull trail. */
   cosmetics: { trail: TrailCosmetic | null };
-}
-
-/** An equipped trail style. WS-O2 defines the fields it needs; null in the stub. */
-export interface TrailCosmetic {
-  id: string;
 }
 
 const pingPong = (t: number): number => {

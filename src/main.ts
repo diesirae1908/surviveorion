@@ -65,7 +65,8 @@ import {
 } from "./mutators";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
-import { Renderer, type TrailCosmetic, type TransitionFx } from "./render";
+import { Renderer, type TransitionFx } from "./render";
+import type { TrailCosmetic } from "./cosmetics";
 import {
   clipExtension,
   saveClipToDevice,
