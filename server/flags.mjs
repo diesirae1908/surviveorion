@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { isValidUtcDateStr } from "./dateUtils.mjs";
 import * as store from "./db.mjs";
+import { parseStamp } from "./rulesetStamp.mjs";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,7 +42,17 @@ const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArr
  * Throws an Error with a readable message on a type mismatch.
  */
 export function materializeParams(def, params) {
+  return materializeParamsReport(def, params).params;
+}
+
+/**
+ * Same as materializeParams, plus the numbers the bounds clamped:
+ * `{ params, clamped: [{ path, given, stored }] }` (shown to the admin so a
+ * silent clamp is never a surprise).
+ */
+export function materializeParamsReport(def, params) {
   const bounds = def.bounds ?? {};
+  const clamped = [];
   const walk = (defaults, given, prefix) => {
     const out = {};
     for (const k of Object.keys(defaults)) {
@@ -56,6 +67,7 @@ export function materializeParams(def, params) {
         if (typeof gv !== "number" || !Number.isFinite(gv)) throw new Error(`param ${p} must be a number`);
         const b = bounds[p];
         out[k] = b ? Math.min(b[1], Math.max(b[0], gv)) : gv;
+        if (out[k] !== gv) clamped.push({ path: p, given: gv, stored: out[k] });
       } else if (typeof dv === "boolean") {
         if (typeof gv !== "boolean") throw new Error(`param ${p} must be true or false`);
         out[k] = gv;
@@ -65,7 +77,7 @@ export function materializeParams(def, params) {
     }
     return out;
   };
-  return walk(def.default.params, params, "");
+  return { params: walk(def.default.params, params, ""), clamped };
 }
 
 /** Canonical JSON: keys sorted at every depth. */
@@ -120,9 +132,46 @@ const normalizeRow = (r) => ({
   emergency: !!r.emergency,
 });
 
-/** True when an emergency-off row starts on `dateStr` (that day's board mixes rules). */
-export const emergencyOffOn = (dateStr) =>
-  store.listFlagVersions().some((r) => r.emergency && r.effective_from === dateStr);
+/** Emergency-off rows (any key) that start on `dateStr`, for the Switches list. */
+export const emergencyRowsOn = (dateStr) =>
+  store.listFlagVersions().filter((r) => r.emergency && r.effective_from === dateStr);
+
+/**
+ * True when an emergency-off row for `overdrive` starts on `dateStr`: only that
+ * key changes the rules of a run, so only it makes the day's board mix rules.
+ * An emergency off of any other gameplay key (e.g. `orders`) does not.
+ */
+export const emergencyOffOn = (dateStr) => emergencyRowsOn(dateStr).some((r) => r.key === "overdrive");
+
+const getPath = (obj, dotted) =>
+  dotted.split(".").reduce((o, k) => (isPlainObject(o) ? o[k] : undefined), obj);
+
+/**
+ * Engine generation the given overdrive params need: the max `capsSince`
+ * generation over the paths whose value differs from the registry default (an
+ * object path such as `forms.arc` counts when `on === true`). 1 when none.
+ */
+export function requiredGenForParams(params, registry = loadRegistry()) {
+  const caps = registry.capsSince?.overdrive ?? {};
+  const defParams = registry.flags.overdrive.default.params;
+  let gen = 1;
+  for (const [dotted, since] of Object.entries(caps)) {
+    const v = getPath(params, dotted);
+    const d = getPath(defParams, dotted);
+    const active = isPlainObject(v) ? v.on === true && !(isPlainObject(d) && d.on === true) : v !== undefined && v !== d;
+    if (active && since > gen) gen = since;
+  }
+  return gen;
+}
+
+/** Engine generation the date's overdrive row needs (1 when overdrive is off). */
+export function requiredGen(dateStr, registry = loadRegistry()) {
+  const r = resolveFlag("overdrive", dateStr, rowsForKey("overdrive"), registry);
+  if (!r || !r.enabled) return 1;
+  return requiredGenForParams(r.params, registry);
+}
+
+export { parseStamp };
 
 /** Normalized rows for one key from the store. */
 export const rowsForKey = (key) => store.listFlagVersions(key).map(normalizeRow);
@@ -174,7 +223,7 @@ export function addFlagVersion(input, todayStr, now = Date.now()) {
   } else if (def.kind !== "gameplay" && effectiveFrom < todayStr) {
     throw new Error(`rows cannot start before today (${todayStr})`);
   }
-  const materialized = materializeParams(def, params);
+  const { params: materialized, clamped } = materializeParamsReport(def, params);
   const hash = paramsHash(materialized);
   const id = store.insertFlagVersion({
     key,
@@ -187,7 +236,7 @@ export function addFlagVersion(input, todayStr, now = Date.now()) {
     actor: String(actor ?? "admin").slice(0, 80),
     createdAt: now,
   });
-  return { id, key, from: effectiveFrom, enabled, params: materialized, hash, note: cleanNote || null, emergency };
+  return { id, key, from: effectiveFrom, enabled, params: materialized, hash, note: cleanNote || null, emergency, clamped };
 }
 
 /**
@@ -256,6 +305,7 @@ export function adminFlagsView(todayStr, now = Date.now()) {
       description: def.description,
       default: def.default,
       bounds: def.bounds,
+      capsSince: registry.capsSince?.[key] ?? {},
       today: view(todayStr),
       tomorrow: view(tomorrow),
       next: rows.find((r) => r.from > tomorrow) ?? null,

@@ -47,7 +47,17 @@ export interface OverdriveParams {
     arc?: FormParams;
     autocannon?: FormParams;
     meteors?: FormParams;
+    /** Generation 2 mutator-power forms (see `capsSince` in the registry). */
+    razor?: FormParams;
+    thunder?: FormParams;
+    cloak?: FormParams;
+    flare?: FormParams;
+    ion?: FormParams;
+    howlers?: FormParams;
+    vortex?: FormParams;
   };
+  /** Generation 2: scale of the swarm heat when a mutator keeps it always hot. Absent in older rows: 1. */
+  alwaysHotScale?: number;
 }
 export type OverdriveRules = OverdriveParams;
 
@@ -75,12 +85,30 @@ export interface HudParams {
   edgeRadar?: boolean;
   hitStop?: boolean;
   hitStopShieldMs?: number;
+  sky?: boolean;
+  paceChip?: boolean;
 }
 export interface ResultParams {
   deathMoment: boolean;
   resultV2: boolean;
   freezeMs: number;
   shareV2?: boolean;
+  stories?: boolean;
+}
+
+/** Web lobby v3 (ui.lobby). Sub-switches default true; the whole layer is gated by `enabled`. */
+export interface LobbyParams {
+  tabBar: boolean;
+  briefing: boolean;
+  pilotTab: boolean;
+}
+
+/** Daily Orders (the `orders` gameplay-kind switch). Targets and merit are registry params. */
+export interface OrdersParams {
+  meritEasy: number;
+  meritMedium: number;
+  meritHard: number;
+  pool: Record<string, { on: boolean; target: number }>;
 }
 
 /** The three presentation flags for today. null = off. */
@@ -88,6 +116,7 @@ export interface ClientFlags {
   overdriveFx: OverdriveFxParams | null;
   hud: HudParams | null;
   result: ResultParams | null;
+  lobby: LobbyParams | null;
 }
 
 export interface FlagRow {
@@ -140,7 +169,21 @@ type RegistryFlag = {
   default: { enabled: boolean; params: unknown };
   bounds: Record<string, [number, number]>;
 };
-const REGISTRY = registry as unknown as { schema: number; flags: Record<string, RegistryFlag> };
+const REGISTRY = registry as unknown as {
+  schema: number;
+  capsSince?: Record<string, Record<string, number>>;
+  flags: Record<string, RegistryFlag>;
+};
+
+/**
+ * Engine generation of this bundle: the highest `since` generation in the
+ * registry's `capsSince` (1 when none). Computed, never hand-written, so a
+ * param added with a new generation moves it by itself.
+ */
+export const ENGINE_GEN: number = Math.max(
+  1,
+  ...Object.values(REGISTRY.capsSince ?? {}).flatMap((m) => Object.values(m)),
+);
 
 export const FLAG_KEYS: string[] = Object.keys(REGISTRY.flags);
 
@@ -397,12 +440,41 @@ export function resolveRunRules(patrolDate: string, ctx: RunRulesContext = {}): 
   };
 }
 
+/**
+ * The ruleset string a bundle stamps on a submitted run: the base id as is, any
+ * other id with `+g<ENGINE_GEN>`. `rulesetId` itself stays unchanged (client and
+ * server parity compare it); the suffix tells the server what this bundle can
+ * play. Scores are accepted with any stamp.
+ */
+export function rulesetStamp(rules: RunRules): string {
+  return rules.rulesetId === "base" ? "base" : `${rules.rulesetId}+g${ENGINE_GEN}`;
+}
+
+/**
+ * Whether a finished run may touch local personal state (best score/time, run
+ * count, attempt refund). False for any preview: a preview run is unscored and
+ * never spent an attempt.
+ */
+export function shouldRecordLocalBest(rules: RunRules, previewActive = false): boolean {
+  return !rules.preview && !previewActive;
+}
+
 /** True when a finished run may be sent to the server. Pure, so tests can pin it. */
 export function shouldSubmit(rules: RunRules, opts: { previewActive?: boolean } = {}): boolean {
   return !rules.preview && !opts.previewActive;
 }
 
-/** The three `ui.*` flags for today, cached per patrol date until flags change. */
+/**
+ * `orders` params for a patrol date (honors a creator preview and `?flags=`),
+ * or null when the switch is off. `orders` is gameplay-kind and date-bound, so
+ * the date matters (past days keep that day's pool).
+ */
+export function ordersParamsFor(patrolDate: string, previewFlags?: Record<string, boolean>): OrdersParams | null {
+  const e = effectiveFlag("orders", patrolDate, previewFlags && Object.keys(previewFlags).length > 0 ? previewFlags : undefined);
+  return e && e.flag.enabled ? (e.flag.params as OrdersParams) : null;
+}
+
+/** The `ui.*` flags for today, cached per patrol date until flags change. */
 export function clientFlagsSnapshot(preview?: Record<string, boolean>): ClientFlags {
   const previewFlags = preview && Object.keys(preview).length > 0 ? preview : undefined;
   const today = patrolToday();
@@ -418,6 +490,7 @@ export function clientFlagsSnapshot(preview?: Record<string, boolean>): ClientFl
     overdriveFx: pick<OverdriveFxParams>("ui.overdriveFx"),
     hud: pick<HudParams>("ui.hud"),
     result: pick<ResultParams>("ui.result"),
+    lobby: pick<LobbyParams>("ui.lobby"),
   };
   if (!previewFlags) snapshotCache = { date: today, stamp, cp, flags };
   return flags;

@@ -46,5 +46,79 @@
       ],
       "expect": { "overdrive": { "versionId": "1", "enabled": true }, "rulesetId": "overdrive@1#aaaaaaaa" }
     }
-  ]
+  ],
+  "old-row-930b7b4": {
+    "comment": "Production rows as materialized at origin/main 930b7b4 (the four Phase 1 keys, params copied from the registry then). They hold none of the params added later; later bundles must treat them exactly like dev did.",
+    "from": "2026-10-31",
+    "params": {
+      "overdrive": {
+        "chargePerGraze": 0.15,
+        "razorClearance": 0.25,
+        "razorGrazeScale": 2,
+        "outerClearance": 0.75,
+        "outerGrazeScale": 0.5,
+        "chargePerKill": 0.02,
+        "maxKillChargePerSec": 0.1,
+        "killChargeLockout": 4,
+        "drainDelay": 3,
+        "drainPerSec": 0.05,
+        "hotDroneSpeedScale": 1.2,
+        "armWhenClear": true,
+        "hotRadius": 3,
+        "hotMaxSeconds": 8,
+        "burstRadius": 1.2,
+        "mutatorHooks": true,
+        "forms": {
+          "pulse": {
+            "on": true,
+            "fanCount": 3,
+            "fanSpreadDeg": 12
+          },
+          "shield": {
+            "on": true,
+            "radiusScale": 1.3,
+            "refund": 0.5
+          },
+          "freeze": {
+            "on": true,
+            "radiusScale": 1.25,
+            "chainRadius": 1.2,
+            "chainMax": 12
+          },
+          "magnet": {
+            "on": true,
+            "maxPull": 3
+          },
+          "shockwave": {
+            "on": true,
+            "echoDelay": 0.6,
+            "echoScale": 0.8
+          },
+          "missiles": {
+            "on": true,
+            "count": 12,
+            "maxAlive": 18
+          }
+        }
+      },
+      "ui.overdriveFx": {
+        "heatTint": true,
+        "formPopup": true,
+        "stings": true
+      },
+      "ui.hud": {
+        "chainBar": true,
+        "pops": true,
+        "vignette": true,
+        "stickFade": true,
+        "killPopMinChain": 5,
+        "vignetteMaxAlpha": 0.35
+      },
+      "ui.result": {
+        "deathMoment": true,
+        "resultV2": true,
+        "freezeMs": 120
+      }
+    }
+  }
 }

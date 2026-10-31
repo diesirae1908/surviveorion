@@ -3,11 +3,18 @@
  * previews never submit, and the feel.ts move is a pure move.
  * Run: npx tsx scripts/test-flags.ts
  */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PALETTE } from "../src/config";
 import { createWorld } from "../src/gameState";
 import {
   BASE_RULES,
+  ENGINE_GEN,
   activeCreatorPreview,
+  ordersParamsFor,
+  rulesetStamp,
+  shouldRecordLocalBest,
   clientFlagsSnapshot,
   parsePreviewFlags,
   resetFlagsForTest,
@@ -22,6 +29,9 @@ import {
 } from "../src/flags";
 import { onEvent as feelOnEvent } from "../src/feel";
 import type { FxContext, GameEvent } from "../src/types";
+import { LOBBY_FILL_TARGETS } from "../src/lobby/fillTargets";
+import { menuRowSpecs } from "../src/lobby/menuRows";
+import registryJson from "../server/flags-registry.json";
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ""): void {
@@ -150,7 +160,7 @@ function recorder(): { ctx: FxContext; calls: Call[] } {
       graze: () => calls.push(["grazeSfx"]),
     },
     holdSim: () => {},
-    flags: { overdriveFx: null, hud: null, result: null },
+    flags: { overdriveFx: null, hud: null, result: null, lobby: null },
     effects: "full",
   } as unknown as FxContext;
   return { ctx, calls };
@@ -187,6 +197,113 @@ setCreatorPreview({ flags: { "ui.hud": { enabled: true, params: { chainBar: true
 check("ui flag on while the creator preview is armed", clientFlagsSnapshot().hud !== null);
 await new Promise((r) => setTimeout(r, 120));
 check("ui flag drops after the creator preview expires (cache key includes preview state)", clientFlagsSnapshot().hud === null);
+
+
+// --- v3 additions (WS-R) ---
+const here = path.dirname(fileURLToPath(import.meta.url));
+const srcDir = path.join(here, "..", "src");
+const fx = JSON.parse(fs.readFileSync(path.join(here, "fixtures", "flags-fixtures.json"), "utf8")) as {
+  "old-row-930b7b4": { from: string; params: Record<string, Record<string, unknown>> };
+};
+const OLD = fx["old-row-930b7b4"];
+
+// Production rows written under the old registry hold none of the new params.
+// They must be used as-is and behave exactly like dev did: every new param
+// reads as absent, every new switch as off.
+resetFlagsForTest();
+setRemoteFeatures({
+  schema: 1,
+  today: OLD.from,
+  flags: Object.fromEntries(
+    Object.entries(OLD.params).map(([k, params], i) => [
+      k,
+      { kind: k === "overdrive" ? "gameplay" : "client", versions: [row(10 + i, "2026-10-01", true, params, "0ld0000" + i)] },
+    ]),
+  ),
+});
+const oldRules = resolveRunRules(OLD.from, { daily: true });
+check("old-row-930b7b4: overdrive params used exactly as stored (no re-merge of new keys)", JSON.stringify(oldRules.overdrive) === JSON.stringify(OLD.params.overdrive));
+check("old-row-930b7b4: no gen-2 form and no alwaysHotScale present", (() => {
+  const od = oldRules.overdrive as unknown as { forms: Record<string, unknown>; alwaysHotScale?: number };
+  return ["starshell", "arc", "autocannon", "meteors", "razor", "thunder", "cloak", "flare", "ion", "howlers", "vortex"].every((f) => od.forms[f] === undefined) && od.alwaysHotScale === undefined;
+})());
+check("old-row-930b7b4: ui flags carry none of the new params", (() => {
+  const snap = clientFlagsSnapshot();
+  const noneOf = (o: object | null, keys: string[]) => !!o && keys.every((k) => (o as Record<string, unknown>)[k] === undefined);
+  return noneOf(snap.hud, ["edgeRadar", "hitStop", "hitStopShieldMs", "sky", "paceChip"]) && noneOf(snap.result, ["shareV2", "stories"]);
+})());
+check("old-row-930b7b4: ui flag snapshot reads the stored values", (() => {
+  const snap = clientFlagsSnapshot();
+  return snap.hud?.chainBar === true && snap.result?.freezeMs === 120 && snap.overdriveFx?.stings === true;
+})());
+check("old-row-930b7b4: lobby and orders stay off", clientFlagsSnapshot().lobby === null && ordersParamsFor(OLD.from) === null);
+check("old-row-930b7b4: the stamp gains only the +g suffix on an overdrive day", rulesetStamp(oldRules) === `${oldRules.rulesetId}+g${ENGINE_GEN}`);
+
+// defaults and previews
+resetFlagsForTest();
+check("lobby is null by default", clientFlagsSnapshot().lobby === null);
+check("orders params are null by default", ordersParamsFor("2026-11-11") === null);
+check("?flags=ui.lobby:on,orders:on parse", (() => {
+  const p = parsePreviewFlags("?flags=ui.lobby:on,orders:on");
+  return p["ui.lobby"] === true && p.orders === true;
+})());
+check("?flags= ui.lobby:on gives the registry default lobby params", (() => {
+  const l = clientFlagsSnapshot({ "ui.lobby": true }).lobby;
+  return !!l && l.tabBar === true && l.briefing === true && l.pilotTab === true;
+})());
+check("?flags= orders:on gives default pool params; new overdrive params stay off", (() => {
+  const o = ordersParamsFor("2026-11-11", { orders: true });
+  const rules = resolveRunRules("2026-11-11", { daily: true, previewFlags: { overdrive: true } });
+  const forms = rules.overdrive!.forms as unknown as Record<string, { on: boolean } | undefined>;
+  return !!o && o.pool["survive-30"].on === true && o.pool["survive-30"].target === 30 && o.meritHard === 4 && forms.starshell?.on === false && forms.razor?.on === false && rules.overdrive!.alwaysHotScale === 1;
+})());
+check("creator preview arms orders and ui.lobby", (() => {
+  resetFlagsForTest();
+  setCreatorPreview({ flags: { orders: { enabled: true }, "ui.lobby": { enabled: true } }, expiresAt: Date.now() + 60_000 });
+  const ok = ordersParamsFor("2026-11-11") !== null && clientFlagsSnapshot().lobby !== null;
+  setCreatorPreview(null);
+  return ok;
+})());
+resetFlagsForTest();
+
+// local-best gate (QA bug 6)
+check("shouldRecordLocalBest: real run records", shouldRecordLocalBest(BASE_RULES, false));
+check("shouldRecordLocalBest: any preview does not", !shouldRecordLocalBest(BASE_RULES, true) && !shouldRecordLocalBest(pv, false) && !shouldRecordLocalBest(pvOff, false));
+
+// bundle generation stamp
+check("ENGINE_GEN is the max capsSince generation (2) and never hand-written", ENGINE_GEN === 2 && ENGINE_GEN === Math.max(...Object.values((registryJson as unknown as { capsSince: Record<string, Record<string, number>> }).capsSince).flatMap((m) => Object.values(m))));
+check("rulesetStamp: base stays base, ruleset ids gain +g<ENGINE_GEN>", rulesetStamp(BASE_RULES) === "base" && rulesetStamp({ ...BASE_RULES, rulesetId: "overdrive@4#cafe0001" }) === "overdrive@4#cafe0001+g2");
+check("rulesetStamp: matches the server's accepted charset and length", /^[a-z0-9.@#:+]+$/.test(rulesetStamp({ ...BASE_RULES, rulesetId: "overdrive@4#cafe0001" })));
+
+// registry shape: defaults are no-op
+check("six switches, all default off", (() => {
+  const f = (registryJson as unknown as { flags: Record<string, { default: { enabled: boolean } }> }).flags;
+  return Object.keys(f).length === 6 && Object.values(f).every((x) => x.default.enabled === false);
+})());
+check("new overdrive form defaults are all off and alwaysHotScale is 1", (() => {
+  const d = (registryJson as unknown as { flags: { overdrive: { default: { params: { forms: Record<string, { on: boolean }>; alwaysHotScale: number } } } } }).flags.overdrive.default.params;
+  return ["starshell", "arc", "autocannon", "meteors", "razor", "thunder", "cloak", "flare", "ion", "howlers", "vortex"].every((f) => d.forms[f].on === false) && d.alwaysHotScale === 1;
+})());
+check("new ui params default off", (() => {
+  const f = (registryJson as unknown as { flags: Record<string, { default: { params: Record<string, unknown> } }> }).flags;
+  const h = f["ui.hud"].default.params;
+  const r = f["ui.result"].default.params;
+  return h.edgeRadar === false && h.hitStop === false && h.sky === false && h.paceChip === false && r.shareV2 === false && r.stories === false;
+})());
+
+// lobby fill targets still exist in source (a v3 lobby must keep them)
+const sourceText = ["ui.ts", "main.ts"].map((f) => fs.readFileSync(path.join(srcDir, f), "utf8")).join("\n");
+const missingTargets = LOBBY_FILL_TARGETS.filter((t) => !sourceText.includes(t.slice(1)));
+check("every LOBBY_FILL_TARGETS selector token appears in ui.ts or main.ts", missingTargets.length === 0, missingTargets.join(", "));
+
+// hamburger rows: today's ten rows in today's order
+const rowSpecs = menuRowSpecs({ pendingFriends: 0 }, { unreadUpdate: false, appStoreLive: true });
+check("menu rows: the 10 rows in today's order", rowSpecs.map((r) => r.label).join("|") === "Training Ground|Patrol Calendar|Wingmates|How to play|Powers|Field updates|Feedback|Settings|Get on iPhone|Privacy" && rowSpecs.every((r) => r.visible));
+check("menu rows: dots follow pending friends and unread updates", (() => {
+  const a = menuRowSpecs({ pendingFriends: 2 }, { unreadUpdate: true, appStoreLive: true });
+  return a.filter((r) => r.notif).map((r) => r.id).join() === "wingmates,updates" && rowSpecs.every((r) => !r.notif);
+})());
+check("menu rows: Get on iPhone hides when the listing is off", !menuRowSpecs({}, { unreadUpdate: false, appStoreLive: false }).find((r) => r.id === "iphone")!.visible);
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

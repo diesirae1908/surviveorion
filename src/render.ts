@@ -32,6 +32,8 @@ import {
 } from "./feel";
 import * as deathFx from "./fx/deathFx";
 import * as overdriveFx from "./fx/overdriveFx";
+import * as sky from "./sky";
+import type { PaceView } from "./pace";
 
 interface Star {
   x: number;
@@ -63,6 +65,15 @@ export interface RenderOpts {
   flags: ClientFlags;
   /** "lite" trims screen-wide effects (setting or prefers-reduced-motion). */
   effects: "full" | "lite";
+  /** Live pace chip data (WS-H); null = none. */
+  pace: PaceView | null;
+  /** Equipped cosmetics (WS-O2); `trail: null` = the default hull trail. */
+  cosmetics: { trail: TrailCosmetic | null };
+}
+
+/** An equipped trail style. WS-O2 defines the fields it needs; null in the stub. */
+export interface TrailCosmetic {
+  id: string;
 }
 
 const pingPong = (t: number): number => {
@@ -103,6 +114,15 @@ export class Renderer {
 
   /** env(safe-area-inset-*) is CSS-only, so measure it off a probe element. */
   private measureSafeArea(): void {
+    // Test-only hook (Chromium cannot emulate env(safe-area-inset-*)): QA sets
+    // window.__orionSafeInsets before load. Production never sets it.
+    const injected = (
+      window as unknown as { __orionSafeInsets?: { top: number; right: number; bottom: number; left: number } }
+    ).__orionSafeInsets;
+    if (injected) {
+      this.safe = { top: injected.top || 0, right: injected.right || 0, bottom: injected.bottom || 0, left: injected.left || 0 };
+      return;
+    }
     const probe = document.createElement("div");
     probe.style.cssText =
       "position:fixed;inset:0;visibility:hidden;pointer-events:none;" +
@@ -228,7 +248,19 @@ export class Renderer {
       (this.cssH / 2 + shakeY * this.field.scale) * dpr,
     );
 
-    this.drawStars(opts.uiTime);
+    if (
+      !sky.drawSky(ctx, {
+        viewport: { cssW: this.cssW, cssH: this.cssH, viewW: this.viewW, viewH: this.viewH },
+        field: this.field,
+        world,
+        mutators: opts.daily ? getActiveMutators() : [],
+        uiTime: opts.uiTime,
+        flags: opts.flags,
+        effects: opts.effects,
+      })
+    ) {
+      this.drawStars(opts.uiTime);
+    }
 
     this.drawArenaBoundary(world);
     this.drawWindCurrent(world, opts.uiTime);

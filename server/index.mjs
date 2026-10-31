@@ -1231,12 +1231,16 @@ const routes = {
       // Daily scores whose ruleset differs from what the server resolves for
       // that date. NULL = old bundle, counted as a mismatch (and shown apart).
       try {
-        const m = store.rulesetMismatchForDay(day.date, flags.serverRulesetFor(day.date));
+        const need = flags.requiredGen(day.date);
+        const m = store.rulesetHealthForDay(day.date, flags.serverRulesetFor(day.date), need);
         day.rulesetMismatch = m.mismatch;
         day.rulesetLegacy = m.legacy;
+        day.staleBundle = m.stale;
+        day.requiredGen = need;
         day.emergencyOff = flags.emergencyOffOn(day.date);
       } catch {
         day.rulesetMismatch = null;
+        day.staleBundle = null;
       }
     }
     json(res, 200, { ...store.adminStats(), day });

@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import path from "node:path";
+import { parseStamp } from "./rulesetStamp.mjs";
 
 /** Random browser UUID only. Never IP, never account. Hash before storage. */
 const DEVICE_ID_RE =
@@ -1430,20 +1431,37 @@ export const latestCreatorPreview = () =>
   db.prepare(`SELECT * FROM creator_preview ORDER BY id DESC LIMIT 1`).get() ?? null;
 
 /**
- * Daily scores on `date` whose ruleset differs from `expectedId`. NULL counts
- * as an old bundle (reported separately as `legacy`, and included in `mismatch`).
+ * Ruleset health of the daily scores on `date`. Each stamp is `<id>+g<N>`
+ * (see parseStamp). Returns `{ total, legacy, mismatch, stale }`:
+ * legacy = NULL ruleset (pre-registry bundle), mismatch = NULL or base id
+ * differs from `expectedId`, stale = a non-null stamp whose generation is below
+ * `requiredGen` (a bundle that cannot play that day's params). Scores are
+ * accepted regardless; this is reporting only.
  */
-export function rulesetMismatchForDay(date, expectedId) {
-  const row = db
-    .prepare(
-      `SELECT COUNT(*) AS total,
-              COALESCE(SUM(CASE WHEN ruleset IS NULL THEN 1 ELSE 0 END), 0) AS legacy,
-              COALESCE(SUM(CASE WHEN ruleset IS NULL OR ruleset != ? THEN 1 ELSE 0 END), 0) AS mismatch
-       FROM scores WHERE daily_date = ?`,
-    )
-    .get(expectedId, date);
-  return { total: row.total, legacy: row.legacy, mismatch: row.mismatch };
+export function rulesetHealthForDay(date, expectedId, requiredGen = 1) {
+  const rows = db
+    .prepare(`SELECT ruleset, COUNT(*) AS n FROM scores WHERE daily_date = ? GROUP BY ruleset`)
+    .all(date);
+  const out = { total: 0, legacy: 0, mismatch: 0, stale: 0 };
+  for (const r of rows) {
+    out.total += r.n;
+    const st = parseStamp(r.ruleset);
+    if (!st) {
+      out.legacy += r.n;
+      out.mismatch += r.n;
+      continue;
+    }
+    if (st.base !== expectedId) out.mismatch += r.n;
+    if (st.gen < requiredGen) out.stale += r.n;
+  }
+  return out;
 }
+
+/** Back-compat wrapper (counts only the id, ignores the generation suffix). */
+export const rulesetMismatchForDay = (date, expectedId) => {
+  const { total, legacy, mismatch } = rulesetHealthForDay(date, expectedId, 1);
+  return { total, legacy, mismatch };
+};
 
 /** Nth-percentile of a runs column (0..1), by sorted offset. */
 function runPercentile(column, p, total) {

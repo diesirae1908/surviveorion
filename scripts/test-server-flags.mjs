@@ -50,6 +50,32 @@ store.insertScore(other.id, { ...base, ruleset: "overdrive@1#aaaaaaaa" });
 store.insertScore(other.id, { ...base, ruleset: null });
 const mm = store.rulesetMismatchForDay("2026-11-01", "base");
 check("rulesetMismatchForDay counts a differing id and NULL (old bundle), reports NULL apart", mm.total === 3 && mm.mismatch === 2 && mm.legacy === 1, JSON.stringify(mm));
+
+// ruleset health (generation stamp): a +g suffix never makes a matching id a mismatch;
+// a Phase 1 stamp (no suffix) is stale only against a day that needs generation 2.
+const flagsMod = await import("../server/flags.mjs");
+const d2 = addDays(today, 5);
+for (const rs of ["overdrive@9#aaaaaaaa", "overdrive@9#aaaaaaaa+g2", null]) store.insertScore(other.id, { ...base, dailyDate: d2, ruleset: rs });
+const h2 = store.rulesetHealthForDay(d2, "overdrive@9#aaaaaaaa", 2);
+check("health: Phase 1 stamp is stale on a gen-2 day, +g2 and null are not; +g2 matches the id", h2.total === 3 && h2.stale === 1 && h2.legacy === 1 && h2.mismatch === 1, JSON.stringify(h2));
+const h1 = store.rulesetHealthForDay(d2, "overdrive@9#aaaaaaaa", 1);
+check("health: nothing is stale on a gen-1 day", h1.stale === 0 && h1.mismatch === 1, JSON.stringify(h1));
+check("parseStamp: suffix, no suffix, null, junk", (() => {
+  const a = flagsMod.parseStamp("overdrive@4#cafe0001+g2");
+  const b = flagsMod.parseStamp("overdrive@4#cafe0001");
+  return a.base === "overdrive@4#cafe0001" && a.gen === 2 && b.gen === 1 && b.base === "overdrive@4#cafe0001" && flagsMod.parseStamp(null) === null && flagsMod.parseStamp("base").gen === 1;
+})());
+{
+  const reg = flagsMod.loadRegistry();
+  const dp = reg.flags.overdrive.default.params;
+  const withForm = (name, extra = {}) => ({ ...dp, forms: { ...dp.forms, [name]: { ...dp.forms[name], on: true, ...extra } } });
+  check("requiredGenForParams: defaults and old rows need 1", flagsMod.requiredGenForParams(dp) === 1);
+  check("requiredGenForParams: a gen-2 form on needs 2; an off form does not", flagsMod.requiredGenForParams(withForm("arc")) === 2 && flagsMod.requiredGenForParams(withForm("vortex")) === 2 && flagsMod.requiredGenForParams({ ...dp, forms: { ...dp.forms, arc: { ...dp.forms.arc, radiusScale: 2 } } }) === 1);
+  check("requiredGenForParams: alwaysHotScale above 1 needs 2", flagsMod.requiredGenForParams({ ...dp, alwaysHotScale: 1.2 }) === 2 && flagsMod.requiredGenForParams({ ...dp, alwaysHotScale: 1 }) === 1);
+  const rep = flagsMod.materializeParamsReport(reg.flags.overdrive, { chargePerGraze: 5, forms: { pulse: { fanCount: 99 } }, hotRadius: 2 });
+  check("materializeParamsReport lists each clamp and nothing else", rep.clamped.length === 2 && rep.clamped.some((c) => c.path === "chargePerGraze" && c.given === 5 && c.stored === 0.5) && rep.clamped.some((c) => c.path === "forms.pulse.fanCount" && c.given === 99 && c.stored === 5) && rep.params.hotRadius === 2);
+  check("materializeParams keeps its return shape (params only)", JSON.stringify(flagsMod.materializeParams(reg.flags.overdrive, {})) === JSON.stringify(dp));
+}
 store.db.close();
 
 const freePort = () =>
@@ -119,9 +145,11 @@ try {
 
   // --- definitions + empty state ---
   const g0 = await call("GET", "/api/admin/flags", { admin: true });
-  check("admin GET lists the four switches", g0.status === 200 && Object.keys(g0.body.flags).length === 4);
+  check("admin GET lists the six switches", g0.status === 200 && Object.keys(g0.body.flags).length === 6 && "ui.lobby" in g0.body.flags && "orders" in g0.body.flags);
+  check("admin GET carries capsSince for overdrive (gen 2 paths) and {} for others", g0.body.flags.overdrive.capsSince["forms.arc"] === 2 && g0.body.flags.overdrive.capsSince.alwaysHotScale === 2 && Object.keys(g0.body.flags["ui.hud"].capsSince).length === 0);
+  check("new switches: ui.lobby is client, orders is gameplay/meta", g0.body.flags["ui.lobby"].kind === "client" && g0.body.flags.orders.kind === "gameplay" && g0.body.flags.orders.area === "meta");
   check("sameDayBypass is false on a production-mode server", g0.body.sameDayBypass === false);
-  check("all four resolve off today and tomorrow", Object.values(g0.body.flags).every((f) => !f.today.enabled && !f.tomorrow.enabled));
+  check("all six resolve off today and tomorrow", Object.values(g0.body.flags).every((f) => !f.today.enabled && !f.tomorrow.enabled));
 
   // --- day-boundary rule ---
   const od = { key: "overdrive", enabled: true, note: "t" };
@@ -129,10 +157,16 @@ try {
   check("same-day gameplay row is refused", rToday.status === 400 && /scheduled ahead|on or after/.test(rToday.body.error ?? ""), JSON.stringify(rToday.body));
   const rTom = await call("POST", "/api/admin/flags", { admin: true, body: { ...od, effectiveFrom: tomorrow, params: { chargePerGraze: 5, bogus: 1, forms: { pulse: { fanCount: 99, nope: 2 } } } } });
   check("gameplay row for tomorrow is accepted", rTom.status === 200 && rTom.body.ok === true, JSON.stringify(rTom.body));
+  check("the save response lists what was clamped", (rTom.body.row?.clamped ?? []).some((c) => c.path === "chargePerGraze" && c.given === 5 && c.stored === 0.5) && rTom.body.row.clamped.some((c) => c.path === "forms.pulse.fanCount" && c.given === 99 && c.stored === 5));
   const p = rTom.body.row?.params;
   check("params materialized: clamped, unknown dropped, defaults merged", p && p.chargePerGraze === 0.5 && p.bogus === undefined && p.forms.pulse.fanCount === 5 && p.forms.pulse.nope === undefined && p.forms.shield.refund === 0.5 && p.drainDelay === 3);
   const rows = await peek(`SELECT * FROM flag_versions WHERE key = 'overdrive'`);
   check("stored row holds the full materialized params and an 8-hex hash", rows.length === 1 && /^[0-9a-f]{8}$/.test(rows[0].params_hash) && JSON.parse(rows[0].params).forms.missiles.count === 12 && rows[0].actor === "admin");
+  // orders: gameplay-kind, so same-day ON is refused in production mode, tomorrow works
+  const ordToday = await call("POST", "/api/admin/flags", { admin: true, body: { key: "orders", enabled: true, effectiveFrom: today, params: {} } });
+  check("orders same-day ON is refused in production mode", ordToday.status === 400, JSON.stringify(ordToday.body));
+  const ordTom = await call("POST", "/api/admin/flags", { admin: true, body: { key: "orders", enabled: true, effectiveFrom: tomorrow, params: { meritHard: 99, pool: { "survive-30": { target: 5 } } } } });
+  check("orders row for tomorrow is accepted and clamped to its bounds", ordTom.status === 200 && ordTom.body.row.params.meritHard === 20 && ordTom.body.row.params.pool["survive-30"].target === 15 && ordTom.body.row.params.pool["kills-250"].target === 250, JSON.stringify(ordTom.body));
   const rClient = await call("POST", "/api/admin/flags", { admin: true, body: { key: "ui.hud", enabled: true, effectiveFrom: today, params: { killPopMinChain: 500 } } });
   check("client row may start today (clamped)", rClient.status === 200 && rClient.body.row.params.killPopMinChain === 20);
   const rBadType = await call("POST", "/api/admin/flags", { admin: true, body: { key: "ui.hud", enabled: true, effectiveFrom: today, params: { chainBar: "yes" } } });
@@ -186,8 +220,22 @@ try {
   const rn = await peek(`SELECT ruleset, od_hot, od_fires FROM runs ORDER BY id`);
   check("runs.ruleset / od_hot / od_fires written; out-of-range counts NULL", rn.length === 3 && rn[0].ruleset === "base" && rn[0].od_hot === 3 && rn[0].od_fires === 2 && rn[1].ruleset === null && rn[1].od_hot === null && rn[1].od_fires === null && rn[2].ruleset === "overdrive@4#cafe0001" && rn[2].od_fires === 7);
 
+  const s3 = await call("POST", "/api/scores", { token: otherTok, body: { ...goodRun, ruleset: "overdrive@4#cafe0001+g2" } });
+  const s4 = await call("POST", "/api/scores", { token: otherTok, body: { ...goodRun, ruleset: "overdrive@4#cafe0001" } });
+  check("scores with a +g2 stamp and a Phase 1 stamp are both accepted", s3.status === 200 && s4.status === 200, JSON.stringify([s3.body, s4.body]));
+  const gen2Row = await call("POST", "/api/admin/flags", { admin: true, body: { key: "overdrive", enabled: true, effectiveFrom: addDays(today, 5), params: { forms: { arc: { on: true } } }, note: "gen 2 day" } });
+  check("a gen-2 overdrive row for a future day is accepted", gen2Row.status === 200, JSON.stringify(gen2Row.body));
+  const stGen = await call("GET", `/api/admin/stats?date=${addDays(today, 5)}`, { admin: true });
+  check("day report: requiredGen 2 and staleBundle counts the Phase 1 stamp only", stGen.status === 200 && stGen.body.day?.requiredGen === 2 && stGen.body.day?.staleBundle === 1 && stGen.body.day?.rulesetLegacy === 1, JSON.stringify([stGen.body.day?.requiredGen, stGen.body.day?.staleBundle, stGen.body.day?.rulesetLegacy]));
+  const stGen1 = await call("GET", `/api/admin/stats?date=${tomorrow}`, { admin: true });
+  check("day report: a default-params overdrive day needs generation 1", stGen1.status === 200 && stGen1.body.day?.requiredGen === 1 && stGen1.body.day?.staleBundle === 0, JSON.stringify([stGen1.body.day?.requiredGen, stGen1.body.day?.staleBundle]));
   // --- day report mismatch counter ---
   // --- emergency off: a gameplay row that turns a switch OFF may start today ---
+  // an orders emergency off is allowed and flagged, but does not mark the board as mixed-rules
+  const ordEm = await call("POST", "/api/admin/flags", { admin: true, body: { key: "orders", enabled: false, effectiveFrom: today, params: {}, note: "orders glitch" } });
+  check("orders emergency off today is accepted and flagged emergency", ordEm.status === 200 && ordEm.body.row.emergency === true, JSON.stringify(ordEm.body));
+  const stOrd = await call("GET", `/api/admin/stats?date=${today}`, { admin: true });
+  check("an orders emergency row does not set day.emergencyOff", stOrd.status === 200 && stOrd.body.day?.emergencyOff === false, JSON.stringify(stOrd.body.day?.emergencyOff));
   const odOn = { key: "overdrive", enabled: true, effectiveFrom: today, params: {}, note: "turn on today" };
   const eOnRefused = await call("POST", "/api/admin/flags", { admin: true, body: odOn });
   check("turning a gameplay switch ON the same day stays refused", eOnRefused.status === 400);
@@ -197,7 +245,7 @@ try {
   check("emergency off today is accepted in production mode and flagged", eOk.status === 200 && eOk.body.row.emergency === true, JSON.stringify(eOk.body));
   const eRows = await peek(`SELECT emergency, note FROM flag_versions WHERE id = ?`, eOk.body.row?.id ?? -1);
   check("emergency flag and note stored", eRows.length === 1 && eRows[0].emergency === 1 && eRows[0].note === "bad kill rate");
-  const nonEm = await peek(`SELECT COUNT(*) AS c FROM flag_versions WHERE emergency = 1`);
+  const nonEm = await peek(`SELECT COUNT(*) AS c FROM flag_versions WHERE emergency = 1 AND key = 'overdrive'`);
   check("ordinary rows are not flagged emergency", nonEm[0].c === 1);
   const gE = await call("GET", "/api/admin/flags", { admin: true });
   check("admin history shows the emergency row", gE.body.flags.overdrive.history.some((r) => r.emergency === true && r.from === today));

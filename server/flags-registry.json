@@ -1,5 +1,21 @@
 {
   "schema": 1,
+  "capsSince": {
+    "overdrive": {
+      "forms.starshell": 2,
+      "forms.arc": 2,
+      "forms.autocannon": 2,
+      "forms.meteors": 2,
+      "forms.razor": 2,
+      "forms.thunder": 2,
+      "forms.cloak": 2,
+      "forms.flare": 2,
+      "forms.ion": 2,
+      "forms.howlers": 2,
+      "forms.vortex": 2,
+      "alwaysHotScale": 2
+    }
+  },
   "flags": {
     "overdrive": {
       "kind": "gameplay",
@@ -30,8 +46,20 @@
             "freeze": { "on": true, "radiusScale": 1.25, "chainRadius": 1.2, "chainMax": 12 },
             "magnet": { "on": true, "maxPull": 3 },
             "shockwave": { "on": true, "echoDelay": 0.6, "echoScale": 0.8 },
-            "missiles": { "on": true, "count": 12, "maxAlive": 18 }
-          }
+            "missiles": { "on": true, "count": 12, "maxAlive": 18 },
+            "starshell": { "on": false, "durationScale": 1.5, "perKillExtend": 0.15, "maxExtend": 3 },
+            "arc": { "on": false, "radiusScale": 1.4 },
+            "autocannon": { "on": false, "barrels": 2 },
+            "meteors": { "on": false, "durationScale": 2 },
+            "razor": { "on": false, "durationScale": 1.5, "orbitScale": 1.25 },
+            "thunder": { "on": false, "widthScale": 1.5, "hopRadiusScale": 1.3 },
+            "cloak": { "on": false, "durationScale": 1.4, "bombRadiusScale": 1.3 },
+            "flare": { "on": false, "lifetimeScale": 1.5 },
+            "ion": { "on": false, "radiusScale": 1.3 },
+            "howlers": { "on": false, "radiusScale": 1.3, "durationScale": 1.3 },
+            "vortex": { "on": false, "killRadiusScale": 1.3 }
+          },
+          "alwaysHotScale": 1
         }
       },
       "bounds": {
@@ -60,7 +88,25 @@
         "forms.shockwave.echoDelay": [0.2, 2],
         "forms.shockwave.echoScale": [0.3, 1],
         "forms.missiles.count": [6, 18],
-        "forms.missiles.maxAlive": [12, 24]
+        "forms.missiles.maxAlive": [12, 24],
+        "forms.starshell.durationScale": [1, 2],
+        "forms.starshell.perKillExtend": [0, 0.5],
+        "forms.starshell.maxExtend": [0, 6],
+        "forms.arc.radiusScale": [1, 2],
+        "forms.autocannon.barrels": [1, 3],
+        "forms.meteors.durationScale": [1, 3],
+        "forms.razor.durationScale": [1, 2],
+        "forms.razor.orbitScale": [1, 1.6],
+        "forms.thunder.widthScale": [1, 2],
+        "forms.thunder.hopRadiusScale": [1, 2],
+        "forms.cloak.durationScale": [1, 2],
+        "forms.cloak.bombRadiusScale": [1, 1.6],
+        "forms.flare.lifetimeScale": [1, 2.5],
+        "forms.ion.radiusScale": [1, 1.8],
+        "forms.howlers.radiusScale": [1, 2],
+        "forms.howlers.durationScale": [1, 2],
+        "forms.vortex.killRadiusScale": [1, 2],
+        "alwaysHotScale": [1, 1.5]
       }
     },
     "ui.overdriveFx": {
@@ -85,10 +131,15 @@
           "vignette": true,
           "stickFade": true,
           "killPopMinChain": 5,
-          "vignetteMaxAlpha": 0.35
+          "vignetteMaxAlpha": 0.35,
+          "edgeRadar": false,
+          "hitStop": false,
+          "hitStopShieldMs": 60,
+          "sky": false,
+          "paceChip": false
         }
       },
-      "bounds": { "killPopMinChain": [1, 20], "vignetteMaxAlpha": [0, 0.6] }
+      "bounds": { "killPopMinChain": [1, 20], "vignetteMaxAlpha": [0, 0.6], "hitStopShieldMs": [0, 150] }
     },
     "ui.result": {
       "kind": "client",
@@ -96,9 +147,61 @@
       "description": "Rising Gold death moment and result screen v2.",
       "default": {
         "enabled": false,
-        "params": { "deathMoment": true, "resultV2": true, "freezeMs": 120 }
+        "params": { "deathMoment": true, "resultV2": true, "freezeMs": 120, "shareV2": false, "stories": false }
       },
       "bounds": { "freezeMs": [0, 300] }
+    },
+    "ui.lobby": {
+      "kind": "client",
+      "area": "ui.lobby",
+      "description": "Web lobby v3: hero, board podium, flight log, bottom tab bar, mission briefing and pilot dossier. Web only, never in the App Store play view.",
+      "default": {
+        "enabled": false,
+        "params": { "tabBar": true, "briefing": true, "pilotTab": true }
+      },
+      "bounds": {}
+    },
+    "orders": {
+      "kind": "gameplay",
+      "area": "meta",
+      "description": "Daily Orders and the Pilot Ladder: three orders per patrol day earn Merit. Server credited, cosmetic rewards only, never part of the ruleset.",
+      "default": {
+        "enabled": false,
+        "params": {
+          "meritEasy": 1,
+          "meritMedium": 2,
+          "meritHard": 4,
+          "pool": {
+            "survive-30": { "on": true, "target": 30 },
+            "graze-15": { "on": true, "target": 15 },
+            "kills-25": { "on": true, "target": 25 },
+            "chain-5": { "on": true, "target": 5 },
+            "graze-40": { "on": true, "target": 40 },
+            "survive-60": { "on": true, "target": 60 },
+            "hot-2": { "on": true, "target": 2 },
+            "survive-120": { "on": true, "target": 120 },
+            "chain-9": { "on": true, "target": 9 },
+            "kills-250": { "on": true, "target": 250 },
+            "fires-4": { "on": true, "target": 4 }
+          }
+        }
+      },
+      "bounds": {
+        "meritEasy": [0, 5],
+        "meritMedium": [0, 10],
+        "meritHard": [0, 20],
+        "pool.survive-30.target": [15, 60],
+        "pool.graze-15.target": [5, 40],
+        "pool.kills-25.target": [10, 80],
+        "pool.chain-5.target": [3, 8],
+        "pool.graze-40.target": [20, 100],
+        "pool.survive-60.target": [40, 120],
+        "pool.hot-2.target": [1, 5],
+        "pool.survive-120.target": [80, 300],
+        "pool.chain-9.target": [6, 10],
+        "pool.kills-250.target": [120, 600],
+        "pool.fires-4.target": [2, 10]
+      }
     }
   }
 }

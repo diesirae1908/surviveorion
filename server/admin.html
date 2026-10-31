@@ -384,10 +384,11 @@ function renderDay(day) {
       stat("D1 return", pctRate(day.retention && day.retention.d1Return), vs(day.retention && day.retention.d1Return, prev && prev.retention && prev.retention.d1Return)) +
       stat("D7 return", pctRate(day.retention && day.retention.d7Return), vs(day.retention && day.retention.d7Return, prev && prev.retention && prev.retention.d7Return)) +
     "</div>" +
-    (day.emergencyOff ? '<div class="sw-banner">EMERGENCY OFF: a gameplay switch was turned off mid-day. This board mixes rules; mismatches below are expected.</div>' : "") +
+    (day.emergencyOff ? '<div class="sw-banner">EMERGENCY OFF: overdrive was turned off mid-day. This board mixes rules; mismatches below are expected.</div>' : "") +
     '<div class="metrics">' +
       stat("Ruleset mismatches", day.rulesetMismatch == null ? "-" : fmt(day.rulesetMismatch)) +
       stat("Of which old bundle (no ruleset)", day.rulesetLegacy == null ? "-" : fmt(day.rulesetLegacy)) +
+      stat("Stale bundle (needs gen " + (day.requiredGen == null ? "?" : day.requiredGen) + ")", day.staleBundle == null ? "-" : fmt(day.staleBundle)) +
     "</div>" +
     renderPaywall(day.paywall, (curr, key) => {
       if (key === "open") return vs(curr, prev && prev.paywall && prev.paywall.byStep && prev.paywall.byStep.open);
@@ -498,13 +499,18 @@ function swParamsDiff(params, def) {
 function swCard(key, f, current) {
   const bounds = f.bounds || {};
   const params = current || f.default.params;
+  const caps = f.capsSince || {};
+  const genNote = (path) => {
+    const hit = Object.keys(caps).filter((c) => path === c || path.indexOf(c + ".") === 0);
+    return hit.length ? ' <span class="muted">(needs bundle gen ' + caps[hit[0]] + ")</span>" : "";
+  };
   const fields = swLeaves(params, "", []).map((leaf) => {
     const id = "sw-" + key + "-" + leaf.path;
     if (typeof leaf.value === "boolean") {
-      return '<label>' + esc(leaf.path) + '<input type="checkbox" data-sw="' + esc(key) + '" data-path="' + esc(leaf.path) + '" data-type="bool"' + (leaf.value ? " checked" : "") + "></label>";
+      return '<label>' + esc(leaf.path) + genNote(leaf.path) + '<input type="checkbox" data-sw="' + esc(key) + '" data-path="' + esc(leaf.path) + '" data-type="bool"' + (leaf.value ? " checked" : "") + "></label>";
     }
     const b = bounds[leaf.path];
-    return '<label>' + esc(leaf.path) + '<input type="number" step="any" data-sw="' + esc(key) + '" data-path="' + esc(leaf.path) + '" data-type="num" value="' + esc(leaf.value) + '"' +
+    return '<label>' + esc(leaf.path) + genNote(leaf.path) + '<input type="number" step="any" data-sw="' + esc(key) + '" data-path="' + esc(leaf.path) + '" data-type="num" value="' + esc(leaf.value) + '"' +
       (b ? ' min="' + b[0] + '" max="' + b[1] + '" title="' + b[0] + ' to ' + b[1] + '"' : "") + "></label>";
   }).join("");
   const minDate = f.kind === "gameplay" && !SW.sameDayBypass ? shiftDate(SW.today, SW.minLeadDays) : SW.today;
@@ -586,6 +592,14 @@ async function swPost(url, body, errId) {
   const j = await res.json().catch(() => ({}));
   if (!res.ok) { err.textContent = j.error ?? "failed"; return false; }
   await loadSwitches();
+  const clamped = j.row && j.row.clamped;
+  if (clamped && clamped.length) {
+    const err2 = document.getElementById(errId);
+    if (err2) {
+      err2.style.color = "#e0a030";
+      err2.textContent = "Clamped: " + clamped.map((c) => c.path + " " + c.given + " -> " + c.stored).join(", ");
+    }
+  }
   return true;
 }
 function swSave(key) {
@@ -601,7 +615,10 @@ function swEmergency(key) {
   const note = document.getElementById("sw-note-" + key).value.trim();
   const err = document.getElementById("sw-err-" + key);
   if (note.length < 3) { err.textContent = "Emergency off needs a reason in the note field."; return; }
-  if (!confirm("Turn " + key + " OFF starting today? Today's board will mix rules.")) return;
+  const msg = key === "overdrive"
+    ? "Turn overdrive OFF starting today? Today's board will mix rules."
+    : "Turn " + key + " OFF starting today? Runs and boards are not affected.";
+  if (!confirm(msg)) return;
   swPost("/api/admin/flags", { key: key, effectiveFrom: SW.today, enabled: false, params: {}, note: note }, "sw-err-" + key);
 }
 function swArm() {

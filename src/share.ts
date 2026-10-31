@@ -5,6 +5,7 @@ import { MEDAL_EMOJI, MEDAL_LABEL, type MedalTier } from "./medals";
 import { isNativeApp, isNativePlay, nativeShare, postNativeShare } from "./native";
 import { patrolDateStr } from "./patrolDate";
 import { DAILY_MAX_ATTEMPTS } from "./save";
+import type { TraceBox, TracePath } from "./flightTrace";
 
 /**
  * Day the daily site went live, that date is Daily/Patrol #1. Reused as the
@@ -43,7 +44,19 @@ export interface ShareStats {
   medal?: MedalTier | null;
   /** This card came from a ?mutator= preview run: not scored, not on any board. */
   preview?: boolean;
+  /** Share card v2 inputs (WS-S draws them; absent = not drawn). */
+  trace?: TracePath;
+  kills?: number;
+  grazes?: number;
+  /** "Rammed by a Lancer at 1:12" style line (resultView causeText). */
+  causeLabel?: string;
 }
+
+/** Card format: the square card or the 1080x1920 story. Stories are drawn by WS-S; until then both render the square card. */
+export type ShareFormat = "square" | "story";
+
+/** Box the share trace is fitted into (box units; WS-S may change it when it draws the trace). */
+export const SHARE_TRACE_BOX: TraceBox = { x: 0, y: 0, w: 1000, h: 1000 };
 
 export const SHARE_URL = "https://surviveorion.com";
 
@@ -287,7 +300,12 @@ export async function shareText(text: string, preferNative: boolean, png?: Blob 
   }
 }
 
-export async function sharePatrol(stats: ShareStats, preferNative: boolean): Promise<ShareOutcome> {
+export async function sharePatrol(
+  stats: ShareStats,
+  preferNative: boolean,
+  _format: ShareFormat = "square",
+): Promise<ShareOutcome> {
+  void _format; // WS-S draws the story format
   const text = buildShareText(stats);
   const png = await renderShareCardPng(stats);
   return shareText(text, preferNative, png);

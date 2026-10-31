@@ -543,6 +543,8 @@ export class Api {
     ruleset?: string;
     odHot?: number;
     odFires?: number;
+    /** Run-side counters the server may use to credit Daily Orders (WS-O1). Ignored by older servers. */
+    orderStats?: { grazes: number };
   }): Promise<SubmitResult> {
     return this.request<SubmitResult>("POST", "/api/scores", {
       ...run,
@@ -565,6 +567,8 @@ export class Api {
     ruleset?: string;
     odHot?: number;
     odFires?: number;
+    /** Run-side counters the server may use to credit Daily Orders (WS-O1). Ignored by older servers. */
+    orderStats?: { grazes: number };
   }): Promise<{ ok: boolean }> {
     return this.request("POST", "/api/runs", {
       ...run,

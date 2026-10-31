@@ -69,6 +69,10 @@ import {
   type GameUpdate,
 } from "./updates";
 import { APP_STORE_URL } from "./webGate";
+import type { LobbyParams } from "./flags";
+import type { LobbyTab } from "./lobby/lobbyV3";
+import { tabBar, type TabCallbacks } from "./lobby/tabBar";
+import { menuRowSpecs, type MenuRowId } from "./lobby/menuRows";
 
 /** Flip false to hide the App Store CTA. Listing: apps.apple.com/app/id6811113450 */
 const APP_STORE_LIVE = true;
@@ -126,6 +130,21 @@ export interface UiCallbacks {
   onManageGoldPatrol?: () => void;
   /** Native play: leave play and open native Analytics. */
   onNativeAnalytics?: () => void;
+  /** Lobby v3 tab bar: open the pilot dossier. Falls back to onProfile. */
+  onPilotTab?: () => void;
+  /** Lobby v3 tab bar: open the full board. Falls back to the current full board. */
+  onBoardTab?: () => void;
+  /** Result screen: share the story-format (1080x1920) card. */
+  onShareStory?: () => Promise<ShareOutcome>;
+}
+
+/** One hamburger-menu destination (see lobbyMenuRows). */
+export interface MenuRow {
+  id: MenuRowId;
+  label: string;
+  run: () => void;
+  notif?: boolean;
+  visible: boolean;
 }
 
 export interface MenuCommunity {
@@ -471,6 +490,9 @@ export class Ui {
   private lobbyCountdown: ReturnType<typeof setInterval> | null = null;
   private lobbyRulesOpen = false;
   private lobbyMenuKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+  /** ui.lobby params for today (null = switch off) and whether this surface may show v3 at all. */
+  private lobbyParams: LobbyParams | null = null;
+  private lobbyAllowedFlag = false;
 
   /**
    * Back action for whichever submenu screen is currently showing (Settings,
@@ -1376,6 +1398,16 @@ export class Ui {
    * Secondaries live in one menu. Gold Patrol upsell only when attempts run out.
    */
   showDailyLobby(info: DailyLobbyInfo): void {
+    if (this.lobbyParams && this.lobbyAllowed()) return this.showDailyLobbyV3(info);
+    this.showDailyLobbyCurrent(info);
+  }
+
+  /** Lobby v3 (ui.lobby). WS-L replaces this body; until then it is the current lobby. */
+  private showDailyLobbyV3(info: DailyLobbyInfo): void {
+    return this.showDailyLobbyCurrent(info);
+  }
+
+  private showDailyLobbyCurrent(info: DailyLobbyInfo): void {
     const keepWeek = this.lobbyWeekServer;
     const keepBoard = this.dailyBoardFull;
     const keepPinned = this.dailyBoardPinned;
@@ -1523,9 +1555,82 @@ export class Ui {
     if (wasOpen) this.root.querySelector<HTMLButtonElement>(".lobby-menu-btn")?.focus();
   }
 
+  /** Store the ui.lobby params and whether the web lobby may show at all (false in native play / Capacitor). */
+  setLobbyFlags(p: LobbyParams | null, allowed: boolean): void {
+    this.lobbyParams = p;
+    this.lobbyAllowedFlag = allowed;
+  }
+
+  /** True on surfaces that may show the web lobby v3, tab bar, briefing and dossier. */
+  lobbyAllowed(): boolean {
+    return this.lobbyAllowedFlag;
+  }
+
+  /**
+   * The hamburger destinations, in order, with their actions. Lobby v3 reads the
+   * same rows so a new destination is added once. Row list and labels come from
+   * the pure `menuRowSpecs` (lobby/menuRows.ts).
+   */
+  lobbyMenuRows(info: DailyLobbyInfo): MenuRow[] {
+    const unread = hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId());
+    const actions: Record<MenuRowId, () => void> = {
+      training: () => this.cb.onTraining(),
+      calendar: () => this.cb.onPatrolCalendar(),
+      wingmates: () => this.cb.onFriends(),
+      howto: () => this.cb.onTutorial(),
+      powers: () => this.showPowers(() => this.showDailyLobby(info)),
+      updates: () => this.openLatestFieldUpdate(),
+      feedback: () => this.showFeedback(() => this.showDailyLobby(info)),
+      settings: () => this.openLobbySettings(info),
+      iphone: () => {
+        window.open(APP_STORE_URL, "_blank", "noopener");
+      },
+      privacy: () => openPrivacyPolicy(),
+    };
+    return menuRowSpecs(info, { unreadUpdate: unread, appStoreLive: APP_STORE_LIVE }).map((r) => ({
+      id: r.id,
+      label: r.label,
+      run: actions[r.id],
+      notif: r.notif,
+      visible: r.visible,
+    }));
+  }
+
+  /** Handlers for the lobby v3 tab bar. */
+  private tabCallbacks(): TabCallbacks {
+    return {
+      onPatrol: () => {
+        if (this.lobbyInfo) this.showDailyLobby(this.lobbyInfo);
+      },
+      onBoard: () => (this.cb.onBoardTab ? this.cb.onBoardTab() : this.showFullBoardFromTab()),
+      onWingmates: () => this.cb.onFriends(),
+      onPilot: () => (this.cb.onPilotTab ? this.cb.onPilotTab() : this.cb.onProfile()),
+    };
+  }
+
+  /** The full board, from the tab bar (uses the lobby info of the last paint). */
+  showFullBoardFromTab(): void {
+    if (this.lobbyInfo) this.showFullBoard(this.lobbyInfo);
+  }
+
+  /**
+   * A bare screen for the v3 tabs (dossier, board): clears the root, builds
+   * `div.screen`, lets `build` fill it, then an optional back arrow and tab bar.
+   */
+  showCustomScreen(build: (root: HTMLElement) => void, opts: { back?: () => void; tab?: LobbyTab } = {}): void {
+    this.clear();
+    const screen = this.el("div", "screen", "");
+    if (opts.back) this.makeSubmenu(screen, opts.back);
+    build(screen);
+    if (opts.tab) {
+      const bar = tabBar(opts.tab, this.tabCallbacks());
+      if (bar) screen.appendChild(bar);
+    }
+    this.root.appendChild(screen);
+  }
+
   showLobbyMenu(info: DailyLobbyInfo): void {
     this.hideLobbyMenu();
-    const unread = hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId());
     const catcher = this.el("div", "lobby-menu-catcher", "");
     catcher.id = "lobby-menu-catcher";
     const sheet = this.el("div", "lobby-menu-sheet chamfer", "");
@@ -1549,20 +1654,9 @@ export class Ui {
       sheet.appendChild(row);
     };
 
-    addRow("Training Ground", () => this.cb.onTraining());
-    addRow("Patrol Calendar", () => this.cb.onPatrolCalendar());
-    addRow("Wingmates", () => this.cb.onFriends(), { notif: (info.pendingFriends ?? 0) > 0 });
-    addRow("How to play", () => this.cb.onTutorial());
-    addRow("Powers", () => this.showPowers(() => this.showDailyLobby(info)));
-    addRow("Field updates", () => this.openLatestFieldUpdate(), { notif: unread });
-    addRow("Feedback", () => this.showFeedback(() => this.showDailyLobby(info)));
-    addRow("Settings", () => this.openLobbySettings(info));
-    if (APP_STORE_LIVE) {
-      addRow("Get on iPhone", () => {
-        window.open(APP_STORE_URL, "_blank", "noopener");
-      });
+    for (const r of this.lobbyMenuRows(info)) {
+      if (r.visible) addRow(r.label, r.run, { notif: r.notif });
     }
-    addRow("Privacy", () => openPrivacyPolicy());
 
     catcher.appendChild(sheet);
     this.root.appendChild(catcher);

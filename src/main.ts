@@ -28,11 +28,17 @@ import {
   parsePreviewFlags,
   resolveRunRules,
   shouldSubmit,
+  shouldRecordLocalBest,
+  rulesetStamp,
+  ordersParamsFor,
   activeCreatorPreview,
 } from "./flags";
 import * as feel from "./feel";
 import * as overdriveFx from "./fx/overdriveFx";
 import * as deathFx from "./fx/deathFx";
+import * as orders from "./orders";
+import * as pace from "./pace";
+import * as briefing from "./lobby/briefing";
 import { Input, isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
 import { patrolDateStr } from "./patrolDate";
@@ -59,7 +65,7 @@ import {
 } from "./mutators";
 import { Particles } from "./particles";
 import { Popups } from "./popups";
-import { Renderer, type TransitionFx } from "./render";
+import { Renderer, type TrailCosmetic, type TransitionFx } from "./render";
 import {
   clipExtension,
   saveClipToDevice,
@@ -106,7 +112,18 @@ import {
   type DailyDayLog,
   type KeyBindings,
 } from "./save";
-import { dailyNumber, sharePatrol, DAILY_EPOCH_DATE, renderShareCardPng, buildShareText } from "./share";
+import {
+  dailyNumber,
+  sharePatrol,
+  DAILY_EPOCH_DATE,
+  renderShareCardPng,
+  buildShareText,
+  SHARE_TRACE_BOX,
+  type ShareFormat,
+  type ShareOutcome,
+} from "./share";
+import { appendDeathPoint, traceToPath, type TracePath } from "./flightTrace";
+import { causeText } from "./resultView";
 import {
   bootNativeShell,
   hapticDeath,
@@ -583,6 +600,10 @@ let lastRunShare: {
   mutatorNames?: string[];
   medal?: import("./medals").MedalTier | null;
   preview?: boolean;
+  trace?: TracePath;
+  kills?: number;
+  grazes?: number;
+  causeLabel?: string;
 } | null = null;
 /** Game mode picked on the menu; retries reuse it (Daily is always Classic). */
 let pendingGameMode: GameMode = loadGameMode();
@@ -700,6 +721,46 @@ function setStickMode(): void {
   saveControlPrefs(controls);
 }
 
+/**
+ * Share the finished run (game over) or today's best (lobby). `format` picks the
+ * square card or the 1080x1920 story; WS-S draws the story, until then both
+ * render the square card.
+ */
+function shareCurrent(format: ShareFormat): Promise<ShareOutcome> {
+  // game over shares the run that just ended; the lobby shares today's best
+  const source =
+    state === "gameover" && lastRunShare ? lastRunShare : loadDailyAttempts().best;
+  if (!source) return Promise.resolve("failed" as const);
+  // the lobby's "today's best" doesn't carry mutator/medal metadata (it's
+  // a DailyBestResult, not a lastRunShare), so fill it in from today's
+  // date the same way the briefing card does
+  const mutatorsToday = todaysMutators();
+  // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
+  // MUTATORS_START_DATE), so the share card carries no mutator line and
+  // no medal line, exactly like it did before this feature shipped.
+  const todaysMutatorNames = mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined;
+  const asShare = source as Partial<{ mutatorNames: string[]; medal: import("./medals").MedalTier | null }>;
+  const sourceMedal = asShare.medal;
+  const sourceMutatorNames = asShare.mutatorNames;
+  const medal =
+    sourceMedal !== undefined
+      ? sourceMedal
+      : mutatorsToday.length > 0
+        ? medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday))
+        : undefined;
+  return sharePatrol(
+    {
+      dayNumber: dailyNumber(),
+      ...source,
+      mutatorNames: sourceMutatorNames ?? todaysMutatorNames,
+      medal,
+      preview: PREVIEW_ACTIVE,
+    },
+    isTouchDevice(),
+    format,
+  );
+}
+
 const ui = new Ui(settings, {
   onPlay: (gameMode) => beginLaunch(false, gameMode),
   onDaily: () => beginLaunch(true),
@@ -711,39 +772,8 @@ const ui = new Ui(settings, {
   onPauseRequest: pause,
   onTutorial: startTutorial,
   onTraining: () => beginLaunch(false, "classic", true),
-  onShare: () => {
-    // game over shares the run that just ended; the lobby shares today's best
-    const source =
-      state === "gameover" && lastRunShare ? lastRunShare : loadDailyAttempts().best;
-    if (!source) return Promise.resolve("failed" as const);
-    // the lobby's "today's best" doesn't carry mutator/medal metadata (it's
-    // a DailyBestResult, not a lastRunShare), so fill it in from today's
-    // date the same way the briefing card does
-    const mutatorsToday = todaysMutators();
-    // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
-    // MUTATORS_START_DATE), so the share card carries no mutator line and
-    // no medal line, exactly like it did before this feature shipped.
-    const todaysMutatorNames = mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined;
-    const asShare = source as Partial<{ mutatorNames: string[]; medal: import("./medals").MedalTier | null }>;
-    const sourceMedal = asShare.medal;
-    const sourceMutatorNames = asShare.mutatorNames;
-    const medal =
-      sourceMedal !== undefined
-        ? sourceMedal
-        : mutatorsToday.length > 0
-          ? medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday))
-          : undefined;
-    return sharePatrol(
-      {
-        dayNumber: dailyNumber(),
-        ...source,
-        mutatorNames: sourceMutatorNames ?? todaysMutatorNames,
-        medal,
-        preview: PREVIEW_ACTIVE,
-      },
-      isTouchDevice(),
-    );
-  },
+  onShare: () => shareCurrent("square"),
+  onShareStory: () => shareCurrent("story"),
   onToggle: (key: BooleanSetting) => {
     settings[key] = !settings[key];
     saveSettings(settings);
@@ -776,6 +806,8 @@ const ui = new Ui(settings, {
     community.showFriends();
   },
   onProfile: () => (api.signedIn ? community.showProfile() : community.showAuth(showMenu)),
+  onPilotTab: () => openPilotDossier(),
+  onBoardTab: () => ui.showFullBoardFromTab(),
   onPatrolCalendar: (focusDate) => openPatrolCalendar(focusDate),
   onPlayArchiveDay: (date) => playArchiveDay(date),
   onControlModeChange: async (mode) => {
@@ -874,6 +906,13 @@ const ui = new Ui(settings, {
     return keybinds;
   },
 });
+
+/** ui.lobby params for today into the Ui (null = off). The web lobby is never built on native play or Capacitor. */
+function syncLobbyFlags(): void {
+  ui.setLobbyFlags(clientFlagsSnapshot(PREVIEW_FLAGS).lobby, !IS_NATIVE_PLAY && !isNativeApp());
+}
+syncLobbyFlags();
+onFlagsChange(syncLobbyFlags);
 
 const community = new CommunityUi(
   document.getElementById("ui")!,
@@ -1309,8 +1348,11 @@ function beginLaunch(daily: boolean, gameMode: GameMode = "classic", training = 
   doLaunch();
 }
 
+/** True while the mission briefing is up: launch handlers (Space, taps, retries) are ignored. */
+let briefingOpen = false;
+
 function doLaunch(quick = false): void {
-  if (state === "launching") return;
+  if (state === "launching" || briefingOpen) return;
   // An expired creator preview must not keep sandboxing the next real run.
   refreshPreviewActive();
   // First launch of a session with stale or no switch rows: give the server a
@@ -1325,6 +1367,51 @@ function doLaunch(quick = false): void {
     quitToMenu();
     return;
   }
+  // Mission briefing (ui.lobby, web only). Every early return above stays first,
+  // so a blocked or waiting launch never opens it. The stub never shows.
+  const briefingCtx = buildBriefingContext(quick);
+  if (briefing.shouldShow(briefingCtx)) {
+    audio.unlock();
+    briefingOpen = true;
+    void briefing.maybeShowBriefing(briefingCtx).then((go) => {
+      briefingOpen = false;
+      if (go) doLaunchAfterBriefing(quick);
+      else quitToMenu();
+    });
+    return;
+  }
+  doLaunchAfterBriefing(quick);
+}
+
+/** Everything the briefing needs, read from the launch state (nothing is spent or changed). */
+function buildBriefingContext(quick: boolean): briefing.BriefingContext {
+  const patrolDate = currentPatrolDateStr();
+  const mode: briefing.BriefingContext["mode"] = pendingFirstFlight
+    ? "firstFlight"
+    : pendingTraining
+      ? "training"
+      : pendingDaily
+        ? "daily"
+        : pendingGameMode;
+  const mutators = pendingDaily && !pendingTraining ? todaysMutators() : [];
+  return {
+    patrolDate,
+    patrolNumber: dailyNumber(new Date(`${patrolDate}T12:00:00Z`)),
+    mutators: mutators.map((m) => ({ name: m.name, subline: m.subline, tags: m.tags })),
+    quick,
+    mode,
+    archive: isArchiveRun(),
+    preview: PREVIEW_ACTIVE,
+    effects: effectiveEffects(settings),
+    shake: settings.screenShake,
+    params: clientFlagsSnapshot(PREVIEW_FLAGS).lobby,
+    allowed: !IS_NATIVE_PLAY && !isNativeApp(),
+    // audio.briefingStamp lands with WS-B; absent until then.
+    playStamp: () => (audio as { briefingStamp?: () => void }).briefingStamp?.(),
+  };
+}
+
+function doLaunchAfterBriefing(quick: boolean): void {
   audio.unlock();
   audio.pauseMusic();
   warpSeconds = quick ? RETRY_WARP_SECONDS : WARP_SECONDS;
@@ -1334,6 +1421,17 @@ function doLaunch(quick = false): void {
   ui.fadeOutScreens();
 }
 
+/** Pilot dossier (lobby v3 PILOT tab). WS-P owns this body; until then it opens the profile, like the old PILOT button. */
+function openPilotDossier(): void {
+  if (api.signedIn) community.showProfile();
+  else community.showAuth(showMenu);
+}
+
+/** Equipped cosmetics for the next frame. WS-O2 owns this body; null trail = the default hull trail. */
+function currentCosmetics(): { trail: TrailCosmetic | null } {
+  return { trail: null };
+}
+
 /** Seed for today's Daily Patrol: same patrol date label → same opening script. */
 function dailySeed(): number {
   const dateStr =
@@ -1341,6 +1439,14 @@ function dailySeed(): number {
       ? PREVIEW_REHEARSAL_DATE
       : currentPatrolDateStr();
   return hashString(`orion-daily-${dateStr}`);
+}
+
+/** Board entries to pace rows: the signed-in pilot's own row is `self`; rows without a callsign are dropped. */
+function toPaceRows(d: { entries: { callsign: string; best: number }[] }): pace.PaceRow[] {
+  const me = api.user?.callsign;
+  return d.entries
+    .filter((e) => !!e.callsign)
+    .map((e) => ({ callsign: e.callsign, score: e.best, self: !!me && me === e.callsign }));
 }
 
 function startRun(): void {
@@ -1391,6 +1497,22 @@ function startRun(): void {
     rules,
   );
   world.clipView = { w: canvas.clientWidth, h: canvas.clientHeight };
+  const runPatrolDate = currentPatrolDateStr();
+  orders.onRunStart({
+    patrolDate: runPatrolDate,
+    daily: runIsDaily,
+    today: runPatrolDate === patrolDateStr() && !isArchiveRun(),
+    preview: PREVIEW_ACTIVE || world.rules.preview,
+    training: runIsTraining,
+    params: ordersParamsFor(runPatrolDate, PREVIEW_FLAGS),
+  });
+  pace.onRunStart({
+    daily: runIsDaily,
+    archive: isArchiveRun(),
+    preview: PREVIEW_ACTIVE || world.rules.preview,
+    online: api.online,
+    fetchBoard: () => api.dailyLeaderboardCombined(100).then(toPaceRows),
+  });
   void setPlayChrome(true);
   recordBeaten = false;
   particles.clear();
@@ -1608,16 +1730,20 @@ function onGameOver(): void {
   // instant wipeouts are free: a daily death inside the grace window hands
   // the attempt back so a botched start doesn't burn the day's budget
   runRefunded = DAILY_ONLY && runIsDaily && world.time < DAILY_FREE_DEATH_SECONDS;
-  if (runRefunded) refundDailyAttempt();
-  bumpRunCount(); // new-pilot grace fades out with completed runs
+  // A preview run (creator preview or ?flags=) is sandboxed: it never spent an
+  // attempt, so it refunds none, and it never touches the run count or personal
+  // bests (QA bug 6).
+  const recordLocal = shouldRecordLocalBest(world.rules, PREVIEW_ACTIVE);
+  if (runRefunded && recordLocal) refundDailyAttempt();
+  if (recordLocal) bumpRunCount(); // new-pilot grace fades out with completed runs
   prevBestScore = bestScore;
-  lastRunWasBest = world.score > bestScore;
+  lastRunWasBest = recordLocal && world.score > bestScore;
   if (lastRunWasBest) {
     bestScore = world.score;
     saveBestScore(bestScore, runGameMode);
   }
   prevBestTime = bestTime;
-  lastRunWasBestTime = world.time > bestTime;
+  lastRunWasBestTime = recordLocal && world.time > bestTime;
   if (lastRunWasBestTime) {
     bestTime = world.time;
     saveBestTime(bestTime, runGameMode);
@@ -1755,6 +1881,10 @@ function showGameOverUi(): void {
       mutatorNames: mutatorsToday.length > 0 ? mutatorsToday.map((m) => m.name) : undefined,
       medal: dailyMedal?.tier,
       preview: PREVIEW_ACTIVE,
+      trace: appendDeathPoint(traceToPath(world.shipTrack, world.clipArena, SHARE_TRACE_BOX), world.deathCause),
+      kills: world.kills,
+      grazes: world.grazes,
+      causeLabel: world.deathCause ? causeText(world.deathCause) : undefined,
     };
   }
   // ui.result (presentation only, resolved for this run): result v2, the slide
@@ -1865,9 +1995,10 @@ function submitRun(): void {
     platform: isTouchDevice() ? "touch" : "desktop",
     daily: (runIsDaily && !runRefunded) || undefined,
     dailyDate: runIsDaily ? (NATIVE_PATROL_DATE ?? webArchiveDate ?? undefined) : undefined,
-    ruleset: world.rules.rulesetId,
+    ruleset: rulesetStamp(world.rules),
     odHot: world.overdrive.hotCount,
     odFires: world.overdrive.fires,
+    orderStats: orders.runStats() ?? undefined,
   };
   if (!api.signedIn) {
     void api.logRun(run).catch(() => {}); // analytics only, fire-and-forget
@@ -1988,6 +2119,7 @@ function drainEvents(w: World): void {
     overdriveFx.onEvent(e, ctx);
     feel.onEvent(e, ctx);
     deathFx.onEvent(e, ctx);
+    orders.onEvent(e);
     switch (e.type) {
       case "mineExploded":
         particles.burst(e.x, e.y, ["#ff8844", PALETTE.gold, PALETTE.redBright], 26, 7, 0.8, 0.15);
@@ -2268,6 +2400,8 @@ function frame(now: number): void {
     fx,
     flags: clientFlagsSnapshot(PREVIEW_FLAGS),
     effects: effectiveEffects(settings),
+    pace: pace.snapshot(world),
+    cosmetics: currentCosmetics(),
   });
 
   requestAnimationFrame(frame);

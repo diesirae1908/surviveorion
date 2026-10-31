@@ -61,7 +61,24 @@ check("default-on ruleset id literal matches", (() => {
 // config.ts OVERDRIVE is the registry default, nothing else
 check("config.ts OVERDRIVE equals registry defaults", JSON.stringify(OVERDRIVE) === JSON.stringify(registry.flags.overdrive.default.params));
 check("materializing empty params gives the defaults", JSON.stringify(server.materializeParams(registry.flags.overdrive, {})) === JSON.stringify(registry.flags.overdrive.default.params));
-check("all four switches default off", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && Object.keys(registry.flags).length === 4);
+check("all six switches default off", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && Object.keys(registry.flags).length === 6);
+
+// old production rows (fixture old-row-930b7b4) resolve identically on both sides and are used as stored
+const oldFx = (JSON.parse(fs.readFileSync(path.join(here, "fixtures", "flags-fixtures.json"), "utf8")) as { "old-row-930b7b4": { params: Record<string, unknown> } })["old-row-930b7b4"];
+for (const [key, params] of Object.entries(oldFx.params)) {
+  const oldRows: FlagRow[] = [{ id: 1, from: "2026-10-31", enabled: true, hash: "0ld00000", params }];
+  const cl = resolveFlagFrom(key, "2026-11-01", oldRows)!;
+  const sv = server.resolveFlag(key, "2026-11-01", oldRows)!;
+  check(`old-row-930b7b4 ${key}: client and server use the stored params as-is`, JSON.stringify(cl.params) === JSON.stringify(params) && JSON.stringify(sv.params) === JSON.stringify(params));
+}
+check("old-row-930b7b4 overdrive needs generation 1 on the server", server.requiredGenForParams(oldFx.params.overdrive) === 1);
+
+// capsSince: every listed path exists in the registry defaults and is a no-op there
+const caps = registry.capsSince?.overdrive ?? {};
+const getPath = (o: unknown, dotted: string): unknown => dotted.split(".").reduce((x, k) => (x && typeof x === "object" ? (x as Record<string, unknown>)[k] : undefined), o);
+const defOd = registry.flags.overdrive.default.params;
+check("every capsSince path exists in the overdrive defaults", Object.keys(caps).every((p) => getPath(defOd, p) !== undefined), Object.keys(caps).filter((p) => getPath(defOd, p) === undefined).join(", "));
+check("every capsSince path is a no-op by default (defaults need generation 1)", server.requiredGenForParams(defOd) === 1);
 
 // every flag key referenced in src/ exists in the registry
 const keys = new Set(Object.keys(registry.flags));
