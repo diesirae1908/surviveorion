@@ -15,10 +15,10 @@ import type { DeathCause } from "./types";
 // --- design constants (not switches) ---
 
 /**
- * Screen title. Ships as "GAME OVER" until Lucas approves "SIGNAL LOST"
- * (plan decision 5, brand/VOICE.md). The one-line swap lives here.
+ * Screen title. "SIGNAL LOST" approved by Lucas 2026-10-30 (plan decision 5,
+ * brand/VOICE.md). The old game-over screen keeps "GAME OVER".
  */
-export const RESULT_HEADER = "GAME OVER";
+export const RESULT_HEADER = "SIGNAL LOST";
 /** Hero score count-up. */
 export const COUNT_UP_MS = 900;
 /** The result slides up out of the death veil over this long (CSS transition). */
@@ -185,7 +185,7 @@ export function hotLine(hotCount: number | undefined): string | null {
   return `Ran hot ${hotCount} ${hotCount === 1 ? "time" : "times"}`;
 }
 
-/** Subtitle line over the screen: "GAME OVER · DAILY PATROL · MUTATOR". */
+/** Subtitle line over the screen: "SIGNAL LOST · DAILY PATROL · MUTATOR". */
 export function headerLine(s: Pick<ResultViewStats, "daily" | "gameMode" | "mutatorNames" | "preview" | "archiveTag">): string {
   const parts: string[] = [RESULT_HEADER];
   if (s.daily) {

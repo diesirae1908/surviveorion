@@ -137,13 +137,13 @@ const box = { x: 10, y: 20, w: 100, h: 200 };
   assert.equal(hotLine(undefined), null);
   assert.equal(hotLine(1), "Ran hot 1 time");
   assert.equal(hotLine(3), "Ran hot 3 times");
-  assert.equal(RESULT_HEADER, "GAME OVER", "ships as GAME OVER until SIGNAL LOST is approved");
+  assert.equal(RESULT_HEADER, "SIGNAL LOST", "approved by Lucas 2026-10-30");
   assert.equal(
     headerLine({ daily: true, gameMode: "classic", mutatorNames: ["BLACKOUT", "GIANTS"] }),
-    "GAME OVER · DAILY PATROL · BLACKOUT + GIANTS",
+    "SIGNAL LOST · DAILY PATROL · BLACKOUT + GIANTS",
   );
-  assert.equal(headerLine({ daily: false, gameMode: "ironrain" }), "GAME OVER · IRON RAIN");
-  assert.equal(headerLine({ daily: true, gameMode: "classic", preview: true }), "GAME OVER · DAILY PATROL PREVIEW");
+  assert.equal(headerLine({ daily: false, gameMode: "ironrain" }), "SIGNAL LOST · IRON RAIN");
+  assert.equal(headerLine({ daily: true, gameMode: "classic", preview: true }), "SIGNAL LOST · DAILY PATROL PREVIEW");
   assert.equal(showNewBest({ isNewBest: true, prevBest: 100, runCount: 5 }), true);
   assert.equal(showNewBest({ isNewBest: true, prevBest: 0, runCount: 1 }), false, "first score is not a PB");
   assert.equal(showNewBest({ isNewBest: false, prevBest: 100, runCount: 5 }), false);

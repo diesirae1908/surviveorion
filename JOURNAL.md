@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: result header SIGNAL LOST (copy/signal-lost)
+
+- What: `RESULT_HEADER` in `src/resultView.ts` is now "SIGNAL LOST" (Lucas approved the copy batch 2026-10-30, "Go with all"). Only the new result screen (behind `ui.result`, OFF in production) changes; the old game-over screen in `ui.ts` keeps "GAME OVER". `scripts/test-result-view.ts` updated. `brand/VOICE.md` lists no result-screen copy, so no edit there.
+
 ## 2026-10-30 PT: OVERDRIVE onset round 2, arm when clear (fix/overdrive-onset)
 
 - Decision (Sam): the heat ramp (`heatRampSeconds`, commit 92629ed) is removed: it did not change onset deaths and any ramp > 0 broke the anti-cheat ceiling observer. Replaced by `armWhenClear`.
