@@ -26,9 +26,21 @@ const sparse = structuredClone(defParams);
 for (const o of ORDER_CATALOG) if (o.id.endsWith("-5") || o.id.startsWith("graze") || o.id === "hot-2") sparse.pool[o.id] = { ...sparse.pool[o.id], on: false };
 const retargeted = structuredClone(defParams);
 for (const o of ORDER_CATALOG) retargeted.pool[o.id] = { on: o.id.length % 2 === 0 || o.tier === 3, target: 7 };
-const fixtures: Array<[string, OrdersParams]> = [["all on", allOn], ["sparse", sparse], ["retargeted", retargeted]];
+// A row that lacks pool entries (older/hand-written row): missing = OFF on both sides.
+const lacking = structuredClone(defParams);
+delete (lacking.pool as Record<string, unknown>)["survive-30"];
+delete (lacking.pool as Record<string, unknown>)["chain-9"];
+const fixtures: Array<[string, OrdersParams]> = [["all on", allOn], ["sparse", sparse], ["retargeted", retargeted], ["lacking", lacking]];
+{
+  const ids = new Set<string>();
+  for (let i = 0; i < 100; i++) {
+    const d = new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10);
+    for (const p of clientPicks(d, lacking, true)) ids.add(p.id);
+  }
+  check("a pool entry missing from a row is never picked", !ids.has("survive-30") && !ids.has("chain-9"));
+}
 
-// --- picks: 400 dates x 3 pool fixtures x Overdrive on/off -------------------
+// --- picks: 400 dates x 4 pool fixtures x Overdrive on/off -------------------
 {
   let mismatches = 0;
   let n = 0;

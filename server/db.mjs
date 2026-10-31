@@ -272,6 +272,7 @@ db.exec(`
     PRIMARY KEY (user_id, daily_date, order_id)
   );
   CREATE INDEX IF NOT EXISTS order_completions_user ON order_completions(user_id);
+  CREATE INDEX IF NOT EXISTS order_completions_date ON order_completions(daily_date);
   CREATE TABLE IF NOT EXISTS order_rejects (
     daily_date TEXT NOT NULL,
     created_at INTEGER NOT NULL

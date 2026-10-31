@@ -312,23 +312,6 @@ const sanitizeEntries = (list) => list.map(publicBoardEntry);
 // --- Daily Orders / Pilot Ladder (the `orders` switch; nothing below runs or
 // shows up when it resolves off for today) ---
 
-/** Orders params merged over the registry defaults (an older row may predate a pool entry). */
-function mergeOrdersParams(rowParams) {
-  const def = flags.loadRegistry().flags.orders.default.params;
-  const p = rowParams && typeof rowParams === "object" ? rowParams : {};
-  const pool = {};
-  for (const [id, d] of Object.entries(def.pool)) {
-    const g = p.pool?.[id];
-    pool[id] = { on: typeof g?.on === "boolean" ? g.on : d.on, target: typeof g?.target === "number" ? g.target : d.target };
-  }
-  return {
-    meritEasy: typeof p.meritEasy === "number" ? p.meritEasy : def.meritEasy,
-    meritMedium: typeof p.meritMedium === "number" ? p.meritMedium : def.meritMedium,
-    meritHard: typeof p.meritHard === "number" ? p.meritHard : def.meritHard,
-    pool,
-  };
-}
-
 /** The date's orders context, or null when the switch resolves off. */
 function ordersContext(dateStr) {
   let r;
@@ -338,16 +321,21 @@ function ordersContext(dateStr) {
     return null;
   }
   if (!r || !r.enabled) return null;
-  const od = flags.resolveFlag("overdrive", dateStr, flags.rowsForKey("overdrive"));
-  const overdriveOn = !!(od && od.enabled);
-  const params = mergeOrdersParams(r.params);
-  return {
-    params,
-    hash: r.hash,
-    overdriveOn,
-    odParams: overdriveOn ? od.params : null,
-    picks: ordersLib.ordersForDate(dateStr, params, overdriveOn),
-  };
+  // Row params exactly as stored (same as the client): a pool entry a row lacks is OFF.
+  const params = r.params && typeof r.params === "object" ? r.params : {};
+  try {
+    const od = flags.resolveFlag("overdrive", dateStr, flags.rowsForKey("overdrive"));
+    const overdriveOn = !!(od && od.enabled);
+    return {
+      params,
+      hash: r.hash,
+      overdriveOn,
+      odParams: overdriveOn ? od.params : null,
+      picks: ordersLib.ordersForDate(dateStr, params, overdriveOn),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** GET /api/me additions; empty when the `orders` switch is off for today. */
@@ -891,13 +879,15 @@ const routes = {
     const { callsign, country, password, cosmetics } = await readBody(req);
     const patch = {};
     // Equip a trail: only a ladder-unlocked one, and only while Orders is on.
+    // Validated here, saved only after every other field passes.
+    let trailToSave;
     if (cosmetics !== undefined) {
       if (!ordersContext(patrolToday())) return json(res, 400, { error: "cosmetics unavailable" });
       const trail = cosmetics && typeof cosmetics === "object" ? cosmetics.trail : undefined;
       if (trail !== null && typeof trail !== "string") return json(res, 400, { error: "invalid cosmetics" });
       if (trail !== null && !ordersLib.unlockedTrails(ordersLib.tierForMerit(store.meritForUser(user.id))).includes(trail))
         return json(res, 400, { error: "trail locked" });
-      store.setUserCosmetics(user.id, { trail });
+      trailToSave = trail;
     }
     if (callsign !== undefined) {
       if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
@@ -921,6 +911,7 @@ const routes = {
       patch.passSalt = crypto.randomBytes(16).toString("hex");
       patch.passHash = hashPassword(password, patch.passSalt);
     }
+    if (cosmetics !== undefined) store.setUserCosmetics(user.id, { trail: trailToSave });
     json(res, 200, {
       user: publicUser(store.updateUser(user.id, patch)),
       ...(cosmetics !== undefined ? { cosmetics: store.getUserCosmetics(user.id) } : {}),

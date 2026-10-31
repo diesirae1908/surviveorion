@@ -241,6 +241,25 @@ try {
   const prof = await call("GET", `/api/players/FreeQ`);
   check("profile: ladder.tier added, `rank` stays the per-mode object", prof.body.ladder?.tier === 2 && typeof prof.body.rank === "object" && "desktop" in prof.body.rank && "touch" in prof.body.rank && "tilt" in prof.body.rank);
 
+  // A stored row lacking pool entries: missing = OFF on the server too (inserted directly; the admin route always materializes a full pool).
+  const lackDate = addDays(today, 9);
+  const lackPool = onlyPool().pool;
+  delete lackPool["kills-250"];
+  store.insertFlagVersion({ key: "orders", effectiveFrom: lackDate, enabled: true, params: JSON.stringify({ meritEasy: 1, meritMedium: 2, meritHard: 4, pool: lackPool }), paramsHash: "lack0001", note: null, actor: "test", createdAt: Date.now() });
+  const stL = await call("GET", `/api/admin/stats?date=${lackDate}`, { admin: true });
+  check("server: pool entry absent from the stored row is OFF (no tier 3 pick)", stL.body.day.orders.picks.length === 2 && stL.body.day.orders.picks.every((p) => p.tier !== 3), JSON.stringify(stL.body.day?.orders?.picks));
+
+  // PATCH is all or nothing: a rejected request never saves the trail.
+  const patchU = mkUser("PatchPilot");
+  await call("POST", "/api/scores", { token: patchU.token, body: run({ timeSurvived: 30, kills: 150, orderStats: { grazes: 25 } }) });
+  const badPatch = await call("PATCH", "/api/me", { token: patchU.token, body: { cosmetics: { trail: "starlight" }, callsign: "!!" } });
+  const afterBad = await call("GET", "/api/me", { token: patchU.token });
+  check("rejected PATCH saves no trail", badPatch.status === 400 && !afterBad.body.cosmetics.trail, JSON.stringify(afterBad.body.cosmetics));
+  const okPatch = await call("PATCH", "/api/me", { token: patchU.token, body: { cosmetics: { trail: "starlight" }, country: "US" } });
+  check("valid combined PATCH saves both", okPatch.status === 200 && okPatch.body.cosmetics.trail === "starlight" && okPatch.body.user.country === "US");
+  const idx = await peek(`SELECT name FROM sqlite_master WHERE type='index' AND name='order_completions_date'`);
+  check("index on order_completions(daily_date) exists", idx.length === 1);
+
   // Turning an entry off on a future date changes only that date.
   const tomorrow = addDays(today, 1);
   const pool2 = onlyPool();
