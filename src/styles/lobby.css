@@ -431,15 +431,18 @@
 
 .lobby-v3 .v3-pod.left {
   order: 0;
+  grid-column: 1;
 }
 
 .lobby-v3 .v3-pod.leader {
   order: 1;
+  grid-column: 2;
   border-bottom: 2px solid var(--orion-gold);
 }
 
 .lobby-v3 .v3-pod.right {
   order: 2;
+  grid-column: 3;
 }
 
 .lobby-v3 .v3-pod.link {
@@ -577,10 +580,9 @@
   bottom: 0;
   z-index: 20;
   padding-bottom: var(--safe-bottom);
-  background: rgba(10, 10, 18, 0.94);
+  /* solid, so scrolled content never shows through the bar */
+  background: var(--orion-void);
   border-top: 1px solid var(--orion-hull-line);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .tab-bar-inner {

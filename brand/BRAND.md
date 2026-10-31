@@ -86,7 +86,7 @@ preference: em dashes are banned in every surface Lucas ships, and the pre-1.0 O
 
 The mark is a gold ring cut on the four diagonals, with a red core dead centre. It reads three
 ways at once, which is why it works: a targeting reticle, an eclipse, and the top-down
-silhouette of a ship inside its arena. It evolves the shipped favicon (a plain gold ring plus red
+silhouette of a ship inside its field. It evolves the shipped favicon (a plain gold ring plus red
 dot) rather than replacing it, so nothing already live looks wrong next to it.
 
 The diagonal cuts are the same 45-degree corner cut used in the wordmark. That cut is the
@@ -140,7 +140,7 @@ Full swatch sheet: `assets/palette/orion-palette.svg`. Machine-readable:
 | Token | Hex | Role |
 |---|---|---|
 | Void | `#0a0a12` | Background. PWA theme-color. The default state of everything. |
-| Deep Space | `#12121e` | Raised surfaces, top of the arena gradient. |
+| Deep Space | `#12121e` | Raised surfaces, top of the field gradient. |
 | Hull Line | `#2a2a3a` | Dividers, card borders. |
 | **Hull Gold** | `#ffd700` | The brand. Ship hull, sight ring, primary action. |
 | Flare | `#ffee88` | Top of every gold gradient. Highlights. |

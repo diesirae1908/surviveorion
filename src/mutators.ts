@@ -524,7 +524,7 @@ export const MUTATOR_POOL: Mutator[] = [
     id: "demolition-day",
     name: "DEMOLITION DAY",
     briefing: "Area denial only. The floor is always about to explode.",
-    subline: "Bomb slabs deploy continuously and detonate into shrapnel, crowding the arena fast after the first minute. No ambient swarm, no ordinary formations: the minefield is the whole day. Power drops come a little slower than a usual Daily.",
+    subline: "Bomb slabs deploy continuously and detonate into shrapnel, crowding the field fast after the first minute. No ambient swarm, no ordinary formations: the minefield is the whole day. Power drops come a little slower than a usual Daily.",
     hudRule: "Bombs then shrapnel. Keep moving.",
     // See LANCER DOCTRINE's comment for the round-5 rationale; the evasive
     // bot's score median came in highest of the four here (a fragmented
@@ -636,8 +636,8 @@ export const MUTATOR_POOL: Mutator[] = [
   {
     id: "the-pit",
     name: "THE PIT",
-    briefing: "The arena just got smaller. So did your margin.",
-    subline: "The arena is about 30% smaller in both dimensions.",
+    briefing: "The field just got smaller. So did your margin.",
+    subline: "The field is about 30% smaller in both dimensions.",
     hudRule: "Tighter field. Less room to dodge.",
     difficultyFactor: 1.2,
     tags: ["arena-size"],

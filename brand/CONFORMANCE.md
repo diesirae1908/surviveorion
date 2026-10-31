@@ -112,7 +112,7 @@ differently on a different day.
 | `src/style.css:1255` | `color: #cc4455` | `var(--orion-alarm)` | `#cc4455` is 4.25:1, fails AA for body text |
 | `src/style.css:511` | `color: #e6e6e6` (`.medal-earned.silver`) | `var(--orion-medal-silver)` (`#d7d7d7`) | The medal palette already defines silver |
 | `src/style.css:1111` | `color: #666` | `var(--orion-dust)` | 3.43:1 pure grey. The kit has no neutral greys on purpose |
-| `src/render.ts:127` | `grad.addColorStop(0, "#141426")` | `PALETTE.bgTop` | It is the arena background gradient top, sitting next to `PALETTE.bgBottom` on the following line. It should not be a literal |
+| `src/render.ts:127` | `grad.addColorStop(0, "#141426")` | `PALETTE.bgTop` | It is the field background gradient top, sitting next to `PALETTE.bgBottom` on the following line. It should not be a literal |
 
 **Leave alone, checked and compliant:**
 

@@ -16,6 +16,8 @@ import {
   EDGE_RADAR_MAX,
   EDGE_RADAR_HORIZON_S,
   GRAZE_POP_MIN_GAP_MS,
+  COUNT_POP_MIN_GAP_MS,
+  countPop,
   killPopAllowed,
   onEvent,
   resetKillPopBudget,
@@ -290,6 +292,30 @@ check("ON pops=false: graze has no ring", names(run(graze, { ...HUD, pops: false
   }
   check("graze: spaced grazes pop one each", pops.join() === "+7,+7,+7");
   check("graze gap is 150 ms", GRAZE_POP_MIN_GAP_MS === 150);
+
+  // CHAIN / PULSE xN: 35 events in 0.5 s show at most 2 pops (first + trailing), latest value wins
+  resetKillPopBudget(undefined);
+  pops.length = 0;
+  for (let i = 1; i <= 35; i++) {
+    countPop(mk(null), "chain", i, 0, 0);
+    if (i < 35) tick(14);
+  }
+  tick(COUNT_POP_MIN_GAP_MS + 5);
+  check("count pops: 35 chain events in 0.5 s make at most 3 pops", pops.length >= 1 && pops.length <= 3, String(pops.length));
+  check("count pops: first shows at once, trailing shows the latest value", pops[0] === "CHAIN \u00d71" && pops[pops.length - 1] === "CHAIN \u00d735", pops.join("|"));
+  tick(2 * COUNT_POP_MIN_GAP_MS);
+  pops.length = 0;
+  countPop(mk(null), "pulse", 3, 0, 0);
+  countPop(mk(null), "chain", 4, 0, 0);
+  check("count pops: kinds are independent", pops.join("|") === "PULSE \u00d73|CHAIN \u00d74");
+  tick(2 * COUNT_POP_MIN_GAP_MS);
+  pops.length = 0;
+  for (let i = 0; i < 3; i++) {
+    countPop(mk(null), "pulse", 2 + i, 0, 0);
+    tick(COUNT_POP_MIN_GAP_MS + 1);
+  }
+  check("count pops: spaced events pop one each", pops.length === 3, String(pops.length));
+  check("count pop gap is 300 ms", COUNT_POP_MIN_GAP_MS === 300);
   resetKillPopBudget(() => clockNow);
 }
 {

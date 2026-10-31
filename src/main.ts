@@ -932,6 +932,8 @@ const community = new CommunityUi(
   },
 );
 
+community.tabBarFor = (tab) => ui.tabBarFor(tab);
+
 function menuCommunityExtras(): Pick<
   MenuCommunity,
   "tier" | "hasStripeCustomer" | "webBillingEnabled"
@@ -2240,7 +2242,7 @@ function drainEvents(w: World): void {
       case "pickup":
         particles.burst(e.x, e.y, [POWER_COLORS[e.power], PALETTE.white], 12, 3.5, 0.5, 0.1);
         // a form fire drops the pickup text: the form name owns the ship
-        if (!feel.pickupLabelSuppressed(w.events, e.power, ctx)) {
+        if (!feel.pickupLabelSuppressed(w.events, e.power, ctx) && !feel.firePopQuiet(ctx)) {
           popups.spawn(e.x, e.y, POWER_NAMES[e.power].toUpperCase(), POWER_COLORS[e.power], 0.32);
           // the hint line lingers longer so new pilots learn what they grabbed
           popups.spawn(e.x, e.y - 0.55, POWER_HINTS[e.power], POWER_COLORS[e.power], 0.22, 1.7);
@@ -2254,7 +2256,7 @@ function drainEvents(w: World): void {
       case "starshellUp":
         particles.burst(world.ship.x, world.ship.y, [PALETTE.starshell, PALETTE.goldPale, PALETTE.white], 20, 5, 0.6, 0.12);
         // the shell makes ramming safe — say so, or players never dare
-        popups.spawn(world.ship.x, world.ship.y + 1.3, "RAM THEM!", PALETTE.starshell, 0.5, 1.4);
+        if (!feel.firePopQuiet(ctx)) popups.spawn(world.ship.x, world.ship.y + 1.3, "RAM THEM!", PALETTE.starshell, 0.5, 1.4);
         audio.starshellUp();
         break;
       case "shieldDetonate":
@@ -2339,11 +2341,11 @@ function drainEvents(w: World): void {
         audio.arcFizzle();
         break;
       case "chainBonus":
-        if (!feel.firePopQuiet(ctx)) popups.spawn(e.x, e.y + 0.7, `CHAIN ×${e.count}`, PALETTE.goldPale, 0.5);
+        if (!feel.firePopQuiet(ctx)) feel.countPop(ctx, "chain", e.count, e.x, e.y);
         audio.chainBonus();
         break;
       case "pulseMultiKill":
-        if (!feel.firePopQuiet(ctx)) popups.spawn(e.x, e.y + 0.7, `PULSE ×${e.hits}`, PALETTE.pulse, 0.5);
+        if (!feel.firePopQuiet(ctx)) feel.countPop(ctx, "pulse", e.hits, e.x, e.y);
         audio.chainBonus();
         break;
       case "droneSpawn":
@@ -2353,7 +2355,7 @@ function drainEvents(w: World): void {
         audio.ringWarning();
         break;
       case "razorUp":
-        popups.spawn(world.ship.x, world.ship.y + 1.2, "RAZOR", PALETTE.razor, 0.5, 1.1);
+        if (!feel.firePopQuiet(ctx)) popups.spawn(world.ship.x, world.ship.y + 1.2, "RAZOR", PALETTE.razor, 0.5, 1.1);
         audio.starshellUp();
         break;
       case "thunderCharge":
@@ -2366,7 +2368,7 @@ function drainEvents(w: World): void {
         audio.thunderHop();
         break;
       case "cloakUp":
-        popups.spawn(world.ship.x, world.ship.y + 1.2, "CLOAK", PALETTE.cloak, 0.5, 1.1);
+        if (!feel.firePopQuiet(ctx)) popups.spawn(world.ship.x, world.ship.y + 1.2, "CLOAK", PALETTE.cloak, 0.5, 1.1);
         audio.shieldUp();
         break;
       case "cloakDown":
@@ -2384,7 +2386,7 @@ function drainEvents(w: World): void {
         audio.shockwave();
         break;
       case "howlersUp":
-        popups.spawn(world.ship.x, world.ship.y + 1.2, "HOWLERS", PALETTE.howlers, 0.5, 1.1);
+        if (!feel.firePopQuiet(ctx)) popups.spawn(world.ship.x, world.ship.y + 1.2, "HOWLERS", PALETTE.howlers, 0.5, 1.1);
         audio.assemblyForm();
         break;
       case "lighthouseSpawn":

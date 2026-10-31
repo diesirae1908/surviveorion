@@ -1759,8 +1759,9 @@ export class Renderer {
         const k = 1 - (now - b.t) / life; // 1 at the ship, 0 at the tail
         if (k <= 0) continue;
         const taper = trail.style === "comet" ? k * k : k;
-        ctx.globalAlpha = Math.min(1, k * (trail.style === "comet" ? 0.9 : 0.7));
-        ctx.lineWidth = trail.width * (0.25 + 0.75 * taper) * (trail.style === "twin" ? 1 : 1.6);
+        // comet: slower alpha fall-off and a wider core, still gold (QA v3: read too faint)
+        ctx.globalAlpha = trail.style === "comet" ? Math.min(1, Math.sqrt(k) * 1.05) : Math.min(1, k * 0.7);
+        ctx.lineWidth = trail.width * (0.25 + 0.75 * taper) * (trail.style === "twin" ? 1 : trail.style === "comet" ? 2.1 : 1.6);
         // heading is the ship's nose; the lane offset is perpendicular to it
         const ox = -Math.sin(b.a) * lane;
         const oy = Math.cos(b.a) * lane;

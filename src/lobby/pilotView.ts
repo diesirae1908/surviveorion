@@ -314,16 +314,18 @@ export function pilotDossierModel(data: PilotDossierData): PilotDossierModel {
   const log = flightLog(data);
   const metal: PilotMetal = ghost ? "none" : (bestMedalOf(log.cells) ?? "none");
   const month = monthName(Number(data.today.slice(0, 4)), Number(data.today.slice(5, 7)) - 1);
-  const caption = ghost
-    ? "SIGN IN TO KEEP YOUR RANK"
-    : metal === "none"
+  // the ghost sign-in prompt below says "keep your rank"; the caption does not repeat it
+  const caption =
+    metal === "none"
       ? `NO MEDAL YET · ${month}`
       : `${MEDAL_LABEL[metal].toUpperCase()} MEDAL · ${month}`;
 
   let stats: PilotDossierModel["stats"];
   if (ghost) {
+    // the lobby counts this device's flown days for a guest too: the dossier agrees with it
+    const local = streakDays(data);
     stats = [
-      { id: "streak", value: "--", label: "DAY STREAK" },
+      { id: "streak", value: local.n > 0 ? `${local.n}${local.capped ? "+" : ""}` : "--", label: "DAY STREAK" },
       { id: "patrols", value: "--", label: "PATROLS" },
       { id: "bestRank", value: "--", label: "BEST RANK" },
     ];

@@ -32,7 +32,7 @@ new and approved for use. Nothing here claims a feature that is not live as of 2
 > your phone.
 
 **Paragraph**
-> No gun. Just a ship, a bounded arena, and drone swarms that keep coming. You stay alive by
+> Just a ship, a bounded field, and drone swarms that keep coming. You stay alive by
 > moving well and by grabbing defensive powers, nothing else. Every UTC day gives every pilot
 > the same seed and the same named mutator, so a score is a real comparison and not a shopping
 > list. Three attempts. Free in the browser, installable on a phone.
@@ -93,7 +93,7 @@ Already live, keep as is:
 > Today's patrol, still flying. **(live)**
 > Sandboxed: no daily attempt spent, no score submitted, no medal recorded **(live)**
 > What's on your mind, pilot? **(live)**
-> Received, pilot. Best ideas make it into the arena. **(live)**
+> Received, pilot. Best ideas make it into the build. **(live)**
 > Thank you, pilot. Your report is in the log. **(live)**
 > Transmission failed. Try again. **(live)**
 > Score not saved. Couldn't reach the leaderboard. **(live)**

@@ -30,7 +30,7 @@ verbatim. No em dashes, at most one "!" and usually none.*
 
 ## For mutator days (JUST THE GAME)
 - today the game rains meteors. everyone.
-- the arena shrank 30% overnight
+- the field shrank 30% overnight
 - double pickups today. go feral.
 - same sky, same storm, 3 tries
 - today's patrol is personal

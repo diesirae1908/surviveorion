@@ -159,6 +159,11 @@ const local = pilotDossierModel({
   local: [{ date: "2026-10-18", attemptsUsed: 1, best: { score: silver("2026-10-18"), time: 80, rank: null } }],
 });
 check("guest: this device's local log still paints", local.flightLog.cells.find((c) => c.date === "2026-10-18")!.medal === "silver");
+check("guest: caption does not repeat the sign-in line", g.insignia.caption !== "SIGN IN TO KEEP YOUR RANK" && g.signIn?.text === "Sign in to keep your rank");
+{
+  const flown = pilotDossierModel({ ...base, signedIn: false, guest: true, history: [], todayBestScore: 70_000 });
+  check("guest: day streak counts today's local run like the lobby", flown.stats[0].value === "1" && flown.stats[1].value === "--", flown.stats[0].value);
+}
 
 if (failures > 0) {
   console.log(`\n${failures} check(s) failed`);

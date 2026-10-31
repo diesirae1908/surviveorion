@@ -72,6 +72,8 @@ export class CommunityUi {
   private currentScreen: HTMLElement | null = null;
   /** 1 while our sentinel history entry is pushed (system back support). */
   private navDepth = 0;
+  /** Tab bar for the WINGMATES tab screen (null = ui.lobby.tabBar is off). Set by main.ts. */
+  tabBarFor: ((tab: "wingmates") => HTMLElement | null) | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -407,7 +409,7 @@ export class CommunityUi {
   showConfirmCountry(onDone: () => void): void {
     const { screen, body, error } = this.screen("WHERE DO YOU FLY FROM?", null);
     body.appendChild(
-      this.el("div", "field-hint", "Your country places you in its arena leaderboard. You can change it anytime."),
+      this.el("div", "field-hint", "Your country places you in its country leaderboard. You can change it anytime."),
     );
     const select = this.countrySelect(this.api.user?.country || guessCountry());
     body.appendChild(select);
@@ -898,6 +900,8 @@ export class CommunityUi {
   showFriends(): void {
     if (!this.api.signedIn) return this.showAuth(() => this.showFriends());
     const { screen, body, error } = this.screen("WINGMATES");
+    const navBar = this.tabBarFor?.("wingmates") ?? null;
+    if (navBar) screen.appendChild(navBar);
 
     body.appendChild(
       this.el("div", "field-hint center", "Add pilots by callsign to race their best runs and see their latest flights."),

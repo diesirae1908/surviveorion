@@ -110,7 +110,7 @@ allowed sparingly ("our tribute to Tilt to Live"). First person singular is fine
 > Every Daily Patrol day gets a named mutator from a pool of 22, picked by a date hash. Two on
 > Sundays. They are sidegrades, not difficulty sliders: STARFALL swaps every drop for a shield
 > and rains seeded meteors, CRYO WINTER makes every pickup a Cryo Field, THE PIT shrinks the
-> arena by 30 percent. Everyone gets the same one on the same day.
+> field by 30 percent. Everyone gets the same one on the same day.
 
 > Tilt steering: lean the phone to fly. A tribute to Tilt to Live.
 
@@ -146,7 +146,7 @@ concretely rather than effusively.
 
 ### It sounds like this (the first two are shipped)
 
-> Received, pilot. Best ideas make it into the arena.
+> Received, pilot. Best ideas make it into the build.
 > Thank you, pilot. Your report is in the log.
 > Good catch. The touch-drag lockup is real, it is fixed on the branch, it goes live this week.
 > That one is on purpose. The pool is append-only so a given day always lands on the same
@@ -175,7 +175,7 @@ concretely rather than effusively.
 
 ## Words
 
-**Use:** pilot, callsign, patrol, run, attempt, the swarm, the board, the arena, mutator,
+**Use:** pilot, callsign, patrol, run, attempt, the swarm, the board, the field, mutator,
 power, medal, drone, seed, graze, multiplier.
 
 **Avoid:** user, player, gamer, level (ORION has no levels), enemy (they are drones), score

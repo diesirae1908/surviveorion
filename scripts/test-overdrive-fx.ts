@@ -98,9 +98,12 @@ assert.equal(drawDroneTint(mkWorld(false, 3), drone(1, 0), PALETTE.redBright, fx
 function recorder(fx: typeof fxOn | null, effects: "full" | "lite" = "full") {
   const log = { bursts: 0, rings: 0, popups: [] as string[], sounds: [] as string[] };
   const ctx = {
-    world: { ship: { x: 1, y: 2 } },
+    world: { ship: { x: 1, y: 2 }, viewW: 17.8, viewH: 10 },
     particles: { burst: () => void log.bursts++, ringPulse: () => void log.rings++ },
-    popups: { spawn: (_x: number, _y: number, t: string) => void log.popups.push(t) },
+    popups: {
+      spawn: (_x: number, _y: number, t: string) => void log.popups.push(t),
+      spawnFitted: (_x: number, _y: number, t: string) => void log.popups.push(t),
+    },
     audio: {
       overdriveHot: () => void log.sounds.push("hot"),
       overdriveFire: () => void log.sounds.push("fire"),

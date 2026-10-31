@@ -284,6 +284,26 @@ export interface BoardV3Model {
   youTag: string | null;
 }
 
+const RANK_WORD: Record<number, string> = { 1: "1ST", 2: "2ND", 3: "3RD" };
+
+/**
+ * Podium caption for one place. The leader is always "LEADER"; the others show
+ * the medal THEIR score earned today (GOLD / SILVER / COPPER), or the rank word
+ * (2ND / 3RD) when the score earned none or the thresholds are unknown. Never
+ * a medal word the score did not earn.
+ */
+export function podiumTag(slot: PodiumSlot["slot"], rank: number, score: number, thresholds: MedalThresholds | undefined): string {
+  if (slot === "leader") return "LEADER";
+  const medal = thresholds ? medalForScore(score, thresholds) : null;
+  return medal ? MEDAL_LABEL[medal] : (RANK_WORD[rank] ?? `${rank}TH`);
+}
+
+/** Display name for a podium or board row: the callsign once, plus one "(you)" marker (a guest's own row is just "You"). */
+export function podiumName(callsign: string, isMe: boolean): string {
+  if (!isMe) return callsign;
+  return callsign.trim().toLowerCase() === "you" ? "You" : `${callsign} (you)`;
+}
+
 /** Podium (rank 1 center, 2 left, 3 right), your row, and the next wingmate above. */
 export function boardV3Model(
   rows: BoardRowLite[],

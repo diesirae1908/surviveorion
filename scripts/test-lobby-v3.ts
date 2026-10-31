@@ -19,6 +19,8 @@ import {
   lobbyV3Model,
   metalWordFor,
   nameSizePx,
+  podiumName,
+  podiumTag,
   type BoardRowLite,
   type LobbyV3Env,
   type LobbyV3Info,
@@ -132,6 +134,19 @@ check("board: unranked pilot gets no tag and no you row", (() => {
 })());
 check("board: guest tag says WOULD BE", boardV3Model(board, 9, 61_204, true).youTag === "WOULD BE #9");
 check("board: empty board gives an empty podium", boardV3Model([], null, null, true).podium.length === 0);
+
+// ---- podium captions and names (QA v3 bug 3) ----
+{
+  const th = { copper: 60_000, silver: 130_000, gold: 300_000 };
+  check("podium: leader is always LEADER", podiumTag("leader", 1, 10, th) === "LEADER");
+  check("podium: 2nd below copper reads 2ND, never SILVER", podiumTag("left", 2, 50_261, th) === "2ND");
+  check("podium: 3rd below copper reads 3RD, never COPPER", podiumTag("right", 3, 50_261, th) === "3RD");
+  check("podium: caption is the medal the score earned", podiumTag("left", 2, 140_000, th) === "SILVER" && podiumTag("right", 3, 65_000, th) === "COPPER" && podiumTag("left", 2, 310_000, th) === "GOLD");
+  check("podium: unknown thresholds fall back to the rank word", podiumTag("left", 2, 140_000, undefined) === "2ND" && podiumTag("right", 3, 140_000, undefined) === "3RD");
+  check("podium name: guest row is just You", podiumName("You", true) === "You");
+  check("podium name: own callsign gets one (you)", podiumName("Nova", true) === "Nova (you)");
+  check("podium name: others untouched", podiumName("Nova", false) === "Nova" && podiumName("You", false) === "You");
+}
 
 // ---- tab bar ----
 check("tab model: lobby flag absent or tabBar off = no tabs", tabBarModel("patrol", null).length === 0 && tabBarModel("patrol", NO_BAR).length === 0);

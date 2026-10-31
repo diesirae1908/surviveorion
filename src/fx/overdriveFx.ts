@@ -94,7 +94,12 @@ export function onEvent(e: GameEvent, ctx: FxContext): void {
       const color = POWER_COLORS[e.power];
       particles.burst(e.x, e.y, [PALETTE.gold, PALETTE.goldPale, color], lite ? 14 : 36, 7, 0.8, 0.14);
       if (fx.formPopup) {
-        popups.spawn(e.x, e.y + 1.15, formLabel(e.power, e.form), PALETTE.gold, 0.8, 1.3);
+        popups.spawnFitted(e.x, e.y + 1.15, formLabel(e.power, e.form), PALETTE.gold, 0.8, 1.3, {
+          hw: world.viewW / 2,
+          hh: world.viewH / 2,
+          shipY: world.ship.y,
+          offset: 1.15,
+        });
       }
       break;
     }

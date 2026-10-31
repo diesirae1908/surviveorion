@@ -77,6 +77,8 @@ import {
   boardV3Model,
   closesInLabel,
   lobbyV3Model,
+  podiumName,
+  podiumTag,
   type LobbyTab,
   type LobbyV3Model,
 } from "./lobby/lobbyV3";
@@ -769,6 +771,8 @@ export class Ui {
     btn.classList.add("small-btn", "chamfer");
     empty.appendChild(btn);
     screen.appendChild(empty);
+    const bar = this.tabBarFor("wingmates");
+    if (bar) screen.appendChild(bar);
     this.root.appendChild(screen);
   }
 
@@ -1877,6 +1881,12 @@ export class Ui {
     };
   }
 
+  /** The tab bar for a tab screen that is not built through showCustomScreen (board, wingmates); null unless ui.lobby.tabBar is live. */
+  tabBarFor(active: LobbyTab): HTMLElement | null {
+    if (!this.lobbyParams || !this.lobbyAllowed()) return null;
+    return tabBar(active, this.tabCallbacks(), this.lobbyParams);
+  }
+
   /** The full board, from the tab bar (uses the lobby info of the last paint). */
   showFullBoardFromTab(): void {
     if (this.lobbyInfo) this.showFullBoard(this.lobbyInfo);
@@ -2334,15 +2344,14 @@ export class Ui {
     const m = boardV3Model(rows, meRank, info.best?.score ?? null, !info.callsign);
     if (tag && m.youTag) tag.textContent = m.youTag;
     const pod = this.el("div", "v3-podium", "");
-    const tagFor = { leader: "LEADER", left: "SILVER", right: "COPPER" } as const;
     for (const p of m.podium) {
       const clickable = !p.row.virtual;
       const el = this.el(
         "div",
         `v3-pod ${p.slot}${p.row.isMe ? " me" : ""}${clickable ? " link" : ""}`,
-        `<span class="v3-pod-tag">${p.slot === "leader" ? "\u265b " : ""}${tagFor[p.slot]}</span>` +
+        `<span class="v3-pod-tag">${p.slot === "leader" ? "\u265b " : ""}${podiumTag(p.slot, p.row.rank, p.row.score, info.medalThresholds)}</span>` +
           `<span class="v3-pod-rk">${p.row.rank}</span>` +
-          `<span class="v3-pod-nm">${ladderNameHtml(`${p.row.country ? `${countryFlag(p.row.country)} ` : ""}${escapeHtml(p.row.callsign)}${p.row.isMe ? " (you)" : ""}`, (p.row as DailyBoardRow).ladder?.tier)}</span>` +
+          `<span class="v3-pod-nm">${ladderNameHtml(`${p.row.country ? `${countryFlag(p.row.country)} ` : ""}${escapeHtml(podiumName(p.row.callsign, p.row.isMe))}`, (p.row as DailyBoardRow).ladder?.tier)}</span>` +
           `<span class="v3-pod-pts">${Math.floor(p.row.score).toLocaleString()}</span>`,
       );
       if (clickable) {
@@ -2469,6 +2478,8 @@ export class Ui {
     const list = this.el("div", "board", "");
     list.id = "daily-lobby-board";
     screen.appendChild(list);
+    const bar = this.tabBarFor("board");
+    if (bar) screen.appendChild(bar);
     this.root.appendChild(screen);
     this.renderDailyBoardRows();
   }

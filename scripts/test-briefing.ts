@@ -86,6 +86,15 @@ check("full effects animate + shake", one.animate && one.shake);
 check("shake setting off", briefingModel({ ...base, shake: false }).shake === false);
 check("lite is static, no shake", (() => { const m = briefingModel({ ...base, effects: "lite" }); return !m.animate && !m.shake; })());
 
+{
+  // DOM-free guard: phones get a BACK that resolves like Escape (finish(false)), 44 px, not LAUNCH
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/lobby/briefing.ts", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../src/styles/briefing.css", import.meta.url), "utf8");
+  check("briefing has a BACK button wired to finish(false)", /briefing-back[\s\S]*?finish\(false\)/.test(src));
+  check("briefing BACK is a 44 px touch target", /\.briefing-back\s*\{[^}]*min-height:\s*44px/.test(css));
+}
+
 if (failed) {
   console.error(`${failed} briefing check(s) failed`);
   process.exit(1);

@@ -7,6 +7,13 @@
   font-family: var(--orion-font);
   color: var(--orion-starlight);
 }
+.briefing-back {
+  position: absolute; top: calc(var(--safe-top, 0px) + 8px); left: calc(var(--safe-left, 0px) + 8px);
+  min-width: 44px; min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 1px solid var(--orion-hull-line); border-radius: 22px;
+  color: var(--orion-brass); font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.18em; cursor: pointer;
+}
+.briefing-back:hover, .briefing-back:focus-visible { color: var(--orion-gold); border-color: var(--orion-gold); }
 .briefing-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .briefing-kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.28em; color: var(--orion-alarm); }
 .briefing-kicker::before {

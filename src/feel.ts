@@ -34,6 +34,13 @@ export const KILL_POP_AFTER_FIRE_MS = 500;
  * stay per graze.
  */
 export const GRAZE_POP_MIN_GAP_MS = 150;
+/**
+ * QA v3 bug 2: CHAIN xN and PULSE xN pops show at most one per this many ms per
+ * kind. A burst keeps only the latest value (counts are totals, not deltas)
+ * and a trailing pop shows it when the gap ends. All days: the old flood
+ * (35 pops in 0.5 s) happened with every switch off too, and scoring is untouched.
+ */
+export const COUNT_POP_MIN_GAP_MS = 300;
 /** Edge radar (ui.hud.edgeRadar): most chevrons drawn, nearest first. */
 export const EDGE_RADAR_MAX = 24;
 /** Time to impact (s) beyond which a chevron is at its faintest. */
@@ -183,6 +190,8 @@ const PACE_PAD_X = 8;
 const PACE_PAD_Y = 4;
 const PACE_LINE_PX = 12;
 const PACE_LINE_GAP = 2;
+/** Gap under the pause button: the field frame line sits about 2 px below it (QA v3), so the plate clears it. */
+const PACE_FRAME_CLEAR = 8;
 /** Pause button rect height (CSS px), mirrored from hudLayout. */
 const PAUSE_H = 72;
 /** Digit height / font size for the big score (no descenders). */
@@ -307,7 +316,7 @@ export function hudTextBoxes(
     w += PACE_PAD_X * 2;
     const h = PACE_PAD_Y * 2 + t.paceLines.length * PACE_LINE_PX + (t.paceLines.length - 1) * PACE_LINE_GAP;
     const right = viewport.w - 18 - safe.right;
-    pace = { x: right - w, y: pause.y + pause.h + 2, w, h };
+    pace = { x: right - w, y: pause.y + pause.h + PACE_FRAME_CLEAR, w, h };
     const others = [time, ...(dailyLabel ? [dailyLabel] : []), ...(subtitle ? [subtitle] : []), ...(warning ? [warning] : [])];
     for (let i = 0; i < 6; i++) {
       const hit = others.find((o) => boxHit(pace as HudBox, o));
@@ -339,6 +348,13 @@ export function resetKillPopBudget(clock?: () => number, schedule?: GrazeSchedul
   grazeHeld = 0;
   if (grazeTimer !== null) grazeCancel(grazeTimer);
   grazeTimer = null;
+  for (const k of Object.keys(countPops) as CountKind[]) {
+    const st = countPops[k];
+    if (st.timer !== null) grazeCancel(st.timer);
+    st.timer = null;
+    st.last = -Infinity;
+    st.pending = null;
+  }
 }
 
 // Graze popup coalescing (bug 5). Timer seam is injectable for tests.
@@ -380,6 +396,47 @@ function grazePop(ctx: FxContext, x: number, y: number, points: number): void {
     grazeHeld = 0;
     popups.spawn(x, y + 0.55, `+${total}`, PALETTE.gold, 0.72, 1.15);
   }, wait);
+}
+
+export type CountKind = "chain" | "pulse";
+interface CountPopState {
+  last: number;
+  timer: unknown;
+  pending: { x: number; y: number; n: number } | null;
+}
+const countPops: Record<CountKind, CountPopState> = {
+  chain: { last: -Infinity, timer: null, pending: null },
+  pulse: { last: -Infinity, timer: null, pending: null },
+};
+const COUNT_POP_LOOK: Record<CountKind, { word: string; color: string }> = {
+  chain: { word: "CHAIN", color: PALETTE.goldPale },
+  pulse: { word: "PULSE", color: PALETTE.pulse },
+};
+
+/** Rate-limited CHAIN xN / PULSE xN pop: one per COUNT_POP_MIN_GAP_MS per kind, latest value wins. */
+export function countPop(ctx: FxContext, kind: CountKind, n: number, x: number, y: number): void {
+  const st = countPops[kind];
+  const look = COUNT_POP_LOOK[kind];
+  const show = (px: number, py: number, pn: number): void => {
+    st.last = popClock();
+    ctx.popups.spawn(px, py + 0.7, `${look.word} \u00d7${pn}`, look.color, 0.5);
+  };
+  const now = popClock();
+  if (now - st.last >= COUNT_POP_MIN_GAP_MS) {
+    if (st.timer !== null) grazeCancel(st.timer);
+    st.timer = null;
+    st.pending = null;
+    show(x, y, n);
+    return;
+  }
+  st.pending = { x, y, n };
+  if (st.timer !== null) return;
+  st.timer = grazeSchedule.set(() => {
+    st.timer = null;
+    const p = st.pending;
+    st.pending = null;
+    if (p && !firePopQuiet(ctx)) show(p.x, p.y, p.n);
+  }, Math.max(0, st.last + COUNT_POP_MIN_GAP_MS - now));
 }
 
 /**

@@ -145,7 +145,7 @@ const HEX_SVG =
   '<svg viewBox="0 0 100 100" aria-hidden="true"><polygon points="50,4 91,27 91,73 50,96 9,73 9,27" fill="#0a0a12" stroke="#ffd700" stroke-width="3"/><polygon points="50,14 82,32 82,68 50,86 18,68 18,32" fill="none" stroke="#cc8800" stroke-width="1.2" stroke-dasharray="3 4"/><path d="M54 24 L38 54 H49 L44 78 L63 46 H51 Z" fill="#ffd700"/></svg>';
 
 /**
- * Show the briefing. Resolves true on LAUNCH (tap or Space), false on Escape.
+ * Show the briefing. Resolves true on LAUNCH (tap or Space), false on Escape or the BACK button.
  * The patrol date is written only on LAUNCH and never for previews.
  */
 export async function maybeShowBriefing(ctx: BriefingContext): Promise<boolean> {
@@ -156,6 +156,12 @@ export async function maybeShowBriefing(ctx: BriefingContext): Promise<boolean> 
     const root = el("div", "screen briefing" + (model.animate ? " briefing-anim" : " briefing-static"));
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-label", "Mission briefing");
+
+    // touch equivalent of Escape: back to the lobby, nothing spent, seen key untouched
+    const back = el("button", "briefing-back", "\u2039 BACK");
+    back.type = "button";
+    back.setAttribute("aria-label", "Back to the lobby");
+    root.append(back);
 
     const head = el("div", "briefing-head");
     head.append(el("div", "briefing-kicker", model.header), el("div", "briefing-patrol", model.patrolLine));
@@ -221,6 +227,11 @@ export async function maybeShowBriefing(ctx: BriefingContext): Promise<boolean> 
       }
     };
     const shownAt = performance.now();
+    back.addEventListener("pointerdown", (e) => e.stopPropagation());
+    back.addEventListener("click", (e) => {
+      e.stopPropagation();
+      finish(false);
+    });
     launch.addEventListener("click", (e) => {
       e.stopPropagation();
       if (ready) finish(true);

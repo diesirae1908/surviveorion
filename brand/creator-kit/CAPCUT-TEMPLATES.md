@@ -11,7 +11,7 @@ exactly what this move buys us.*
 - **One tagline, top of frame, whole video.** Rajdhani Bold, Hull Gold #ffd700 or Starlight
   #fff7e0, subtle black shadow. 85% watch muted; the tagline IS the video for them.
 - **15 to 34 seconds total.** Shorter is fine. Longer needs a reason.
-- **9:16, full playfield, black bars.** Scale the entire arena to fit; pad the unused
+- **9:16, full playfield, black bars.** Scale the entire field to fit; pad the unused
   edges with true black. Never crop the field. Never punch-zoom into a 9:16 window.
 - **Trending sound**: pick in CapCut/TikTok at edit time. Our `audio/` files are fallbacks.
 - **Watermark**: Patrol Sight mark (`logos/orion-mark-512.png`), bottom corner, ~40% opacity,

@@ -204,7 +204,7 @@ const quiet = boxesFor(430, 932, 0, 0, true, { chain: false, subtitle: "GRAZE PR
 check("no chain: subtitle and warning stay at today's y", quiet.subtitle?.y === 18 + 44 && quiet.warning?.y === 18 + 60, `${quiet.subtitle?.y} ${quiet.warning?.y}`);
 check("no chip requested: no pace box", quiet.pace === null);
 const wide = boxesFor(1440, 900, 0, 0, true, { chain: true, subtitle: "GRAZE PROTOCOL", warning: false, pace: true, mult: "x10.0" });
-check("desktop: chip sits straight under the pause button", wide.pace !== null && wide.pace.y === wide.pause.y + wide.pause.h + 2);
+check("desktop: chip sits clears the pause button and the field frame line (8 px)", wide.pace !== null && wide.pace.y === wide.pause.y + wide.pause.h + 8);
 
 wiring().then(() => {
   console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);

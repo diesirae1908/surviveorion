@@ -983,5 +983,11 @@ function dayRestricted(dateStr: string): boolean {
   clearActiveMutators();
 }
 
+// player-facing copy never calls the play space an arena (Lucas's ban); ids and tags are not copy
+for (const m of MUTATOR_POOL) {
+  const copy = [m.name, m.briefing, m.subline, m.hudRule].join(" ");
+  check(`mutator copy has no "arena": ${m.id}`, !/\barena/i.test(copy));
+}
+
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);
 if (failures > 0) process.exit(1);
