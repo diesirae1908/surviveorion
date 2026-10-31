@@ -163,6 +163,150 @@ export function fitScorePx(chars: number, maxW: number, basePx: number): number 
   return Math.max(20, Math.floor((maxW / (chars * 0.56)) * 10) / 10);
 }
 
+// --- HUD text boxes (WS-H, bug 4 + pace chip placement; pure, measure injected) ---
+
+/** Gap between the multiplier text and the CHAIN label (bug 4: no longer a fixed x offset). */
+export const CHAIN_GAP_PX = 10;
+/** Pace chip metrics. */
+const PACE_PAD_X = 8;
+const PACE_PAD_Y = 4;
+const PACE_LINE_PX = 12;
+const PACE_LINE_GAP = 2;
+/** Pause button rect height (CSS px), mirrored from hudLayout. */
+const PAUSE_H = 72;
+/** Digit height / font size for the big score (no descenders). */
+const SCORE_GLYPH_H = 0.75;
+
+export interface HudBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export type HudMeasure = (text: string, px: number, bold: boolean) => number;
+export interface HudTextsIn {
+  /** Left block (same y values the renderer paints with). */
+  scoreText: string;
+  scorePx: number;
+  scoreY: number;
+  multText: string;
+  multY: number;
+  chainText: string | null;
+  chainY: number;
+  /** Chain bar (ui.hud only), null when absent. */
+  bar: HudBox | null;
+  bestText: string;
+  bestY: number;
+  /** Center block. */
+  timeText: string;
+  daily: boolean;
+  subtitle: string | null;
+  warning: string | null;
+  /** Pace chip lines, null = no chip. */
+  paceLines: string[] | null;
+}
+export interface HudTextBoxes {
+  score: HudBox;
+  mult: HudBox;
+  chain: HudBox | null;
+  bar: HudBox | null;
+  best: HudBox;
+  time: HudBox;
+  dailyLabel: HudBox | null;
+  subtitle: HudBox | null;
+  warning: HudBox | null;
+  pace: HudBox | null;
+  pause: HudBox;
+}
+
+const boxHit = (a: HudBox, b: HudBox): boolean =>
+  a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+/**
+ * Every top-HUD text box for one frame, with the collision fixes: CHAIN sits
+ * after the measured multiplier; the mutator subtitle and wind warning drop
+ * (padTop + 58, then under whatever they hit) when they would touch the left
+ * block; the pace chip sits under the pause button and slides below any
+ * center line it would touch. Pure: `measure` is injected.
+ */
+export function hudTextBoxes(
+  viewport: { w: number; h: number },
+  safe: { top: number; right: number; bottom: number; left: number },
+  t: HudTextsIn,
+  measure: HudMeasure,
+): HudTextBoxes {
+  const pad = HUD_PAD + safe.left;
+  const padTop = HUD_PAD + safe.top;
+  const mk = (x: number, y: number, text: string, px: number, bold: boolean): HudBox => ({
+    x,
+    y,
+    w: measure(text, px, bold),
+    h: Math.ceil(px * 1.2),
+  });
+  const score = mk(pad, t.scoreY, t.scoreText, t.scorePx, true);
+  score.h = Math.ceil(t.scorePx * SCORE_GLYPH_H); // digits only: cap height, not the line box
+  const mult = mk(pad, t.multY, t.multText, 18, true);
+  const chain = t.chainText ? mk(pad + mult.w + CHAIN_GAP_PX, t.chainY, t.chainText, 14, true) : null;
+  const best = mk(pad, t.bestY, t.bestText, 14, false);
+  const time = mk(0, padTop, t.timeText, 22, false);
+  time.x = viewport.w / 2 - time.w / 2;
+  const centered = (y: number, text: string, px: number): HudBox => {
+    const b = mk(0, y, text, px, true);
+    b.x = viewport.w / 2 - b.w / 2;
+    return b;
+  };
+  const obstacles = [score, mult, best, ...(chain ? [chain] : []), ...(t.bar ? [t.bar] : [])];
+  const dailyLabel = t.daily ? centered(padTop + 28, "☀ D A I L Y   P A T R O L", 12) : null;
+
+  // Center lines below the daily label. Default y as today; drop only on a hit.
+  const lines: { box: HudBox | null; text: string | null; baseY: number }[] = [
+    { box: null, text: t.daily ? t.subtitle : null, baseY: padTop + 44 },
+    { box: null, text: t.daily ? t.warning : null, baseY: t.daily && t.subtitle ? padTop + 60 : padTop + 44 },
+  ];
+  let floor = -Infinity;
+  let dropped = false;
+  for (const ln of lines) {
+    if (!ln.text) continue;
+    let y = Math.max(ln.baseY, floor);
+    let box = centered(y, ln.text, 11);
+    const candidates = [padTop + 58];
+    let hit = obstacles.find((o) => boxHit(box, o));
+    if (hit && !dropped) {
+      y = Math.max(y, candidates[0]);
+      box = centered(y, ln.text, 11);
+      hit = obstacles.find((o) => boxHit(box, o));
+    }
+    for (let i = 0; hit && i < 4; i++) {
+      y = hit.y + hit.h + 2;
+      box = centered(y, ln.text, 11);
+      hit = obstacles.find((o) => boxHit(box, o));
+    }
+    if (y > ln.baseY) dropped = true;
+    ln.box = box;
+    floor = box.y + 16; // today's line pitch
+  }
+  const subtitle = lines[0].box;
+  const warning = lines[1].box;
+
+  const pause: HudBox = { x: viewport.w - 72 - safe.right, y: safe.top, w: 72, h: PAUSE_H };
+  let pace: HudBox | null = null;
+  if (t.paceLines && t.paceLines.length > 0) {
+    let w = 0;
+    for (const l of t.paceLines) w = Math.max(w, measure(l, PACE_LINE_PX, true));
+    w += PACE_PAD_X * 2;
+    const h = PACE_PAD_Y * 2 + t.paceLines.length * PACE_LINE_PX + (t.paceLines.length - 1) * PACE_LINE_GAP;
+    const right = viewport.w - 18 - safe.right;
+    pace = { x: right - w, y: pause.y + pause.h + 2, w, h };
+    const others = [time, ...(dailyLabel ? [dailyLabel] : []), ...(subtitle ? [subtitle] : []), ...(warning ? [warning] : [])];
+    for (let i = 0; i < 6; i++) {
+      const hit = others.find((o) => boxHit(pace as HudBox, o));
+      if (!hit) break;
+      pace = { ...pace, y: hit.y + hit.h + 3 };
+    }
+  }
+  return { score, mult, chain, bar: t.bar, best, time, dailyLabel, subtitle, warning, pace, pause };
+}
+
 // Kill pop budget (cosmetic, wall clock). The clock is injectable for tests.
 let popClock: () => number = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 let lastPopAt = -Infinity;

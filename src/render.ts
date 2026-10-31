@@ -27,13 +27,16 @@ import {
   chainBarFlicker,
   fitScorePx,
   hudLayout,
+  hudTextBoxes,
   stickAlpha,
   type HudLayout,
+  type HudBox,
+  type HudTextBoxes,
 } from "./feel";
 import * as deathFx from "./fx/deathFx";
 import * as overdriveFx from "./fx/overdriveFx";
 import * as sky from "./sky";
-import type { PaceView } from "./pace";
+import { paceLines, type PaceView } from "./pace";
 import type { TrailCosmetic } from "./cosmetics";
 
 interface Star {
@@ -2618,11 +2621,48 @@ export class Renderer {
 
     ctx.textBaseline = "top";
 
+    // every top-HUD text box for this frame (bug 4 collision fixes + pace chip)
+    const scoreText = Math.floor(world.score).toLocaleString();
+    const chainOn = world.chainCount >= 3 && world.chainTimer > 0;
+    const warning = opts.daily ? mutatorWindShiftWarning(world.time) : null;
+    const mins = Math.floor(world.time / 60);
+    const secs = Math.floor(world.time % 60);
+    const paceOn = !!(hud && hud.paceChip && opts.daily && playing && opts.pace);
+    const risingPx = lay ? fitScorePx(scoreText.length, lay.scoreMaxW, scorePx) : 28;
+    const boxes = hudTextBoxes(
+      { w: this.cssW, h: this.cssH },
+      this.safe,
+      {
+        scoreText,
+        scorePx: risingPx,
+        scoreY: lay ? lay.scoreY : padTop,
+        multText: `x${world.multiplier.toFixed(1)}`,
+        multY: lay ? lay.multY : padTop + 34,
+        chainText: chainOn ? `CHAIN ×${world.chainCount}` : null,
+        chainY: lay ? lay.multY + 3 : padTop + 37,
+        bar:
+          lay && hud && hud.chainBar
+            ? { x: lay.pad, y: lay.barY, w: Math.min(120, lay.scoreMaxW), h: lay.barH }
+            : null,
+        bestText: `BEST ${Math.floor(opts.bestScore).toLocaleString()}`,
+        bestY: lay ? lay.bestY : padTop + 60,
+        timeText: `${mins}:${secs.toString().padStart(2, "0")}`,
+        daily: opts.daily,
+        subtitle: mutators.length > 0 ? mutators.map((mut) => mut.name).join(" + ") : null,
+        warning: warning ? `CURRENT TURNING  ${warning.secondsLeft.toFixed(1)}` : null,
+        paceLines: paceOn && opts.pace ? paceLines(opts.pace) : null,
+      },
+      (text, px, bold) => {
+        ctx.font = canvasFont(`${bold ? "700 " : ""}${px}px`);
+        return ctx.measureText(text).width;
+      },
+    );
+
     ctx.save();
     if (playing) ctx.globalAlpha = this.hudAlpha(ship, leftRect);
 
     if (lay && hud) {
-      this.drawRisingGoldScore(world, opts, hud, lay, scorePx);
+      this.drawRisingGoldScore(world, opts, hud, lay, scorePx, boxes);
     } else {
       // score (top-left)
       ctx.textAlign = "left";
@@ -2638,10 +2678,10 @@ export class Renderer {
       ctx.fillText(`x${m.toFixed(1)}`, pad, padTop + 34);
 
       // active kill chain
-      if (world.chainCount >= 3 && world.chainTimer > 0) {
+      if (boxes.chain) {
         ctx.fillStyle = PALETTE.goldPale;
         ctx.font = canvasFont("bold 14px");
-        ctx.fillText(`CHAIN ×${world.chainCount}`, pad + 64, padTop + 37);
+        ctx.fillText(`CHAIN ×${world.chainCount}`, boxes.chain.x, boxes.chain.y);
       }
 
       // best (under the score, clear of the pause button top-right)
@@ -2655,8 +2695,6 @@ export class Renderer {
     if (playing) ctx.globalAlpha = this.hudAlpha(ship, centerRect);
 
     // time (top-center)
-    const mins = Math.floor(world.time / 60);
-    const secs = Math.floor(world.time % 60);
     ctx.textAlign = "center";
     ctx.fillStyle = PALETTE.goldPale;
     ctx.font = canvasFont("22px");
@@ -2667,20 +2705,20 @@ export class Renderer {
       ctx.fillStyle = PALETTE.gold;
       ctx.font = canvasFont("bold 12px");
       ctx.fillText("☀ D A I L Y   P A T R O L", this.cssW / 2, padTop + 28);
-      if (mutators.length > 0) {
+      if (boxes.subtitle) {
         ctx.fillStyle = PALETTE.gold;
         ctx.font = canvasFont("bold 11px");
-        ctx.fillText(mutators.map((mut) => mut.name).join(" + "), this.cssW / 2, padTop + 44);
+        ctx.fillText(mutators.map((mut) => mut.name).join(" + "), this.cssW / 2, boxes.subtitle.y);
       }
-      const warning = mutatorWindShiftWarning(world.time);
-      if (warning) {
+      if (warning && boxes.warning) {
         ctx.fillStyle = PALETTE.goldPale;
         ctx.font = canvasFont("bold 11px");
-        const warnY = mutators.length > 0 ? padTop + 60 : padTop + 44;
-        ctx.fillText(`CURRENT TURNING  ${warning.secondsLeft.toFixed(1)}`, this.cssW / 2, warnY);
+        ctx.fillText(`CURRENT TURNING  ${warning.secondsLeft.toFixed(1)}`, this.cssW / 2, boxes.warning.y);
       }
     }
     ctx.restore();
+
+    if (paceOn && boxes.pace && opts.pace) this.drawPaceChip(ship, boxes.pace, paceLines(opts.pace), playing);
 
     const pauseBtn = typeof document !== "undefined" ? document.getElementById("pause-btn") : null;
     if (pauseBtn instanceof HTMLElement) {
@@ -2778,8 +2816,34 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** ui.hud.paceChip: small plate under the pause button, right-aligned. Two lines. */
+  private drawPaceChip(ship: { x: number; y: number }, box: HudBox, lines: string[], playing: boolean): void {
+    const { ctx } = this;
+    ctx.save();
+    if (playing) ctx.globalAlpha = this.hudAlpha(ship, box);
+    ctx.fillStyle = "rgba(10,8,6,0.55)";
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.fillStyle = PALETTE.gold;
+    ctx.fillRect(box.x, box.y, 2, box.h);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = canvasFont("700 12px");
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillStyle = i === 0 ? PALETTE.gold : PALETTE.goldPale;
+      ctx.fillText(lines[i], box.x + 8, box.y + 4 + i * 14);
+    }
+    ctx.restore();
+  }
+
   /** ui.hud score block: one big number, multiplier, chain bar, best. */
-  private drawRisingGoldScore(world: World, opts: RenderOpts, hud: HudParams, lay: HudLayout, scorePx: number): void {
+  private drawRisingGoldScore(
+    world: World,
+    opts: RenderOpts,
+    hud: HudParams,
+    lay: HudLayout,
+    scorePx: number,
+    boxes: HudTextBoxes,
+  ): void {
     const { ctx } = this;
     const text = Math.floor(world.score).toLocaleString();
     const px = fitScorePx(text.length, lay.scoreMaxW, scorePx);
@@ -2818,10 +2882,10 @@ export class Renderer {
       }
       ctx.globalAlpha = prevA;
     }
-    if (world.chainCount >= 3 && world.chainTimer > 0) {
+    if (boxes.chain) {
       ctx.fillStyle = PALETTE.goldPale;
       ctx.font = canvasFont("700 14px");
-      ctx.fillText(`CHAIN ×${world.chainCount}`, lay.pad + 64, lay.multY + 3);
+      ctx.fillText(`CHAIN ×${world.chainCount}`, boxes.chain.x, boxes.chain.y);
     }
 
     ctx.fillStyle = PALETTE.bronze;
