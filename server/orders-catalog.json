@@ -1,0 +1,31 @@
+{
+  "orders": [
+    { "id": "survive-30", "tier": 1, "metric": "timeSurvived", "needsOverdrive": false },
+    { "id": "graze-15", "tier": 1, "metric": "grazes", "needsOverdrive": false },
+    { "id": "kills-25", "tier": 1, "metric": "kills", "needsOverdrive": false },
+    { "id": "chain-5", "tier": 2, "metric": "maxMultiplier", "needsOverdrive": false },
+    { "id": "graze-40", "tier": 2, "metric": "grazes", "needsOverdrive": false },
+    { "id": "survive-60", "tier": 2, "metric": "timeSurvived", "needsOverdrive": false },
+    { "id": "hot-2", "tier": 2, "metric": "odHot", "needsOverdrive": true },
+    { "id": "survive-120", "tier": 3, "metric": "timeSurvived", "needsOverdrive": false },
+    { "id": "chain-9", "tier": 3, "metric": "maxMultiplier", "needsOverdrive": false },
+    { "id": "kills-250", "tier": 3, "metric": "kills", "needsOverdrive": false },
+    { "id": "fires-4", "tier": 3, "metric": "odFires", "needsOverdrive": true }
+  ],
+  "ladder": [
+    { "tier": 0, "name": "Ensign", "merit": 0 },
+    { "tier": 1, "name": "Vanguard", "merit": 10 },
+    { "tier": 2, "name": "Tribune", "merit": 30 },
+    { "tier": 3, "name": "Praetor", "merit": 70 },
+    { "tier": 4, "name": "Legate", "merit": 150 },
+    { "tier": 5, "name": "Sovereign", "merit": 300 }
+  ],
+  "trails": [
+    { "id": "hull", "label": "Hull Gold", "tier": 0 },
+    { "id": "flare", "label": "Flare", "tier": 1 },
+    { "id": "starlight", "label": "Starlight", "tier": 2 },
+    { "id": "spark", "label": "Gold Spark", "tier": 3 },
+    { "id": "twin", "label": "Twin Gold", "tier": 4 },
+    { "id": "comet", "label": "Long Comet", "tier": 5 }
+  ]
+}

@@ -33,6 +33,7 @@ import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } f
 import { qualifyingBadges } from "./badges.mjs";
 import { isValidUtcDateStr } from "./dateUtils.mjs";
 import * as flags from "./flags.mjs";
+import * as ordersLib from "./orders.mjs";
 import {
   dailyLeaderboardCombinedWithBots,
   dailyRankCombinedWithBots,
@@ -307,6 +308,113 @@ const publicBoardEntry = (e) => {
   return out;
 };
 const sanitizeEntries = (list) => list.map(publicBoardEntry);
+
+// --- Daily Orders / Pilot Ladder (the `orders` switch; nothing below runs or
+// shows up when it resolves off for today) ---
+
+/** Orders params merged over the registry defaults (an older row may predate a pool entry). */
+function mergeOrdersParams(rowParams) {
+  const def = flags.loadRegistry().flags.orders.default.params;
+  const p = rowParams && typeof rowParams === "object" ? rowParams : {};
+  const pool = {};
+  for (const [id, d] of Object.entries(def.pool)) {
+    const g = p.pool?.[id];
+    pool[id] = { on: typeof g?.on === "boolean" ? g.on : d.on, target: typeof g?.target === "number" ? g.target : d.target };
+  }
+  return {
+    meritEasy: typeof p.meritEasy === "number" ? p.meritEasy : def.meritEasy,
+    meritMedium: typeof p.meritMedium === "number" ? p.meritMedium : def.meritMedium,
+    meritHard: typeof p.meritHard === "number" ? p.meritHard : def.meritHard,
+    pool,
+  };
+}
+
+/** The date's orders context, or null when the switch resolves off. */
+function ordersContext(dateStr) {
+  let r;
+  try {
+    r = flags.resolveFlag("orders", dateStr, flags.rowsForKey("orders"));
+  } catch {
+    return null;
+  }
+  if (!r || !r.enabled) return null;
+  const od = flags.resolveFlag("overdrive", dateStr, flags.rowsForKey("overdrive"));
+  const overdriveOn = !!(od && od.enabled);
+  const params = mergeOrdersParams(r.params);
+  return {
+    params,
+    hash: r.hash,
+    overdriveOn,
+    odParams: overdriveOn ? od.params : null,
+    picks: ordersLib.ordersForDate(dateStr, params, overdriveOn),
+  };
+}
+
+/** GET /api/me additions; empty when the `orders` switch is off for today. */
+function meOrdersFields(user) {
+  const today = patrolToday();
+  if (!ordersContext(today)) return {};
+  return {
+    ladder: ladderOf(store.meritForUser(user.id)),
+    cosmetics: store.getUserCosmetics(user.id),
+    ordersToday: { date: today, done: store.ordersDoneForDay(user.id, today) },
+  };
+}
+
+/** Ladder summary for a total Merit. */
+const ladderOf = (merit) => ({ tier: ordersLib.tierForMerit(merit), merit });
+
+/** Add `ladder: { tier }` to board rows that have a numeric user id (bots get none). */
+function withLadder(list) {
+  if (!ordersContext(patrolToday())) return list;
+  const merits = store.meritForUsers(list.map((e) => e.userId));
+  return list.map((e) =>
+    Number.isInteger(e.userId) ? { ...e, ladder: { tier: ordersLib.tierForMerit(merits.get(e.userId) ?? 0) } } : e,
+  );
+}
+
+/** Credit today's daily run against the date's orders. Returns the response block. */
+function creditOrders({ user, body, run, dailyDate, filedBefore }) {
+  const ctx = ordersContext(dailyDate);
+  if (!ctx) return undefined;
+  const meritBefore = store.meritForUser(user.id);
+  const newIds = [];
+  if (filedBefore < DAILY_MAX_ATTEMPTS && ctx.picks.length > 0) {
+    const stats = body.orderStats && typeof body.orderStats === "object" ? body.orderStats : null;
+    const { counters, rejected } = ordersLib.checkPlausible(
+      stats,
+      { timeSurvived: run.timeSurvived, odHot: bodyOdCount(body.odHot), odFires: bodyOdCount(body.odFires) },
+      scheduledMutatorNames(dailyDate),
+      ctx.odParams,
+      ctx.overdriveOn,
+    );
+    if (rejected) store.insertOrderReject(dailyDate);
+    const done = ordersLib.evaluate(ctx.picks, {
+      timeSurvived: run.timeSurvived,
+      kills: run.kills,
+      maxMultiplier: run.maxMultiplier,
+      ...counters,
+    });
+    for (const p of ctx.picks) {
+      if (!done.includes(p.id)) continue;
+      const fresh = store.insertOrderCompletion(user.id, {
+        dailyDate,
+        orderId: p.id,
+        tier: p.tier,
+        merit: ordersLib.meritForTier(ctx.params, p.tier),
+        paramsHash: ctx.hash,
+      });
+      if (fresh) newIds.push(p.id);
+    }
+  }
+  const meritAfter = store.meritForUser(user.id);
+  const ladder = ladderOf(meritAfter);
+  return {
+    done: store.ordersDoneForDay(user.id, dailyDate),
+    new: newIds,
+    ladder: { ...ladder, tierUp: ladder.tier > ordersLib.tierForMerit(meritBefore) },
+  };
+}
 
 /** Admin-only: today's (or a picked day's) public board, split real vs filler. */
 function adminDayBoard(dailyDate) {
@@ -647,6 +755,7 @@ const routes = {
       stripeBilling: billingConfigured(),
       // Allowlisted creator only; absent for everyone else.
       ...(creatorPreview ? { creatorPreview } : {}),
+      ...meOrdersFields(user),
     });
   },
 
@@ -779,8 +888,17 @@ const routes = {
 
   "PATCH /api/me": async (req, res, user) => {
     if (!user) return json(res, 401, { error: "not signed in" });
-    const { callsign, country, password } = await readBody(req);
+    const { callsign, country, password, cosmetics } = await readBody(req);
     const patch = {};
+    // Equip a trail: only a ladder-unlocked one, and only while Orders is on.
+    if (cosmetics !== undefined) {
+      if (!ordersContext(patrolToday())) return json(res, 400, { error: "cosmetics unavailable" });
+      const trail = cosmetics && typeof cosmetics === "object" ? cosmetics.trail : undefined;
+      if (trail !== null && typeof trail !== "string") return json(res, 400, { error: "invalid cosmetics" });
+      if (trail !== null && !ordersLib.unlockedTrails(ordersLib.tierForMerit(store.meritForUser(user.id))).includes(trail))
+        return json(res, 400, { error: "trail locked" });
+      store.setUserCosmetics(user.id, { trail });
+    }
     if (callsign !== undefined) {
       if (typeof callsign !== "string" || !CALLSIGN_RE.test(callsign.trim()))
         return json(res, 400, { error: "invalid callsign" });
@@ -803,7 +921,10 @@ const routes = {
       patch.passSalt = crypto.randomBytes(16).toString("hex");
       patch.passHash = hashPassword(password, patch.passSalt);
     }
-    json(res, 200, { user: publicUser(store.updateUser(user.id, patch)) });
+    json(res, 200, {
+      user: publicUser(store.updateUser(user.id, patch)),
+      ...(cosmetics !== undefined ? { cosmetics: store.getUserCosmetics(user.id) } : {}),
+    });
   },
 
   "DELETE /api/me": async (req, res, user) => {
@@ -850,6 +971,22 @@ const routes = {
 
     const ruleset = bodyRuleset(body);
     store.insertScore(user.id, { ...run, dailyDate, ruleset });
+    // Daily Orders: today's daily only (never archive, Classic, or anonymous),
+    // credited from the validated fields above. The score is never affected.
+    let ordersResult;
+    if (body.daily === true && dailyDate && dailyDate === patrolToday()) {
+      try {
+        ordersResult = creditOrders({
+          user,
+          body,
+          run,
+          dailyDate,
+          filedBefore: store.countDailyScores(user.id, dailyDate) - 1,
+        });
+      } catch (e) {
+        console.error("orders credit failed:", e?.message ?? e);
+      }
+    }
     store.insertRun(user.id, {
       ...run,
       platform: cleanPlatform(body.platform),
@@ -895,6 +1032,7 @@ const routes = {
           : store.nextWingmateAbove(user.id, run.mode, gameMode),
       ),
       newBadges,
+      ...(ordersResult ? { orders: ordersResult } : {}),
     });
   },
 
@@ -1000,12 +1138,12 @@ const routes = {
     const dailyDate = patrolToday();
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
     if (mode === "all") {
-      const entries = sanitizeEntries(dailyLeaderboardCombinedWithBots({ dailyDate, limit }));
+      const entries = sanitizeEntries(withLadder(dailyLeaderboardCombinedWithBots({ dailyDate, limit })));
       const me = user ? dailyRankCombinedWithBots(user.id, dailyDate) : null;
       return json(res, 200, { date: dailyDate, entries, me });
     }
     if (!MODES.includes(mode)) return json(res, 400, { error: "invalid mode" });
-    const entries = sanitizeEntries(store.leaderboard({ mode, dailyDate, limit }));
+    const entries = sanitizeEntries(withLadder(store.leaderboard({ mode, dailyDate, limit })));
     const myBest = user ? store.getUserDailyBest(user.id, mode, dailyDate) : 0;
     const me = myBest
       ? { rank: store.rankOf(user.id, { mode, dailyDate }), best: myBest }
@@ -1238,6 +1376,10 @@ const routes = {
         day.staleBundle = m.stale;
         day.requiredGen = need;
         day.emergencyOff = flags.emergencyOffOn(day.date);
+        const oc = ordersContext(day.date);
+        day.orders = oc
+          ? { on: true, picks: oc.picks.map((p) => ({ id: p.id, tier: p.tier, target: p.target })), ...store.ordersDayStats(day.date) }
+          : { on: false };
       } catch {
         day.rulesetMismatch = null;
         day.staleBundle = null;
@@ -1368,6 +1510,9 @@ function playerProfile(req, res, user, callsign) {
     history: store.scoreHistory(target.id, 40),
     badges: store.userBadges(target.id),
     friendship,
+    ...(ordersContext(patrolToday())
+      ? { ladder: { tier: ordersLib.tierForMerit(store.meritForUser(target.id)) } }
+      : {}),
   });
 }
 
