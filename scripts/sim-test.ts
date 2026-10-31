@@ -2848,6 +2848,58 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     `${ca.script.assemblies.length} assemblies, grazer ${cc.hot} HOT ${cc.fires} fires`,
   );
 
+  // WS-F (d): every generation-2 form on + alwaysHotScale 1.5, grazer, plain day and OVERCHARGE day:
+  // the script (formations, pickup kind+position, mines, scripted assemblies) must equal (a).
+  {
+    const gen2Rules = (): RunRules => {
+      const r = rulesFromDefaults({ overdrive: true });
+      const od = r.overdrive!;
+      for (const f of Object.keys(od.forms)) (od.forms as unknown as Record<string, { on: boolean }>)[f].on = true;
+      od.alwaysHotScale = 1.5;
+      return r;
+    };
+    const d = recordOd(gen2Rules(), "grazer");
+    check(
+      "overdrive gen-2 (all forms on, alwaysHotScale 1.5) + grazer: script identical to off + ram",
+      d.hot > 0 && d.fires > 0 && sameBase(a.script, d.script),
+      `${d.hot} HOT, ${d.fires} fires`,
+    );
+    const oc = [getMutatorById("overcharge")!];
+    const oa = recordOd(BASE_RULES, "ram", oc);
+    const od2 = recordOd(gen2Rules(), "grazer", oc);
+    check(
+      "OVERCHARGE day, gen-2 forms + alwaysHotScale 1.5 + grazer: formations, drops, mines identical to off + ram",
+      oa.script.formations.length > 5 && od2.fires > 0 && sameBase(oa.script, od2.script),
+      `${od2.hot} HOT, ${od2.fires} fires`,
+    );
+    // reported, not gating: evade bot median survival on OVERCHARGE at alwaysHotScale 1.2 vs 1
+    const surv = (scale: number): number => {
+      const times: number[] = [];
+      for (let seed = 1; seed <= 10; seed++) {
+        setRunSeed(seed);
+        setActiveMutators(oc, new Date("2026-12-09T00:00:00Z"));
+        const r = rulesFromDefaults({ overdrive: true });
+        r.overdrive!.alwaysHotScale = scale;
+        const world = createWorld(17.8 * mutatorViewScale(), 10 * mutatorViewScale(), false, 0, "classic", true, false, r);
+        const inp: InputState = { ...input, inertia: false, moveVector: { x: 0, y: 0 } };
+        const n = Math.round(90 / FIXED_DT);
+        for (let i = 0; i < n && world.phase === "playing"; i++) {
+          inp.moveVector = evasiveHeading(world);
+          tick(world, inp, FIXED_DT);
+          world.events.length = 0;
+        }
+        times.push(world.time);
+        clearActiveMutators();
+        setRunSeed(null);
+      }
+      times.sort((x, y) => x - y);
+      return times[Math.floor(times.length / 2)];
+    };
+    console.log(
+      `INFO  OVERCHARGE evade bot median survival (reported, not gating): alwaysHotScale 1 = ${surv(1).toFixed(1)}s, 1.2 = ${surv(1.2).toFixed(1)}s`,
+    );
+  }
+
   // R5: graze-seeking bot reaches HOT by 0:25 on >= 8 of 10 seeds (gating)
   const odTrial = (seed: number, kind: "graze" | "evade", cap: number): { firstHot: number } => {
     setRunSeed(seed);

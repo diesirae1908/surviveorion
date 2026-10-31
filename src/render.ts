@@ -13,7 +13,7 @@ import {
   mutatorWindVector,
 } from "./mutators";
 import { blackoutOverlayAmount, blackoutTelegraphMul } from "./blackout";
-import { blastRadius } from "./powers";
+import { blastRadius, ionConeRadius, thunderRayWidth } from "./powers";
 import { lighthouseBeamLength, lighthouseBeamWidth, lighthouseBodyRadius } from "./lighthouse";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
@@ -1080,12 +1080,12 @@ export class Renderer {
 
     // ion charge: aimed cone in world space so you can steer the shove
     if (world.powers.ionTimer > 0) {
-      this.drawIonChargeCone(x, y, angle, world.powers.ionTimer, opts.uiTime);
+      this.drawIonChargeCone(x, y, angle, world.powers.ionTimer, opts.uiTime, ionConeRadius(world));
     }
 
     // thunder charge: aimed ray in world space so you can steer the bolt
     if (world.powers.thunderTimer > 0) {
-      this.drawThunderChargeAim(x, y, angle, world.powers.thunderTimer, opts.uiTime);
+      this.drawThunderChargeAim(x, y, angle, world.powers.thunderTimer, opts.uiTime, thunderRayWidth(world));
     }
 
     // afterburner charge: swelling orange glow before the dash fires
@@ -1250,10 +1250,10 @@ export class Renderer {
     angle: number,
     timer: number,
     uiTime: number,
+    radius: number,
   ): void {
     const { ctx } = this;
     const progress = 1 - timer / POWERS.ion.chargeTime;
-    const radius = POWERS.ion.radius * mutatorPowerAmpScale();
     const half = Math.acos(POWERS.ion.coneDot);
     const a0 = angle - half;
     const a1 = angle + half;
@@ -1305,12 +1305,12 @@ export class Renderer {
     angle: number,
     timer: number,
     uiTime: number,
+    width: number,
   ): void {
     const { ctx } = this;
     const progress = 1 - timer / POWERS.thunder.chargeTime;
     const amp = mutatorPowerAmpScale();
     const len = POWERS.thunder.length * amp;
-    const width = POWERS.thunder.width * amp;
     const fx = Math.cos(angle);
     const fy = Math.sin(angle);
     const x2 = x + fx * len;
@@ -1746,7 +1746,7 @@ export class Renderer {
         const dx = d.x - world.ship.x;
         const dy = d.y - world.ship.y;
         const dist = Math.hypot(dx, dy);
-        const coneR = POWERS.ion.radius * mutatorPowerAmpScale();
+        const coneR = ionConeRadius(world);
         if (dist > 0.05 && dist <= coneR + r) {
           const fx = Math.cos(world.ship.angle);
           const fy = Math.sin(world.ship.angle);
@@ -2178,7 +2178,7 @@ export class Renderer {
 
       if (b.kind === "ray") {
         ctx.strokeStyle = `rgba(140,240,255,${fade * 0.28})`;
-        ctx.lineWidth = POWERS.thunder.width * 0.4 * amp;
+        ctx.lineWidth = POWERS.thunder.width * 0.4 * amp * (b.widthScale ?? 1);
         ctx.beginPath();
         ctx.moveTo(b.x1, b.y1);
         ctx.lineTo(b.x2, b.y2);
@@ -2210,10 +2210,11 @@ export class Renderer {
     if (world.powers.razorTimer <= 0) return;
     const { ctx } = this;
     const cfg = POWERS.razor;
+    const orbit = cfg.orbitRadius * (world.powers.razorOrbitScale ?? 1);
     for (let i = 0; i < 2; i++) {
       const a = time * cfg.spinRate + i * Math.PI;
-      const bx = world.ship.x + Math.cos(a) * cfg.orbitRadius;
-      const by = world.ship.y + Math.sin(a) * cfg.orbitRadius;
+      const bx = world.ship.x + Math.cos(a) * orbit;
+      const by = world.ship.y + Math.sin(a) * orbit;
       ctx.save();
       ctx.translate(bx, by);
       ctx.rotate(a + Math.PI / 2);

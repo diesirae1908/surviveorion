@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { PALETTE } from "../src/config.ts";
+import { clearActiveMutators, getMutatorById, setActiveMutators } from "../src/mutators.ts";
 import {
   BURST_NAME,
   DEFAULT_HOT_RADIUS,
@@ -33,6 +34,17 @@ const expect: Record<string, string> = {
   magnet: "MAGNET SWEEP",
   shockwave: "ECHO WAVE",
   missiles: "MISSILE STORM",
+  starshell: "LONG SHELL",
+  arc: "WIDE ARC",
+  autocannon: "SPLIT CANNON",
+  meteors: "METEOR SIEGE",
+  razor: "RAZOR RING",
+  thunder: "WIDE THUNDER",
+  cloak: "GHOST BOMBS",
+  flare: "LONG FLARE",
+  ion: "ION SURGE",
+  howlers: "PACK HOWL",
+  vortex: "DEEP VORTEX",
 };
 for (const [p, label] of Object.entries(expect)) {
   assert.equal(formLabel(p as never, true), label);
@@ -62,6 +74,25 @@ assert.equal(isHeated(mkWorld(true, 3), drone(1, 0, { assembly: {} }), fxOn), fa
 assert.equal(drawDroneTint(mkWorld(true, 3), drone(1, 0), PALETTE.redBright, fxOn), HEAT_INNER);
 assert.notEqual(HEAT_INNER, PALETTE.redBright);
 assert.equal(drawDroneTint(mkWorld(false, 3), drone(1, 0), PALETTE.redBright, fxOn), PALETTE.redBright);
+
+// always-hot tint (OVERCHARGE + alwaysHotScale > 1): near drones read heated even when the ship is not HOT
+{
+  const ahWorld = (scale: number | undefined, hooks = true) =>
+    ({
+      ship: { x: 0, y: 0 },
+      overdrive: { charge: 0.3, hot: false },
+      rules: { overdrive: { hotRadius: 3, mutatorHooks: hooks, alwaysHotScale: scale } },
+    }) as unknown as World;
+  setActiveMutators([getMutatorById("overcharge")!], "2026-12-09");
+  assert.equal(isHeated(ahWorld(1.5), drone(2, 0), fxOn), true, "always hot: tinted");
+  assert.equal(isHeated(ahWorld(1.5), drone(3.5, 0), fxOn), false, "always hot: outside hotRadius");
+  assert.equal(isHeated(ahWorld(1.5), drone(2, 0), { ...fxOn, heatTint: false }), false, "always hot: heatTint off");
+  assert.equal(isHeated(ahWorld(1), drone(2, 0), fxOn), false, "alwaysHotScale 1 = no tint");
+  assert.equal(isHeated(ahWorld(undefined), drone(2, 0), fxOn), false, "older row = no tint");
+  assert.equal(isHeated(ahWorld(1.5, false), drone(2, 0), fxOn), false, "mutatorHooks off = no tint");
+  clearActiveMutators();
+  assert.equal(isHeated(ahWorld(1.5), drone(2, 0), fxOn), false, "no OVERCHARGE = no tint");
+}
 
 // events: recorder context
 function recorder(fx: typeof fxOn | null, effects: "full" | "lite" = "full") {

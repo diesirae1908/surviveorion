@@ -208,6 +208,8 @@ export interface ArcChainState {
   jumpTimer: number;
   hitDrones: Set<Drone>;
   hitMines: Set<Mine>;
+  /** OVERDRIVE arc form: scales the jump radius. Absent = 1. */
+  radiusScale?: number;
 }
 
 /** A single autocannon tracer round: flies straight, kills the first drone hit. */
@@ -226,6 +228,8 @@ export interface Vortex {
   x: number;
   y: number;
   timer: number; // counts down to the collapse
+  /** OVERDRIVE vortex form: scales the collapse kill radius. Absent = 1. */
+  killRadiusScale?: number;
 }
 
 /** A burning point left behind by the afterburner dash; lethal until it fades. */
@@ -282,6 +286,8 @@ export interface ThunderBolt {
   elapsed: number;
   kind: "ray" | "hop";
   seed: number;
+  /** OVERDRIVE thunder form: beam width scale, kept for the ray afterglow. Absent = 1. */
+  widthScale?: number;
 }
 
 export interface ThunderChainState {
@@ -333,6 +339,18 @@ export interface PowersState {
   flares: FlareDecoy[];
   thunderBolts: ThunderBolt[];
   thunderChain: ThunderChainState | null;
+  /** OVERDRIVE starshell form: each ram kill extends the shell, up to `maxExtend` seconds. Absent = plain. */
+  odStarshell?: { perKillExtend: number; maxExtend: number; extended: number };
+  /** OVERDRIVE autocannon form: barrels fired per shot. Absent = 1. */
+  autocannonBarrels?: number;
+  /** OVERDRIVE razor form: scales the blade orbit radius (sim and draw). Absent = 1. */
+  razorOrbitScale?: number;
+  /** OVERDRIVE thunder form: beam width and hop radius scales. Absent = 1 and 1. */
+  thunderScale?: { width: number; hopRadius: number };
+  /** OVERDRIVE cloak form: scales the cloak bomb blast radius. Absent = 1. */
+  cloakBombScale?: number;
+  /** OVERDRIVE ion form: scales the ion cone radius. Absent = 1. */
+  ionRadiusScale?: number;
 }
 
 export type RunPhase = "playing" | "dying" | "dead";

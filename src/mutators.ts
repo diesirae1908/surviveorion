@@ -115,6 +115,9 @@ export interface MutatorOverrides {
   /** Multiplies the OVERDRIVE charge a graze/kill adds (only read while the
    * `overdrive` switch is on and its `mutatorHooks` param is true). */
   overdriveChargeScale?: number;
+  /** OVERCHARGE only: the swarm near the ship is always "hot" (read only while the
+   * `overdrive` switch is on, its `mutatorHooks` param is true and `alwaysHotScale` > 1). */
+  swarmAlwaysHot?: boolean;
   /** GRAZE PROTOCOL only: float the point number. */
   grazePopups?: boolean;
   /** Hold-one days (GOLD DASH, RAM RAID): always exactly one pickup.
@@ -575,7 +578,7 @@ export const MUTATOR_POOL: Mutator[] = [
     // checked against server/validate.mjs's MAX_KILLS_PER_SEC (raised 12 to 20
     // on 2026-08-11 for the late-growth pass) via the
     // same invulnerable-observer harness used for round 1 (see JOURNAL.md).
-    overrides: { powerAmpScale: 1.4 },
+    overrides: { powerAmpScale: 1.4, swarmAlwaysHot: true },
   },
   {
     id: "cryo-winter",
@@ -1448,6 +1451,11 @@ export function mutatorGrazeCooldownScale(): number {
 /** Raw OVERDRIVE charge scale for the day; overdrive.ts applies the hook switch. */
 export function mutatorOverdriveChargeScaleRaw(): number {
   return scaleOf((o) => o.overdriveChargeScale);
+}
+
+/** True when any active mutator keeps the swarm always hot (overdrive.ts applies the switch). */
+export function mutatorSwarmAlwaysHot(): boolean {
+  return active.some((m) => m.overrides.swarmAlwaysHot === true);
 }
 
 export function mutatorGrazeMultiplierScale(): number {

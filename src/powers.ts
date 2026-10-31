@@ -7,6 +7,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { freezeMinesInRadius, isMineArmed, killMine, killMinesInRadius } from "./mines";
 import { killLighthousesInRadius } from "./lighthouse";
 import { mutatorPowerAmpScale, mutatorStarshellDurationScale } from "./mutators";
+import type { OverdriveRules } from "./flags";
 import type { ArcChainState, Drone, Mine, PowersState, ThunderChainState, World } from "./types";
 import { clamp01 } from "./math";
 
@@ -93,6 +94,16 @@ function updateBlasts(world: World, dt: number): void {
   }
 }
 
+/** An enabled Overdrive form's params, or null (form off, row older than the form, or plain pickup). */
+function formOf(od: OverdriveRules | null, id: string): Record<string, number | boolean> | null {
+  const f = (od?.forms as Record<string, { on?: boolean } | undefined> | undefined)?.[id];
+  return f && f.on === true ? (f as Record<string, number | boolean>) : null;
+}
+function numOf(f: Record<string, number | boolean> | null, key: string, fallback: number): number {
+  const v = f?.[key];
+  return typeof v === "number" ? v : fallback;
+}
+
 /** Auto-activate on pickup (port of Unity PowerManager.Trigger). */
 export function activatePower(world: World, power: PowerId, overdrive = false): void {
   const p = world.powers;
@@ -109,10 +120,15 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       world.overdrive.shieldCharged = od?.forms.shield.on === true;
       world.events.push({ type: "shieldUp" });
       break;
-    case "starshell":
-      p.starshellTimer = POWERS.starshell.duration * mutatorStarshellDurationScale();
+    case "starshell": {
+      const f = formOf(od, "starshell");
+      p.starshellTimer = POWERS.starshell.duration * mutatorStarshellDurationScale() * numOf(f, "durationScale", 1);
+      p.odStarshell = f
+        ? { perKillExtend: numOf(f, "perKillExtend", 0), maxExtend: numOf(f, "maxExtend", 0), extended: 0 }
+        : undefined;
       world.events.push({ type: "starshellUp" });
       break;
+    }
     case "shockwave": {
       detonateShockwave(world, world.ship.x, world.ship.y, 1);
       // OVERDRIVE: a second, slightly smaller wave from wherever the ship is by then
@@ -185,35 +201,50 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       fireMissileSwarm(world, od?.forms.missiles.on ? od.forms.missiles : null);
       break;
     case "arc":
-      startArcChain(world);
+      startArcChain(world, numOf(formOf(od, "arc"), "radiusScale", 1));
       break;
     case "autocannon":
       p.autocannonTimer = POWERS.autocannon.duration;
       p.autocannonCooldown = 0; // first shot fires immediately
+      {
+        const ac = formOf(od, "autocannon");
+        p.autocannonBarrels = ac ? Math.max(1, Math.round(numOf(ac, "barrels", 1))) : undefined;
+      }
       break;
     case "meteors":
-      p.meteorTimer = POWERS.meteors.duration;
+      p.meteorTimer = POWERS.meteors.duration * numOf(formOf(od, "meteors"), "durationScale", 1);
       p.meteorCooldown = 0;
       break;
-    case "vortex":
+    case "vortex": {
+      const ks = numOf(formOf(od, "vortex"), "killRadiusScale", 1);
       p.vortices.push({
         x: world.ship.x,
         y: world.ship.y,
         timer: POWERS.vortex.pullDuration,
+        killRadiusScale: ks === 1 ? undefined : ks,
       });
       world.events.push({ type: "vortexOpen", x: world.ship.x, y: world.ship.y });
       world.shake = Math.max(world.shake, 0.15);
       break;
-    case "razor":
-      p.razorTimer = POWERS.razor.duration * amp;
+    }
+    case "razor": {
+      const f = formOf(od, "razor");
+      p.razorTimer = POWERS.razor.duration * amp * numOf(f, "durationScale", 1);
+      p.razorOrbitScale = f ? numOf(f, "orbitScale", 1) : undefined;
       world.events.push({ type: "razorUp" });
       break;
-    case "thunder":
+    }
+    case "thunder": {
+      const f = formOf(od, "thunder");
       p.thunderTimer = POWERS.thunder.chargeTime;
+      p.thunderScale = f ? { width: numOf(f, "widthScale", 1), hopRadius: numOf(f, "hopRadiusScale", 1) } : undefined;
       world.events.push({ type: "thunderCharge" });
       break;
-    case "cloak":
-      p.cloakTimer = POWERS.cloak.duration;
+    }
+    case "cloak": {
+      const f = formOf(od, "cloak");
+      p.cloakTimer = POWERS.cloak.duration * numOf(f, "durationScale", 1);
+      p.cloakBombScale = f ? numOf(f, "bombRadiusScale", 1) : undefined;
       p.cloakBombCooldown = 0;
       for (const d of world.drones) {
         if (!d.alive) continue;
@@ -222,17 +253,27 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       }
       world.events.push({ type: "cloakUp" });
       break;
+    }
     case "flare":
-      p.flares.push({ x: world.ship.x, y: world.ship.y, timer: POWERS.flare.lifetime });
+      p.flares.push({
+        x: world.ship.x,
+        y: world.ship.y,
+        timer: POWERS.flare.lifetime * numOf(formOf(od, "flare"), "lifetimeScale", 1),
+      });
       world.events.push({ type: "flareDrop", x: world.ship.x, y: world.ship.y });
       break;
-    case "ion":
+    case "ion": {
+      const f = formOf(od, "ion");
+      p.ionRadiusScale = f ? numOf(f, "radiusScale", 1) : undefined;
       p.ionTimer = POWERS.ion.chargeTime;
       world.events.push({ type: "ionCharge" });
       break;
-    case "howlers":
-      convertHowlers(world);
+    }
+    case "howlers": {
+      const f = formOf(od, "howlers");
+      convertHowlers(world, numOf(f, "radiusScale", 1), numOf(f, "durationScale", 1));
       break;
+    }
   }
 }
 
@@ -379,7 +420,7 @@ function zapTarget(
 }
 
 /** Chain lightning: first zap on pickup, then jumps to nearby enemies. */
-function startArcChain(world: World): void {
+function startArcChain(world: World, radiusScale = 1): void {
   const p = world.powers;
   const cfg = POWERS.arc;
   // OVERCHARGE: a wider jump radius reaches more targets, so the chain runs
@@ -390,7 +431,7 @@ function startArcChain(world: World): void {
     world,
     ship.x,
     ship.y,
-    cfg.initialRadius * amp,
+    cfg.initialRadius * amp * radiusScale,
     new Set(),
     new Set(),
   );
@@ -415,6 +456,7 @@ function startArcChain(world: World): void {
     jumpTimer: cfg.jumpInterval,
     hitDrones: new Set(),
     hitMines: new Set(),
+    radiusScale: radiusScale === 1 ? undefined : radiusScale,
   };
   p.arcChain = chain;
   zapTarget(world, p, ship.x, ship.y, first, chain);
@@ -434,7 +476,7 @@ function updateArcChain(world: World, dt: number): void {
     world,
     chain.x,
     chain.y,
-    cfg.jumpRadius * mutatorPowerAmpScale(),
+    cfg.jumpRadius * mutatorPowerAmpScale() * (chain.radiusScale ?? 1),
     chain.hitDrones,
     chain.hitMines,
   );
@@ -564,13 +606,25 @@ function updateAutocannon(world: World, dt: number): void {
   const p = world.powers;
   const cfg = POWERS.autocannon;
 
+  if (p.autocannonTimer <= 0 && p.autocannonBarrels !== undefined) p.autocannonBarrels = undefined;
   if (p.autocannonTimer > 0) {
     p.autocannonTimer -= dt;
     p.autocannonCooldown -= dt;
     if (p.autocannonCooldown <= 0 && world.phase === "playing") {
       const ship = world.ship;
-      const target = nearestEnemyInRadius(world, ship.x, ship.y, cfg.range, NO_DRONES, NO_MINES);
-      if (target) {
+      const barrels = p.autocannonBarrels ?? 1;
+      // OVERDRIVE twin cannon: one round at each of the N nearest distinct targets
+      // (nearest first, ties by array order; no draws). Plain: the single nearest.
+      const usedDrones = barrels > 1 ? new Set<Drone>() : NO_DRONES;
+      const usedMines = barrels > 1 ? new Set<Mine>() : NO_MINES;
+      let fired = false;
+      for (let b = 0; b < barrels; b++) {
+        const target = nearestEnemyInRadius(world, ship.x, ship.y, cfg.range, usedDrones, usedMines);
+        if (!target) break;
+        if (barrels > 1) {
+          if (isDroneTarget(target)) usedDrones.add(target);
+          else usedMines.add(target);
+        }
         const angle = Math.atan2(target.y - ship.y, target.x - ship.x);
         p.autocannonAngle = angle;
         p.bullets.push({
@@ -582,6 +636,9 @@ function updateAutocannon(world: World, dt: number): void {
           dirY: Math.sin(angle),
           elapsed: 0,
         });
+        fired = true;
+      }
+      if (fired) {
         // OVERCHARGE: faster fire rate (smaller interval between rounds).
         p.autocannonCooldown = cfg.fireInterval / mutatorPowerAmpScale();
         world.events.push({ type: "autocannonFire", x: ship.x, y: ship.y });
@@ -702,8 +759,9 @@ function updateVortices(world: World, dt: number): void {
     v.timer -= dt;
 
     if (v.timer <= 0) {
-      killDronesInRadius(world, v.x, v.y, cfg.killRadius);
-      killMinesInRadius(world, v.x, v.y, cfg.killRadius);
+      const kr = cfg.killRadius * (v.killRadiusScale ?? 1);
+      killDronesInRadius(world, v.x, v.y, kr);
+      killMinesInRadius(world, v.x, v.y, kr);
       p.waves.push({
         x: v.x,
         y: v.y,
@@ -742,6 +800,7 @@ export function updatePowers(world: World, dt: number): void {
   const p = world.powers;
 
   if (p.starshellTimer > 0) p.starshellTimer -= dt;
+  else if (p.odStarshell) p.odStarshell = undefined;
 
   // afterburner: charge -> dash -> burning trail
   if (p.afterburnerCharge > 0) {
@@ -801,6 +860,7 @@ export function updatePowers(world: World, dt: number): void {
     p.ionTimer -= dt;
     if (p.ionTimer <= 0 && world.phase === "playing") {
       fireIon(world);
+      p.ionRadiusScale = undefined;
     }
   }
 
@@ -868,6 +928,7 @@ export function updatePowers(world: World, dt: number): void {
   updateFlares(world, dt);
   updateThunderBolts(world, dt);
   updateThunderChain(world, dt);
+  if (p.thunderScale && p.thunderTimer <= 0 && p.thunderChain === null) p.thunderScale = undefined;
   updateHowlers(world, dt);
 
   // expanding ring visuals
@@ -961,6 +1022,16 @@ function pointToSegDist(
   return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
 }
 
+/** Ion cone radius now (base x OVERCHARGE x Overdrive form). Shared by the sim and the charge preview. */
+export function ionConeRadius(world: World): number {
+  return POWERS.ion.radius * mutatorPowerAmpScale() * (world.powers.ionRadiusScale ?? 1);
+}
+
+/** Thunder beam width now (base x OVERCHARGE x Overdrive form). Shared by the sim and the aim preview. */
+export function thunderRayWidth(world: World): number {
+  return POWERS.thunder.width * mutatorPowerAmpScale() * (world.powers.thunderScale?.width ?? 1);
+}
+
 function pushThunderBolt(
   p: PowersState,
   x1: number,
@@ -968,8 +1039,10 @@ function pushThunderBolt(
   x2: number,
   y2: number,
   kind: "ray" | "hop",
+  widthScale?: number,
 ): void {
   p.thunderBolts.push({
+    widthScale,
     x1,
     y1,
     x2,
@@ -984,7 +1057,7 @@ function nextThunderHop(
   world: World,
   chain: ThunderChainState,
 ): { target: Drone | Mine; fromX: number; fromY: number } | null {
-  const radius = POWERS.thunder.hopRadius * mutatorPowerAmpScale();
+  const radius = POWERS.thunder.hopRadius * mutatorPowerAmpScale() * (world.powers.thunderScale?.hopRadius ?? 1);
   const rSq = radius * radius;
   let best: Drone | Mine | null = null;
   let bestSq = Infinity;
@@ -1024,7 +1097,7 @@ function fireThunder(world: World): void {
   const len = POWERS.thunder.length * amp;
   const x2 = s.x + dirX * len;
   const y2 = s.y + dirY * len;
-  const half = (POWERS.thunder.width * amp) / 2;
+  const half = thunderRayWidth(world) / 2;
   world.events.push({ type: "thunderFire", x: s.x, y: s.y });
   world.shake = Math.max(world.shake, 0.28);
 
@@ -1061,7 +1134,7 @@ function fireThunder(world: World): void {
   rayHits.sort((a, b) => a.along - b.along);
   // Faint core so the aimed line stays readable, plus jagged segments
   // ship → each ray-hit → ray end so every kill on the beam shows lightning.
-  pushThunderBolt(p, s.x, s.y, x2, y2, "ray");
+  pushThunderBolt(p, s.x, s.y, x2, y2, "ray", p.thunderScale?.width);
   let px = s.x;
   let py = s.y;
   for (const hit of rayHits) {
@@ -1128,7 +1201,7 @@ function fireIon(world: World): void {
   const s = world.ship;
   const fx = Math.cos(s.angle);
   const fy = Math.sin(s.angle);
-  const r = POWERS.ion.radius * mutatorPowerAmpScale();
+  const r = ionConeRadius(world);
   for (const d of world.drones) {
     if (!d.alive || d.allied) continue;
     const dx = d.x - s.x;
@@ -1154,8 +1227,8 @@ function fireIon(world: World): void {
   });
 }
 
-function convertHowlers(world: World): void {
-  const r = POWERS.howlers.radius * mutatorPowerAmpScale();
+function convertHowlers(world: World, radiusScale = 1, durationScale = 1): void {
+  const r = POWERS.howlers.radius * mutatorPowerAmpScale() * radiusScale;
   let n = 0;
   for (const d of world.drones) {
     if (!d.alive) continue;
@@ -1163,7 +1236,7 @@ function convertHowlers(world: World): void {
     const dy = d.y - world.ship.y;
     if (dx * dx + dy * dy <= (r + droneRadius(d)) ** 2) {
       d.allied = true;
-      d.alliedTimer = POWERS.howlers.duration;
+      d.alliedTimer = POWERS.howlers.duration * durationScale;
       n++;
     }
   }
@@ -1172,11 +1245,14 @@ function convertHowlers(world: World): void {
 
 function updateRazor(world: World, dt: number): void {
   const p = world.powers;
-  if (p.razorTimer <= 0) return;
+  if (p.razorTimer <= 0) {
+    if (p.razorOrbitScale !== undefined) p.razorOrbitScale = undefined;
+    return;
+  }
   p.razorTimer -= dt;
   const cfg = POWERS.razor;
   const amp = mutatorPowerAmpScale();
-  const orbit = cfg.orbitRadius * amp;
+  const orbit = cfg.orbitRadius * amp * (p.razorOrbitScale ?? 1);
   const br = cfg.bladeRadius * amp;
   for (let i = 0; i < 2; i++) {
     const a = world.time * cfg.spinRate + i * Math.PI;
@@ -1195,7 +1271,7 @@ function updateRazor(world: World, dt: number): void {
 
 function explodeCloakBombs(world: World): void {
   const p = world.powers;
-  const r = POWERS.cloak.bombRadius * mutatorPowerAmpScale();
+  const r = POWERS.cloak.bombRadius * mutatorPowerAmpScale() * (p.cloakBombScale ?? 1);
   for (const b of p.cloakBombs) {
     killDronesInRadius(world, b.x, b.y, r);
     killMinesInRadius(world, b.x, b.y, r);
@@ -1216,6 +1292,7 @@ function updateCloak(world: World, dt: number): void {
   const p = world.powers;
   if (p.cloakTimer <= 0) {
     if (p.cloakBombs.length > 0) explodeCloakBombs(world);
+    if (p.cloakBombScale !== undefined) p.cloakBombScale = undefined;
     return;
   }
   p.cloakTimer -= dt;

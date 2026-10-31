@@ -14,11 +14,11 @@
 import { SCORING, SHIP, type PowerId } from "./config";
 import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { killMinesInRadius } from "./mines";
-import { mutatorGrazeBandScale, mutatorOverdriveChargeScaleRaw } from "./mutators";
+import { mutatorGrazeBandScale, mutatorOverdriveChargeScaleRaw, mutatorSwarmAlwaysHot } from "./mutators";
 import { detonateShockwave } from "./powers";
 import type { OverdriveState, World } from "./types";
 
-/** Powers that have an Overdrive form in Phase 1. Others get the burst only. */
+/** Powers that have an Overdrive form (generation 1 and 2). Others get the burst only. */
 const FORM_POWERS: ReadonlySet<PowerId> = new Set<PowerId>([
   "pulse",
   "shield",
@@ -26,6 +26,17 @@ const FORM_POWERS: ReadonlySet<PowerId> = new Set<PowerId>([
   "magnet",
   "shockwave",
   "missiles",
+  "starshell",
+  "arc",
+  "autocannon",
+  "meteors",
+  "razor",
+  "thunder",
+  "cloak",
+  "flare",
+  "ion",
+  "howlers",
+  "vortex",
 ]);
 
 export function createOverdriveState(): OverdriveState {
@@ -121,11 +132,23 @@ export function chargeFromKill(world: World): void {
   addCharge(world, gain);
 }
 
+/**
+ * Generation 2: a mutator that keeps the swarm hot (OVERCHARGE) speeds nearby
+ * drones by `alwaysHotScale` whether or not the hull is HOT. 1 (no effect)
+ * without the overdrive switch, the `mutatorHooks` param, or the param itself.
+ */
+export function alwaysHotScale(world: World): number {
+  const od = world.rules.overdrive;
+  if (!od || !od.mutatorHooks || !mutatorSwarmAlwaysHot()) return 1;
+  return od.alwaysHotScale ?? 1;
+}
+
 /** Loose drones near a HOT hull speed up ("the swarm smells the heat"). */
 export function overdriveHeatScale(world: World, distToShip: number): number {
   const od = world.rules.overdrive;
-  if (!od || !world.overdrive.hot) return 1;
-  return distToShip < od.hotRadius ? od.hotDroneSpeedScale : 1;
+  if (!od) return 1;
+  if (distToShip >= od.hotRadius) return 1;
+  return Math.max(world.overdrive.hot ? od.hotDroneSpeedScale : 1, alwaysHotScale(world));
 }
 
 /**
