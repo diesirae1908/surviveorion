@@ -37,7 +37,7 @@ import * as deathFx from "./fx/deathFx";
 import * as overdriveFx from "./fx/overdriveFx";
 import * as sky from "./sky";
 import { paceLines, type PaceView } from "./pace";
-import type { TrailCosmetic } from "./cosmetics";
+import { LITE_LIFE_SCALE, ShipWake, wakeJitter, type TrailCosmetic } from "./cosmetics";
 
 interface Star {
   x: number;
@@ -267,7 +267,7 @@ export class Renderer {
     this.drawSpawnTelegraphs(world, opts.uiTime);
     this.drawMeteorTelegraphs(world, opts.uiTime);
     this.drawCreatureTelegraphs(world, opts.uiTime);
-    this.drawTrail(world, opts.uiTime);
+    this.drawTrail(world, opts);
     this.drawBlasts(world, opts.uiTime);
     this.drawWaves(world);
     this.drawVortices(world, opts.uiTime);
@@ -1691,8 +1691,14 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Burning afterburner trail: lethal embers that fade out. */
-  private drawTrail(world: World, time: number): void {
+  /**
+   * Trails. First the equipped ladder trail (cosmetic wake behind the ship,
+   * `opts.cosmetics.trail`; none for the default Hull Gold), then the burning
+   * afterburner trail: lethal embers that fade out (today's look, unchanged).
+   */
+  private drawTrail(world: World, opts: RenderOpts): void {
+    const time = opts.uiTime;
+    this.drawShipWake(world, opts);
     if (world.powers.trail.length === 0) return;
     const { ctx } = this;
     ctx.save();
@@ -1710,6 +1716,67 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
       ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** Wake of the equipped ladder trail. Render-side history only; never touches the sim. */
+  private readonly shipWake = new ShipWake();
+
+  private drawShipWake(world: World, opts: RenderOpts): void {
+    const trail = opts.cosmetics.trail;
+    if (!trail || !opts.showShip || world.phase !== "playing") {
+      this.shipWake.clear();
+      return;
+    }
+    const { ctx } = this;
+    const s = world.ship;
+    const wake = this.shipWake;
+    const now = opts.uiTime;
+    const life = trail.life * (opts.effects === "lite" ? LITE_LIFE_SCALE : 1);
+    wake.push(lerp(s.prevX, s.x, opts.alpha), lerp(s.prevY, s.y, opts.alpha), lerp(s.prevAngle, s.angle, opts.alpha), now);
+    wake.prune(now, life);
+    const pts = wake.points;
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = trail.color;
+    ctx.fillStyle = trail.color;
+    ctx.lineCap = "butt"; // round caps stack alpha at every joint and read as beads
+    const lanes = trail.style === "twin" ? [-0.2, 0.2] : [0];
+    for (const lane of lanes) {
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        const k = 1 - (now - b.t) / life; // 1 at the ship, 0 at the tail
+        if (k <= 0) continue;
+        const taper = trail.style === "comet" ? k * k : k;
+        ctx.globalAlpha = Math.min(1, k * (trail.style === "comet" ? 0.9 : 0.7));
+        ctx.lineWidth = trail.width * (0.25 + 0.75 * taper) * (trail.style === "twin" ? 1 : 1.6);
+        // heading is the ship's nose; the lane offset is perpendicular to it
+        const ox = -Math.sin(b.a) * lane;
+        const oy = Math.cos(b.a) * lane;
+        const oax = -Math.sin(a.a) * lane;
+        const oay = Math.cos(a.a) * lane;
+        ctx.beginPath();
+        ctx.moveTo(a.x + oax, a.y + oay);
+        ctx.lineTo(b.x + ox, b.y + oy);
+        ctx.stroke();
+      }
+    }
+    if (trail.style === "spark" && opts.effects !== "lite") {
+      for (let i = 0; i < pts.length; i += 2) {
+        const p = pts[i];
+        const k = 1 - (now - p.t) / life;
+        if (k <= 0) continue;
+        const j = wakeJitter(p.t, 1);
+        const drift = (now - p.t) * 0.5;
+        ctx.globalAlpha = k * 0.9;
+        const r = 0.025 + 0.03 * wakeJitter(p.t, 2);
+        ctx.beginPath();
+        ctx.arc(p.x + (j - 0.5) * 0.5 + Math.cos(p.a + Math.PI / 2) * drift * (j - 0.5), p.y + (wakeJitter(p.t, 3) - 0.5) * 0.5 + Math.sin(p.a + Math.PI / 2) * drift * (j - 0.5), r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }

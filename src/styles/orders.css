@@ -1,0 +1,227 @@
+/* Daily Orders + Pilot Ladder (WS-O2): orders panel on the lobby, result block,
+   ladder section in the pilot dossier, tier chips on boards. Brand tokens only
+   (gold family, starlight, dust, hull line); no red, red is the swarm. */
+
+/* --- orders panel (lobby v3 side column) --- */
+.ord-panel {
+  --c: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px 10px;
+  background: rgba(18, 18, 30, 0.86);
+  border: 1px solid var(--orion-hull-line);
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+  text-align: left;
+}
+.ord-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.ord-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--orion-gold);
+}
+.ord-progress {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--orion-dust);
+}
+.ord-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ord-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 18px;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(255, 215, 0, 0.1);
+  color: var(--orion-starlight);
+  font-size: 14px;
+  line-height: 1.2;
+}
+.ord-row:first-child { border-top: 0; }
+.ord-pips { display: inline-flex; gap: 3px; }
+.ord-pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--orion-dust);
+  box-sizing: border-box;
+}
+.ord-pip.on {
+  background: var(--orion-gold);
+  border-color: var(--orion-gold);
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.55);
+}
+.ord-line { min-width: 0; overflow-wrap: anywhere; }
+.ord-merit {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--orion-gold);
+  white-space: nowrap;
+}
+.ord-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--orion-hull-line);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+}
+.ord-row.done .ord-check { background: var(--orion-gold); border-color: var(--orion-gold); }
+.ord-row.done .ord-line { color: var(--orion-dust); text-decoration: line-through; text-decoration-color: rgba(255, 215, 0, 0.45); }
+.ord-row.done .ord-merit { color: var(--orion-dust); }
+.ord-signin {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--orion-gold);
+}
+.ord-foot {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--orion-dust);
+}
+
+/* --- result block (under the chips) --- */
+.result-v2 .rv-orders-slot { width: min(420px, 100%); }
+.rv-orders {
+  --c: 10px;
+  width: min(420px, 100%);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(18, 18, 30, 0.9));
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+  text-align: left;
+}
+.rv-order {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "tag merit" "line merit";
+  column-gap: 10px;
+  align-items: center;
+}
+.rv-order-tag {
+  grid-area: tag;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--orion-gold);
+}
+.rv-order-line { grid-area: line; font-size: 15px; color: var(--orion-starlight); overflow-wrap: anywhere; }
+.rv-order-merit { grid-area: merit; font-size: 13px; letter-spacing: 0.1em; color: var(--orion-gold); white-space: nowrap; }
+.rv-order-tierup {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--orion-starlight);
+  text-align: center;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 215, 0, 0.25);
+}
+
+/* --- ladder section (pilot dossier) --- */
+.lad {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  text-align: left;
+  margin-top: 4px;
+}
+.lad-top { display: flex; align-items: center; gap: 14px; }
+.lad-insignia { width: 56px; height: 63px; flex: none; }
+.lad-insignia-svg { width: 100%; height: 100%; overflow: visible; }
+.lad-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lad-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--orion-starlight);
+}
+.lad-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.lad-bar-fill { display: block; height: 100%; background: var(--orion-gold); border-radius: 3px; }
+.lad-bar-text {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--orion-gold);
+  text-align: center;
+}
+.lad-creed {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--orion-dust);
+  text-align: center;
+}
+.lad .pd-section { margin-top: 6px; text-align: left; }
+.lad-trails { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.lad-trail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 4px;
+  background: #101018;
+  border: 1px solid var(--orion-hull-line);
+  border-radius: 6px;
+  color: var(--orion-starlight);
+  font: inherit;
+  cursor: pointer;
+}
+.lad-trail-label { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
+.lad-trail-sub { font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: var(--orion-dust); min-height: 11px; }
+.lad-trail.equipped { border-color: var(--orion-gold); box-shadow: 0 0 10px rgba(255, 215, 0, 0.25); }
+.lad-trail.equipped .lad-trail-sub { color: var(--orion-gold); }
+.lad-trail.locked { opacity: 0.45; background: #08080e; }
+.lad-trail:focus-visible { outline: 2px solid var(--orion-gold); outline-offset: 2px; }
+.lad-note { min-height: 14px; font-size: 11px; color: var(--orion-dust); text-align: center; }
+
+/* --- board tier chip --- */
+.lad-chip {
+  display: inline-block;
+  margin-left: 6px;
+  line-height: 0;
+  vertical-align: middle;
+  font-style: normal;
+}
+.lad-chip svg { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lad-bar-fill { transition: none; }
+}

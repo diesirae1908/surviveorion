@@ -81,6 +81,9 @@ import {
   type LobbyV3Model,
 } from "./lobby/lobbyV3";
 import { ordersPanel } from "./lobby/ordersPanel";
+import { buildOrdersBlock } from "./resultView";
+import { ladderChipHtml } from "./ladder";
+import type { SubmitResult } from "./api";
 import { pilotTarget, tabBar, type TabCallbacks } from "./lobby/tabBar";
 import { todayView as ordersTodayView } from "./orders";
 import { menuRowSpecs, type MenuRowId } from "./lobby/menuRows";
@@ -365,6 +368,8 @@ export interface DailyBoardRow {
   isMe: boolean;
   /** Daily Patrol ghost: not a real account, no profile to open. */
   virtual?: boolean;
+  /** Pilot Ladder tier chip (WS-O2); absent while the `orders` switch is off. */
+  ladder?: { tier: number };
 }
 
 /**
@@ -2334,7 +2339,7 @@ export class Ui {
         `v3-pod ${p.slot}${p.row.isMe ? " me" : ""}${clickable ? " link" : ""}`,
         `<span class="v3-pod-tag">${p.slot === "leader" ? "\u265b " : ""}${tagFor[p.slot]}</span>` +
           `<span class="v3-pod-rk">${p.row.rank}</span>` +
-          `<span class="v3-pod-nm">${p.row.country ? `${countryFlag(p.row.country)} ` : ""}${escapeHtml(p.row.callsign)}${p.row.isMe ? " (you)" : ""}</span>` +
+          `<span class="v3-pod-nm">${p.row.country ? `${countryFlag(p.row.country)} ` : ""}${escapeHtml(p.row.callsign)}${p.row.isMe ? " (you)" : ""}${ladderChipHtml((p.row as DailyBoardRow).ladder?.tier)}</span>` +
           `<span class="v3-pod-pts">${Math.floor(p.row.score).toLocaleString()}</span>`,
       );
       if (clickable) {
@@ -2428,7 +2433,7 @@ export class Ui {
       `lobby-board-row${clickable ? " link" : ""}${row.isMe ? " me" : ""}`,
       `<span class="rk">${row.rank}</span>` +
         `<span class="flag">${row.country ? countryFlag(row.country) : ""}</span>` +
-        `<span class="nm">${escapeHtml(row.callsign)}</span>` +
+        `<span class="nm">${escapeHtml(row.callsign)}${ladderChipHtml(row.ladder?.tier)}</span>` +
         `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
     );
     if (clickable) {
@@ -4225,6 +4230,26 @@ export class Ui {
     line.appendChild(board);
   }
 
+  /**
+   * Fill the result's orders slot once the score response carries a Daily
+   * Orders block (WS-O2). Paints only when this run completed a new order or
+   * crossed a ladder tier; a no-op otherwise or when no result is up.
+   */
+  setGameOverOrders(r: SubmitResult["orders"]): void {
+    if (!r) return;
+    const block = buildOrdersBlock(ordersTodayView(), r.new, r.ladder);
+    if (!block) return;
+    const slot = document.getElementById("result-orders-slot");
+    if (slot) {
+      slot.innerHTML = "";
+      slot.appendChild(block);
+      slot.hidden = false;
+      return;
+    }
+    // old game-over layout (ui.result off): sit under the rank line like the badge celebration
+    document.getElementById("rank-line")?.insertAdjacentElement("afterend", block);
+  }
+
   /** Refresh the no-medal goal line once the combined board arrives. */
   setGameOverGoalLine(text: string | null): void {
     const el = document.getElementById("medal-earned");
@@ -4379,7 +4404,7 @@ export class Ui {
       `board-row${clickable ? " link" : ""}${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
       `<span class="rank">${row.rank}</span>` +
         `<span class="flag" title="${countryName(row.country)}">${row.country ? countryFlag(row.country) : "·"}</span>` +
-        `<span class="name">${escapeHtml(row.callsign)}</span>` +
+        `<span class="name">${escapeHtml(row.callsign)}${ladderChipHtml(row.ladder?.tier)}</span>` +
         `<span class="device" title="${DEVICE_LABEL[row.mode]}">${DEVICE_TAG[row.mode]}</span>` +
         `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
     );

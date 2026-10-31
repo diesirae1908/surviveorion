@@ -11,6 +11,8 @@ import type { FormationKind } from "./config";
 import { appendDeathPoint, pathData, traceToPath, type TraceBox, type TraceSample } from "./flightTrace";
 import { MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
 import type { DeathCause } from "./types";
+import { ORDERS_UI_COPY, fill, tierName } from "./ladder";
+import type { OrdersView } from "./orders";
 
 // --- design constants (not switches) ---
 
@@ -327,12 +329,72 @@ export function buildCauseLine(s: ResultViewStats): HTMLElement | null {
   return div("rv-cause", `${esc(p.before)}${p.name ? `<b>${esc(p.name)}</b>` : ""}${esc(p.after)}`);
 }
 
+// --- Daily Orders result block (WS-O2). Filled when the score response arrives. ---
+
+export interface OrdersBlockModel {
+  /** One row per order this run completed for the first time today. */
+  rows: Array<{ label: string; line: string; merit: string }>;
+  /** Set only when this run crossed a ladder tier. */
+  tierUp: string | null;
+}
+
+/**
+ * Pure model for the block under the chips. Null (nothing painted) unless the
+ * server credited a new order or a tier-up: a run that completes nothing, a
+ * signed-out run and a run with the `orders` switch off all return null.
+ */
+export function ordersBlockModel(
+  view: OrdersView | null,
+  newlyDone: readonly string[] | null | undefined,
+  ladder: { tier: number; tierUp: boolean } | null | undefined,
+): OrdersBlockModel | null {
+  const picks = new Map((view?.orders ?? []).map((o) => [o.id, o]));
+  const rows = (newlyDone ?? [])
+    .map((id) => picks.get(id))
+    .filter((o): o is NonNullable<typeof o> => !!o)
+    .map((o) => ({
+      label: ORDERS_UI_COPY.resultComplete,
+      line: o.line,
+      merit: fill(ORDERS_UI_COPY.meritTag, { n: o.merit }),
+    }));
+  const tierUp = ladder?.tierUp ? fill(ORDERS_UI_COPY.resultTierUp, { name: tierName(ladder.tier).toUpperCase() }) : null;
+  if (rows.length === 0 && !tierUp) return null;
+  return { rows, tierUp };
+}
+
+/** "ORDER COMPLETE: <line> +N MERIT" rows plus a tier-up line. Null when there is nothing to show. */
+export function buildOrdersBlock(
+  view: OrdersView | null,
+  newlyDone: readonly string[] | null | undefined,
+  ladder: { tier: number; tierUp: boolean } | null | undefined,
+): HTMLElement | null {
+  const m = ordersBlockModel(view, newlyDone, ladder);
+  if (!m) return null;
+  const wrap = div("rv-orders chamfer");
+  for (const r of m.rows) {
+    wrap.appendChild(
+      div("rv-order", `<span class="rv-order-tag">${esc(r.label)}</span><span class="rv-order-line">${esc(r.line)}</span><b class="rv-order-merit">${esc(r.merit)}</b>`),
+    );
+  }
+  if (m.tierUp) wrap.appendChild(div("rv-order-tierup", esc(m.tierUp)));
+  return wrap;
+}
+
+/** Empty slot the orders block fills when the score response arrives (ui.setGameOverOrders). */
+function ordersSlot(): HTMLElement {
+  const slot = div("rv-orders-slot");
+  slot.id = "result-orders-slot";
+  slot.hidden = true;
+  return slot;
+}
+
 /** Everything above the actions, in reading order. */
 export function buildResultTop(s: ResultViewStats): HTMLElement[] {
   const out: HTMLElement[] = [buildResultStage(s)];
   const medal = buildMedalBar(s);
   if (medal) out.push(medal);
   out.push(buildChips(s));
+  out.push(ordersSlot());
   const cause = buildCauseLine(s);
   if (cause) out.push(cause);
   return out;

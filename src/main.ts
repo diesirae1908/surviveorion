@@ -2,6 +2,7 @@ import "./style.css";
 import "./styles/result.css"; // result v2 + death-moment slide (ui.result)
 import "./styles/pilot.css"; // pilot dossier (lobby v3 PILOT tab)
 import "./styles/lobby.css"; // lobby v3 + tab bar (ui.lobby)
+import "./styles/orders.css"; // orders panel, result block, ladder, board chips (orders)
 import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type PaywallSource, type PaywallStep, type SubmitResult } from "./api";
 import { AudioSystem, PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME } from "./audio";
 import { badgeInfo } from "./badges";
@@ -68,7 +69,7 @@ import {
 import { Particles } from "./particles";
 import { Popups } from "./popups";
 import { Renderer, type TransitionFx } from "./render";
-import type { TrailCosmetic } from "./cosmetics";
+import { equippedTrail, type TrailCosmetic } from "./cosmetics";
 import {
   clipExtension,
   saveClipToDevice,
@@ -1044,6 +1045,7 @@ function fillDailyBoard(): void {
         mode: e.mode,
         isMe: !!myCallsign && myCallsign === e.callsign,
         virtual: !!e.virtual,
+        ladder: e.ladder,
       }));
       const inTopTen = entries.slice(0, 10).some((e) => e.isMe);
       const pinned =
@@ -1491,13 +1493,18 @@ function openPilotDossier(): void {
       priceLabel: lobbyInfo.showWebGoldPatrol ? webGoldPatrolPrices().monthly.replace(/\s*USD/i, "").trim() : null,
     },
     canFlyArchive: unlimitedDailyRuns(),
-    ladder: null,
+    ladder: api.me ? { merit: api.me.ladder.merit, equippedTrail: api.me.cosmetics.trail ?? null } : null,
   };
   const dossierCb: PilotDossierCallbacks = {
     onPatrolCalendar: (date) => openPatrolCalendar(date),
     onGoldPlate: () => handleUnlockGoldPatrol("lobby_upsell"),
     onSignIn: () => community.showAuth(openPilotDossier),
     onAccount: () => community.showProfile(),
+    onTrail: (id) =>
+      api.updateProfile({ cosmetics: { trail: id } }).then(
+        () => true,
+        () => false,
+      ),
   };
   let host: HTMLElement | null = null;
   const paint = (data: PilotDossierData): void => {
@@ -1533,9 +1540,20 @@ function openPilotDossier(): void {
   });
 }
 
-/** Equipped cosmetics for the next frame. WS-O2 owns this body; null trail = the default hull trail. */
+/**
+ * Equipped cosmetics for the next frame; null trail = the default hull trail.
+ * Called every frame, so it is cached until `api.me` is replaced (GET /api/me,
+ * a score response or an equip all swap that object). Signed out, or with the
+ * `orders` switch off, `api.me` is null and nothing extra is drawn. Previews
+ * show the trail too (visual only).
+ */
+let cosmeticsFor: { me: typeof api.me; value: { trail: TrailCosmetic | null } } | null = null;
 function currentCosmetics(): { trail: TrailCosmetic | null } {
-  return { trail: null };
+  const me = api.me;
+  if (!cosmeticsFor || cosmeticsFor.me !== me) {
+    cosmeticsFor = { me, value: { trail: me ? equippedTrail(me.cosmetics.trail, me.ladder.tier) : null } };
+  }
+  return cosmeticsFor.value;
 }
 
 /** Seed for today's Daily Patrol: same patrol date label → same opening script. */
@@ -2083,6 +2101,7 @@ function renderRankResult(r: SubmitResult): void {
     .map((id) => badgeInfo(id))
     .filter((b): b is NonNullable<typeof b> => !!b);
   ui.showEarnedBadges(earned);
+  ui.setGameOverOrders(r.orders);
 }
 
 /** Push the finished run to the leaderboards and show the resulting ranks. */
