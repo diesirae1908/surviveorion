@@ -4,6 +4,10 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-31 PT: WS-F review fixes (feat/overdrive-forms-2)
+
+- Opus review fixes: (1) flaky cloak test fixed (probe at bombRadius + droneRadius + hoverAmp + 0.05, Math.random pinned); 5 consecutive clean runs of test-overdrive. (2) Reach previews match the forms: `ionConeRadius(world)` and `thunderRayWidth(world)` exported from powers.ts, used by fireIon/fireThunder and by render.ts drawIonChargeCone, the drawDrones ion ring, drawThunderChargeAim; `ThunderBolt.widthScale?` keeps the ray afterglow width (Sam widened render ownership to those methods). Vortex unchanged. (3) Observer: exempt list pinned to sunday-3:the-flood+demolition-day; the 1.10x ON/OFF gate also applies to exempt sets in the bounds pass. (4) Form names: LONG SHELL, WIDE ARC, SPLIT CANNON, RAZOR RING, WIDE THUNDER (others kept). Nit: autocannon formOf hoisted.
+
 ## 2026-10-30 PT: WS-F commit 2, seven mutator-power forms (feat/overdrive-forms-2)
 
 - What: Overdrive forms (generation 2, default off) for the seven mutator-only powers: razor (`durationScale`, `orbitScale` read by the sim and `drawRazor`), thunder (`widthScale`, `hopRadiusScale`), cloak (`durationScale`, `bombRadiusScale`), flare (`lifetimeScale`), ion (`radiusScale`), howlers (`convertHowlers(world, radiusScale, durationScale)`), vortex (`killRadiusScale` on the vortex record). Afterburner stays burst-only. Popups BLADE DANCE, THUNDER WALL, GHOST BOMBS, LONG FLARE, ION SURGE, PACK HOWL, DEEP VORTEX (copy batch). New optional state `razorOrbitScale`, `thunderScale`, `cloakBombScale`, `ionRadiusScale`, each cleared when the power ends or on a plain re-pickup.

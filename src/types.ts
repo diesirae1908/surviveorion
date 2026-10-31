@@ -286,6 +286,8 @@ export interface ThunderBolt {
   elapsed: number;
   kind: "ray" | "hop";
   seed: number;
+  /** OVERDRIVE thunder form: beam width scale, kept for the ray afterglow. Absent = 1. */
+  widthScale?: number;
 }
 
 export interface ThunderChainState {

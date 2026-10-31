@@ -206,7 +206,10 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
     case "autocannon":
       p.autocannonTimer = POWERS.autocannon.duration;
       p.autocannonCooldown = 0; // first shot fires immediately
-      p.autocannonBarrels = formOf(od, "autocannon") ? Math.max(1, Math.round(numOf(formOf(od, "autocannon"), "barrels", 1))) : undefined;
+      {
+        const ac = formOf(od, "autocannon");
+        p.autocannonBarrels = ac ? Math.max(1, Math.round(numOf(ac, "barrels", 1))) : undefined;
+      }
       break;
     case "meteors":
       p.meteorTimer = POWERS.meteors.duration * numOf(formOf(od, "meteors"), "durationScale", 1);
@@ -1019,6 +1022,16 @@ function pointToSegDist(
   return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
 }
 
+/** Ion cone radius now (base x OVERCHARGE x Overdrive form). Shared by the sim and the charge preview. */
+export function ionConeRadius(world: World): number {
+  return POWERS.ion.radius * mutatorPowerAmpScale() * (world.powers.ionRadiusScale ?? 1);
+}
+
+/** Thunder beam width now (base x OVERCHARGE x Overdrive form). Shared by the sim and the aim preview. */
+export function thunderRayWidth(world: World): number {
+  return POWERS.thunder.width * mutatorPowerAmpScale() * (world.powers.thunderScale?.width ?? 1);
+}
+
 function pushThunderBolt(
   p: PowersState,
   x1: number,
@@ -1026,8 +1039,10 @@ function pushThunderBolt(
   x2: number,
   y2: number,
   kind: "ray" | "hop",
+  widthScale?: number,
 ): void {
   p.thunderBolts.push({
+    widthScale,
     x1,
     y1,
     x2,
@@ -1082,7 +1097,7 @@ function fireThunder(world: World): void {
   const len = POWERS.thunder.length * amp;
   const x2 = s.x + dirX * len;
   const y2 = s.y + dirY * len;
-  const half = (POWERS.thunder.width * amp * (p.thunderScale?.width ?? 1)) / 2;
+  const half = thunderRayWidth(world) / 2;
   world.events.push({ type: "thunderFire", x: s.x, y: s.y });
   world.shake = Math.max(world.shake, 0.28);
 
@@ -1119,7 +1134,7 @@ function fireThunder(world: World): void {
   rayHits.sort((a, b) => a.along - b.along);
   // Faint core so the aimed line stays readable, plus jagged segments
   // ship → each ray-hit → ray end so every kill on the beam shows lightning.
-  pushThunderBolt(p, s.x, s.y, x2, y2, "ray");
+  pushThunderBolt(p, s.x, s.y, x2, y2, "ray", p.thunderScale?.width);
   let px = s.x;
   let py = s.y;
   for (const hit of rayHits) {
@@ -1186,7 +1201,7 @@ function fireIon(world: World): void {
   const s = world.ship;
   const fx = Math.cos(s.angle);
   const fy = Math.sin(s.angle);
-  const r = POWERS.ion.radius * mutatorPowerAmpScale() * (world.powers.ionRadiusScale ?? 1);
+  const r = ionConeRadius(world);
   for (const d of world.drones) {
     if (!d.alive || d.allied) continue;
     const dx = d.x - s.x;

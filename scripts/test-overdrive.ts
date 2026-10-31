@@ -28,7 +28,7 @@ import {
   spendOverdrive,
   updateOverdrive,
 } from "../src/overdrive";
-import { activatePower, detonateShield, spawnBlast } from "../src/powers";
+import { activatePower, detonateShield, ionConeRadius, spawnBlast, thunderRayWidth } from "../src/powers";
 import type { World } from "../src/types";
 import { validateRun } from "../server/validate.mjs";
 import registry from "../server/flags-registry.json";
@@ -672,12 +672,18 @@ function run(world: World, seconds: number, invulnerable = true): void {
     {
       const { w, form } = fire("cloak");
       check("cloak form: duration x durationScale, bomb scale recorded", form && near(w.powers.cloakTimer, POWERS.cloak.duration * 1.4) && w.powers.cloakBombScale === 1.3);
-      const bombKill = (formOn: boolean) => {
-        const { w: wc } = fire("cloak", undefined, !formOn);
-        const d = dr(wc, POWERS.cloak.bombRadius * 1.15, 0);
-        run(wc, POWERS.cloak.duration * 1.5 + 0.5);
-        return !d.alive;
-      };
+      // Probe just outside the plain reach for ANY hover offset (bombRadius + drone radius +
+      // hoverAmp), inside the 1.3x reach. Math.random pinned (hover jitter seed).
+      const bombKill = (formOn: boolean) =>
+        withPinnedMathRandom(77, () => {
+          const { w: wc } = fire("cloak", undefined, !formOn);
+          const ref = spawnDroneDirect(wc, 99, 99, 1);
+          const rr = droneRadius(ref);
+          ref.alive = false;
+          const d = dr(wc, POWERS.cloak.bombRadius + rr + POWERS.cloak.hoverAmp + 0.05, 0);
+          run(wc, POWERS.cloak.duration * 1.5 + 0.5);
+          return !d.alive;
+        });
       check("cloak form: bombs reach farther than the plain bombs", bombKill(true) && !bombKill(false));
       run(w, 10);
       check("cloak form: bomb scale cleared after the cloak", w.powers.cloakBombScale === undefined);
@@ -744,6 +750,20 @@ function run(world: World, seconds: number, invulnerable = true): void {
       check("vortex form: killRadiusScale on the record only when scaled", w.powers.vortices[0].killRadiusScale === 1.3);
       const { w: w0 } = fire("vortex", undefined, true);
       check("vortex form off: no record field", w0.powers.vortices[0].killRadiusScale === undefined);
+    }
+    // shared reach helpers (sim and render previews use the same formulas)
+    {
+      const base = fire("ion", undefined, true).w;
+      const on = fire("ion").w;
+      check("ionConeRadius: base with the form off, scaled with it on", near(ionConeRadius(base), POWERS.ion.radius) && near(ionConeRadius(on), POWERS.ion.radius * 1.3));
+      const tb = fire("thunder", undefined, true).w;
+      const ton = fire("thunder").w;
+      check("thunderRayWidth: base with the form off, scaled with it on", near(thunderRayWidth(tb), POWERS.thunder.width) && near(thunderRayWidth(ton), POWERS.thunder.width * 1.5));
+      run(ton, POWERS.thunder.chargeTime + 0.05);
+      run(tb, POWERS.thunder.chargeTime + 0.05);
+      const ray = ton.powers.thunderBolts.find((b) => b.kind === "ray");
+      const rayBase = tb.powers.thunderBolts.find((b) => b.kind === "ray");
+      check("thunder ray afterglow keeps widthScale; plain ray has none", ray?.widthScale === 1.5 && rayBase !== undefined && rayBase.widthScale === undefined);
     }
     // afterburner stays burst only
     {
@@ -1083,6 +1103,8 @@ if (!process.env.OD_SKIP_OBSERVER) {
       }
     } else {
       bSkipped.push(s.label);
+      // exempt from the absolute cap only: relative growth over OFF is still gated
+      if (offAvg >= 8 && bAvg / offAvg > 1.1 + 0.01) boundsFail.push(`${s.label} (exempt) ON/OFF x${(bAvg / offAvg).toFixed(2)}`);
     }
     boundsRows.push(
       `  ${s.label}: bounds realistic ${bAvg.toFixed(2)}/s headroom x${bHead.toFixed(2)} | bounds stress ${bStressAvg.toFixed(2)}/s (x${bStressRatio.toFixed(2)} off)`,
@@ -1099,6 +1121,7 @@ if (!process.env.OD_SKIP_OBSERVER) {
   check("observer stress: Overdrive adds at most 35% average kills/s over OFF (same seed, pinned Math.random)", stressRegress.length === 0, stressRegress.join(", "));
   check("observer realistic cadence: ON average kills/s at most 1.10x OFF (+0.01 run noise)", realRate.length === 0, realRate.join(", "));
   check("observer realistic cadence: ON stays valid with 10% headroom wherever OFF does", realRegress.length === 0, realRegress.join(", "));
+  check("observer exempt list is pinned (a new set cannot be skipped silently)", bSkipped.join(",") === "sunday-3:the-flood+demolition-day", bSkipped.join(","));
   check("observer upper bounds: realistic kills <= time * MAX_KILLS_PER_SEC and validateRun passes with 10% score headroom, wherever OFF does", boundsFail.length === 0, boundsFail.join(", "));
 }
 
