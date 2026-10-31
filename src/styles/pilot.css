@@ -1,0 +1,222 @@
+/* Pilot dossier (lobby v3 PILOT tab, WS-P). Colors come from the brand tokens in
+   style.css; medal metals are the same three the week strip and result screen use. */
+
+.pd {
+  --pd-copper: #8a5a2a;
+  --pd-silver: #c0c0cc;
+  --pd-none: #2a2a3a;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  /* clear the bottom tab bar (56 px + safe area) */
+  padding: 28px 0 calc(56px + var(--safe-bottom) + 20px);
+  text-align: center;
+}
+
+.pd-kicker,
+.pd-section,
+.pd-log-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  color: var(--orion-dust);
+}
+
+.pd-insignia {
+  width: 112px;
+  height: 126px;
+  margin-top: 4px;
+  --metal: var(--pd-none);
+}
+.pd-insignia[data-metal="gold"] { --metal: var(--orion-gold); }
+.pd-insignia[data-metal="silver"] { --metal: var(--pd-silver); }
+.pd-insignia[data-metal="copper"] { --metal: var(--pd-copper); }
+.pd-insignia-svg { width: 100%; height: 100%; overflow: visible; }
+.pd-hex { fill: #0c0c14; stroke: var(--metal); stroke-width: 4; }
+.pd-gem { fill: var(--metal); }
+.pd-chevron { fill: none; stroke: var(--metal); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; }
+.pd[data-mode="ghost"] .pd-insignia { opacity: 0.55; }
+
+.pd-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+}
+.pd-callsign {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--orion-starlight);
+  overflow-wrap: anywhere;
+}
+.pd[data-mode="ghost"] .pd-callsign { color: var(--orion-dust); }
+.pd-flag { font-size: 20px; }
+.pd-caption {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--orion-gold);
+}
+.pd[data-mode="ghost"] .pd-caption { color: var(--orion-brass); }
+
+.pd-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+.pd-stat {
+  --c: 10px;
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+  background: #101018;
+  border: 1px solid var(--orion-hull-line);
+  padding: 10px 4px 8px;
+}
+.pd-stat-v { font-size: 28px; font-weight: 700; color: var(--orion-starlight); line-height: 1.05; }
+.pd-stat-l { font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--orion-dust); margin-top: 3px; }
+.pd.loading .pd-stat-v { opacity: 0.45; }
+.pd[data-mode="ghost"] .pd-stat-v { color: var(--orion-dust); }
+
+.pd-signin-text { font-size: 15px; color: var(--orion-brass); letter-spacing: 0.04em; }
+.pd-signin {
+  --c: 12px;
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+  min-height: 44px;
+  padding: 0 28px;
+  border: 0;
+  background: var(--orion-gradient-gold);
+  color: #1a1204;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+}
+
+.pd-log {
+  --c: 12px;
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px 14px;
+  background: #0d0d16;
+  border: 1px solid var(--orion-hull-line);
+  text-align: left;
+}
+.pd-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px 0;
+  margin-top: 8px;
+  justify-items: center;
+}
+.pd-dow { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--orion-dust); }
+.pd-cell {
+  width: 32px;
+  height: 32px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  /* the tap target is the whole cell column, not just the dot */
+  position: relative;
+}
+.pd-cell::after { content: ""; position: absolute; inset: -6px -5px; }
+.pd-cell.pad { pointer-events: none; }
+.pd-cell.medal.gold { background: var(--orion-gold); }
+.pd-cell.medal.silver { background: var(--pd-silver); }
+.pd-cell.medal.copper { background: var(--pd-copper); }
+.pd-cell.flown { background: #4a4a5c; }
+.pd-cell.attempted { background: transparent; border-color: #4a4a5c; }
+.pd-cell.missed { background: var(--pd-none); }
+.pd-cell.empty { background: #14141f; }
+.pd-cell.future { background: transparent; border-color: #1c1c28; cursor: default; }
+/* Gold-locked past day: dimmed hex-ish emblem, no per-day upsell */
+.pd-cell.locked { background: #181822; opacity: 0.55; }
+.pd-cell.today { border-color: var(--orion-gold); }
+.pd-cell.today.empty { background: transparent; }
+
+.pd-gold { margin-top: 2px; }
+
+.pd-badges { width: 100%; margin-top: 8px; text-align: left; }
+.pd-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px 6px;
+  margin-top: 10px;
+}
+.pd-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--orion-starlight);
+  font: inherit;
+  cursor: pointer;
+}
+.pd-badge-hex {
+  --hex: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  --ring: var(--orion-gold);
+  position: relative;
+  isolation: isolate;
+  width: 52px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--orion-gold);
+  background: var(--ring);
+  clip-path: var(--hex);
+}
+/* inner face: an inset hex over the ring colour gives a true hex outline */
+.pd-badge-hex::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  background: #0c0c14;
+  clip-path: var(--hex);
+}
+.pd-badge.locked .pd-badge-hex { --ring: var(--pd-none); color: var(--orion-dust); font-weight: 700; }
+.pd-badge-name { font-size: 11px; font-weight: 700; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.pd-badge.locked .pd-badge-name { color: var(--orion-dust); }
+.pd-badge-detail { margin-top: 10px; min-height: 2.4em; font-size: 13px; color: var(--orion-brass); text-align: center; }
+
+.pd-rows { width: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.pd-row {
+  --c: 12px;
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--orion-hull-line);
+  background: #0f0f18;
+  color: var(--orion-starlight);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  cursor: pointer;
+}
+.pd-row-label { flex: 1; }
+.pd-row-chev { color: var(--orion-gold); font-size: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pd, .pd * { animation: none !important; transition: none !important; }
+}

@@ -1,5 +1,6 @@
 import "./style.css";
 import "./styles/result.css"; // result v2 + death-moment slide (ui.result)
+import "./styles/pilot.css"; // pilot dossier (lobby v3 PILOT tab)
 import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type PaywallSource, type PaywallStep, type SubmitResult } from "./api";
 import { AudioSystem, PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME } from "./audio";
 import { badgeInfo } from "./badges";
@@ -143,6 +144,9 @@ import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { FxContext, World } from "./types";
 import { deriveGameOverRank, Ui, type CalendarCell, type MenuCommunity, type PatrolCalendarMonth } from "./ui";
+import type { DailyLobbyInfo } from "./ui";
+import { buildPilotDossier, pilotDossierModel, type PilotDossierCallbacks, type PilotDossierData } from "./lobby/pilotView";
+import { DAILY_HISTORY_MAX_SPAN_DAYS } from "./dailyHistory";
 import { consumeWebOverride, shouldShowPhoneLanding } from "./webGate";
 
 type AppState =
@@ -1422,10 +1426,109 @@ function doLaunchAfterBriefing(quick: boolean): void {
   ui.fadeOutScreens();
 }
 
-/** Pilot dossier (lobby v3 PILOT tab). WS-P owns this body; until then it opens the profile, like the old PILOT button. */
+/**
+ * Pilot dossier (lobby v3 PILOT tab, WS-P). Paints at once from local data, then
+ * repaints when the server history and profile land (only while the dossier is
+ * still the screen on show). Outside the daily-only lobby it opens the profile,
+ * like the old PILOT button.
+ */
 function openPilotDossier(): void {
-  if (api.signedIn) community.showProfile();
-  else community.showAuth(showMenu);
+  if (!DAILY_ONLY) {
+    if (api.signedIn) community.showProfile();
+    else community.showAuth(showMenu);
+    return;
+  }
+  const today = patrolDateStr();
+  const signedIn = api.signedIn;
+  const epochDate =
+    signedIn && api.joinedAt
+      ? maxDateStr(DAILY_EPOCH_DATE, new Date(api.joinedAt).toISOString().slice(0, 10))
+      : DAILY_EPOCH_DATE;
+  // The lobby info the hamburger rows act on (same fields showMenu paints the lobby with).
+  const mutatorsToday = todaysMutators();
+  const attempts = loadDailyAttempts();
+  const lobbyInfo: DailyLobbyInfo = {
+    dayNumber: dailyNumber(PREVIEW_REHEARSAL_DATE ? previewDailyDate() : undefined),
+    attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
+    maxAttempts: DAILY_MAX_ATTEMPTS,
+    best: attempts.best,
+    online: api.online,
+    touchDevice: isTouchDevice(),
+    mutators: mutatorsToday,
+    medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
+    preview: PREVIEW_ACTIVE,
+    previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
+    creator: creatorAccess,
+    upcomingDays: creatorAccess ? upcomingPatrols(14) : undefined,
+    callsign: api.user?.callsign,
+    country: api.user?.country,
+    pendingFriends: api.pendingFriends,
+    unlimitedDaily: unlimitedDailyRuns(),
+    showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
+    showManageGoldPatrol: webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
+    hasStripeCustomer: api.stripeCustomer,
+    tier: api.tier,
+    goldPatrolPrices: webGoldPatrolPrices(),
+  };
+  const base: PilotDossierData = {
+    signedIn,
+    guest: !signedIn,
+    callsign: api.user?.callsign ?? null,
+    country: api.user?.country ?? "",
+    joinedAt: api.joinedAt,
+    today,
+    epochDate,
+    history: [],
+    local: loadDailyHistory(),
+    todayBestScore: attempts.best?.score ?? null,
+    profile: null,
+    loading: signedIn && api.online,
+    menuRows: ui.lobbyMenuRows(lobbyInfo),
+    goldPlate: {
+      show: !!lobbyInfo.showWebGoldPatrol,
+      priceLabel: lobbyInfo.showWebGoldPatrol ? webGoldPatrolPrices().monthly.replace(/\s*USD/i, "").trim() : null,
+    },
+    canFlyArchive: unlimitedDailyRuns(),
+    ladder: null,
+  };
+  const dossierCb: PilotDossierCallbacks = {
+    onPatrolCalendar: (date) => openPatrolCalendar(date),
+    onGoldPlate: () => handleUnlockGoldPatrol("lobby_upsell"),
+    onSignIn: () => community.showAuth(openPilotDossier),
+    onAccount: () => community.showProfile(),
+  };
+  let host: HTMLElement | null = null;
+  const paint = (data: PilotDossierData): void => {
+    ui.showCustomScreen(
+      (root) => {
+        host = buildPilotDossier(pilotDossierModel(data), dossierCb);
+        root.append(host);
+      },
+      { tab: "pilot", back: () => showMenu() },
+    );
+  };
+  paint(base);
+  if (!signedIn || !api.online || !api.user) return;
+
+  // History since the pilot's first patrol (server spans are capped, so fetch in chunks) plus the profile.
+  const chunks: Array<[string, string]> = [];
+  for (let from = epochDate, n = 0; from <= today && n < 6; n++) {
+    const end = new Date(`${from}T00:00:00.000Z`);
+    end.setUTCDate(end.getUTCDate() + DAILY_HISTORY_MAX_SPAN_DAYS - 1);
+    const to = end.toISOString().slice(0, 10) < today ? end.toISOString().slice(0, 10) : today;
+    chunks.push([from, to]);
+    const next = new Date(`${to}T00:00:00.000Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    from = next.toISOString().slice(0, 10);
+  }
+  const mine = host as HTMLElement | null;
+  void Promise.all([
+    Promise.all(chunks.map(([f, t]) => api.dailyHistory(f, t).then((r) => r.entries).catch(() => [] as DailyHistoryEntry[]))),
+    api.playerProfile(api.user.callsign).catch(() => null),
+  ]).then(([parts, profile]) => {
+    if (!mine || !mine.isConnected) return; // the pilot left the dossier meanwhile
+    paint({ ...base, history: parts.flat(), profile, loading: false });
+  });
 }
 
 /** Equipped cosmetics for the next frame. WS-O2 owns this body; null trail = the default hull trail. */
