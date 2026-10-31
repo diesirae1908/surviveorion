@@ -46,8 +46,12 @@ export function patrolDayStartMs(dateStr: string): number {
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
-  const off = patrolOffsetMs(Date.UTC(y, mo - 1, d, 12, 0, 0));
-  return Date.UTC(y, mo - 1, d, 0, 0, 0) + off;
+  // Offset at noon is only a first guess: on DST-change days it differs from
+  // the offset at midnight. Refine once at the guessed instant (PT midnight is
+  // never inside the skipped/repeated hour, so one step is exact).
+  const wall = Date.UTC(y, mo - 1, d, 0, 0, 0);
+  const guess = wall + patrolOffsetMs(Date.UTC(y, mo - 1, d, 12, 0, 0));
+  return wall + patrolOffsetMs(guess);
 }
 
 function addCivilDays(dateStr: string, days: number): string {

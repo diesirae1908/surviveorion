@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-31 PT: DST midnight fix (fix/dst-midnight)
+
+- What: `patrolDayStartMs` (src/patrolDate.ts + server/patrolDate.mjs) took the PT offset at NOON of the date, so on DST-change days midnight was an hour off (2026-11-01 came out 01:00 PDT; 2026-03-08 also wrong). Now one refinement step: guess = UTC midnight + offset(noon), result = UTC midnight + offset(guess). Same fix in `server/db.mjs`: new `ptDayStart`, used by `ptMidnightEpoch` (admin "today" window; old floor-by-24h math was wrong after a DST switch) and `ptDateBounds` (end is now next civil day start, so 23h/25h days are exact).
+- Left alone: patrol DATE string derivation (correct, now tested across both transitions); db.mjs per-day SQL buckets that use the current offset for the whole 14-day window (documented hobby-dashboard tolerance, only rows within an hour of midnight, admin only).
+- Tests: `scripts/test-patrol-date.ts` extended (Nov 1, Mar 8, neighbors, nextPatrolMidnight around both transitions, client/server parity); green under TZ=UTC, America/Los_Angeles, Europe/Paris.
+
 ## 2026-10-30 PT: result header SIGNAL LOST (copy/signal-lost)
 
 - What: `RESULT_HEADER` in `src/resultView.ts` is now "SIGNAL LOST" (Lucas approved the copy batch 2026-10-30, "Go with all"). Only the new result screen (behind `ui.result`, OFF in production) changes; the old game-over screen in `ui.ts` keeps "GAME OVER". `scripts/test-result-view.ts` updated. `brand/VOICE.md` lists no result-screen copy, so no edit there.

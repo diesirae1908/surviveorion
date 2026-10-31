@@ -83,6 +83,51 @@ check(
   patrolDayStartMs("2026-08-27") === patrolDayStartMsServer("2026-08-27"),
 );
 
+// --- DST transition days (2026-03-08 spring forward, 2026-11-01 fall back) ---
+const dayStarts: Array<[string, string]> = [
+  ["2026-11-01", "2026-11-01T07:00:00.000Z"],
+  ["2026-03-08", "2026-03-08T08:00:00.000Z"],
+  ["2026-10-31", "2026-10-31T07:00:00.000Z"],
+  ["2026-11-02", "2026-11-02T08:00:00.000Z"],
+  ["2026-03-07", "2026-03-07T08:00:00.000Z"],
+  ["2026-03-09", "2026-03-09T07:00:00.000Z"],
+];
+for (const [date, want] of dayStarts) {
+  check(`patrolDayStartMs ${date} = ${want}`, iso(new Date(patrolDayStartMs(date))) === want);
+  check(
+    `server patrolDayStartMs ${date} = ${want}`,
+    iso(new Date(patrolDayStartMsServer(date))) === want,
+  );
+  check(`patrolDateStr at start of ${date}`, patrolDateStr(new Date(want)) === date);
+  check(
+    `patrolDateStr 1ms before start of ${date} is the previous day`,
+    patrolDateStr(new Date(Date.parse(want) - 1)) !== date,
+  );
+}
+const nexts: Array<[string, string]> = [
+  ["2026-10-31T23:30:00-07:00", "2026-11-01T07:00:00.000Z"],
+  ["2026-11-01T00:30:00-07:00", "2026-11-02T08:00:00.000Z"],
+  ["2026-11-01T12:00:00-08:00", "2026-11-02T08:00:00.000Z"],
+  ["2026-03-07T23:30:00-08:00", "2026-03-08T08:00:00.000Z"],
+  ["2026-03-08T00:30:00-08:00", "2026-03-09T07:00:00.000Z"],
+];
+for (const [from, want] of nexts) {
+  const d = new Date(from);
+  check(`nextPatrolMidnight from ${from}`, iso(nextPatrolMidnight(d)) === want);
+  check(
+    `server nextPatrolMidnight from ${from}`,
+    iso(nextPatrolMidnightServer(d)) === want,
+  );
+}
+check(
+  "repeated hour: 01:30 PST Nov 1 is still Nov 1",
+  patrolDateStr(new Date("2026-11-01T09:30:00.000Z")) === "2026-11-01",
+);
+check(
+  "Mar 8 03:00 PDT (after skipped hour) is Mar 8",
+  patrolDateStr(new Date("2026-03-08T10:00:00.000Z")) === "2026-03-08",
+);
+
 check("formatPatrolShort Sep 8", formatPatrolShort("2026-09-08") === "Sep 8");
 check("formatPatrolShort Jan 1", formatPatrolShort("2026-01-01") === "Jan 1");
 check("archive tag names the date", archivePatrolTag("2026-09-08") === "PATROL · Sep 8");
