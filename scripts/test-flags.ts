@@ -183,6 +183,8 @@ check("feel: plain droneKilled", same(run({ type: "droneKilled", x: 1, y: 2, sca
   ["burst", 1, 2, [PALETTE.redBright, PALETTE.gold, "#ff8866"], 14, 5, 0.6, 0.12],
   ["droneKill"],
 ]));
+// Bug 5 (WS-K): graze popups now coalesce (GRAZE_POP_MIN_GAP_MS). A single graze after a quiet
+// period still pops at once with the same call, so this pure-move assertion is unchanged in shape.
 check("feel: graze keeps the +N popup on every day", same(run({ type: "graze", x: 3, y: 1, points: 42 }), [
   ["burst", 3, 1, [PALETTE.goldPale, PALETTE.white], 5, 2.5, 0.3, 0.06],
   ["grazeArc", Math.atan2(1 - 0, 3 - 0)],

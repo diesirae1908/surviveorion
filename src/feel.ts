@@ -27,6 +27,17 @@ export const KILL_POP_MIN_GAP_MS = 120;
  * name is the only text near the ship (was 300 ms and kill pops only).
  */
 export const KILL_POP_AFTER_FIRE_MS = 500;
+/**
+ * Bug 5 (QA): graze +N popups coalesce to at most one per this many ms. Points
+ * earned inside the gap are held and shown in the next popup (or a trailing
+ * one), so the shown total equals the earned total. Scoring, ring and haptic
+ * stay per graze.
+ */
+export const GRAZE_POP_MIN_GAP_MS = 150;
+/** Edge radar (ui.hud.edgeRadar): most chevrons drawn, nearest first. */
+export const EDGE_RADAR_MAX = 24;
+/** Time to impact (s) beyond which a chevron is at its faintest. */
+export const EDGE_RADAR_HORIZON_S = 3;
 /** Crowding radius for the danger vignette, in drawn ship lengths. */
 export const VIGNETTE_RADIUS_SHIP_LENGTHS = 1.5;
 /** A drawn hull is about 1.1 world units long before visualScale. */
@@ -307,15 +318,68 @@ export function hudTextBoxes(
   return { score, mult, chain, bar: t.bar, best, time, dailyLabel, subtitle, warning, pace, pause };
 }
 
+/** Chevron look from distance to the visible edge (world units) and closing speed (units/s). Pure. */
+export function radarChevron(dist: number, speed: number): { tti: number; alpha: number; size: number } {
+  const tti = speed > 1e-6 ? Math.max(0, Math.min(EDGE_RADAR_HORIZON_S, dist / speed)) : EDGE_RADAR_HORIZON_S;
+  const urgency = 1 - tti / EDGE_RADAR_HORIZON_S; // 0 far, 1 imminent
+  return { tti, alpha: 0.3 + 0.7 * urgency, size: 1 + 0.9 * urgency };
+}
+
 // Kill pop budget (cosmetic, wall clock). The clock is injectable for tests.
 let popClock: () => number = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 let lastPopAt = -Infinity;
 let lastFireAt = -Infinity;
 /** Test seam: replace the clock and clear the budget. */
-export function resetKillPopBudget(clock?: () => number): void {
+export function resetKillPopBudget(clock?: () => number, schedule?: GrazeScheduler): void {
   if (clock) popClock = clock;
+  if (schedule) grazeSchedule = schedule;
   lastPopAt = -Infinity;
   lastFireAt = -Infinity;
+  lastGrazePopAt = -Infinity;
+  grazeHeld = 0;
+  if (grazeTimer !== null) grazeCancel(grazeTimer);
+  grazeTimer = null;
+}
+
+// Graze popup coalescing (bug 5). Timer seam is injectable for tests.
+export interface GrazeScheduler {
+  set(fn: () => void, ms: number): unknown;
+  clear(handle: unknown): void;
+}
+let grazeSchedule: GrazeScheduler = {
+  set: (fn, ms) => setTimeout(fn, ms),
+  clear: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+};
+const grazeCancel = (h: unknown): void => grazeSchedule.clear(h);
+let lastGrazePopAt = -Infinity;
+let grazeHeld = 0;
+let grazeTimer: unknown = null;
+
+/** Show one graze popup for `points` plus anything held; a held remainder flushes after the gap. */
+function grazePop(ctx: FxContext, x: number, y: number, points: number): void {
+  const { popups } = ctx;
+  const now = popClock();
+  grazeHeld += points;
+  if (grazeTimer !== null) {
+    grazeCancel(grazeTimer);
+    grazeTimer = null;
+  }
+  if (now - lastGrazePopAt >= GRAZE_POP_MIN_GAP_MS) {
+    lastGrazePopAt = now;
+    const total = grazeHeld;
+    grazeHeld = 0;
+    popups.spawn(x, y + 0.55, `+${total}`, PALETTE.gold, 0.72, 1.15);
+    return;
+  }
+  const wait = Math.max(0, lastGrazePopAt + GRAZE_POP_MIN_GAP_MS - now);
+  grazeTimer = grazeSchedule.set(() => {
+    grazeTimer = null;
+    if (grazeHeld <= 0) return;
+    lastGrazePopAt = popClock();
+    const total = grazeHeld;
+    grazeHeld = 0;
+    popups.spawn(x, y + 0.55, `+${total}`, PALETTE.gold, 0.72, 1.15);
+  }, wait);
 }
 
 /**
@@ -335,6 +399,12 @@ export function firePopQuiet(ctx: FxContext): boolean {
 export function pickupLabelSuppressed(events: readonly GameEvent[], power: string, ctx: FxContext): boolean {
   if (!ctx.flags.overdriveFx?.formPopup) return false;
   return events.some((o) => o.type === "overdriveFire" && o.form && o.power === power);
+}
+
+/** Shield hit-stop length in ms: the registry param, clamped to its bounds. */
+export function hudHitStopMs(hud: HudParams): number {
+  const ms = hud.hitStopShieldMs ?? 60;
+  return Math.max(0, Math.min(150, ms));
 }
 
 /** React to a gameplay event. */
@@ -369,9 +439,16 @@ export function onEvent(e: GameEvent, ctx: FxContext): void {
       particles.grazeArc(Math.atan2(e.y - world.ship.y, e.x - world.ship.x));
       audio.graze();
       void hapticGraze();
-      if (!firePopQuiet(ctx)) popups.spawn(e.x, e.y + 0.55, `+${e.points}`, PALETTE.gold, 0.72, 1.15);
+      if (!firePopQuiet(ctx)) grazePop(ctx, e.x, e.y, e.points);
       if (ctx.flags.hud?.pops && ctx.effects === "full") particles.ringPulse();
       break;
+    case "shieldDetonate": {
+      const hud = ctx.flags.hud;
+      if (!hud || ctx.effects !== "full") break;
+      if (hud.hitStop) ctx.holdSim(hudHitStopMs(hud));
+      if (hud.pops) particles.burst(e.x, e.y, [PALETTE.shield, PALETTE.white, "#cfeeff"], 18, 5.5, 0.55, 0.1);
+      break;
+    }
   }
 }
 

@@ -11,6 +11,11 @@ import {
   chainBarFlicker,
   fitScorePx,
   hudLayout,
+  hudHitStopMs,
+  radarChevron,
+  EDGE_RADAR_MAX,
+  EDGE_RADAR_HORIZON_S,
+  GRAZE_POP_MIN_GAP_MS,
   killPopAllowed,
   onEvent,
   resetKillPopBudget,
@@ -204,8 +209,106 @@ check("ON: short chain kill has no pop", names(run(kill, HUD, "full", 2)) === "b
   advance(1000);
 }
 check("ON + lite: no pop, no ring", names(run(kill, HUD, "lite", 9)) === "burst,droneKill" && names(run(graze, HUD, "lite", 0)) === "burst,grazeArc,grazeSfx,popup");
+advance(200); // bug 5: popups coalesce within 150 ms
 check("ON: graze adds a gold ring", names(run(graze, HUD, "full", 0)) === "burst,grazeArc,grazeSfx,popup,ring");
+advance(200);
 check("ON pops=false: graze has no ring", names(run(graze, { ...HUD, pops: false }, "full", 0)) === "burst,grazeArc,grazeSfx,popup");
+
+// --- WS-K: shield hit-stop, graze coalescing (bug 5), edge radar math ---
+{
+  const timers: { fn: () => void; at: number; id: number }[] = [];
+  let nextId = 1;
+  let t = 5000;
+  resetKillPopBudget(() => t, {
+    set: (fn, ms) => {
+      const id = nextId++;
+      timers.push({ fn, at: t + ms, id });
+      return id;
+    },
+    clear: (h) => {
+      const i = timers.findIndex((x) => x.id === h);
+      if (i >= 0) timers.splice(i, 1);
+    },
+  });
+  const tick = (ms: number) => {
+    t += ms;
+    for (const x of timers.filter((q) => q.at <= t).sort((a, b) => a.at - b.at)) {
+      timers.splice(timers.indexOf(x), 1);
+      x.fn();
+    }
+  };
+  const holds: number[] = [];
+  const pops: string[] = [];
+  const bursts: unknown[][] = [];
+  const mk = (hud: HudParams | null, effects: "full" | "lite" = "full"): FxContext =>
+    ({
+      world: world(),
+      particles: { burst: (...a: unknown[]) => bursts.push(a), grazeArc() {}, ringPulse() {} },
+      popups: { spawn: (_x: number, _y: number, text: string) => pops.push(text), spawnRising() {} },
+      audio: { droneKill() {}, graze() {} },
+      holdSim: (ms: number) => holds.push(ms),
+      flags: { overdriveFx: null, hud, result: null },
+      effects,
+    }) as unknown as FxContext;
+  const det: GameEvent = { type: "shieldDetonate", x: 1, y: 1 };
+
+  onEvent(det, mk(null));
+  check("hit-stop: old row (hud null) does nothing", holds.length === 0 && bursts.length === 0);
+  onEvent(det, mk({ ...HUD }));
+  check("hit-stop: hitStop absent = no hold", holds.length === 0);
+  onEvent(det, mk({ ...HUD, hitStop: true }));
+  check("hit-stop: on holds the default 60 ms", holds.length === 1 && holds[0] === 60);
+  onEvent(det, mk({ ...HUD, hitStop: true, hitStopShieldMs: 90 }));
+  check("hit-stop: registry ms is used", holds[1] === 90);
+  onEvent(det, mk({ ...HUD, hitStop: true }, "lite"));
+  check("hit-stop: lite effects get none", holds.length === 2);
+  check("hit-stop: ms clamped to [0,150]", hudHitStopMs({ ...HUD, hitStopShieldMs: 900 }) === 150 && hudHitStopMs({ ...HUD, hitStopShieldMs: -5 }) === 0);
+  const before = bursts.length;
+  onEvent(det, mk({ ...HUD, pops: true, hitStop: false }));
+  check("shield shards follow hud.pops", bursts.length === before + 1);
+  onEvent(det, mk({ ...HUD, pops: false, hitStop: true }));
+  check("no shards with pops off", bursts.length === before + 1);
+
+  // graze coalescing: 10 grazes 20 ms apart, 10 pts each
+  pops.length = 0;
+  resetKillPopBudget(undefined);
+  const g = (p: number): GameEvent => ({ type: "graze", x: 0, y: 0, points: p });
+  for (let i = 0; i < 10; i++) {
+    onEvent(g(10), mk(null));
+    if (i < 9) tick(20);
+  }
+  tick(GRAZE_POP_MIN_GAP_MS + 5);
+  const shown = pops.reduce((a, x) => a + Number(x.replace("+", "")), 0);
+  check("graze: popups coalesce (fewer than grazes)", pops.length > 0 && pops.length <= 3, `${pops.length} popups`);
+  check("graze: shown total equals earned total", shown === 100, `shown ${shown}`);
+  check("graze: first graze pops at once", pops[0] === "+10");
+  // spaced grazes are untouched
+  pops.length = 0;
+  for (let i = 0; i < 3; i++) {
+    onEvent(g(7), mk(null));
+    tick(GRAZE_POP_MIN_GAP_MS + 1);
+  }
+  check("graze: spaced grazes pop one each", pops.join() === "+7,+7,+7");
+  check("graze gap is 150 ms", GRAZE_POP_MIN_GAP_MS === 150);
+  resetKillPopBudget(() => clockNow);
+}
+{
+  const near = radarChevron(1, 4);
+  const far = radarChevron(10, 1);
+  check("radar: imminent beats distant (alpha, size)", near.alpha > far.alpha && near.size > far.size);
+  let mono = true;
+  let prev = radarChevron(0, 3);
+  for (let d = 0.25; d <= 12; d += 0.25) {
+    const c = radarChevron(d, 3);
+    if (c.alpha > prev.alpha + 1e-12 || c.size > prev.size + 1e-12) mono = false;
+    prev = c;
+  }
+  check("radar: alpha and size fall monotonically with distance", mono);
+  check("radar: tti clamped to 0..3 s", radarChevron(0, 5).tti === 0 && radarChevron(99, 1).tti === EDGE_RADAR_HORIZON_S && radarChevron(5, 0).tti === EDGE_RADAR_HORIZON_S);
+  const c0 = radarChevron(0, 3);
+  check("radar: alpha within 0..1", c0.alpha <= 1 && radarChevron(99, 0).alpha >= 0.3);
+  check("radar cap is 24", EDGE_RADAR_MAX === 24);
+}
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);
