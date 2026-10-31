@@ -42,9 +42,10 @@ const updates = parseUpdates(file);
 assert.equal(UPDATES_URL, "/updates.json");
 assert.equal(LAST_SEEN_UPDATE_KEY, "orion.lastSeenUpdateId");
 assert.ok(updates.length >= 1, "at least one FIELD UPDATE entry");
-assert.equal(updates[0]?.id, "2026-09-27-flight-deck");
-assert.equal(updates[0]?.date, "2026-09-27");
-assert.equal(updates[0]?.title, "Fairer Skies");
+assert.equal(updates[0]?.id, "2026-10-31-rising-gold");
+assert.equal(updates[0]?.date, "2026-10-31");
+assert.equal(updates[0]?.title, "Rising Gold");
+assert.ok(updates.some((u) => u.id === "2026-09-27-flight-deck"), "older id stays valid");
 assert.equal(updates[0]?.link, null);
 assert.equal(updates[0]?.body.length, 4);
 assert.ok(
@@ -68,11 +69,12 @@ assert.deepEqual(parseUpdates(null), []);
 assert.deepEqual(parseUpdates({}), []);
 assert.deepEqual(parseUpdates({ updates: [{ id: "x" }] }), []);
 assert.equal(latestUpdate([]), null);
-assert.equal(latestUpdate(updates)?.id, "2026-09-27-flight-deck");
+assert.equal(latestUpdate(updates)?.id, "2026-10-31-rising-gold");
 
 assert.equal(hasUnreadUpdate(null, null), false);
 assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", null), true);
-assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", "2026-09-27-flight-deck"), false);
+assert.equal(hasUnreadUpdate("2026-10-31-rising-gold", "2026-10-31-rising-gold"), false);
+assert.equal(hasUnreadUpdate("2026-10-31-rising-gold", "2026-09-27-flight-deck"), true);
 assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", "2026-09-13-lobby-refresh"), true);
 assert.equal(hasUnreadUpdate("2026-09-27-flight-deck", "2026-09-13-lobby-refit"), true);
 
@@ -83,8 +85,8 @@ assert.equal(shouldAutoShowUpdate("2026-09-27-flight-deck", "2026-09-27-flight-d
 assert.equal(shouldAutoShowUpdate(null, null, 0), false);
 
 assert.equal(loadLastSeenUpdateId(), null);
-saveLastSeenUpdateId("2026-09-27-flight-deck");
-assert.equal(loadLastSeenUpdateId(), "2026-09-27-flight-deck");
+saveLastSeenUpdateId("2026-10-31-rising-gold");
+assert.equal(loadLastSeenUpdateId(), "2026-10-31-rising-gold");
 assert.equal(hasUnreadUpdate(latestUpdate(updates)?.id ?? null, loadLastSeenUpdateId()), false);
 
 const ui = fs.readFileSync(path.join(ROOT, "src/ui.ts"), "utf8");

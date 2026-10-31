@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-31 PT: FIELD UPDATE "Rising Gold" for the v3 live launch
+
+- `public/updates.json`: new first entry `2026-10-31-rising-gold` (title "Rising Gold", 4 lines: new lobby/HUD/SIGNAL LOST screen, OVERDRIVE from Patrol #111, Daily Orders from tonight's patrol, iPhone app update). Older ids unchanged and still valid.
+- `scripts/test-updates.ts`: first-entry id/date/title, latestUpdate, lastSeen and unread pins moved to the new id; older id presence pinned.
+- Gates: `npm test`, `npm run build`.
+
 ## 2026-10-31 PT: v3 QA fix round (integ/v3-wave1)
 
 - Bug 1 (form name clipped): `popups.spawnFitted` + pure `fitPopup` (popups.ts). At draw time the real text is measured with the popup font; x is clamped so the whole text stays inside the field with `FIT_PAD`, and y flips below the ship when the text would enter the top band. Used only by the overdriveFx form name (still gated by `ui.overdriveFx.formPopup`). `test:popup-fit` sweeps all 17 names across the field.
