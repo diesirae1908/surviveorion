@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-10-30 PT: WS-B mission briefing (feat/mission-briefing)
+
+- Real `src/lobby/briefing.ts` behind `ui.lobby.briefing` (needs `ui.lobby.enabled`; default off, so old production rows never see it). `shouldShow` = web allowed + param on + daily mode + not archive + not quick retry + `localStorage["orion.briefing.v1"] !== patrolDate` (PT date). Pure `briefingModel`/`briefingRows` (1 mutator: its first 3 subline sentences; 2+: one row per mutator with the name and first sentence; "SAME RUN FOR EVERY PILOT TODAY"). Overlay: emblem spin, name stamp (brass hit via new `audio.briefingStamp()`, 3 px CSS shake when screen shake is on), rows resolve; tap/Space after 0.6 s skips to LAUNCH; LAUNCH (tap or Space/Enter, capture-phase stopImmediatePropagation) resolves true and writes the date key (never for previews); Escape resolves false (lobby, no attempt spent). Lite effects or reduced motion: static card, LAUNCH armed at once. No gameplay change.
+- `src/styles/briefing.css` is imported lazily from `maybeShowBriefing` (own Vite chunk) because `main.ts` is frozen for this workstream and node tests never load CSS.
+- Deviation from the mockup: LAUNCH is a tap button (per plan text), not a slide; the 3-2-1 grace window is out of scope ("no gameplay change").
+- Tests: `scripts/test-briefing.ts` (truth table, PT midnight, preview never writes, model rows, no-flag-rows null params). Screenshots: `reports/orion-revamp-2026-10-29/build-shots/v3-briefing/` (m390/d1440, `?flags=ui.lobby:on`, so PREVIEW tag shows).
+- Follow-up for Sam: the mockup's short mutator headlines ("POWERS HIT FAR BIGGER") need a short-line field on mutators; today rows are subline sentences (up to 140 chars).
+
 ## 2026-10-30 PT: WS-R fix round (feat/v3-seams)
 
 - Opus review fixes: admin Switches card now merges registry defaults under the current row for display (`swMergeDefaults`), so new params and "needs bundle gen N" show for switches whose latest row predates them (saving still materializes server-side; no unit test, admin JS is inline: manual check = open /admin > Switches on a DB with an old `ui.hud` row and see `sky`, `paceChip` fields). `TrailCosmetic` moved to new `src/cosmetics.ts` (WS-O2 owns it). Ownership note: `src/lobby/menuRows.ts` and `src/lobby/fillTargets.ts` belong to WS-L.
