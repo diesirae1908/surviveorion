@@ -15,7 +15,7 @@ const params = { enabled: true, tabBar: true, briefing: true, pilotTab: true } a
 const base: BriefingContext = {
   patrolDate: "2026-11-02",
   patrolNumber: 108,
-  mutators: [{ name: "OVERCHARGE", subline: "Powers hit far bigger. Drops are normal. Chains run hot. Extra.", tags: ["power"] }],
+  mutators: [{ name: "OVERCHARGE", subline: "Powers hit far bigger. Drops are normal. Chains run hot. Extra.", hudRule: "Drops normal. Powers hit far bigger.", tags: ["power"] }],
   quick: false,
   mode: "daily",
   archive: false,
@@ -61,22 +61,24 @@ check("launch writes, escape does not", shouldRecordSeen(base, true) && !shouldR
 
 // model rows
 const one = briefingModel(base);
-check("1 mutator: 3 rows max from sentences", one.rows.length === 3 && one.rows[0].title === "Powers hit far bigger");
+check("1 mutator: one row, the short hudRule", one.rows.length === 1 && one.rows[0].title === "Drops normal. Powers hit far bigger." && one.rows[0].detail === "");
 check("1 mutator: same-run line", one.sameRunLine === "SAME RUN FOR EVERY PILOT TODAY");
 check("header", one.header === "INCOMING TRANSMISSION");
 check("timings", one.briefingMs === BRIEFING_MS && one.skipAfterMs === SKIP_AFTER_MS && BRIEFING_MS === 4000 && SKIP_AFTER_MS === 600);
 const two = briefingModel({
   ...base,
   mutators: [
-    { name: "BLACKOUT", subline: "Some flickers are fakes. Dark.", tags: [] },
-    { name: "RED ALERT", subline: "Everything faster.", tags: [] },
+    { name: "BLACKOUT", subline: "Some flickers are fakes. Dark.", hudRule: "Fake flickers. Real ones go dark.", tags: [] },
+    { name: "RED ALERT", subline: "Everything faster.", hudRule: "More threats, faster.", tags: [] },
   ],
 });
-check("2 mutators: one row each", two.rows.length === 2 && two.rows[0].title === "BLACKOUT" && two.rows[1].detail === "Everything faster.");
+check("2 mutators: one row each", two.rows.length === 2 && two.rows[0].title === "BLACKOUT" && two.rows[1].detail === "More threats, faster.");
 check("2 mutators: names", two.names.join("|") === "BLACKOUT|RED ALERT");
-check("3 mutators cap at 3", briefingRows([1, 2, 3, 4].map((i) => ({ name: `M${i}`, subline: "x.", tags: [] }))).length === 3);
+check("3 mutators cap at 3", briefingRows([1, 2, 3, 4].map((i) => ({ name: `M${i}`, subline: "x.", hudRule: "r", tags: [] }))).length === 3);
 check("no mutators: no rows, no same-run line", briefingModel({ ...base, mutators: [] }).rows.length === 0 && briefingModel({ ...base, mutators: [] }).sameRunLine === null);
-check("long sentence clipped", briefingRows([{ name: "A", subline: "x".repeat(300) + ".", tags: [] }])[0].title.length <= 140);
+check("no hudRule: falls back to a clipped first subline sentence", briefingRows([{ name: "A", subline: "x".repeat(300) + ".", hudRule: "", tags: [] }])[0].title.length <= 140);
+import { MUTATOR_POOL } from "../src/mutators";
+check("every mutator briefing row is its short hudRule (<= 44 chars)", MUTATOR_POOL.every((m) => { const r = briefingRows([{ name: m.name, subline: m.subline, hudRule: m.hudRule, tags: m.tags }]); return r.length === 1 && r[0].title === m.hudRule && r[0].title.length <= 44; }));
 check("sentence split", sublineSentences("One. Two! Three?").length === 3);
 
 // effects / shake

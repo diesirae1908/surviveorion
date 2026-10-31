@@ -8,7 +8,7 @@ import type { LobbyParams } from "../flags";
 export interface BriefingContext {
   patrolDate: string;
   patrolNumber: number;
-  mutators: { name: string; subline: string; tags: string[] }[];
+  mutators: { name: string; subline: string; hudRule: string; tags: string[] }[];
   quick: boolean;
   mode: "daily" | "training" | "classic" | "ironrain" | "tutorial" | "firstFlight";
   archive: boolean;
@@ -97,18 +97,21 @@ function clip(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Up to three rows. One mutator: its first sentences. Several: one row per mutator. */
+/** The short rule line of a mutator (<= 44 chars). Falls back to the first subline sentence only if a mutator has none. */
+function ruleLine(m: BriefingContext["mutators"][number]): string {
+  const rule = m.hudRule.trim();
+  return rule || clip((sublineSentences(m.subline)[0] ?? "").replace(/\.$/, ""), TITLE_MAX);
+}
+
+/**
+ * One row per mutator, from its short `hudRule`. One mutator: the rule is the
+ * row. Several (Sunday): the name with its rule under it. No other mutator
+ * field is short enough for a supporting row, so there are none.
+ */
 export function briefingRows(mutators: BriefingContext["mutators"]): BriefingRow[] {
   if (mutators.length === 0) return [];
-  if (mutators.length === 1) {
-    return sublineSentences(mutators[0].subline)
-      .slice(0, BRIEFING_MAX_ROWS)
-      .map((s) => ({ title: clip(s.replace(/\.$/, ""), TITLE_MAX), detail: "" }));
-  }
-  return mutators.slice(0, BRIEFING_MAX_ROWS).map((m) => ({
-    title: m.name,
-    detail: clip(sublineSentences(m.subline)[0] ?? "", 110),
-  }));
+  if (mutators.length === 1) return [{ title: ruleLine(mutators[0]), detail: "" }];
+  return mutators.slice(0, BRIEFING_MAX_ROWS).map((m) => ({ title: m.name, detail: ruleLine(m) }));
 }
 
 export function briefingModel(ctx: BriefingContext): BriefingModel {
@@ -146,13 +149,7 @@ const HEX_SVG =
  * The patrol date is written only on LAUNCH and never for previews.
  */
 export async function maybeShowBriefing(ctx: BriefingContext): Promise<boolean> {
-  // main.ts is frozen for this workstream, so the stylesheet loads lazily here
-  // (Vite splits it into its own chunk; node tests never reach this function).
-  try {
-    await import("../styles/briefing.css");
-  } catch {
-    // offline chunk miss: the card is still usable, just unstyled
-  }
+  // briefing.css is a static import in main.ts (node tests load this file without CSS).
   const model = briefingModel(ctx);
   const host = document.getElementById("ui") ?? document.body;
   return new Promise<boolean>((resolve) => {

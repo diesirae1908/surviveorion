@@ -5,13 +5,14 @@
 import type { LobbyParams } from "../flags";
 import type { LobbyPhase } from "../lobbyState";
 import { MEDAL_LABEL, medalForScore, type MedalThresholds, type MedalTier } from "../medals";
+import { tierName } from "../ladder";
 import { LOBBY_FILL_TARGETS } from "./fillTargets";
 
 /** The four lobby tabs. */
 export type LobbyTab = "patrol" | "board" | "wingmates" | "pilot";
 
-/** Chip text limit (characters, ellipsis included). */
-export const CHIP_MAX = 24;
+/** Chip text limit (characters). Chips are whole phrases: never clipped, never an ellipsis. */
+export const CHIP_MAX = 22;
 /** Desktop layout starts at this viewport width. */
 export const DESKTOP_MIN_PX = 900;
 
@@ -43,6 +44,8 @@ export interface LobbyV3Env {
   phase: LobbyPhase;
   /** PT patrol date `YYYY-MM-DD` (kicker). */
   patrolDate: string;
+  /** Signed-in pilot's ladder tier while `orders` is on (names the header when there is no medal). */
+  ladder?: { tier: number };
 }
 
 export type LobbySection = "header" | "hero" | "launch" | "board" | "flightLog" | "orders";
@@ -117,28 +120,64 @@ function rawClause(text: string): string {
   return (first.split(/[,;:]/)[0] ?? first).trim();
 }
 
-const CHIP_MIN = 8;
+const CHIP_MIN = 6;
 const fits = (t: string): boolean => t.length >= CHIP_MIN && t.length <= CHIP_MAX;
-const overlaps = (a: string, b: string): boolean => a === b || a.startsWith(b) || b.startsWith(a);
+
+/** Split one long phrase into two balanced halves at a word boundary (both fit, first never ends on a dangler). */
+function splitWords(phrase: string): string[] {
+  const words = phrase.split(" ");
+  let best: string[] | null = null;
+  for (let k = 1; k < words.length; k++) {
+    const a = words.slice(0, k).join(" ");
+    const b = words.slice(k).join(" ");
+    if (a.length > CHIP_MAX || b.length > CHIP_MAX) continue;
+    if (DANGLERS.has(words[k - 1]) || a.length < 4 || b.length < 4) continue;
+    if (!best || Math.abs(a.length - b.length) < Math.abs(best[0].length - best[1].length)) best = [a, b];
+  }
+  return best ?? [];
+}
 
 /**
- * Hero chips for one mutator, max 24 characters each, never an empty list.
- * First: the subline's first clause, else the one-line rule's first sentence
- * (whichever fits whole), else the subline clause clipped on a word. Second:
- * a rule sentence that fits whole and does not repeat the first. Falls back to
- * the mutator name.
+ * Natural short phrases of a rule line, grouped per sentence, in order: a
+ * sentence that fits whole is one phrase; a longer one breaks at its commas; a
+ * clause still too long breaks into two balanced halves. Pieces under CHIP_MIN
+ * are dropped.
+ */
+export function rulePhrases(text: string): string[][] {
+  return sentencesOf(text).map((sentence) => {
+    if (sentence.length <= CHIP_MAX) return sentence.length >= CHIP_MIN ? [sentence] : [];
+    const out: string[] = [];
+    for (const clause of sentence.split(/[,;:]/).map((c) => c.trim())) {
+      if (clause.length <= CHIP_MAX) out.push(clause);
+      else out.push(...splitWords(clause));
+    }
+    return out.filter((t) => t.length >= CHIP_MIN);
+  });
+}
+
+/**
+ * Hero chips for one mutator: up to two whole phrases of the mutator's short
+ * rule line (`hudRule`), each at most 22 characters, never cut, never an
+ * ellipsis. The first sentence leads (its clauses may fill both chips); a lone
+ * first chip is joined only by a later sentence that fits whole, so no half of
+ * a sentence is shown without the rest. If the rule gives nothing that fits,
+ * one chip from the subline, else the mutator name. Never an empty list.
  */
 export function chipsFor(m: LobbyV3Mutator): string[] {
-  const rule = sentencesOf(m.hudRule);
-  const sub = rawClause(m.subline);
-  const first = [sub, rule[0] ?? "", rawClause(m.hudRule)].find(fits) ?? clip([sub, rule[0] ?? "", rawClause(m.hudRule)].filter((t) => t.length >= CHIP_MIN).sort((x, y) => x.length - y.length)[0] ?? "", CHIP_MAX);
-  const out: string[] = first ? [first] : [];
-  const second = [rule[rule.length - 1] ?? "", rule[0] ?? "", rule[1] ?? ""].find(
-    (t) => fits(t) && (!first || !overlaps(t, first)),
-  );
-  if (second) out.push(second);
-  if (out.length === 0) out.push(clip(m.name.toUpperCase(), CHIP_MAX));
-  return out;
+  const groups = rulePhrases(m.hudRule);
+  const lead = groups.find((g) => g.length > 0) ?? [];
+  const out = lead.slice(0, 2);
+  if (out.length === 1) {
+    const li = groups.indexOf(lead);
+    const next = sentencesOf(m.hudRule)
+      .slice(li + 1)
+      .find((t) => t.length >= CHIP_MIN && t.length <= CHIP_MAX && t !== out[0]);
+    if (next) out.push(next);
+  }
+  if (out.length > 0) return out;
+  const sub = rulePhrases(m.subline).flat().find(fits) ?? rawClause(m.subline);
+  if (fits(sub)) return [sub];
+  return [m.name.toUpperCase()];
 }
 
 /** Name size in px: 46 for short names, smaller so long ones keep to two lines at 360 px. */
@@ -158,10 +197,12 @@ export function kickerDate(patrolDate: string): string {
   return `${wd} ${md}`.toUpperCase();
 }
 
-export function metalWordFor(best: { score: number } | null, thresholds?: MedalThresholds): string {
-  if (!best || !thresholds) return "PILOT";
+/** Today's best medal word; with no medal, the ladder tier name (orders on, signed in), else "PILOT". */
+export function metalWordFor(best: { score: number } | null, thresholds?: MedalThresholds, ladderTier?: number | null): string {
+  const fallback = typeof ladderTier === "number" ? tierName(ladderTier).toUpperCase() : "PILOT";
+  if (!best || !thresholds) return fallback;
   const tier: MedalTier | null = medalForScore(best.score, thresholds);
-  return tier ? MEDAL_LABEL[tier] : "PILOT";
+  return tier ? MEDAL_LABEL[tier] : fallback;
 }
 
 /** `H:MM:SS` until the patrol closes. */
@@ -198,7 +239,7 @@ export function lobbyV3Model(info: LobbyV3Info, params: LobbyParams | null, env:
     hamburger: !(params.tabBar && params.pilotTab),
     header: {
       callsign: info.callsign ?? null,
-      metalWord: metalWordFor(info.best, info.medalThresholds),
+      metalWord: metalWordFor(info.best, info.medalThresholds, env.ladder?.tier),
       streak: env.streak,
       streakLabel: `${env.streak} DAY STREAK`,
     },

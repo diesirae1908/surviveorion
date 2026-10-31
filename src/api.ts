@@ -306,7 +306,7 @@ export class Api {
     this.me = next;
     setOrdersSession(
       next
-        ? { signedIn: true, date: next.ordersToday?.date ?? null, done: next.ordersToday?.done ?? [] }
+        ? { signedIn: true, date: next.ordersToday?.date ?? null, done: next.ordersToday?.done ?? [], tier: next.ladder.tier }
         : { signedIn: !!this.token && !!this.user },
     );
   }

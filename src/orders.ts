@@ -171,10 +171,16 @@ export function ordersViewModel(
 // The signed-in pilot's completions for a patrol date. src/api.ts (the only
 // writer) pushes it here from GET /api/me and from each score response, so
 // this module never imports the api instance.
-let session: { signedIn: boolean; date: string | null; done: string[] } = { signedIn: false, date: null, done: [] };
+let session: { signedIn: boolean; date: string | null; done: string[]; tier: number | null } = { signedIn: false, date: null, done: [], tier: null };
 
-export function setOrdersSession(next: { signedIn: boolean; date?: string | null; done?: readonly string[] }): void {
-  session = { signedIn: next.signedIn, date: next.date ?? null, done: [...(next.done ?? [])] };
+export function setOrdersSession(next: { signedIn: boolean; date?: string | null; done?: readonly string[]; tier?: number | null }): void {
+  session = { signedIn: next.signedIn, date: next.date ?? null, done: [...(next.done ?? [])], tier: next.tier ?? null };
+}
+
+/** The signed-in pilot's ladder tier index (0 = Ensign), or null when signed out or `orders` is off today. */
+export function ladderTierToday(): number | null {
+  if (!session.signedIn || session.tier === null || !ordersParamsFor(patrolDateStr())) return null;
+  return session.tier;
 }
 
 /** Today's orders view, or null when the `orders` switch is off or no pick exists. */

@@ -91,6 +91,10 @@ if (typeof document !== "undefined" && document.fonts) {
   void document.fonts.ready;
 }
 
+/** Wake lane offsets (perpendicular to heading): constants, so no per-frame arrays. */
+const WAKE_LANES_ONE: readonly number[] = [0];
+const WAKE_LANES_TWIN: readonly number[] = [-0.2, 0.2];
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private stars: Star[] = [];
@@ -1734,20 +1738,24 @@ export class Renderer {
     const wake = this.shipWake;
     const now = opts.uiTime;
     const life = trail.life * (opts.effects === "lite" ? LITE_LIFE_SCALE : 1);
-    wake.push(lerp(s.prevX, s.x, opts.alpha), lerp(s.prevY, s.y, opts.alpha), lerp(s.prevAngle, s.angle, opts.alpha), now);
+    // heading lerps along the short arc so the twin lanes do not flip across the +/-pi wrap
+    let da = s.angle - s.prevAngle;
+    da -= Math.PI * 2 * Math.round(da / (Math.PI * 2));
+    wake.push(lerp(s.prevX, s.x, opts.alpha), lerp(s.prevY, s.y, opts.alpha), s.prevAngle + da * opts.alpha, now);
     wake.prune(now, life);
-    const pts = wake.points;
-    if (pts.length < 2) return;
+    const n = wake.count;
+    if (n < 2) return;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.strokeStyle = trail.color;
     ctx.fillStyle = trail.color;
     ctx.lineCap = "butt"; // round caps stack alpha at every joint and read as beads
-    const lanes = trail.style === "twin" ? [-0.2, 0.2] : [0];
-    for (const lane of lanes) {
-      for (let i = 1; i < pts.length; i++) {
-        const a = pts[i - 1];
-        const b = pts[i];
+    const lanes = trail.style === "twin" ? WAKE_LANES_TWIN : WAKE_LANES_ONE;
+    for (let li = 0; li < lanes.length; li++) {
+      const lane = lanes[li];
+      for (let i = 1; i < n; i++) {
+        const a = wake.at(i - 1);
+        const b = wake.at(i);
         const k = 1 - (now - b.t) / life; // 1 at the ship, 0 at the tail
         if (k <= 0) continue;
         const taper = trail.style === "comet" ? k * k : k;
@@ -1765,8 +1773,8 @@ export class Renderer {
       }
     }
     if (trail.style === "spark" && opts.effects !== "lite") {
-      for (let i = 0; i < pts.length; i += 2) {
-        const p = pts[i];
+      for (let i = 0; i < n; i += 2) {
+        const p = wake.at(i);
         const k = 1 - (now - p.t) / life;
         if (k <= 0) continue;
         const j = wakeJitter(p.t, 1);
@@ -2947,8 +2955,9 @@ export class Renderer {
     if (playing && powers.length > 0) ctx.globalAlpha = this.hudAlpha(ship, powerRect);
     ctx.textAlign = "left";
     ctx.font = canvasFont("13px");
+    this.powerBarFrame++;
     for (const [name, remaining, total, color] of powers) {
-      const frac = clamp01(remaining / total);
+      const frac = this.powerBarFrac(name, remaining, total);
       ctx.fillStyle = color;
       ctx.fillText(name, pad, py);
       const barAlpha = ctx.globalAlpha;
@@ -2958,8 +2967,35 @@ export class Renderer {
       ctx.fillRect(pad + 122, py + 3, 80 * frac, 7);
       py += 24;
     }
+    // a power that is no longer listed has ended: forget its total so the next pickup starts fresh
+    for (const [key, e] of this.powerBars) if (e.frame !== this.powerBarFrame) this.powerBars.delete(key);
     ctx.restore();
   }
+
+  /**
+   * Bar fill for an active power. The timers are set to the full (scaled)
+   * duration at pickup, and the Overdrive form / mutator duration scales change
+   * that per run, so dividing by the base duration kept the bar full for the
+   * extra time. Instead remember the highest remaining seen since the timer
+   * started (a refresh sets the timer higher again and restarts the total).
+   * Render side only: it never reads or writes sim state beyond the timer.
+   */
+  private powerBarFrac(name: string, remaining: number, baseTotal: number): number {
+    let e = this.powerBars.get(name);
+    if (!e) {
+      e = { last: remaining, total: Math.max(remaining, 1e-6), frame: this.powerBarFrame };
+      this.powerBars.set(name, e);
+    } else {
+      // the timer went up: a refresh, so a fresh total
+      if (remaining > e.last + 1e-6) e.total = Math.max(remaining, 1e-6);
+      e.last = remaining;
+      e.frame = this.powerBarFrame;
+    }
+    void baseTotal; // the base duration is only the old divisor; the observed total replaces it
+    return clamp01(remaining / e.total);
+  }
+  private readonly powerBars = new Map<string, { last: number; total: number; frame: number }>();
+  private powerBarFrame = 0;
 
   /** ui.hud.paceChip: small plate under the pause button, right-aligned. Two lines. */
   private drawPaceChip(ship: { x: number; y: number }, box: HudBox, lines: string[], playing: boolean): void {

@@ -55,28 +55,50 @@ export interface WakePoint {
   t: number;
 }
 
-/** Ring of recent ship positions, render side only (cosmetic, never sim state). */
+/**
+ * Fixed-size ring of recent ship positions, render side only (cosmetic, never
+ * sim state). All slots are allocated once; push/prune/clear never allocate.
+ * Index 0 is the oldest live point, `count - 1` the newest.
+ */
 export class ShipWake {
-  points: WakePoint[] = [];
-  private static readonly MAX = 90;
+  static readonly MAX = 90;
+  private readonly slots: WakePoint[] = Array.from({ length: ShipWake.MAX }, () => ({ x: 0, y: 0, a: 0, t: 0 }));
+  private head = 0; // slot of the oldest point
+  count = 0;
+
+  /** The i-th point, oldest first. Returns a shared slot: do not keep it. */
+  at(i: number): WakePoint {
+    return this.slots[(this.head + i) % ShipWake.MAX];
+  }
 
   push(x: number, y: number, a: number, t: number): void {
-    const last = this.points[this.points.length - 1];
-    // a clock that went backwards (new run) or a long jump (respawn) restarts the wake
-    if (last && (t < last.t || Math.hypot(x - last.x, y - last.y) > 6)) this.points.length = 0;
-    if (last && this.points.length > 0 && t - last.t < 0.012) return;
-    this.points.push({ x, y, a, t });
-    if (this.points.length > ShipWake.MAX) this.points.shift();
+    if (this.count > 0) {
+      const last = this.at(this.count - 1);
+      // a clock that went backwards (new run) or a long jump (respawn) restarts the wake
+      if (t < last.t || Math.hypot(x - last.x, y - last.y) > 6) this.count = 0;
+      else if (t - last.t < 0.012) return;
+    }
+    if (this.count === ShipWake.MAX) {
+      this.head = (this.head + 1) % ShipWake.MAX; // drop the oldest
+      this.count--;
+    }
+    const p = this.slots[(this.head + this.count) % ShipWake.MAX];
+    p.x = x;
+    p.y = y;
+    p.a = a;
+    p.t = t;
+    this.count++;
   }
 
   prune(now: number, life: number): void {
-    let i = 0;
-    while (i < this.points.length && now - this.points[i].t > life) i++;
-    if (i > 0) this.points.splice(0, i);
+    while (this.count > 0 && now - this.slots[this.head].t > life) {
+      this.head = (this.head + 1) % ShipWake.MAX;
+      this.count--;
+    }
   }
 
   clear(): void {
-    this.points.length = 0;
+    this.count = 0;
   }
 }
 

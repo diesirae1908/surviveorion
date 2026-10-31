@@ -12,8 +12,15 @@
   align-items: center;
   gap: 10px;
   /* clear the bottom tab bar (56 px + safe area) */
-  padding: 28px 0 calc(56px + var(--safe-bottom) + 20px);
+  padding: 44px 0 calc(56px + var(--safe-bottom) + 20px);
   text-align: center;
+}
+
+/* The pilot screen sits over the game canvas. Its field frame and the idle ship
+   ring would show through the translucent default backdrop and run into the
+   kicker and caption text, so this screen is opaque. */
+.screen.pd-screen {
+  background: radial-gradient(ellipse at center, #0e0e18 0%, #0a0a12 100%);
 }
 
 .pd-kicker,
@@ -190,7 +197,8 @@
   clip-path: var(--hex);
 }
 .pd-badge.locked .pd-badge-hex { --ring: var(--pd-none); color: var(--orion-dust); font-weight: 700; }
-.pd-badge-name { font-size: 11px; font-weight: 700; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.pd-badge-name { font-size: 11px; font-weight: 700; line-height: 1.15; letter-spacing: 0.02em; text-align: center; overflow-wrap: break-word; text-wrap: balance; max-width: 100%; }
+@media (max-width: 380px) { .pd-badge-name { font-size: 10px; letter-spacing: 0; } }
 .pd-badge.locked .pd-badge-name { color: var(--orion-dust); }
 .pd-badge-detail { margin-top: 10px; min-height: 2.4em; font-size: 13px; color: var(--orion-brass); text-align: center; }
 

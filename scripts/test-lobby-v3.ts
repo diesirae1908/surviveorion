@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LobbyParams } from "../src/flags";
+import { tierName } from "../src/ladder";
 import { LOBBY_FILL_TARGETS } from "../src/lobby/fillTargets";
 import {
   CHIP_MAX,
@@ -24,7 +25,7 @@ import {
 } from "../src/lobby/lobbyV3";
 import { menuRowSpecs } from "../src/lobby/menuRows";
 import { TAB_ORDER, pilotTarget, tabBarModel } from "../src/lobby/tabBar";
-import { MUTATOR_POOL } from "../src/mutators";
+import { MUTATOR_POOL, getMutatorsForDateStr } from "../src/mutators";
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ""): void {
@@ -62,6 +63,7 @@ check("header: guest has no callsign, no medal says PILOT", (() => {
   const g = lobbyV3Model(info({ callsign: undefined, best: null }), ON, ENV)!;
   return g.header.callsign === null && g.header.metalWord === "PILOT";
 })());
+check("header word: no medal shows the ladder tier name, a medal still wins", metalWordFor(null, THRESH, 0) === "ENSIGN" && metalWordFor({ score: 10 }, THRESH, 2) === tierName(2).toUpperCase() && metalWordFor({ score: 300_000 }, THRESH, 2) === "GOLD" && metalWordFor(null, THRESH) === "PILOT" && metalWordFor(null, THRESH, null) === "PILOT");
 check("metal word: gold, copper, below copper", metalWordFor({ score: 300_000 }, THRESH) === "GOLD" && metalWordFor({ score: 60_000 }, THRESH) === "COPPER" && metalWordFor({ score: 10 }, THRESH) === "PILOT");
 check("kicker: patrol number and PT date", m.hero.kicker === "PATROL #108 · THU OCT 29", m.hero.kicker);
 check("hero: single mutator has a briefing line, 2 chips, 160 px emblem", m.hero.line === one.briefing && m.hero.chips.length === 2 && m.hero.emblemPx === 160 && !m.hero.double);
@@ -93,7 +95,19 @@ for (const mu of MUTATOR_POOL) {
 }
 check(`chips: every one of ${MUTATOR_POOL.length} mutators gives 1-2 non-empty chips of <= ${CHIP_MAX} chars`, badChips.length === 0, badChips.join("; "));
 check("chips: blank source falls back to the name", chipsFor({ id: "x", name: "Test Day", briefing: "", subline: "", hudRule: "" })[0] === "TEST DAY");
-check("chips: ellipsis never follows a dangling word", MUTATOR_POOL.flatMap((mu) => chipsFor(mu)).filter((c) => c.endsWith("…")).every((c) => !/ (A|AN|THE|IS|OF|TO|AFTER)…$/.test(c)));
+check("chips: never an ellipsis, never a trailing period", MUTATOR_POOL.flatMap((mu) => chipsFor(mu)).every((c) => !c.includes("…") && !c.includes("...") && !c.endsWith(".")));
+check("chips: never end on a dangling word", MUTATOR_POOL.flatMap((mu) => chipsFor(mu)).every((c) => !/ (A|AN|THE|IS|OF|TO|AFTER|AND|OR|AT|IN|ON)$/.test(c)));
+check("chips: every chip is a whole phrase taken from the rule line", MUTATOR_POOL.every((mu) => chipsFor(mu).every((c) => mu.hudRule.toUpperCase().includes(c) || c === mu.name.toUpperCase())));
+// every date over two years: single and Sunday pair chips fit and are never cut
+const dateChipBad: string[] = [];
+for (let d = 0; d < 730; d++) {
+  const dt = new Date(Date.UTC(2026, 0, 1 + d, 12));
+  const ds = dt.toISOString().slice(0, 10);
+  const ms = getMutatorsForDateStr(ds);
+  const chips = ms.length > 1 ? ms.map((x) => chipsFor(x)[0]) : ms[0] ? chipsFor(ms[0]) : [];
+  for (const c of chips) if (!c || c.length > CHIP_MAX || c.includes("…")) dateChipBad.push(`${ds}: "${c}"`);
+}
+check("chips: 730 days incl. Sunday pairs all fit 22 chars with no ellipsis", dateChipBad.length === 0, dateChipBad.slice(0, 3).join("; "));
 
 // ---- closes label, ahead label ----
 check("closes label H:MM:SS", closesInLabel(11 * 3600_000 + 42 * 60_000 + 10_000) === "11:42:10" && closesInLabel(-5) === "0:00:00" && closesInLabel(59_999) === "0:00:59");

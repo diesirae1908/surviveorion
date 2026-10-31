@@ -178,6 +178,17 @@ export function insigniaMarkup(tier: number): string {
 }
 
 /**
+ * A board name cell. With a chip, the name goes in its own truncating span and
+ * the chip sits outside it and never shrinks (long callsigns used to clip the
+ * chip). Without a chip the markup is exactly the name, as before.
+ */
+export function ladderNameHtml(nameHtml: string, tier: number | null | undefined): string {
+  const chip = ladderChipHtml(tier);
+  if (!chip) return nameHtml;
+  return `<span class="lad-row"><span class="lad-nm">${nameHtml}</span>${chip}</span>`;
+}
+
+/**
  * Small tier chevrons for a board row. Empty string when the row has no ladder
  * data or the pilot is still an Ensign, so a row without it renders exactly as today.
  */

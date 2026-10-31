@@ -82,10 +82,10 @@ import {
 } from "./lobby/lobbyV3";
 import { ordersPanel } from "./lobby/ordersPanel";
 import { buildOrdersBlock } from "./resultView";
-import { ladderChipHtml } from "./ladder";
+import { ladderNameHtml } from "./ladder";
 import type { SubmitResult } from "./api";
 import { pilotTarget, tabBar, type TabCallbacks } from "./lobby/tabBar";
-import { todayView as ordersTodayView } from "./orders";
+import { ladderTierToday, todayView as ordersTodayView } from "./orders";
 import { menuRowSpecs, type MenuRowId } from "./lobby/menuRows";
 
 /** Flip false to hide the App Store CTA. Listing: apps.apple.com/app/id6811113450 */
@@ -1468,11 +1468,13 @@ export class Ui {
   private showDailyLobbyV3(info: DailyLobbyInfo): void {
     const params = this.lobbyParams;
     const cells = this.weekCells(info);
+    const ladderTier = ladderTierToday();
     const model = lobbyV3Model(info, params, {
       width: typeof window !== "undefined" ? window.innerWidth : 0,
       streak: currentStreak(cells),
       phase: lobbyPhase(info, loadRunCount()),
       patrolDate: patrolDateStr(),
+      ...(ladderTier !== null ? { ladder: { tier: ladderTier } } : {}),
     });
     if (!model || !params) return this.showDailyLobbyCurrent(info);
 
@@ -1549,13 +1551,14 @@ export class Ui {
     header.appendChild(id);
     const right = this.el("div", "v3-header-right", "");
     if (info.creator) right.appendChild(this.recordingModeIconBtn());
-    right.appendChild(
-      this.el(
-        "span",
-        `v3-streak chamfer${model.header.streak === 0 ? " zero" : ""}`,
-        `<b>${model.header.streak}</b> DAY STREAK`,
-      ),
+    // a zero streak shows no chip at all (the async week fill can still reveal it)
+    const streakChip = this.el(
+      "span",
+      `v3-streak chamfer${model.header.streak === 0 ? " zero" : ""}`,
+      `<b>${model.header.streak}</b> DAY STREAK`,
     );
+    streakChip.hidden = model.header.streak === 0;
+    right.appendChild(streakChip);
     if (model.hamburger) {
       const lobbyTier: "free" | "premium" | "admin" = info.tier ?? (info.unlimitedDaily ? "premium" : "free");
       right.appendChild(
@@ -2339,7 +2342,7 @@ export class Ui {
         `v3-pod ${p.slot}${p.row.isMe ? " me" : ""}${clickable ? " link" : ""}`,
         `<span class="v3-pod-tag">${p.slot === "leader" ? "\u265b " : ""}${tagFor[p.slot]}</span>` +
           `<span class="v3-pod-rk">${p.row.rank}</span>` +
-          `<span class="v3-pod-nm">${p.row.country ? `${countryFlag(p.row.country)} ` : ""}${escapeHtml(p.row.callsign)}${p.row.isMe ? " (you)" : ""}${ladderChipHtml((p.row as DailyBoardRow).ladder?.tier)}</span>` +
+          `<span class="v3-pod-nm">${ladderNameHtml(`${p.row.country ? `${countryFlag(p.row.country)} ` : ""}${escapeHtml(p.row.callsign)}${p.row.isMe ? " (you)" : ""}`, (p.row as DailyBoardRow).ladder?.tier)}</span>` +
           `<span class="v3-pod-pts">${Math.floor(p.row.score).toLocaleString()}</span>`,
       );
       if (clickable) {
@@ -2433,7 +2436,7 @@ export class Ui {
       `lobby-board-row${clickable ? " link" : ""}${row.isMe ? " me" : ""}`,
       `<span class="rk">${row.rank}</span>` +
         `<span class="flag">${row.country ? countryFlag(row.country) : ""}</span>` +
-        `<span class="nm">${escapeHtml(row.callsign)}${ladderChipHtml(row.ladder?.tier)}</span>` +
+        `<span class="nm">${ladderNameHtml(escapeHtml(row.callsign), row.ladder?.tier)}</span>` +
         `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
     );
     if (clickable) {
@@ -2494,6 +2497,7 @@ export class Ui {
         const n = currentStreak(this.weekCells(this.lobbyInfo));
         chip.innerHTML = `<b>${n}</b> DAY STREAK`;
         chip.classList.toggle("zero", n === 0);
+        chip.hidden = n === 0;
       }
     }
   }
@@ -4404,7 +4408,7 @@ export class Ui {
       `board-row${clickable ? " link" : ""}${row.isMe ? " me" : ""}${pinned ? " pinned" : ""}`,
       `<span class="rank">${row.rank}</span>` +
         `<span class="flag" title="${countryName(row.country)}">${row.country ? countryFlag(row.country) : "·"}</span>` +
-        `<span class="name">${escapeHtml(row.callsign)}${ladderChipHtml(row.ladder?.tier)}</span>` +
+        `<span class="name">${ladderNameHtml(escapeHtml(row.callsign), row.ladder?.tier)}</span>` +
         `<span class="device" title="${DEVICE_LABEL[row.mode]}">${DEVICE_TAG[row.mode]}</span>` +
         `<span class="pts">${Math.floor(row.score).toLocaleString()}</span>`,
     );

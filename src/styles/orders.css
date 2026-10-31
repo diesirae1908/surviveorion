@@ -221,6 +221,11 @@
   font-style: normal;
 }
 .lad-chip svg { display: block; }
+.lad-chip { flex: none; }
+/* name truncates inside; the chip stays whole beside it */
+.lad-row { display: flex; align-items: center; min-width: 0; max-width: 100%; }
+.lad-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3-pod-nm .lad-row { justify-content: center; }
 
 @media (prefers-reduced-motion: reduce) {
   .lad-bar-fill { transition: none; }

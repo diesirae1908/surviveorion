@@ -15,7 +15,7 @@ import { countryFlag } from "../countries";
 import { dayInfoFor, daysInMonth, leadingPadding, utcDateStr } from "../dailyHistory";
 import { medalForScore, medalThresholdsForDate, MEDAL_LABEL, type MedalTier } from "../medals";
 import type { DailyDayLog } from "../save";
-import { ORDERS_UI_COPY, insigniaMarkup, ladderModel, trailPickerModel, type TrailPickItem } from "../ladder";
+import { DEFAULT_TRAIL_ID, ORDERS_UI_COPY, insigniaMarkup, ladderModel, trailPickerModel, type TrailPickItem } from "../ladder";
 
 /** Weeks start on Sunday here, same as the Patrol Calendar grid (leadingPadding). */
 const DOW_LETTERS = ["S", "M", "T", "W", "T", "F", "S"] as const;
@@ -428,6 +428,7 @@ function buildLadderSection(slot: HTMLElement, m: LadderSectionModel, cb: PilotD
       b.setAttribute("aria-pressed", String(on));
     }
   };
+  let saving = false; // one PATCH at a time, so a failed save can never revert past a newer pick
   for (const t of m.trails) {
     const b = el("button", `lad-trail${t.locked ? " locked" : ""}${t.equipped ? " equipped" : ""}`);
     b.type = "button";
@@ -442,16 +443,21 @@ function buildLadderSection(slot: HTMLElement, m: LadderSectionModel, cb: PilotD
         note.textContent = t.hint;
         return;
       }
-      if (!cb.onTrail) return;
-      const prev = [...buttons.entries()].find(([, x]) => x.classList.contains("equipped"))?.[0] ?? "hull";
+      if (!cb.onTrail || saving) return;
+      const prev = [...buttons.entries()].find(([, x]) => x.classList.contains("equipped"))?.[0] ?? DEFAULT_TRAIL_ID;
       note.textContent = "";
       mark(t.id);
-      void cb.onTrail(t.id === "hull" ? null : t.id).then((ok) => {
-        if (!ok) {
-          mark(prev);
-          note.textContent = ORDERS_UI_COPY.trailFailed;
-        }
-      });
+      saving = true;
+      void cb.onTrail(t.id === DEFAULT_TRAIL_ID ? null : t.id)
+        .then((ok) => {
+          if (!ok) {
+            mark(prev);
+            note.textContent = ORDERS_UI_COPY.trailFailed;
+          }
+        })
+        .finally(() => {
+          saving = false;
+        });
     });
     buttons.set(t.id, b);
     picker.append(b);
@@ -474,7 +480,11 @@ export function buildPilotDossier(model: PilotDossierModel | null, cb: PilotDoss
   root.append(ins);
 
   const name = el("div", "pd-name");
-  name.append(el("span", "pd-callsign", model.callsign));
+  const callsignEl = el("span", "pd-callsign", model.callsign);
+  // long callsigns (up to 20 characters) shrink so they stay on one line instead of breaking mid-word
+  const len = model.callsign.length;
+  if (len > 12) callsignEl.style.fontSize = len > 16 ? "20px" : "25px";
+  name.append(callsignEl);
   if (model.flag) name.append(el("span", "pd-flag", model.flag));
   root.append(name);
   root.append(el("div", "pd-caption", model.insignia.caption));

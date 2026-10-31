@@ -165,6 +165,10 @@
   letter-spacing: 0.02em;
 }
 
+.lobby-v3 .v3-streak[hidden] {
+  display: none;
+}
+
 .lobby-v3 .v3-streak.zero {
   color: var(--orion-dust);
   border-color: var(--orion-hull-line);

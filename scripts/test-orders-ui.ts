@@ -10,6 +10,7 @@ import {
   TRAILS,
   ORDERS_UI_COPY,
   ladderChipHtml,
+  ladderNameHtml,
   ladderModel,
   insigniaMarkup,
   tierForMerit,
@@ -105,13 +106,24 @@ check("insignia and chips never use red", Array.from({ length: 6 }, (_, t) => in
 const wake = new ShipWake();
 for (let i = 0; i < 40; i++) wake.push(i * 0.1, 0, 0, i * 0.02);
 wake.prune(0.78, 0.3);
-check("wake keeps only recent points", wake.points.length > 0 && wake.points.every((p) => 0.78 - p.t <= 0.3));
+check("wake keeps only recent points", wake.count > 0 && Array.from({ length: wake.count }, (_, i) => wake.at(i)).every((p) => 0.78 - p.t <= 0.3));
 wake.push(0, 0, 0, 0.0); // clock went backwards (new run)
-check("wake restarts when the clock goes backwards", wake.points.length === 1);
+check("wake restarts when the clock goes backwards", wake.count === 1);
 wake.push(50, 50, 0, 0.5); // a long jump (respawn)
-check("wake restarts on a teleport", wake.points.length === 1);
+check("wake restarts on a teleport", wake.count === 1);
+{
+  // fixed ring: never grows past MAX, oldest first, slots are reused (no per-push allocation)
+  const ring = new ShipWake();
+  const first = ring.at(0);
+  for (let i = 0; i < ShipWake.MAX * 3; i++) ring.push(i * 0.01, 0, 0, i * 0.02);
+  const ts = Array.from({ length: ring.count }, (_, i) => ring.at(i).t);
+  check("wake ring is capped at MAX and ordered oldest first", ring.count === ShipWake.MAX && ts.every((t, i) => i === 0 || t > ts[i - 1]));
+  check("wake ring reuses its slots", Array.from({ length: ShipWake.MAX }, (_, i) => ring.at(i)).includes(first));
+}
 
 // --- board chips ---
+check("name+chip cell: chip outside the truncating name span", ladderNameHtml("Zed", 3).startsWith('<span class="lad-row"><span class="lad-nm">Zed</span><i class="lad-chip"'));
+check("name cell without a chip is the bare name", ladderNameHtml("Zed", undefined) === "Zed" && ladderNameHtml("Zed", 0) === "Zed");
 check("board row without ladder renders as today", ladderChipHtml(undefined) === "" && ladderChipHtml(null) === "" && ladderChipHtml(Number.NaN) === "");
 check("Ensign shows no chip", ladderChipHtml(0) === "");
 check("chip carries the tier name", ladderChipHtml(3).includes('aria-label="Praetor"') && ladderChipHtml(5).includes("Sovereign"));
@@ -153,6 +165,8 @@ const FORBID = /\b(rand|scheduleRand|randRange|scheduleRange)\s*\(/;
 for (const f of ["src/ladder.ts", "src/cosmetics.ts", "src/lobby/ordersPanel.ts", "src/resultView.ts", "src/lobby/pilotView.ts"]) {
   check(`${f}: no seeded draws`, !FORBID.test(src(f)));
 }
+check("render: wake lanes are constants, no per-frame array literals", !/const lanes = trail\.style === "twin" \? \[/.test(src("src/render.ts")));
+check("pilot trail picker: no hardcoded hull id, one save at a time", !/"hull"/.test(src("src/lobby/pilotView.ts")) && /saving/.test(src("src/lobby/pilotView.ts")));
 check("ladder.ts and cosmetics.ts import no sim state", !/from "\.\/(gameState|world|enemies)"/.test(src("src/ladder.ts") + src("src/cosmetics.ts")));
 check("the orders UI never names a field `rank`", !/\brank\s*:/.test(src("src/ladder.ts") + src("src/cosmetics.ts") + src("src/lobby/ordersPanel.ts")));
 

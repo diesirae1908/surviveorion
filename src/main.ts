@@ -2,6 +2,7 @@ import "./style.css";
 import "./styles/result.css"; // result v2 + death-moment slide (ui.result)
 import "./styles/pilot.css"; // pilot dossier (lobby v3 PILOT tab)
 import "./styles/lobby.css"; // lobby v3 + tab bar (ui.lobby)
+import "./styles/briefing.css"; // mission briefing (ui.lobby.briefing)
 import "./styles/orders.css"; // orders panel, result block, ladder, board chips (orders)
 import { Api, ApiError, type BoardMode, type DailyHistoryEntry, type PaywallSource, type PaywallStep, type SubmitResult } from "./api";
 import { AudioSystem, PATROL_COMPLETE_TRACK, PATROL_COMPLETE_VOLUME } from "./audio";
@@ -942,6 +943,41 @@ function menuCommunityExtras(): Pick<
   };
 }
 
+/**
+ * The daily lobby info object: what the lobby paints with and what the
+ * hamburger / dossier menu rows act on. One builder for both callers.
+ */
+function dailyLobbyInfo(): DailyLobbyInfo {
+  const attempts = loadDailyAttempts();
+  const mutatorsToday = todaysMutators();
+  return {
+    dayNumber: dailyNumber(PREVIEW_REHEARSAL_DATE ? previewDailyDate() : undefined),
+    attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
+    maxAttempts: DAILY_MAX_ATTEMPTS,
+    best: attempts.best,
+    online: api.online,
+    touchDevice: isTouchDevice(),
+    mutators: mutatorsToday,
+    // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
+    // MUTATORS_START_DATE), so leave thresholds undefined too. The
+    // lobby then skips the whole briefing card.
+    medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
+    preview: PREVIEW_ACTIVE,
+    previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
+    creator: creatorAccess,
+    upcomingDays: creatorAccess ? upcomingPatrols(14) : undefined,
+    callsign: api.user?.callsign,
+    country: api.user?.country,
+    pendingFriends: api.pendingFriends,
+    unlimitedDaily: unlimitedDailyRuns(),
+    showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
+    showManageGoldPatrol: webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
+    hasStripeCustomer: api.stripeCustomer,
+    tier: api.tier,
+    goldPatrolPrices: webGoldPatrolPrices(),
+  };
+}
+
 function showMenu(): void {
   if (PHONE_LANDING) {
     ui.showPhoneLanding();
@@ -952,35 +988,7 @@ function showMenu(): void {
     return;
   }
   if (DAILY_ONLY) {
-    const attempts = loadDailyAttempts();
-    const mutatorsToday = todaysMutators();
-    ui.showDailyLobby({
-      dayNumber: dailyNumber(PREVIEW_REHEARSAL_DATE ? previewDailyDate() : undefined),
-      attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
-      maxAttempts: DAILY_MAX_ATTEMPTS,
-      best: attempts.best,
-      online: api.online,
-      touchDevice: isTouchDevice(),
-      mutators: mutatorsToday,
-      // pre-launch-gate days: mutatorsToday is empty (see mutators.ts
-      // MUTATORS_START_DATE), so leave thresholds undefined too. The
-      // lobby then skips the whole briefing card.
-      medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
-      preview: PREVIEW_ACTIVE,
-      previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
-      creator: creatorAccess,
-      upcomingDays: creatorAccess ? upcomingPatrols(14) : undefined,
-      callsign: api.user?.callsign,
-      country: api.user?.country,
-      pendingFriends: api.pendingFriends,
-      unlimitedDaily: unlimitedDailyRuns(),
-      showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
-      showManageGoldPatrol:
-        webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
-      hasStripeCustomer: api.stripeCustomer,
-      tier: api.tier,
-      goldPatrolPrices: webGoldPatrolPrices(),
-    });
+    ui.showDailyLobby(dailyLobbyInfo());
     fillDailyHint();
     fillDailyBoard();
     fillLobbyWeek();
@@ -1057,6 +1065,7 @@ function fillDailyBoard(): void {
               score: d.me.best,
               mode: d.me.mode,
               isMe: true,
+              ladder: api.me?.ladder ? { tier: api.me.ladder.tier } : undefined,
             })
           : null;
       ui.setDailyBoard({ entries, pinned });
@@ -1406,7 +1415,7 @@ function buildBriefingContext(quick: boolean): briefing.BriefingContext {
   return {
     patrolDate,
     patrolNumber: dailyNumber(new Date(`${patrolDate}T12:00:00Z`)),
-    mutators: mutators.map((m) => ({ name: m.name, subline: m.subline, tags: m.tags })),
+    mutators: mutators.map((m) => ({ name: m.name, subline: m.subline, hudRule: m.hudRule, tags: m.tags })),
     quick,
     mode,
     archive: isArchiveRun(),
@@ -1448,32 +1457,8 @@ function openPilotDossier(): void {
     signedIn && api.joinedAt
       ? maxDateStr(DAILY_EPOCH_DATE, new Date(api.joinedAt).toISOString().slice(0, 10))
       : DAILY_EPOCH_DATE;
-  // The lobby info the hamburger rows act on (same fields showMenu paints the lobby with).
-  const mutatorsToday = todaysMutators();
+  const lobbyInfo = dailyLobbyInfo(); // what the hamburger rows act on
   const attempts = loadDailyAttempts();
-  const lobbyInfo: DailyLobbyInfo = {
-    dayNumber: dailyNumber(PREVIEW_REHEARSAL_DATE ? previewDailyDate() : undefined),
-    attemptsLeft: DAILY_MAX_ATTEMPTS - attempts.used,
-    maxAttempts: DAILY_MAX_ATTEMPTS,
-    best: attempts.best,
-    online: api.online,
-    touchDevice: isTouchDevice(),
-    mutators: mutatorsToday,
-    medalThresholds: mutatorsToday.length > 0 ? medalThresholdsFor(mutatorsToday) : undefined,
-    preview: PREVIEW_ACTIVE,
-    previewDate: PREVIEW_REHEARSAL_DATE ?? undefined,
-    creator: creatorAccess,
-    upcomingDays: creatorAccess ? upcomingPatrols(14) : undefined,
-    callsign: api.user?.callsign,
-    country: api.user?.country,
-    pendingFriends: api.pendingFriends,
-    unlimitedDaily: unlimitedDailyRuns(),
-    showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
-    showManageGoldPatrol: webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
-    hasStripeCustomer: api.stripeCustomer,
-    tier: api.tier,
-    goldPatrolPrices: webGoldPatrolPrices(),
-  };
   const base: PilotDossierData = {
     signedIn,
     guest: !signedIn,
@@ -1510,6 +1495,7 @@ function openPilotDossier(): void {
   const paint = (data: PilotDossierData): void => {
     ui.showCustomScreen(
       (root) => {
+        root.classList.add("pd-screen");
         host = buildPilotDossier(pilotDossierModel(data), dossierCb);
         root.append(host);
       },
