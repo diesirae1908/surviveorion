@@ -6,7 +6,7 @@
  */
 import { readFileSync } from "node:fs";
 import { ALL_POWER_IDS, FIXED_DT, PALETTE, POWERS, SHIP, type PowerId } from "../src/config";
-import { killDrone, killDronesInRadius, spawnDroneDirect } from "../src/enemies";
+import { droneRadius, killDrone, killDronesInRadius, spawnDroneDirect } from "../src/enemies";
 import { BASE_RULES, resolveRunRules, rulesFromDefaults, type RunRules } from "../src/flags";
 import { createWorld, tick } from "../src/gameState";
 import type { InputState } from "../src/input";
@@ -595,6 +595,161 @@ function run(world: World, seconds: number, invulnerable = true): void {
     check("meteors form: duration x durationScale", near(w.powers.meteorTimer, POWERS.meteors.duration * 2), `${w.powers.meteorTimer}`);
     const { w: w0 } = probe2("meteors", (o) => ((o.forms as unknown as Record<string, { on: boolean }>).meteors.on = false));
     check("meteors form off: base duration", near(w0.powers.meteorTimer, POWERS.meteors.duration));
+  }
+  // --- commit 2: the seven mutator-power forms ---
+  {
+    type F = Record<string, number | boolean>;
+    const allOn = (o: NonNullable<RunRules["overdrive"]>, patch?: (f: Record<string, F>) => void): void => {
+      const f = o.forms as unknown as Record<string, F>;
+      for (const k of ["razor", "thunder", "cloak", "flare", "ion", "howlers", "vortex"]) f[k].on = true;
+      patch?.(f);
+    };
+    /** Fresh world, ship at origin facing +x, HOT, one spend + activation of `id`. */
+    const fire = (id: PowerId, patch?: (f: Record<string, F>) => void, formsOff = false) => {
+      const w = mkWorld(onRules((o) => (formsOff ? undefined : allOn(o, patch))));
+      w.ship.x = 0;
+      w.ship.y = 0;
+      w.ship.angle = 0;
+      for (let i = 0; i < 12; i++) chargeFromGraze(w, 0.5);
+      const form = spendOverdrive(w, id);
+      activatePower(w, id, form);
+      return { w, form };
+    };
+    const dr = (w: World, x: number, y: number) => {
+      const d = spawnDroneDirect(w, x, y, 1);
+      d.speedMultiplier = 0;
+      return d;
+    };
+
+    // razor
+    {
+      const { w, form } = fire("razor");
+      check("razor form: duration x durationScale, orbit scale recorded", form && near(w.powers.razorTimer, POWERS.razor.duration * 1.5) && w.powers.razorOrbitScale === 1.25, `${w.powers.razorTimer}`);
+      const reach = (scale: boolean) => {
+        const { w: wr } = fire("razor", undefined, !scale);
+        const ref = spawnDroneDirect(wr, 99, 99, 1);
+        const rr = droneRadius(ref);
+        ref.alive = false;
+        const d = dr(wr, 0, 0);
+        const dist = POWERS.razor.orbitRadius * 1.125 + POWERS.razor.bladeRadius + rr;
+        d.x = dist;
+        run(wr, 2.5);
+        return !d.alive;
+      };
+      check("razor form: blades reach out by orbitScale; plain blades do not", reach(true) && !reach(false));
+      run(w, 10);
+      check("razor form: orbit scale cleared when the blades end", w.powers.razorOrbitScale === undefined);
+      activatePower(w, "razor", false);
+      check("razor: a plain re-pickup resets the orbit scale and duration", w.powers.razorOrbitScale === undefined && near(w.powers.razorTimer, POWERS.razor.duration));
+    }
+    // thunder
+    {
+      const { w, form } = fire("thunder");
+      check("thunder form: scales recorded", form && w.powers.thunderScale?.width === 1.5 && w.powers.thunderScale?.hopRadius === 1.3);
+      const half0 = POWERS.thunder.width / 2;
+      const beamHit = (formOn: boolean) => {
+        const { w: wt } = fire("thunder", (f) => (f.thunder.widthScale = 2), !formOn);
+        const ref = spawnDroneDirect(wt, 99, 99, 1);
+        const rr = droneRadius(ref);
+        ref.alive = false;
+        const d = dr(wt, 4, half0 * 1.6 + rr);
+        run(wt, POWERS.thunder.chargeTime + 0.1);
+        return !d.alive;
+      };
+      check("thunder form: wider beam kills what the plain beam misses", beamHit(true) && !beamHit(false));
+      const hopHit = (formOn: boolean) => {
+        const { w: wt } = fire("thunder", (f) => (f.thunder.hopRadiusScale = 1.6), !formOn);
+        dr(wt, 4, 0); // on the beam
+        const far = dr(wt, 4, POWERS.thunder.hopRadius * 1.3 + 0.2); // off the beam, beyond the plain hop radius
+        run(wt, POWERS.thunder.chargeTime + 0.6);
+        return !far.alive;
+      };
+      check("thunder form: hop radius reaches a drone the plain chain cannot", hopHit(true) && !hopHit(false));
+      run(w, 3);
+      check("thunder form: scales cleared after the chain ends", w.powers.thunderScale === undefined);
+    }
+    // cloak
+    {
+      const { w, form } = fire("cloak");
+      check("cloak form: duration x durationScale, bomb scale recorded", form && near(w.powers.cloakTimer, POWERS.cloak.duration * 1.4) && w.powers.cloakBombScale === 1.3);
+      const bombKill = (formOn: boolean) => {
+        const { w: wc } = fire("cloak", undefined, !formOn);
+        const d = dr(wc, POWERS.cloak.bombRadius * 1.15, 0);
+        run(wc, POWERS.cloak.duration * 1.5 + 0.5);
+        return !d.alive;
+      };
+      check("cloak form: bombs reach farther than the plain bombs", bombKill(true) && !bombKill(false));
+      run(w, 10);
+      check("cloak form: bomb scale cleared after the cloak", w.powers.cloakBombScale === undefined);
+    }
+    // flare
+    {
+      const { w } = fire("flare");
+      check("flare form: lifetime x lifetimeScale", w.powers.flares.length === 1 && near(w.powers.flares[0].timer, POWERS.flare.lifetime * 1.5));
+      const { w: w0 } = fire("flare", undefined, true);
+      check("flare form off: base lifetime", near(w0.powers.flares[0].timer, POWERS.flare.lifetime));
+    }
+    // ion
+    {
+      const { w, form } = fire("ion");
+      check("ion form: radius scale recorded", form && w.powers.ionRadiusScale === 1.3);
+      const slammed = (formOn: boolean) => {
+        const { w: wi } = fire("ion", undefined, !formOn);
+        const d = dr(wi, POWERS.ion.radius * 1.15, 0);
+        run(wi, POWERS.ion.chargeTime + 0.05);
+        return d.alive ? (d.slamTimer ?? 0) > 0 : true;
+      };
+      check("ion form: the cone reaches a drone the plain cone does not", slammed(true) && !slammed(false));
+      run(w, 2);
+      check("ion form: scale cleared after the shove", w.powers.ionRadiusScale === undefined);
+    }
+    // howlers
+    {
+      const conv = (formOn: boolean) => {
+        const { w: wh } = fire("howlers", undefined, true);
+        void wh;
+        const w2 = mkWorld(onRules((o) => formOn && allOn(o)));
+        w2.ship.x = 0;
+        w2.ship.y = 0;
+        const d = dr(w2, POWERS.howlers.radius * 1.2, 0);
+        for (let i = 0; i < 12; i++) chargeFromGraze(w2, 0.5);
+        activatePower(w2, "howlers", spendOverdrive(w2, "howlers"));
+        return d;
+      };
+      const a = conv(true);
+      const b = conv(false);
+      check("howlers form: radiusScale converts a farther drone", a.allied === true && b.allied !== true);
+      const near1 = (() => {
+        const w2 = mkWorld(onRules((o) => allOn(o)));
+        w2.ship.x = 0;
+        w2.ship.y = 0;
+        const d = dr(w2, 2, 0);
+        for (let i = 0; i < 12; i++) chargeFromGraze(w2, 0.5);
+        activatePower(w2, "howlers", spendOverdrive(w2, "howlers"));
+        return d;
+      })();
+      check("howlers form: durationScale lengthens the alliance", near(near1.alliedTimer ?? 0, POWERS.howlers.duration * 1.3));
+    }
+    // vortex
+    {
+      const collapse = (formOn: boolean) => {
+        const { w: wv } = fire("vortex", undefined, !formOn);
+        const d = dr(wv, POWERS.vortex.killRadius * 1.2, 0);
+        wv.powers.vortices[0].timer = 0.001;
+        tick(wv, idle, FIXED_DT);
+        return { dead: !d.alive, rec: wv.powers.vortices.length };
+      };
+      check("vortex form: collapse kills beyond the plain kill radius", collapse(true).dead && !collapse(false).dead);
+      const { w } = fire("vortex");
+      check("vortex form: killRadiusScale on the record only when scaled", w.powers.vortices[0].killRadiusScale === 1.3);
+      const { w: w0 } = fire("vortex", undefined, true);
+      check("vortex form off: no record field", w0.powers.vortices[0].killRadiusScale === undefined);
+    }
+    // afterburner stays burst only
+    {
+      const { form } = fire("afterburner");
+      check("afterburner: burst only (no form)", form === false);
+    }
   }
   // always hot: only on OVERCHARGE, only with mutatorHooks, only with the param
   {

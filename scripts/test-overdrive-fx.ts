@@ -38,6 +38,13 @@ const expect: Record<string, string> = {
   arc: "ARC STORM",
   autocannon: "TWIN CANNON",
   meteors: "METEOR SIEGE",
+  razor: "BLADE DANCE",
+  thunder: "THUNDER WALL",
+  cloak: "GHOST BOMBS",
+  flare: "LONG FLARE",
+  ion: "ION SURGE",
+  howlers: "PACK HOWL",
+  vortex: "DEEP VORTEX",
 };
 for (const [p, label] of Object.entries(expect)) {
   assert.equal(formLabel(p as never, true), label);

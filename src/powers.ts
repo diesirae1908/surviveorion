@@ -212,25 +212,36 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       p.meteorTimer = POWERS.meteors.duration * numOf(formOf(od, "meteors"), "durationScale", 1);
       p.meteorCooldown = 0;
       break;
-    case "vortex":
+    case "vortex": {
+      const ks = numOf(formOf(od, "vortex"), "killRadiusScale", 1);
       p.vortices.push({
         x: world.ship.x,
         y: world.ship.y,
         timer: POWERS.vortex.pullDuration,
+        killRadiusScale: ks === 1 ? undefined : ks,
       });
       world.events.push({ type: "vortexOpen", x: world.ship.x, y: world.ship.y });
       world.shake = Math.max(world.shake, 0.15);
       break;
-    case "razor":
-      p.razorTimer = POWERS.razor.duration * amp;
+    }
+    case "razor": {
+      const f = formOf(od, "razor");
+      p.razorTimer = POWERS.razor.duration * amp * numOf(f, "durationScale", 1);
+      p.razorOrbitScale = f ? numOf(f, "orbitScale", 1) : undefined;
       world.events.push({ type: "razorUp" });
       break;
-    case "thunder":
+    }
+    case "thunder": {
+      const f = formOf(od, "thunder");
       p.thunderTimer = POWERS.thunder.chargeTime;
+      p.thunderScale = f ? { width: numOf(f, "widthScale", 1), hopRadius: numOf(f, "hopRadiusScale", 1) } : undefined;
       world.events.push({ type: "thunderCharge" });
       break;
-    case "cloak":
-      p.cloakTimer = POWERS.cloak.duration;
+    }
+    case "cloak": {
+      const f = formOf(od, "cloak");
+      p.cloakTimer = POWERS.cloak.duration * numOf(f, "durationScale", 1);
+      p.cloakBombScale = f ? numOf(f, "bombRadiusScale", 1) : undefined;
       p.cloakBombCooldown = 0;
       for (const d of world.drones) {
         if (!d.alive) continue;
@@ -239,17 +250,27 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       }
       world.events.push({ type: "cloakUp" });
       break;
+    }
     case "flare":
-      p.flares.push({ x: world.ship.x, y: world.ship.y, timer: POWERS.flare.lifetime });
+      p.flares.push({
+        x: world.ship.x,
+        y: world.ship.y,
+        timer: POWERS.flare.lifetime * numOf(formOf(od, "flare"), "lifetimeScale", 1),
+      });
       world.events.push({ type: "flareDrop", x: world.ship.x, y: world.ship.y });
       break;
-    case "ion":
+    case "ion": {
+      const f = formOf(od, "ion");
+      p.ionRadiusScale = f ? numOf(f, "radiusScale", 1) : undefined;
       p.ionTimer = POWERS.ion.chargeTime;
       world.events.push({ type: "ionCharge" });
       break;
-    case "howlers":
-      convertHowlers(world);
+    }
+    case "howlers": {
+      const f = formOf(od, "howlers");
+      convertHowlers(world, numOf(f, "radiusScale", 1), numOf(f, "durationScale", 1));
       break;
+    }
   }
 }
 
@@ -735,8 +756,9 @@ function updateVortices(world: World, dt: number): void {
     v.timer -= dt;
 
     if (v.timer <= 0) {
-      killDronesInRadius(world, v.x, v.y, cfg.killRadius);
-      killMinesInRadius(world, v.x, v.y, cfg.killRadius);
+      const kr = cfg.killRadius * (v.killRadiusScale ?? 1);
+      killDronesInRadius(world, v.x, v.y, kr);
+      killMinesInRadius(world, v.x, v.y, kr);
       p.waves.push({
         x: v.x,
         y: v.y,
@@ -835,6 +857,7 @@ export function updatePowers(world: World, dt: number): void {
     p.ionTimer -= dt;
     if (p.ionTimer <= 0 && world.phase === "playing") {
       fireIon(world);
+      p.ionRadiusScale = undefined;
     }
   }
 
@@ -902,6 +925,7 @@ export function updatePowers(world: World, dt: number): void {
   updateFlares(world, dt);
   updateThunderBolts(world, dt);
   updateThunderChain(world, dt);
+  if (p.thunderScale && p.thunderTimer <= 0 && p.thunderChain === null) p.thunderScale = undefined;
   updateHowlers(world, dt);
 
   // expanding ring visuals
@@ -1018,7 +1042,7 @@ function nextThunderHop(
   world: World,
   chain: ThunderChainState,
 ): { target: Drone | Mine; fromX: number; fromY: number } | null {
-  const radius = POWERS.thunder.hopRadius * mutatorPowerAmpScale();
+  const radius = POWERS.thunder.hopRadius * mutatorPowerAmpScale() * (world.powers.thunderScale?.hopRadius ?? 1);
   const rSq = radius * radius;
   let best: Drone | Mine | null = null;
   let bestSq = Infinity;
@@ -1058,7 +1082,7 @@ function fireThunder(world: World): void {
   const len = POWERS.thunder.length * amp;
   const x2 = s.x + dirX * len;
   const y2 = s.y + dirY * len;
-  const half = (POWERS.thunder.width * amp) / 2;
+  const half = (POWERS.thunder.width * amp * (p.thunderScale?.width ?? 1)) / 2;
   world.events.push({ type: "thunderFire", x: s.x, y: s.y });
   world.shake = Math.max(world.shake, 0.28);
 
@@ -1162,7 +1186,7 @@ function fireIon(world: World): void {
   const s = world.ship;
   const fx = Math.cos(s.angle);
   const fy = Math.sin(s.angle);
-  const r = POWERS.ion.radius * mutatorPowerAmpScale();
+  const r = POWERS.ion.radius * mutatorPowerAmpScale() * (world.powers.ionRadiusScale ?? 1);
   for (const d of world.drones) {
     if (!d.alive || d.allied) continue;
     const dx = d.x - s.x;
@@ -1188,8 +1212,8 @@ function fireIon(world: World): void {
   });
 }
 
-function convertHowlers(world: World): void {
-  const r = POWERS.howlers.radius * mutatorPowerAmpScale();
+function convertHowlers(world: World, radiusScale = 1, durationScale = 1): void {
+  const r = POWERS.howlers.radius * mutatorPowerAmpScale() * radiusScale;
   let n = 0;
   for (const d of world.drones) {
     if (!d.alive) continue;
@@ -1197,7 +1221,7 @@ function convertHowlers(world: World): void {
     const dy = d.y - world.ship.y;
     if (dx * dx + dy * dy <= (r + droneRadius(d)) ** 2) {
       d.allied = true;
-      d.alliedTimer = POWERS.howlers.duration;
+      d.alliedTimer = POWERS.howlers.duration * durationScale;
       n++;
     }
   }
@@ -1206,11 +1230,14 @@ function convertHowlers(world: World): void {
 
 function updateRazor(world: World, dt: number): void {
   const p = world.powers;
-  if (p.razorTimer <= 0) return;
+  if (p.razorTimer <= 0) {
+    if (p.razorOrbitScale !== undefined) p.razorOrbitScale = undefined;
+    return;
+  }
   p.razorTimer -= dt;
   const cfg = POWERS.razor;
   const amp = mutatorPowerAmpScale();
-  const orbit = cfg.orbitRadius * amp;
+  const orbit = cfg.orbitRadius * amp * (p.razorOrbitScale ?? 1);
   const br = cfg.bladeRadius * amp;
   for (let i = 0; i < 2; i++) {
     const a = world.time * cfg.spinRate + i * Math.PI;
@@ -1229,7 +1256,7 @@ function updateRazor(world: World, dt: number): void {
 
 function explodeCloakBombs(world: World): void {
   const p = world.powers;
-  const r = POWERS.cloak.bombRadius * mutatorPowerAmpScale();
+  const r = POWERS.cloak.bombRadius * mutatorPowerAmpScale() * (p.cloakBombScale ?? 1);
   for (const b of p.cloakBombs) {
     killDronesInRadius(world, b.x, b.y, r);
     killMinesInRadius(world, b.x, b.y, r);
@@ -1250,6 +1277,7 @@ function updateCloak(world: World, dt: number): void {
   const p = world.powers;
   if (p.cloakTimer <= 0) {
     if (p.cloakBombs.length > 0) explodeCloakBombs(world);
+    if (p.cloakBombScale !== undefined) p.cloakBombScale = undefined;
     return;
   }
   p.cloakTimer -= dt;

@@ -2130,10 +2130,11 @@ export class Renderer {
     if (world.powers.razorTimer <= 0) return;
     const { ctx } = this;
     const cfg = POWERS.razor;
+    const orbit = cfg.orbitRadius * (world.powers.razorOrbitScale ?? 1);
     for (let i = 0; i < 2; i++) {
       const a = time * cfg.spinRate + i * Math.PI;
-      const bx = world.ship.x + Math.cos(a) * cfg.orbitRadius;
-      const by = world.ship.y + Math.sin(a) * cfg.orbitRadius;
+      const bx = world.ship.x + Math.cos(a) * orbit;
+      const by = world.ship.y + Math.sin(a) * orbit;
       ctx.save();
       ctx.translate(bx, by);
       ctx.rotate(a + Math.PI / 2);

@@ -30,6 +30,13 @@ const FORM_POWERS: ReadonlySet<PowerId> = new Set<PowerId>([
   "arc",
   "autocannon",
   "meteors",
+  "razor",
+  "thunder",
+  "cloak",
+  "flare",
+  "ion",
+  "howlers",
+  "vortex",
 ]);
 
 export function createOverdriveState(): OverdriveState {
