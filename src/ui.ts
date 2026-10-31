@@ -70,8 +70,17 @@ import {
 } from "./updates";
 import { APP_STORE_URL } from "./webGate";
 import type { LobbyParams } from "./flags";
-import type { LobbyTab } from "./lobby/lobbyV3";
-import { tabBar, type TabCallbacks } from "./lobby/tabBar";
+import {
+  aheadLabel,
+  boardV3Model,
+  closesInLabel,
+  lobbyV3Model,
+  type LobbyTab,
+  type LobbyV3Model,
+} from "./lobby/lobbyV3";
+import { ordersPanel } from "./lobby/ordersPanel";
+import { pilotTarget, tabBar, type TabCallbacks } from "./lobby/tabBar";
+import { todayView as ordersTodayView } from "./orders";
 import { menuRowSpecs, type MenuRowId } from "./lobby/menuRows";
 
 /** Flip false to hide the App Store CTA. Listing: apps.apple.com/app/id6811113450 */
@@ -1028,7 +1037,10 @@ export class Ui {
 
   private paintUpdatePill(): void {
     const unread = hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId());
-    for (const pill of this.root.querySelectorAll(".update-pill")) {
+    // With the lobby v3 tab bar the dot lives on the PILOT tab; otherwise today's targets.
+    const tabPills = this.root.querySelectorAll(".tab-pilot .update-pill");
+    const pills = tabPills.length > 0 ? tabPills : this.root.querySelectorAll(".update-pill");
+    for (const pill of pills) {
       (pill as HTMLElement).hidden = !unread;
     }
   }
@@ -1402,9 +1414,210 @@ export class Ui {
     this.showDailyLobbyCurrent(info);
   }
 
-  /** Lobby v3 (ui.lobby). WS-L replaces this body; until then it is the current lobby. */
+  /** Lobby v3 (ui.lobby): one hero, a launch slab, a podium board, a flight log and the tab bar. */
   private showDailyLobbyV3(info: DailyLobbyInfo): void {
-    return this.showDailyLobbyCurrent(info);
+    const params = this.lobbyParams;
+    const cells = this.weekCells(info);
+    const model = lobbyV3Model(info, params, {
+      width: typeof window !== "undefined" ? window.innerWidth : 0,
+      streak: currentStreak(cells),
+      phase: lobbyPhase(info, loadRunCount()),
+      patrolDate: patrolDateStr(),
+    });
+    if (!model || !params) return this.showDailyLobbyCurrent(info);
+
+    const keepWeek = this.lobbyWeekServer;
+    const keepBoard = this.dailyBoardFull;
+    const keepPinned = this.dailyBoardPinned;
+    const keepRules = this.lobbyRulesOpen;
+    this.clear();
+    this.lobbyWeekServer = keepWeek;
+    this.dailyBoardFull = keepBoard;
+    this.dailyBoardPinned = keepPinned;
+    this.lobbyRulesOpen = keepRules;
+    this.lobbyInfo = info;
+    this.pauseBtn.style.display = "none";
+
+    const phase = lobbyPhase(info, loadRunCount());
+    const screen = this.el(
+      "div",
+      `screen menu daily-lobby lobby-v3${model.desktop ? " is-desktop" : ""}${model.tabBar ? " has-tabbar" : ""}${info.creator ? " has-rec" : ""}`,
+      "",
+    );
+    screen.appendChild(this.lobbyV3Header(info, model));
+
+    const main = this.el("div", "v3-main", "");
+    main.appendChild(this.lobbyV3Emblem(model));
+    main.appendChild(this.lobbyV3HeroText(info, model, phase));
+    main.appendChild(this.lobbyV3Launch(info, phase));
+
+    const side = this.el("div", "v3-side", "");
+    if (model.sections.includes("board")) side.appendChild(this.lobbyBoardCard(info, true));
+    const orders = ordersPanel(ordersTodayView());
+    if (orders) {
+      const slot = this.el("div", "v3-orders", "");
+      slot.appendChild(orders);
+      side.appendChild(slot);
+    }
+    main.appendChild(side);
+    main.appendChild(this.lobbyPatrolsCard(info, true));
+    screen.appendChild(main);
+    screen.appendChild(this.lobbyDesktopFooter(info));
+    if (model.tabBar) {
+      const bar = tabBar("patrol", this.tabCallbacks(), params);
+      if (bar) screen.appendChild(bar);
+    }
+    this.root.appendChild(screen);
+    this.renderLobbyBoard(info, true);
+    this.paintUpdatePill();
+    this.bootLobbyUpdates();
+  }
+
+  /** Identity (tap = Pilot tab), streak, and (tab bar off) the tier chip + hamburger. */
+  private lobbyV3Header(info: DailyLobbyInfo, model: LobbyV3Model): HTMLElement {
+    const header = this.el("div", "lobby-header v3-header", "");
+    header.appendChild(this.lobbyBrand());
+    const id = document.createElement("button");
+    id.type = "button";
+    id.className = "v3-id chamfer";
+    const mark =
+      `<svg class="v3-id-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 L18.5 20 L12 16.5 L5.5 20 Z" fill="currentColor"/></svg>`;
+    if (model.header.callsign) {
+      const flag = info.country ? `${countryFlag(info.country)} ` : "";
+      const name = escapeHtml(sanitizeCallsignForDisplay(model.header.callsign));
+      id.innerHTML =
+        `${mark}<span class="v3-id-text"><b class="v3-id-name">${flag}${name}</b>` +
+        `<span class="v3-id-sub">${escapeHtml(model.header.metalWord)}</span></span>`;
+      id.setAttribute("aria-label", `Pilot, ${sanitizeCallsignForDisplay(model.header.callsign)}`);
+      id.addEventListener("click", () => (model.tabBar ? this.tabCallbacks().onPilot() : this.cb.onProfile()));
+      if ((info.pendingFriends ?? 0) > 0 && !model.tabBar) id.appendChild(this.el("span", "notif-dot", ""));
+    } else {
+      id.innerHTML = `${mark}<span class="v3-id-text"><b class="v3-id-name">SIGN IN</b></span>`;
+      id.setAttribute("aria-label", "Sign in");
+      id.addEventListener("click", () => this.cb.onCrewSignIn());
+    }
+    header.appendChild(id);
+    const right = this.el("div", "v3-header-right", "");
+    if (info.creator) right.appendChild(this.recordingModeIconBtn());
+    right.appendChild(
+      this.el(
+        "span",
+        `v3-streak chamfer${model.header.streak === 0 ? " zero" : ""}`,
+        `<b>${model.header.streak}</b> DAY STREAK`,
+      ),
+    );
+    if (!model.tabBar) {
+      const lobbyTier: "free" | "premium" | "admin" = info.tier ?? (info.unlimitedDaily ? "premium" : "free");
+      right.appendChild(
+        this.buildTierChip(
+          lobbyTier,
+          () => this.cb.onUnlockGoldPatrol?.("guest_activate"),
+          () => this.openLobbySettings(info),
+        ),
+      );
+      right.appendChild(this.lobbyMenuButton(info));
+    }
+    header.appendChild(right);
+    return header;
+  }
+
+  /** The mutator emblem(s): lit hex glyph, one hero per screen (Sunday doubles side by side). */
+  private lobbyV3Emblem(model: LobbyV3Model): HTMLElement {
+    const wrap = this.el("div", `v3-emblem${model.hero.double ? " double" : ""}`, "");
+    wrap.style.setProperty("--emblem", `${model.hero.emblemPx}px`);
+    wrap.setAttribute("aria-hidden", "true");
+    for (const m of model.hero.mutators) {
+      wrap.appendChild(this.el("div", "v3-glyph", glyphSvg(m.id)));
+    }
+    if (model.hero.mutators.length === 0) wrap.classList.add("classic");
+    return wrap;
+  }
+
+  private lobbyV3HeroText(info: DailyLobbyInfo, model: LobbyV3Model, phase: LobbyPhase): HTMLElement {
+    const hero = this.el("div", `v3-hero phase-${phase}`, "");
+    hero.appendChild(this.el("div", "v3-kicker", escapeHtml(model.hero.kicker)));
+    if (model.hero.classic) {
+      hero.appendChild(this.el("h1", "v3-name", "CLASSIC PATROL"));
+    } else {
+      const names = this.el("div", "v3-names", "");
+      for (const m of model.hero.mutators) {
+        const h = this.el("h1", "v3-name", escapeHtml(m.name));
+        h.style.fontSize = `${m.nameSizePx}px`;
+        names.appendChild(h);
+      }
+      hero.appendChild(names);
+    }
+    if (model.hero.line) hero.appendChild(this.el("div", "v3-line", escapeHtml(model.hero.line)));
+    if (model.hero.chips.length > 0) {
+      const chips = this.el("div", "v3-chips", "");
+      for (const c of model.hero.chips) chips.appendChild(this.el("span", "v3-chip chamfer", escapeHtml(c)));
+      hero.appendChild(chips);
+    }
+    if (info.preview) {
+      const label = info.previewDate ? `PREVIEW · ${info.previewDate}` : "PREVIEW";
+      hero.appendChild(this.el("div", "preview-badge chamfer", label));
+    }
+    if (info.creator && info.upcomingDays && info.upcomingDays.length > 0) {
+      hero.appendChild(this.rehearsalDayPicker(info));
+    }
+    return hero;
+  }
+
+  /** Launch slab (existing `heroActions`), result block after a run, close timer and Training link. */
+  private lobbyV3Launch(info: DailyLobbyInfo, phase: LobbyPhase): HTMLElement {
+    const wrap = this.el("div", "v3-launch", "");
+    if (phase === "offline") {
+      wrap.appendChild(
+        this.el(
+          "div",
+          "daily-offline",
+          "Can't reach patrol command. Daily Patrol needs a connection. Training Ground is open offline.",
+        ),
+      );
+      const train = this.button("Training Ground", true, () => this.cb.onTraining());
+      train.classList.add("launch", "chamfer");
+      wrap.appendChild(train);
+      return wrap;
+    }
+    const showResult = (phase === "mid" || phase === "out" || (phase === "unlimited" && !!info.best)) && info.best;
+    if (showResult) wrap.appendChild(this.resultBlock(info, phase));
+    wrap.appendChild(this.heroActions(info, phase));
+    if (phase !== "out") wrap.appendChild(this.lobbyV3Closes());
+    return wrap;
+  }
+
+  /** "PATROL CLOSES IN H:MM:SS" (live, midnight PT) and the Training Ground link. */
+  private lobbyV3Closes(): HTMLElement {
+    const row = this.el("div", "v3-closes", "");
+    const label = this.el("span", "v3-closes-label", `PATROL CLOSES IN <b class="v3-clock"></b>`);
+    const clock = label.querySelector(".v3-clock") as HTMLElement;
+    const paint = (): void => {
+      clock.textContent = closesInLabel(nextPatrolMidnight().getTime() - Date.now());
+    };
+    paint();
+    this.stopLobbyCountdown();
+    this.lobbyCountdown = setInterval(paint, 1000);
+    row.appendChild(label);
+    const train = document.createElement("button");
+    train.type = "button";
+    train.className = "v3-train";
+    train.textContent = "TRAINING GROUND ›";
+    train.addEventListener("click", () => this.cb.onTraining());
+    row.appendChild(train);
+    return row;
+  }
+
+  /** The seven week cells (shared by the flight log and the header streak). */
+  private weekCells(info: DailyLobbyInfo): WeekCell[] {
+    const attempts = loadDailyAttempts();
+    const today = patrolDateStr();
+    return weekStrip(
+      loadDailyHistory(),
+      today,
+      attempts,
+      (dateStr) => medalThresholdsForDate(new Date(`${dateStr}T00:00:00.000Z`)),
+      { signedIn: !!info.callsign, server: this.lobbyWeekServer, epochDate: DAILY_EPOCH_DATE },
+    );
   }
 
   private showDailyLobbyCurrent(info: DailyLobbyInfo): void {
@@ -1604,7 +1817,10 @@ export class Ui {
       },
       onBoard: () => (this.cb.onBoardTab ? this.cb.onBoardTab() : this.showFullBoardFromTab()),
       onWingmates: () => this.cb.onFriends(),
-      onPilot: () => (this.cb.onPilotTab ? this.cb.onPilotTab() : this.cb.onProfile()),
+      onPilot: () =>
+        pilotTarget(this.lobbyParams) === "dossier" && this.cb.onPilotTab ? this.cb.onPilotTab() : this.cb.onProfile(),
+      unread: () => hasUnreadUpdate(this.latestLobbyUpdate?.id ?? null, loadLastSeenUpdateId()),
+      friendsPending: () => (this.lobbyInfo?.pendingFriends ?? 0) > 0,
     };
   }
 
@@ -1973,11 +2189,12 @@ export class Ui {
     return line;
   }
 
-  private lobbyBoardCard(info: DailyLobbyInfo): HTMLElement {
+  private lobbyBoardCard(info: DailyLobbyInfo, v3 = false): HTMLElement {
     const card = this.el("div", "lobby-card chamfer lobby-board-card", "");
     card.id = "daily-lobby-board-wrap";
     const head = this.el("div", "lobby-card-head", "");
     head.appendChild(this.el("span", "lobby-kicker", "Today's board"));
+    if (v3) head.appendChild(this.el("span", "v3-you", ""));
     const more = document.createElement("button");
     more.type = "button";
     more.className = "lobby-more";
@@ -1997,10 +2214,15 @@ export class Ui {
     return window.innerHeight >= 860 ? 8 : 6;
   }
 
-  private renderLobbyBoard(info: DailyLobbyInfo): void {
+  /** `v3` defaults to "this list sits under the lobby v3 screen"; the v1 output is unchanged otherwise. */
+  private renderLobbyBoard(info: DailyLobbyInfo, v3?: boolean): void {
     const list = document.getElementById("lobby-board-list");
     if (!list) return;
     list.innerHTML = "";
+    if (v3 ?? list.closest(".lobby-v3") !== null) {
+      this.renderLobbyBoardV3(info, list);
+      return;
+    }
     if (this.dailyBoardFull === null) {
       list.appendChild(this.el("div", "field-hint center", "Loading…"));
       return;
@@ -2028,6 +2250,74 @@ export class Ui {
     if (hood.gap) list.appendChild(this.el("div", "lobby-board-gap", "· · ·"));
     for (const row of hood.around) list.appendChild(this.compactBoardRow(info, row));
     if (meRank === null) list.appendChild(this.openSpotRow(info));
+  }
+
+  /** v3 board: podium (top 3), your row when outside it, "X is N ahead". Same data as v1. */
+  private renderLobbyBoardV3(info: DailyLobbyInfo, list: HTMLElement): void {
+    const tag = document.querySelector("#daily-lobby-board-wrap .v3-you") as HTMLElement | null;
+    if (tag) tag.textContent = "";
+    if (this.dailyBoardFull === null) {
+      list.appendChild(this.el("div", "field-hint center", "Loading…"));
+      return;
+    }
+    if (this.dailyBoardFull.length === 0) {
+      list.appendChild(this.el("div", "field-hint center", "No patrols flown yet today. Be the first!"));
+      list.appendChild(this.openSpotRow(info));
+      return;
+    }
+    const meRank = this.lobbyMeRank(info);
+    const rows =
+      meRank !== null && !info.callsign && info.best
+        ? insertGuestRank(this.dailyBoardFull, meRank, {
+            rank: meRank,
+            callsign: "You",
+            country: "",
+            score: info.best.score,
+            mode: "desktop",
+            isMe: true,
+            virtual: true,
+          })
+        : this.dailyBoardFull;
+    const m = boardV3Model(rows, meRank, info.best?.score ?? null, !info.callsign);
+    if (tag && m.youTag) tag.textContent = m.youTag;
+    const pod = this.el("div", "v3-podium", "");
+    const tagFor = { leader: "LEADER", left: "SILVER", right: "COPPER" } as const;
+    for (const p of m.podium) {
+      const clickable = !p.row.virtual;
+      const el = this.el(
+        "div",
+        `v3-pod ${p.slot}${p.row.isMe ? " me" : ""}${clickable ? " link" : ""}`,
+        `<span class="v3-pod-tag">${p.slot === "leader" ? "\u265b " : ""}${tagFor[p.slot]}</span>` +
+          `<span class="v3-pod-rk">${p.row.rank}</span>` +
+          `<span class="v3-pod-nm">${p.row.country ? `${countryFlag(p.row.country)} ` : ""}${escapeHtml(p.row.callsign)}${p.row.isMe ? " (you)" : ""}</span>` +
+          `<span class="v3-pod-pts">${Math.floor(p.row.score).toLocaleString()}</span>`,
+      );
+      if (clickable) {
+        el.addEventListener("click", () => {
+          if (p.row.isMe) this.cb.onProfile();
+          else this.cb.onPilot(p.row.callsign);
+        });
+      }
+      pod.appendChild(el);
+    }
+    list.appendChild(pod);
+    if (m.you) list.appendChild(this.compactBoardRow(info, m.you as DailyBoardRow));
+    if (meRank === null) {
+      list.appendChild(this.openSpotRow(info));
+    } else {
+      const foot = this.el("div", "v3-board-foot", "");
+      if (m.yourBest !== null) {
+        foot.appendChild(
+          this.el("span", "", `Your best today: <b>${Math.floor(m.yourBest).toLocaleString()}</b>`),
+        );
+      }
+      if (m.ahead) {
+        foot.appendChild(
+          this.el("span", "", `${escapeHtml(m.ahead.callsign)} is <b>${aheadLabel(m.ahead.points)}</b> ahead`),
+        );
+      }
+      if (foot.childElementCount > 0) list.appendChild(foot);
+    }
   }
 
   private compactBoardRow(info: DailyLobbyInfo, row: DailyBoardRow): HTMLElement {
@@ -2147,14 +2437,21 @@ export class Ui {
     this.lobbyWeekServer = new Map(entries.map((e) => [e.date, e]));
     if (this.lobbyInfo && this.root.querySelector(".lobby-patrols-card")) {
       const card = this.root.querySelector(".lobby-patrols-card");
-      card?.replaceWith(this.lobbyPatrolsCard(this.lobbyInfo));
+      const v3 = this.root.querySelector(".lobby-v3") !== null;
+      card?.replaceWith(this.lobbyPatrolsCard(this.lobbyInfo, v3));
+      const chip = this.root.querySelector<HTMLElement>(".v3-streak");
+      if (v3 && chip) {
+        const n = currentStreak(this.weekCells(this.lobbyInfo));
+        chip.innerHTML = `<b>${n}</b> DAY STREAK`;
+        chip.classList.toggle("zero", n === 0);
+      }
     }
   }
 
-  private lobbyPatrolsCard(info: DailyLobbyInfo): HTMLElement {
-    const card = this.el("div", "lobby-card chamfer lobby-patrols-card", "");
+  private lobbyPatrolsCard(info: DailyLobbyInfo, v3 = false): HTMLElement {
+    const card = this.el("div", `lobby-card chamfer lobby-patrols-card${v3 ? " v3-flightlog" : ""}`, "");
     const head = this.el("div", "lobby-card-head", "");
-    head.appendChild(this.el("span", "lobby-kicker", "My patrols"));
+    head.appendChild(this.el("span", "lobby-kicker", v3 ? "Flight log" : "My patrols"));
     const more = document.createElement("button");
     more.type = "button";
     more.className = "lobby-more";
@@ -2163,20 +2460,14 @@ export class Ui {
     head.appendChild(more);
     card.appendChild(head);
 
-    const attempts = loadDailyAttempts();
     const today = patrolDateStr();
-    const epoch =
-      info.callsign && this.lobbyWeekServer.size > 0 ? DAILY_EPOCH_DATE : DAILY_EPOCH_DATE;
-    const cells = weekStrip(loadDailyHistory(), today, attempts, (dateStr) => medalThresholdsForDate(new Date(`${dateStr}T00:00:00.000Z`)), {
-      signedIn: !!info.callsign,
-      server: this.lobbyWeekServer,
-      epochDate: epoch,
-    });
+    const cells = this.weekCells(info);
     const week = this.el("div", "lobby-week", "");
     for (const cell of cells) {
       week.appendChild(this.weekCellEl(cell, today));
     }
     card.appendChild(week);
+    if (v3) return card;
 
     const streak = currentStreak(cells);
     const medals = cells.filter((c) => c.state === "gold" || c.state === "silver" || c.state === "copper").length;
