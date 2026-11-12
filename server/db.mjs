@@ -604,7 +604,10 @@ export function deleteUser(id) {
 const CHALLENGE_COUNTERS = new Set(["shares", "opens", "opens_new", "flights", "beats", "losses", "backs"]);
 
 /** A pilot's best daily Classic score for a patrol date (0 when none). Same number the combined board shows. */
-export const challengeScore = (userId, patrolDate) => dailyRankCombined(userId, patrolDate)?.best ?? 0;
+export const challengeScore = (userId, patrolDate) =>
+  db
+    .prepare(`SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND daily_date = ? AND game_mode = 'classic'`)
+    .get(userId, patrolDate)?.best ?? 0;
 
 /**
  * The pilot's code for a patrol date: existing, else a new one from `makeCode`

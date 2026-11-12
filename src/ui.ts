@@ -549,7 +549,13 @@ export class Ui {
     return btn;
   }
 
-  /** After a guest names itself: swap the "name your callsign" button for the real one. No-op if absent. */
+  /** Disable the send-back button (label kept) while the link mints. No-op if absent. */
+  holdChallengeBack(): void {
+    const old = document.getElementById("challenge-back-btn") as HTMLButtonElement | null;
+    if (old) old.disabled = true;
+  }
+
+  /** Swap in the real send-back button once the mint settled (also after a guest names itself). No-op if absent. */
   replaceChallengeBack(m: ChallengeResultModel | null): void {
     const old = document.getElementById("challenge-back-btn");
     if (!old) return;
@@ -558,7 +564,7 @@ export class Ui {
     else old.remove();
   }
 
-  private lobbyWeekServer =new Map<string, ServerDayEntry>();
+  private lobbyWeekServer = new Map<string, ServerDayEntry>();
   private lobbyCountdown: ReturnType<typeof setInterval> | null = null;
   private lobbyRulesOpen = false;
   private lobbyMenuKeyHandler: ((e: KeyboardEvent) => void) | null = null;

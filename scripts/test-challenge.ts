@@ -9,7 +9,6 @@ import {
   CONTEXT_MAX_AGE_MS,
   bannerModel,
   challengeResultModel,
-  challengerShareLine,
   claimEvent,
   eventDedupeKey,
   eventStoreScope,
@@ -19,6 +18,7 @@ import {
   paceTargetFor,
   parseChallengePath,
   saveMintedUrl,
+  shouldMint,
   storeChallengeContext,
   targetFromResolve,
   versusFor,
@@ -26,7 +26,9 @@ import {
   type KV,
 } from "../src/challenge";
 import { clientFlagsSnapshot, resetFlagsForTest, setRemoteFeatures, type ChallengeParams } from "../src/flags";
-import { dailyNumber } from "../src/share";
+import { dailyNumber, shareLastLine, type ShareStats } from "../src/share";
+
+const SHARE_BASE: ShareStats = { dayNumber: 1, score: 1000, time: 60, maxMultiplier: 2, rank: null, attempt: 1 };
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ""): void {
@@ -175,20 +177,16 @@ check("parse root", parseChallengePath("/") === null);
 
 // --- result model ---
 {
-  const url = "https://surviveorion.com/c/9P4RTVW";
-  const win = challengeResultModel(T.score + 12_480, T, { params: ON, url });
+  const win = challengeResultModel(T.score + 12_480, T, { params: ON });
   check("result win line", win?.line === "You beat GLINT by 12,480." && win.tone === "win" && win.outcome === "beat", win?.line);
   check("result win button", win?.buttonLabel === "Challenge GLINT back");
-  check("result win share text", win?.shareText === `Beat GLINT's 1,463,185. Your move: ${url}`, win?.shareText ?? "");
-  const lose = challengeResultModel(T.score - 1204, T, { params: ON, url });
+  const lose = challengeResultModel(T.score - 1204, T, { params: ON });
   check("result lose line", lose?.line === "GLINT holds. 1,204 short." && lose.tone === "lose" && lose.outcome === "lost", lose?.line);
   check("result lose button", lose?.buttonLabel === "Send GLINT your run");
-  check("result lose share text", lose?.shareText === `GLINT is 1,204 ahead. Beat me: ${url}`, lose?.shareText ?? "");
   const tie = challengeResultModel(T.score, T, { params: ON });
   check("result tie reads Dead even and counts as a loss", tie?.line === "Dead even with GLINT." && tie.tone === "lose" && tie.outcome === "lost", tie?.line);
-  const unnamed = challengeResultModel(T.score + 1, T, { params: ON, unnamed: true, url: null });
-  check("result unnamed button opens the guest prompt", unnamed?.buttonLabel === "Name your callsign to send it" && unnamed.needsName && unnamed.shareText === null);
-  check("result without a cached link has no share text", challengeResultModel(T.score + 1, T, { params: ON })?.shareText === null);
+  const unnamed = challengeResultModel(T.score + 1, T, { params: ON, unnamed: true });
+  check("result unnamed button opens the guest prompt", unnamed?.buttonLabel === "Name your callsign to send it" && unnamed.needsName);
   check("result null: no target", challengeResultModel(5, null, { params: ON }) === null);
   check("result null: expired", challengeResultModel(5, { ...T, status: "expired" }, { params: ON }) === null);
   check("result null: self", challengeResultModel(5, { ...T, self: true }, { params: ON }) === null);
@@ -198,17 +196,25 @@ check("parse root", parseChallengePath("/") === null);
   check("result null: first flight", challengeResultModel(5, T, { params: ON, firstFlight: true }) === null);
   check("result null: resultLine off", challengeResultModel(5, T, { params: off("resultLine") }) === null);
   check("result null: switch off", challengeResultModel(5, T, { params: null }) === null);
-  const noBack = challengeResultModel(T.score + 1, T, { params: off("challengeBack"), url });
-  check("challengeBack off: line stays, no button, no share text", !!noBack && noBack.buttonLabel === null && noBack.shareText === null && !noBack.needsName);
+  const noBack = challengeResultModel(T.score + 1, T, { params: off("challengeBack") });
+  check("challengeBack off: line stays, no button", !!noBack && noBack.buttonLabel === null && !noBack.needsName);
+}
+
+// --- mint decision (M1): lobby try once per day, post-submit force retries, never without a day best ---
+{
+  const base = { allowed: true, signedIn: true, params: ON, today: "2026-11-12", triedDate: "", cachedUrl: null, hasDayBest: true };
+  check("mint: first try goes out", shouldMint(base));
+  check("mint: lobby does not retry the same day", !shouldMint({ ...base, triedDate: "2026-11-12" }));
+  check("mint: a new day tries again", shouldMint({ ...base, triedDate: "2026-11-11" }));
+  check("mint: force retries after a failed lobby try", shouldMint({ ...base, triedDate: "2026-11-12", force: true }));
+  check("mint: cached link means no request, even forced", !shouldMint({ ...base, cachedUrl: "https://surviveorion.com/c/9P4RTVW", force: true }));
+  check("mint: no day best, no request, even forced", !shouldMint({ ...base, hasDayBest: false, force: true }));
+  check("mint: signed out, switch off, mint param off", !shouldMint({ ...base, signedIn: false }) && !shouldMint({ ...base, allowed: false, force: true }) && !shouldMint({ ...base, params: off("mint"), force: true }) && !shouldMint({ ...base, params: null }));
 }
 
 // --- share + pace + versus helpers ---
 {
   const url = "https://surviveorion.com/c/7KQ2MXA";
-  check("challenger share line", challengerShareLine(url, ON) === `Beat it: ${url}`);
-  check("challenger share line: no link", challengerShareLine(null, ON) === null);
-  check("challenger share line: mint off", challengerShareLine(url, off("mint")) === null);
-  check("challenger share line: switch off", challengerShareLine(url, null) === null);
   check("pace target", JSON.stringify(paceTargetFor(T, ON)) === JSON.stringify({ callsign: "GLINT", score: 1_463_185 }));
   check("pace target off cases", paceTargetFor(T, off("paceTarget")) === null && paceTargetFor(T, null) === null && paceTargetFor(null, ON) === null);
   check("pace target skips expired and self", paceTargetFor({ ...T, status: "expired" }, ON) === null && paceTargetFor({ ...T, self: true }, ON) === null);
@@ -282,10 +288,9 @@ check("parse root", parseChallengePath("/") === null);
   const share = readFileSync(new URL("../src/share.ts", import.meta.url), "utf8");
   check("share.ts holds no challenge copy of its own", !share.includes("CHALLENGE_SHARE_COPY") && !/Your move|Beat me|Beat it/.test(share));
   check("tie share line reads Dead even", COPY.shareBackTie("GLINT", url) === `Dead even with GLINT. Beat me: ${url}`);
-  const tie = challengeResultModel(T.score, T, { params: ON, url });
-  check("tie result: line, share text and outcome agree", tie?.line === "Dead even with GLINT." && tie.shareText === COPY.shareBackTie("GLINT", url) && tie.outcome === "lost", tie?.shareText ?? "");
-  const lose = challengeResultModel(T.score - 5, T, { params: ON, url });
-  check("loss share text keeps the gap", lose?.shareText === COPY.shareBackLose("GLINT", 5, url), lose?.shareText ?? "");
+  const tie = challengeResultModel(T.score, T, { params: ON });
+  check("tie result: line and outcome agree with the tie share line", tie?.line === "Dead even with GLINT." && tie.outcome === "lost" && shareLastLine({ ...SHARE_BASE, challengeUrl: url, versus: { callsign: "GLINT", delta: 0, targetScore: T.score } }) === COPY.shareBackTie("GLINT", url));
+  check("loss share line keeps the gap", shareLastLine({ ...SHARE_BASE, challengeUrl: url, versus: { callsign: "GLINT", delta: -5, targetScore: T.score } }) === COPY.shareBackLose("GLINT", 5, url));
   check("tie versus gap is exactly zero", versusFor(T.score, T, ON)?.gap === 0);
 
   // switch off (no row): every pure piece main.ts and ui.ts call yields nothing
@@ -293,8 +298,7 @@ check("parse root", parseChallengePath("/") === null);
     ["bannerModel", bannerModel(T, { params: null, attemptsLeft: 0, dayBest: 1 })],
     ["firstFlightLine", firstFlightLine(T, null)],
     ["paceTargetFor", paceTargetFor(T, null)],
-    ["challengeResultModel", challengeResultModel(1, T, { params: null, url })],
-    ["challengerShareLine", challengerShareLine(url, null)],
+    ["challengeResultModel", challengeResultModel(1, T, { params: null })],
     ["versusFor", versusFor(1, T, null)],
   ];
   for (const [name, v] of offAll) check(`switch off: ${name} is null`, v === null);

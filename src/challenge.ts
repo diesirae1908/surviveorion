@@ -76,13 +76,7 @@ export const COPY = {
   shareBackWin: (who: string, score: number, url: string) => `Beat ${who}'s ${fmt(score)}. Your move: ${url}`,
   shareBackLose: (who: string, gap: number, url: string) => `${who} is ${fmt(gap)} ahead. Beat me: ${url}`,
   shareBackTie: (who: string, url: string) => `Dead even with ${who}. Beat me: ${url}`,
-  ogTitleLive: (who: string, score: number, patrolNumber: number) =>
-    `Beat ${who}'s ${fmt(score)} on ORION Patrol #${patrolNumber}`,
-  ogTitleExpired: (who: string, score: number, patrolNumber: number) =>
-    `${who} flew ${fmt(score)} on ORION Patrol #${patrolNumber}`,
-  ogDescLive: "Same run for every pilot today. Three attempts. Free in your browser.",
-  ogDescExpired:
-    "That patrol is closed. Today's is open: same run for every pilot, three attempts, free in your browser.",
+  // Link-preview (OG) copy is NOT here: it lives in server/challenge.mjs `challengeOgFor`.
 } as const;
 
 // --- path parsing ---
@@ -251,8 +245,6 @@ export interface ResultContext {
   firstFlight?: boolean;
   /** Pilot has no callsign yet: the button opens the guest prompt. */
   unnamed?: boolean;
-  /** The pilot's own minted link for today, if already cached. */
-  url?: string | null;
 }
 
 export interface ChallengeResultModel {
@@ -262,8 +254,6 @@ export interface ChallengeResultModel {
   buttonLabel: string | null;
   /** The button needs a callsign first (open the existing guest prompt). */
   needsName: boolean;
-  /** Extra share text line, or null when the pilot's link is not minted yet. */
-  shareText: string | null;
   /** Result for the event counters. */
   outcome: "beat" | "lost";
 }
@@ -288,21 +278,24 @@ export function challengeResultModel(
       : COPY.resultLose(who, target.score - runScore);
   const back = ctx.params.challengeBack === true;
   const buttonLabel = !back ? null : ctx.unnamed ? COPY.buttonUnnamed : win ? COPY.buttonWin(who) : COPY.buttonLose(who);
-  const url = back ? (ctx.url ?? null) : null;
-  const shareText = !url
-    ? null
-    : win
-      ? COPY.shareBackWin(who, target.score, url)
-      : tie
-        ? COPY.shareBackTie(who, url)
-        : COPY.shareBackLose(who, target.score - runScore, url);
-  return { line, tone: win ? "win" : "lose", buttonLabel, needsName: back && !!ctx.unnamed, shareText, outcome: win ? "beat" : "lost" };
+  // the share text itself is built by shareLastLine in share.ts (copy in COPY)
+  return { line, tone: win ? "win" : "lose", buttonLabel, needsName: back && !!ctx.unnamed, outcome: win ? "beat" : "lost" };
 }
 
-/** Last share-text line for a challenger (replaces `surviveorion.com`); null when no cached link or `mint` off. */
-export function challengerShareLine(url: string | null | undefined, params: ChallengeParams | null): string | null {
-  if (!url || !params || params.mint !== true) return null;
-  return COPY.shareChallenger(url);
+/** Whether a mint request should go out now. `force` (post-submit) ignores the one-try-per-day guard. */
+export function shouldMint(c: {
+  allowed: boolean;
+  signedIn: boolean;
+  params: ChallengeParams | null;
+  today: string;
+  triedDate: string;
+  cachedUrl: string | null;
+  hasDayBest: boolean;
+  force?: boolean;
+}): boolean {
+  if (!c.allowed || !c.signedIn || c.params?.mint !== true) return false;
+  if (c.cachedUrl || !c.hasDayBest) return false;
+  return c.force === true || c.triedDate !== c.today;
 }
 
 /** Signed gap for the share card versus row: positive when ahead of the target. */

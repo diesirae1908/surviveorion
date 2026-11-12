@@ -74,7 +74,7 @@ const GOOGLE_IOS_CLIENT_ID = process.env.GOOGLE_IOS_CLIENT_ID || null;
 const SERVE_DIST = process.env.ORION_SERVE_DIST === "1";
 // Set ORION_ADMIN_KEY to unlock /admin + /api/admin/* (analytics, feedback).
 const ADMIN_KEY = process.env.ORION_ADMIN_KEY ?? "";
-const DIST = process.env.ORION_DIST ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
+const DIST = path.resolve(process.env.ORION_DIST ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist"));
 // Public origin used in minted challenge URLs and OG tags. Env, never the Host
 // header (a spoofed Host would poison shared links). Staging sets its own.
 const PUBLIC_ORIGIN = (process.env.ORION_PUBLIC_ORIGIN || challenge.DEFAULT_ORIGIN).replace(/\/+$/, "");

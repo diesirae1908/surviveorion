@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: challenge link fix round + merges of origin/dev and feat/ios12-wss (`ui.challenge` still OFF)
+
+- Merged `origin/dev` (sim deflake, clean) and `feat/ios12-wss` (`app.shell`, `app.review`, checkout guard). Only conflicts: switch-count asserts in `test-flags.ts`, `test-flag-parity.ts`, `test-server-flags.mjs`; both sides kept. Those tests now assert the exact nine-key list (`EXPECTED_KEYS`) so the next switch does not conflict. `AGENTS.md` switch section lists all nine plus `ORION_PUBLIC_ORIGIN` and `ORION_DIST`. (review M2)
+- M1: `prefetchChallengeMint(force)` returns its promise; after a score submit it is forced (ignores the one-try-per-day guard) and the send-back button is held disabled until the mint settles (3 s cap, then the plain share). Decision is the pure `shouldMint` in `src/challenge.ts`, tested.
+- L1: dropped dead `shareText` / `ctx.url` from `challengeResultModel` and `challengerShareLine` (gate is `params?.mint === true`); tie/loss tests go through `shareLastLine`. L2: unused OG copy removed from `COPY` (link-preview copy lives only in `server/challenge.mjs` `challengeOgFor`). L4: tie on the v2 card reads "EVEN" in red. L3: admin "minted" relabelled "links ready (background)". L7: `ORION_DIST` resolved to absolute. L8: `challengeScore` is one `MAX(score)` query. L9: spacing nit in ui.ts.
+- Skipped: L5 (share cancel counts as shared, counters documented approximate), L6 (glue to pure fns, larger refactor), L10 (re-render on resolve, existing pattern), L9 localStorage key pruning and http local mint cache.
+- Follow-up: set `ORION_PUBLIC_ORIGIN` on `surviveorion-dev` before staging QA; Lucas approves `COPY`.
+- Commit: see git log (fix commit after merge 89f0bbd).
+
 ## 2026-11-12 PT: challenge link WS-5 integration (switch `ui.challenge`, still OFF)
 
 - `src/main.ts`: arrival capture (`/c/<code>` stored in sessionStorage, URL put back to `/`, only when the switch is on and the session is web daily, not preview/archive/native/fullgame), resolve after `api.init`, banner into the lobby, `target`/`firstFlight` into `pace.onRunStart` (only when a live target exists, so the call is unchanged otherwise), First Flight end line, result model into game over, cached own link and `versus` into share stats, background mint prefetch (lobby and after a daily submit), events `opened`, `opened_new`, `flew`, `beat`/`lost`, `shared`, `back` (deduped per `claimEvent`). The target is re-read after each run so a retry sees a newer best; no network mid-run.

@@ -41,7 +41,6 @@ import {
 import {
   bannerModel,
   challengeResultModel,
-  challengerShareLine,
   claimEvent,
   eventStoreScope,
   firstFlightLine,
@@ -50,6 +49,7 @@ import {
   paceTargetFor,
   parseChallengePath,
   saveMintedUrl,
+  shouldMint,
   storeChallengeContext,
   targetFromResolve,
   versusFor,
@@ -331,8 +331,10 @@ function isArchiveRun(): boolean {
 
 /** The resolved link the pilot arrived on (null: none, off, self or dropped). */
 let challengeTarget: ChallengeTarget | null = null;
-let mintInFlight = false;
+let mintInFlight: Promise<void> | null = null;
 let mintTriedDate = "";
+/** How long the result-screen send-back button waits for the mint before falling back to the plain share. */
+const MINT_HOLD_MAX_MS = 3000;
 let lastChallengeScore = 0;
 
 function challengeParams(): ChallengeParams | null {
@@ -410,28 +412,43 @@ function challengeResultFor(runScore: number, unnamed: boolean): ChallengeResult
     preview: PREVIEW_ACTIVE,
     archive: isArchiveRun(),
     unnamed,
-    url: loadMintedUrl(sessionStorage, patrolDateStr()),
   });
 }
 
-/** Own link for today, minted in the background so a share never waits on the network. */
-function prefetchChallengeMint(): void {
-  if (!challengeAllowed() || mintInFlight || !api.signedIn) return;
-  if (challengeParams()?.mint !== true) return;
+/**
+ * Own link for today, minted in the background so a share never waits on the network.
+ * Returns the in-flight (or new) request, which never rejects; `force` (after a score submit)
+ * ignores the one-try-per-day guard so a failed lobby mint does not block the retry.
+ */
+function prefetchChallengeMint(force = false): Promise<void> {
+  if (mintInFlight) return mintInFlight;
   const today = patrolDateStr();
-  if (mintTriedDate === today || loadMintedUrl(sessionStorage, today)) return;
-  if (!loadDailyAttempts().best) return;
-  mintInFlight = true;
+  if (
+    !shouldMint({
+      allowed: challengeAllowed(),
+      signedIn: api.signedIn,
+      params: challengeParams(),
+      today,
+      triedDate: mintTriedDate,
+      cachedUrl: loadMintedUrl(sessionStorage, today),
+      hasDayBest: !!loadDailyAttempts().best,
+      force,
+    })
+  ) {
+    return Promise.resolve();
+  }
   mintTriedDate = today;
-  void api
+  const p: Promise<void> = api
     .mintChallenge()
     .then((r) => {
       if (r.active && r.url && r.patrolDate === today) saveMintedUrl(sessionStorage, today, r.url);
     })
     .catch(() => {})
     .finally(() => {
-      mintInFlight = false;
+      if (mintInFlight === p) mintInFlight = null;
     });
+  mintInFlight = p;
+  return p;
 }
 
 /** Extra share fields for this share, or {} (switch off, no cached link, or not a challenge context). */
@@ -439,7 +456,7 @@ function challengeShareExtras(runScore: number | null): { challengeUrl?: string;
   if (!challengeAllowed()) return {};
   const params = challengeParams();
   const url = loadMintedUrl(sessionStorage, patrolDateStr());
-  if (!url || !challengerShareLine(url, params)) return {};
+  if (!url || params?.mint !== true) return {};
   const t = activeChallengeTarget();
   const v =
     runScore !== null && state === "gameover" && params?.challengeBack === true
@@ -2250,11 +2267,18 @@ function renderRankResult(r: SubmitResult): void {
       maxMultiplier: world.maxMultiplier,
       rank: r.dailyRank,
     });
-    // ui.challenge: the score is on the board, so a link can be minted now (cached for share);
-    // a guest who just named themselves gets the real send-back button
-    prefetchChallengeMint();
-    const named = challengeResultFor(lastChallengeScore, false);
-    if (named) ui.replaceChallengeBack(named);
+    // ui.challenge: the score is on the board, so a link can be minted now (cached for share).
+    // The send-back button is held disabled until the mint settles (capped at 3 s, then the
+    // plain share), so a tap cannot go out without the link. The share never awaits in its handler.
+    if (challengeAllowed()) {
+      const score = lastChallengeScore;
+      ui.holdChallengeBack();
+      const cap = new Promise<void>((res) => setTimeout(res, MINT_HOLD_MAX_MS));
+      void Promise.race([prefetchChallengeMint(true), cap]).then(() => {
+        if (state !== "gameover") return;
+        ui.replaceChallengeBack(challengeResultFor(score, false));
+      });
+    }
   }
   ui.setGameOverRank(
     // deriveGameOverRank sanitizes opts.callsign internally (it's the

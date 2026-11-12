@@ -260,7 +260,8 @@ export function shareCardV2Model(s: ShareStats, format: ShareCardFormat): ShareC
   if (s.versus) {
     const vsSize = Math.round(30 * k);
     const d = Math.round(s.versus.delta);
-    const gap = `${d >= 0 ? "+" : "-"}${Math.abs(d).toLocaleString("en-US")}`;
+    // a tie reads "EVEN" in red, like the result line ("Dead even", counted as lost)
+    const gap = d === 0 ? "EVEN" : `${d > 0 ? "+" : "-"}${Math.abs(d).toLocaleString("en-US")}`;
     const tail = `  ${gap}`;
     const name = fitTextTo(`VS ${s.versus.callsign.toUpperCase()}`, vsSize, 3, w - 2 * M - estTextWidth(tail, vsSize, 3));
     versus = text({
@@ -268,7 +269,7 @@ export function shareCardV2Model(s: ShareStats, format: ShareCardFormat): ShareC
       x: M,
       y: causeTop - Math.round(22 * k),
       size: vsSize,
-      color: d >= 0 ? GOLD : RED,
+      color: d > 0 ? GOLD : RED,
       weight: 600,
       spacing: 3,
     });

@@ -332,7 +332,7 @@ function renderChallenge(c) {
   if (!c) return "";
   const head = "Challenge links" + (c.patrolNumber ? " (Patrol #" + c.patrolNumber + ")" : "");
   if (!c.on && !c.minted) return "<h3>" + head + "</h3><p class='muted'>Switch off for this day.</p>";
-  return "<h3>" + head + "</h3><p>minted " + fmt(c.minted) + " · shared " + fmt(c.shared) +
+  return "<h3>" + head + "</h3><p>links ready (background) " + fmt(c.minted) + " · shared " + fmt(c.shared) +
     " · opened " + fmt(c.opened) + " (new pilots " + fmt(c.openedNew) + ") · flew " + fmt(c.flew) +
     " · beat " + fmt(c.beat) + " · lost " + fmt(c.lost) + " · sent back " + fmt(c.back) +
     "</p><p class='muted'>Counters are approximate (client events, rate limited per IP).</p>";
