@@ -45,6 +45,9 @@ const rows: [string, string, boolean, boolean, "web" | "play" | "shell"][] = [
   ["bridge but no shell param is the website", "", true, false, "web"],
   ["legacy Capacitor counts as play", "", false, true, "play"],
 ];
+check("classify: capacitor: origin without params is the app, not the website", classifyAppHost("", true, false, true) === "play");
+check("classify: capacitor: origin with ?shell= is the shell", classifyAppHost("?shell=1", false, false, true) === "shell");
+check("classify: https origin with a bridge and no params stays web", classifyAppHost("", true, false, false) === "web");
 for (const [name, search, bridge, cap, want] of rows) {
   check(`classify: ${name}`, classifyAppHost(search, bridge, cap) === want, `${classifyAppHost(search, bridge, cap)}`);
 }

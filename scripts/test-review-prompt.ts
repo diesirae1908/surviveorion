@@ -73,6 +73,9 @@ check("main: the ask is posted from the lobby repaint only, after a delay, once 
 check("main: a candidate is recorded after the result is shown, with the pre-run best-of-day medal", /recordReviewCandidate\(\{\s*medalBefore: resultThresholds \? medalForScore\(dayBestBefore, resultThresholds\)/.test(main));
 check("main: never asks while PATROL COMPLETE is up", /ui\.hasPatrolComplete\(\)\) return;\s*const reason/.test(main));
 check("main: the asked version is stored in localStorage", /orion\.review\.askedVersion/.test(main));
+check("main: a non-qualifying run clears a held candidate (assigned unconditionally)", /reviewCandidate = d\.ask \? d\.reason : null;/.test(main));
+check("main: startRun voids a held candidate", /function startRun\(\): void \{\s*reviewCandidate = null;/.test(main));
+check("main: the asked version is written only inside the delayed send", /setTimeout\(\(\) => \{[^}]*if \(state !== "menu"\) return;[\s\S]*?setItem\(REVIEW_ASKED_KEY[\s\S]*?type: "requestReview"/.test(main));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed`);

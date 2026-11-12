@@ -437,7 +437,6 @@ export class CommunityUi {
 
   /** Profile: change callsign/country, badge collection, sign out. */
   showProfile(): void {
-    if (this.nativeAccountRoute?.("pilot")) return;
     const user = this.api.user;
     if (!user) return this.showAuth(() => this.onBack());
     const { screen, body, error } = this.screen("PILOT PROFILE");
@@ -506,21 +505,27 @@ export class CommunityUi {
       this.appendCareer(record, p, true);
     });
 
-    body.appendChild(
-      this.button("Sign out", false, () => {
-        void this.api.logout().then(() => {
-          this.onAuthChange();
-          this.onBack();
-        });
-      }),
-    );
+    // In the web shell sign out and delete live in native Settings; the rest of the profile stays here.
+    const route = this.nativeAccountRoute;
+    if (route) {
+      body.appendChild(this.button("Account (sign out, delete)", false, () => void route("pilot")));
+    } else {
+      body.appendChild(
+        this.button("Sign out", false, () => {
+          void this.api.logout().then(() => {
+            this.onAuthChange();
+            this.onBack();
+          });
+        }),
+      );
+    }
 
     const privacy = this.button("Privacy policy", false, () => openPrivacyPolicy());
     privacy.classList.add("small-btn");
     body.appendChild(privacy);
 
     const danger = this.el("div", "panel");
-    danger.appendChild(
+    if (!route) danger.appendChild(
       this.el(
         "div",
         "field-hint",
@@ -537,7 +542,7 @@ export class CommunityUi {
         });
       }),
     );
-    body.appendChild(danger);
+    if (!route) body.appendChild(danger);
     this.backRow(screen);
   }
 

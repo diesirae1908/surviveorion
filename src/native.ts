@@ -62,10 +62,16 @@ export type AppHost = "web" | "play" | "shell";
  * is present, so a pasted `?shell=1` on the website never changes the website.
  * Play wins over shell; the legacy Capacitor shell counts as play.
  */
-export function classifyAppHost(search: string, bridge: boolean, capacitorNative: boolean): AppHost {
+export function classifyAppHost(
+  search: string,
+  bridge: boolean,
+  capacitorNative: boolean,
+  bundledOrigin = false,
+): AppHost {
   if (parseNativePlay(search) !== null) return "play";
-  if (bridge && parseNativeShell(search) !== null) return "shell";
-  return capacitorNative ? "play" : "web";
+  if ((bridge || bundledOrigin) && parseNativeShell(search) !== null) return "shell";
+  // the bundled capacitor: origin is the app whatever the URL params (a lost ?shell= is never the website)
+  return capacitorNative || bundledOrigin ? "play" : "web";
 }
 
 function hasNativeBridge(): boolean {
@@ -82,7 +88,7 @@ function hasNativeBridge(): boolean {
 export function appHost(): AppHost {
   try {
     if (typeof location === "undefined") return "web";
-    return classifyAppHost(location.search, hasNativeBridge(), isNativeApp());
+    return classifyAppHost(location.search, hasNativeBridge(), isNativeApp(), location.protocol === "capacitor:");
   } catch {
     return "web";
   }

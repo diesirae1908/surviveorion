@@ -1254,7 +1254,7 @@ function showMenu(): void {
     ui.showPhoneLanding();
     return;
   }
-  if (IS_NATIVE_PLAY || (isShellHost() && !shellState.on)) {
+  if (IS_NATIVE_PLAY || (isAppBinary() && !(isShellHost() && shellState.on))) {
     // play page, or a shell that is off / not decided yet: Swift owns the screen, stay blank
     ui.clearScreens();
     return;
@@ -1286,14 +1286,16 @@ function maybeAskForReview(): void {
   if (!isShellHost() || !calmForReview(state, reviewCandidate !== null) || ui.hasPatrolComplete()) return;
   const reason = reviewCandidate as ReviewReason;
   reviewCandidate = null;
-  try {
-    if (SHELL_APP_VERSION) localStorage.setItem(REVIEW_ASKED_KEY, SHELL_APP_VERSION);
-  } catch {
-    // private mode: Swift's guard still holds
-  }
   // let the lobby paint first so the dialog lands on a calm screen
   window.setTimeout(() => {
-    if (state === "menu") postShell({ type: "requestReview", reason });
+    if (state !== "menu") return;
+    // stored only when the ask is actually sent (a quick FLY within 700 ms must not burn the version)
+    try {
+      if (SHELL_APP_VERSION) localStorage.setItem(REVIEW_ASKED_KEY, SHELL_APP_VERSION);
+    } catch {
+      // private mode: Swift's guard still holds
+    }
+    postShell({ type: "requestReview", reason });
   }, 700);
 }
 
@@ -1325,7 +1327,7 @@ function recordReviewCandidate(run: {
     appVersion: SHELL_APP_VERSION,
     askedVersion: asked,
   });
-  if (d.ask) reviewCandidate = d.reason;
+  reviewCandidate = d.ask ? d.reason : null;
 }
 
 /**
@@ -1882,6 +1884,7 @@ function toPaceRows(d: { entries: { callsign: string; best: number }[] }): pace.
 }
 
 function startRun(): void {
+  reviewCandidate = null; // a new run voids any held review ask
   audio.unlock();
   // boards are per platform: phone tilt, phone touch stick, or desktop keys
   runMode = input.tiltActive ? "tilt" : isTouchDevice() ? "touch" : "desktop";

@@ -4,6 +4,17 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: iOS 1.2 web fix round (Opus review M1, M2, M3, L5), switches still OFF
+
+- M1 `src/main.ts`: a held review candidate is now overwritten by every result decision (`reviewCandidate = d.ask ? d.reason : null`) and cleared at the top of `startRun`, so a medal run followed by a short death can no longer fire the prompt from the later lobby repaint.
+- M2 `src/native.ts`: `classifyAppHost` takes `bundledOrigin`; the `capacitor:` origin is the app (play, or shell with `?shell=`) even when URL params are lost, so it can never boot as the website with prices. A bridge-only page on https with no params stays `web`. `showMenu` now blanks any app binary that is not a play page or a shell that is on.
+- M3 `src/community.ts`: only sign in (`showAuth`) routes to native Settings. The web profile stays in the shell (callsign, country, guest Set password, badges, wingmates); its Sign out and Delete account controls are replaced by one "Account (sign out, delete)" button that opens native Settings. Website profile unchanged.
+- L5 (decision): the `orion.review.askedVersion` write moved inside the 700 ms send, so a quick FLY or a lobby change no longer burns the version. Kept the web write (not dropped) so the web does not re-ask Swift every qualifying run; Swift's guard stays authoritative.
+- Skipped: L1 (apiInit is used by `bootShellHost`, moving it risks a TDZ error, not risk-free), L2/L3 (notes only, see below), L4 (Swift), L6/L7 (follow-up refactors), L8/L9 (device QA notes).
+- L2 intended 1.2 play-page changes (shell off), so QA does not report them as regressions: no Google button, no community Stripe button, wingmates paywall event opens StoreKit.
+- Tests: `test-app-host` (bundled origin rows), `test-app-shell` (blank rule, profile guards), `test-review-prompt` (candidate clear, startRun reset, send-time write). Gates exit 0: tsc, npm test, sim-test, build.
+- Commit: see git log.
+
 ## 2026-11-12 PT: iOS 1.2 WS-A2, web shell mode + rating prompt rule (switches `app.shell`, `app.review`, both OFF)
 
 - New `src/appShell.ts` (pure): `shellDecision` = `app.shell` on AND `ui.lobby` on AND build protocol >= `minShell`, else a reason (`not-shell`, `no-flags`, `switch-off`, `lobby-off`, `old-build`, `load-error`). `app.shell.briefing/pilotTab` and `.stories` only narrow the `ui.lobby` / `ui.result` params (AND). Also the URL parsers (`sessions`, `appv`, `shellForce`) and the native event parsers. `shellForce=1` counts only for a server-confirmed crew/admin session (`clipInbox` or tier admin, review note L10) and then acts like a preview of `app.shell` + `ui.lobby` (registry defaults); runs stay real.

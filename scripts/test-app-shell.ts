@@ -110,7 +110,7 @@ check("main: shell skips the tap-to-enter gate", /else if \(isShellHost\(\)\) vo
 check("main: lobby allowed = website or shell on, params from the AND-combined decision", /isShellHost\(\) \? shellState\.on : !isAppBinary\(\)/.test(main) && /isShellHost\(\) \? shellState\.lobby : clientFlagsSnapshot\(PREVIEW_FLAGS\)\.lobby/.test(main));
 check("main: briefing context reads the host lobby params", /params: hostLobbyParams\(\),\s*allowed: lobbyHostAllowed\(\)/.test(main));
 check("main: stories narrowed by app.shell.stories", /shellState\.stories/.test(main));
-check("main: a shell that is off stays blank (Swift owns the screen)", /IS_NATIVE_PLAY \|\| \(isShellHost\(\) && !shellState\.on\)/.test(main));
+check("main: a shell that is off stays blank (Swift owns the screen)", /IS_NATIVE_PLAY \|\| \(isAppBinary\(\) && !\(isShellHost\(\) && shellState\.on\)\)/.test(main));
 check("main: shellForce needs the server-confirmed session", /shellForceAllowed\(location\.search, api\)/.test(main));
 check("main: native tier and session events are handled", /"orion-native-tier"/.test(main) && /"orion-native-session"/.test(main) && /adoptStoredSession/.test(main) && /setNativeGold\(gold\)/.test(main));
 check("main: signedOut is posted on a rejected token, once", /onSessionRejected = \(\) =>/.test(main) && /shellSignedOutPosted/.test(main));
@@ -119,7 +119,13 @@ check("main: community sign in / profile route to native Settings in the shell",
 check("main: session export after runs, guest signup and auth change (shell only)", (main.match(/if \(isShellHost\(\)\) exportNativeSession\(\)/g) ?? []).length === 3);
 check("native: chrome{playing} goes to the bridge in the shell", /isShellHost\(\)\) \{[^}]*type: "chrome", playing/.test(native));
 check("native: shell-only messages are no-ops elsewhere", /export function postShell\(msg: ShellMessage\): void \{\s*if \(!isShellHost\(\)\) return;/.test(native));
-check("community: web account screens are bypassed in the shell (no sign out or delete buttons)", /showAuth\(onDone: \(\) => void\): void \{\s*if \(this\.nativeAccountRoute\?\.\("pilot", onDone\)\) return;/.test(src("src/community.ts")) && /showProfile\(\): void \{\s*if \(this\.nativeAccountRoute\?\.\("pilot"\)\) return;/.test(src("src/community.ts")));
+{
+  const comm = src("src/community.ts");
+  const profile = comm.slice(comm.indexOf("showProfile(): void {"), comm.indexOf("showPilot(callsign"));
+  check("community: sign in routes to native Settings in the shell", /showAuth\(onDone: \(\) => void\): void \{\s*if \(this\.nativeAccountRoute\?\.\("pilot", onDone\)\) return;/.test(comm));
+  check("community: the web profile stays in the shell (no early native route)", !/showProfile\(\): void \{\s*if \(this\.nativeAccountRoute/.test(comm));
+  check("community: in the shell the profile swaps sign out and delete for one native Account button", /const route = this\.nativeAccountRoute;\s*if \(route\) \{[\s\S]*?Account \(sign out, delete\)[\s\S]*?\} else \{[\s\S]*?this\.api\.logout\(\)/.test(profile) && /if \(!route\) danger\.appendChild\(/.test(profile) && /if \(!route\) body\.appendChild\(danger\)/.test(profile));
+}
 check("api: session adoption and rejection hooks exist", /adoptStoredSession\(\)/.test(src("src/api.ts")) && /onSessionRejected/.test(src("src/api.ts")));
 
 // the one new network-free guard: no module added for the shell touches Stripe
