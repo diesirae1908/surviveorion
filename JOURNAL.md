@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: challenge link WS-3, pace chip target mode
+
+- `src/pace.ts`: optional challenge target. `PaceStartCtx` gains `target`, `boardOn` (absent: falls back to the `ui.hud.paceChip` flag, so existing callers are unchanged) and `firstFlight`. `PaceView` gains `board` and `vs`. With a target the second chip line pins to the challenger (`VS GLINT +1,204` behind, `PAST GLINT ▲312` ahead; a tie reads as behind by 1). Rank math is untouched, so a challenger on the board counts like any pilot. Target only (board off or failed): one line, no rank. Target frozen at run start, no network mid-run, token guard kept. No target: output byte-identical (pinned snapshot).
+- `src/render.ts`: `paceOn` also true when `opts.pace?.vs` is set (still needs the Rising Gold HUD).
+- `scripts/test-pace.ts`: 30+ new checks (snapshot, behind/ahead/equal, target-only, challenger in rows, truncation, no fetch with `boardOn:false`, ineligible runs, stale token).
+- No determinism surface touched (reads `world.score`/`phase` only). Gates: tsc, `npm test`, sim-test, build all exit 0.
+- Follow-ups for WS-5: pass `target` (gated on `ui.challenge.paceTarget`), `boardOn`, `firstFlight` from `main.ts` `startRun()`. Commit: see git log (`WS-3 pace target`).
+
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
 - Filter: `BLOCKED_TERMS` in `server/nickname.mjs` and `src/nickname.ts` extended (phrases/compounds only): devisgay/devsgay/suckmy/eatmyass/kissmyass, twat/bellend/wanker/tosser/bollocks/arsehole, peen/penis, cock compounds (cocksuck, cockhead, cockface, cockwomble, cockmunch, cocknose), ballsack/ballbag/nutsack. All six names from the live world top 50 now blocked. "gay" alone stays allowed. Skipped on purpose: knob, arse, prick, tits, bare ass/cock/balls/nuts. New `SAFE_EXCEPTIONS`: Dickens, Dickinson, Dickson, Dickerson (plain "dick" already blocked them), Atwater(s), Bellenden, Peenemunde, Penistone. Both lists now exported so `test-nickname.ts` asserts client/server parity.
