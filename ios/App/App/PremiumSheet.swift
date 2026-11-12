@@ -215,7 +215,19 @@ struct PremiumSheet: View {
             model.store.lastError = "Premium unavailable"
             return
         }
-        if await model.store.purchase(product) {
+        // Fresh token right before paying: a stale one is stamped on the Apple subscription for good.
+        var accountToken: UUID? = nil
+        if KeychainStore.token != nil {
+            do {
+                let me = try await APIClient.shared.me()
+                accountToken = me.appAccountToken.flatMap { UUID(uuidString: $0) }
+                model.appAccountToken = accountToken
+            } catch {
+                model.store.lastError = "Couldn't verify your account. Check your connection and try again."
+                return
+            }
+        }
+        if await model.store.purchase(product, accountToken: accountToken) {
             await model.refresh()
             model.showPremiumToast()
             onDismiss()

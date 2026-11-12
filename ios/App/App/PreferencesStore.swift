@@ -11,6 +11,9 @@ enum PreferencesStore {
     private static let localPremiumUntilKey = "orion.premiumUntil"
     private static let localPremiumProductKey = "orion.premiumProduct"
     private static let previewTierKey = "orion.previewTier"
+    private static let reviewAskedVersionKey = "orion.review.askedVersion"
+    private static let reviewLogKey = "orion.review.log"
+    private static let forceShellKey = "orion.shell.force"
 
     static var sessionCount: Int {
         get { defaults.integer(forKey: sessionCountKey) }
@@ -96,6 +99,32 @@ enum PreferencesStore {
             return t
         }
         set { defaults.set(newValue.rawValue, forKey: previewTierKey) }
+    }
+
+    /// Crew only: boots the web shell even while the `app.shell` row is off.
+    static var forceShell: Bool {
+        get { defaults.bool(forKey: forceShellKey) }
+        set { defaults.set(newValue, forKey: forceShellKey) }
+    }
+
+    /// App version (CFBundleShortVersionString) the review prompt was last asked for.
+    static var reviewAskedVersion: String? {
+        get { defaults.string(forKey: reviewAskedVersionKey) }
+        set { defaults.set(newValue, forKey: reviewAskedVersionKey) }
+    }
+
+    static let reviewLogLimit = 10
+
+    /// Newest first, capped at `reviewLogLimit`. Shown in Settings > Crew tools.
+    static var reviewLog: [String] {
+        defaults.stringArray(forKey: reviewLogKey) ?? []
+    }
+
+    static func appendReviewLog(_ line: String) {
+        var log = reviewLog
+        log.insert(line, at: 0)
+        if log.count > reviewLogLimit { log = Array(log.prefix(reviewLogLimit)) }
+        defaults.set(log, forKey: reviewLogKey)
     }
 
     static func resetPreviewTierToCrew() {

@@ -1,5 +1,138 @@
+import StoreKit
 import SwiftUI
 import UIKit
+
+private enum ShellPhase {
+    case loading
+    case ready
+    case fallback
+}
+
+/// Root of the app. Boots the web shell (bundled lobby v3 in one WebView) and waits for the
+/// web side to say `shellReady`. Anything else (`shellFallback`, load failure, 8s of silence,
+/// a `-QA` launch arg) lands on the SwiftUI Home, which is exactly the 1.1 experience.
+private struct RootView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
+    @State private var phase: ShellPhase = RootView.launchPhase
+    @State private var playing = false
+    @StateObject private var channel = ShellChannel()
+    @State private var showSettings = false
+    @State private var showManage = false
+    @State private var showAnalytics = false
+    @State private var premium: PremiumContext?
+
+    private static var launchPhase: ShellPhase {
+        ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-QA") } ? .fallback : .loading
+    }
+
+    var body: some View {
+        ZStack {
+            if phase == .fallback {
+                NavigationStack {
+                    HomeView()
+                }
+            } else {
+                shellLayer
+            }
+        }
+        .task {
+            if phase != .fallback { await model.refresh() }
+        }
+        .task {
+            guard phase == .loading else { return }
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            fallBack("timeout")
+        }
+    }
+
+    private var shellLayer: some View {
+        ZStack {
+            OrionColor.void.ignoresSafeArea()
+            ShellView(
+                channel: channel,
+                onReady: {
+                    guard phase == .loading else { return }
+                    phase = .ready
+                    model.pendingPlay = nil
+                    model.pendingPlayDate = nil
+                    channel.pushTier(model.isPremium)
+                },
+                onFallback: { reason in fallBack(reason) },
+                onOpenSettings: { section in
+                    switch section?.lowercased() {
+                    case "pilot": model.pendingScrollPilot = true
+                    case "crew": model.pendingScrollCrew = true
+                    default: break
+                    }
+                    showSettings = true
+                },
+                onOpenManageGold: { showManage = true },
+                onOpenAnalytics: {
+                    if model.isPremium { showAnalytics = true } else { premium = .analytics }
+                },
+                onRequestReview: { reason in askReview(reason) },
+                onSignedOut: { Task { await model.refresh() } },
+                onChrome: { playing = $0 }
+            )
+            .ignoresSafeArea()
+            if phase == .loading {
+                ZStack {
+                    OrionColor.void.ignoresSafeArea()
+                    Image("Splash")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: phase)
+        .statusBarHidden(playing)
+        .persistentSystemOverlays(playing ? .hidden : .automatic)
+        .defersSystemGestures(on: playing ? .all : [])
+        .sheet(isPresented: $showSettings, onDismiss: { channel.pushSession() }) {
+            NavigationStack {
+                SettingsView()
+            }
+        }
+        .sheet(isPresented: $showManage) {
+            ManageGoldPatrolView { showManage = false }
+        }
+        .sheet(isPresented: $showAnalytics) {
+            NavigationStack {
+                AnalyticsView()
+            }
+        }
+        .sheet(item: $premium) { ctx in
+            PremiumSheet(context: ctx) { premium = nil }
+        }
+        .onChange(of: model.isPremium) { _, gold in
+            channel.pushTier(gold)
+        }
+        .onChange(of: model.pendingPlay) { _, mode in
+            // Deep links have no consumer in the shell; HomeView (fallback) is the only one.
+            if mode != nil && phase == .ready {
+                model.pendingPlay = nil
+                model.pendingPlayDate = nil
+            }
+        }
+    }
+
+    private func fallBack(_ reason: String) {
+        guard phase == .loading else { return }
+        NSLog("ORION shell fallback: %@", reason)
+        phase = .fallback
+    }
+
+    private func askReview(_ reason: String) {
+        let busy = playing || showSettings || showManage || showAnalytics || premium != nil || channel.isPresenting()
+        if model.approveReview(reason: reason, busy: busy, sceneActive: scenePhase == .active) {
+            requestReview()
+        }
+    }
+}
 
 @main
 struct OrionApp: App {
@@ -8,9 +141,7 @@ struct OrionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                HomeView()
-            }
+            RootView()
             .preferredColorScheme(.dark)
             .tint(OrionColor.hullGold)
             .environmentObject(model)

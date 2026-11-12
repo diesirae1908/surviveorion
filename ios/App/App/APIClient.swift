@@ -55,6 +55,8 @@ struct MeResponse: Codable {
     var tier: String?
     var premiumActive: Bool?
     var premiumSource: String?
+    /// Stable per-account UUID the server expects on StoreKit purchases (`.appAccountToken`).
+    var appAccountToken: String?
 }
 
 struct BillingPortalResponse: Codable {
@@ -151,6 +153,8 @@ struct PremiumReportResponse: Codable {
 actor APIClient {
     static let shared = APIClient()
     static let origin = URL(string: "https://surviveorion.com")!
+    /// Shown when `POST /api/me/premium` answers 409 `ACCOUNT_TOKEN_MISMATCH`.
+    static let accountMismatchMessage = "This Apple purchase belongs to another ORION account."
 
     func dailyBoard(limit: Int = 50) async throws -> DailyBoard {
         try await request("GET", "/api/leaderboard/daily?mode=all&limit=\(limit)")
@@ -305,6 +309,11 @@ actor APIClient {
             if code == 403 {
                 let err = (try? JSONDecoder().decode([String: String].self, from: data))
                 throw APIError.forbidden(err?["error"] ?? "not allowed")
+            }
+            if code == 409,
+               let body = try? JSONDecoder().decode([String: String].self, from: data),
+               ["ACCOUNT_TOKEN_MISMATCH", "TRANSACTION_IN_USE"].contains(body["code"] ?? "") {
+                throw APIError.server(Self.accountMismatchMessage)
             }
             if code >= 400 {
                 let err = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]

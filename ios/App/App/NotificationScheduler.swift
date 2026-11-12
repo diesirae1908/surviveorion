@@ -7,11 +7,18 @@ enum NotificationScheduler {
 
     private static var countedThisLaunch = false
 
-    static func requestIfSecondSession() {
+    /// Counts this launch once and returns the running total.
+    @discardableResult
+    static func countSession() -> Int {
         if !countedThisLaunch {
             PreferencesStore.sessionCount += 1
             countedThisLaunch = true
         }
+        return PreferencesStore.sessionCount
+    }
+
+    static func requestIfSecondSession() {
+        countSession()
         guard PreferencesStore.sessionCount >= 2 else { return }
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             if settings.authorizationStatus == .notDetermined {

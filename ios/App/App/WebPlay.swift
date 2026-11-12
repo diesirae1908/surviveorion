@@ -1,4 +1,5 @@
 import CoreMotion
+import SafariServices
 import SwiftUI
 import UIKit
 import WebKit
@@ -73,7 +74,10 @@ enum PlayExit {
     case finished(GameResult)
 }
 
-final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate {
+final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+    /// Version the web side reads as `?shell=`. Bump only with a matching `minShell` plan.
+    static let shellProtocol = 1
+
     var mode: PlayMode = .training
     var patrolDate: String? = nil
     var recordRuns = false
@@ -83,20 +87,39 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
     var delegate: PlayWebControllerDelegate?
     var appModel: AppModel?
 
+    /// Shell mode: one persistent WebView booted into the web lobby (`?shell=`), not a single run.
+    var shell = false
+    var sessions = 0
+    var forceShell = false
+    var onShellReady: (() -> Void)?
+    var onShellFallback: ((String) -> Void)?
+    var onOpenSettings: ((String?) -> Void)?
+    var onOpenManageGold: (() -> Void)?
+    var onOpenAnalytics: (() -> Void)?
+    var onRequestReview: ((String) -> Void)?
+    var onSignedOut: (() -> Void)?
+    var onChrome: ((Bool) -> Void)?
+
     private var webView: WKWebView!
     private let handler = BundleSchemeHandler()
     private var finished = false
     private let motion = CMMotionManager()
     private var motionGranted = false
+    private var shellURL: URL?
+    private var chromePlaying = false
+    private var shellReady = false
 
-    override var prefersStatusBarHidden: Bool { true }
-    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
+    /// Shell: status bar and edge swipes are only taken over while a run is on screen.
+    override var prefersStatusBarHidden: Bool { shell ? chromePlaying : true }
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
+        (shell && !chromePlaying) ? [] : .all
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 10 / 255, green: 10 / 255, blue: 18 / 255, alpha: 1)
         view.insetsLayoutMarginsFromSafeArea = false
-        UIApplication.shared.isIdleTimerDisabled = true
+        UIApplication.shared.isIdleTimerDisabled = !shell
 
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(handler, forURLScheme: BundleSchemeHandler.scheme)
@@ -114,6 +137,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
 
         webView = WKWebView(frame: view.bounds, configuration: config)
         webView.navigationDelegate = self
+        webView.uiDelegate = self
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.isOpaque = false
         webView.backgroundColor = .clear
@@ -140,15 +164,24 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             object: nil
         )
 
-        var q = "nativePlay=\(mode.rawValue)"
-        if let patrolDate, !patrolDate.isEmpty {
-            q += "&date=\(patrolDate)"
+        var q: String
+        if shell {
+            let version = (appModel?.appVersion ?? "0")
+                .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "0"
+            q = "shell=\(Self.shellProtocol)&appv=\(version)&sessions=\(sessions)"
+            if forceShell { q += "&shellForce=1" }
+        } else {
+            q = "nativePlay=\(mode.rawValue)"
+            if let patrolDate, !patrolDate.isEmpty {
+                q += "&date=\(patrolDate)"
+            }
         }
         if goldPatrol { q += "&goldPatrol=1" }
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-QAAutoStick") { q += "&nativeAuto=stick" }
         if args.contains("-QATiltConfirm") { q += "&nativeAuto=tiltconfirm" }
         let url = URL(string: "\(BundleSchemeHandler.origin)/index.html?\(q)")!
+        if shell { shellURL = url }
         webView.load(URLRequest(url: url))
         if args.contains("-QAAutoLeave") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
@@ -197,6 +230,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         guard webView != nil else { return }
         webView.stopLoading()
         webView.navigationDelegate = nil
+        webView.uiDelegate = nil
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "orion")
         webView.loadHTMLString("", baseURL: nil)
         webView.removeFromSuperview()
@@ -234,6 +268,166 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
         syncViewport()
     }
 
+    // MARK: Shell navigation policy
+
+    private enum NavTarget {
+        case bundle
+        case external
+        case blocked
+    }
+
+    /// Shell allowlist. Only the bundled page loads in the WebView; Stripe hosts are always
+    /// refused (App Store 3.1.1: the app never shows a web checkout); a short list of
+    /// legal and App Store pages opens in Safari; everything else is cancelled.
+    private func classify(_ url: URL) -> NavTarget {
+        let scheme = url.scheme?.lowercased() ?? ""
+        let host = url.host?.lowercased() ?? ""
+        if scheme == "about" { return .bundle }
+        if scheme == BundleSchemeHandler.scheme && host == "localhost" { return .bundle }
+        if host == "stripe.com" || host.hasSuffix(".stripe.com") { return .blocked }
+        guard scheme == "https" else { return .blocked }
+        let path = url.path
+        if (host == "surviveorion.com" || host == "www.surviveorion.com") && path.hasPrefix("/privacy") {
+            return .external
+        }
+        if host == "www.apple.com" && path.hasPrefix("/legal/") { return .external }
+        if host == "apps.apple.com" { return .external }
+        return .blocked
+    }
+
+    private func openExternal(_ url: URL) {
+        guard presentedViewController == nil else { return }
+        present(SFSafariViewController(url: url), animated: true)
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard shell else {
+            decisionHandler(.allow)
+            return
+        }
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+        switch classify(url) {
+        case .bundle:
+            decisionHandler(.allow)
+        case .external:
+            decisionHandler(.cancel)
+            openExternal(url)
+        case .blocked:
+            NSLog("ORION shell blocked navigation to %@", url.host ?? url.scheme ?? "?")
+            decisionHandler(.cancel)
+        }
+    }
+
+    /// `window.open` (the privacy link) does nothing in a WKWebView without this.
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        if shell, let url = navigationAction.request.url {
+            if classify(url) == .external {
+                openExternal(url)
+            } else {
+                NSLog("ORION shell blocked window.open to %@", url.host ?? url.scheme ?? "?")
+            }
+        }
+        return nil
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        // A policy-cancelled navigation (blocked link) also lands here; it is not a load failure.
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
+        if ns.domain == "WebKitErrorDomain" && ns.code == 102 { return }
+        if shell && !shellReady { onShellFallback?("load-failed") }
+    }
+
+    /// iOS can kill the persistent WebView's content process under memory pressure.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard shell, let shellURL else { return }
+        setChrome(playing: false)
+        webView.load(URLRequest(url: shellURL))
+    }
+
+    // MARK: Shell bridge
+
+    private func setChrome(playing: Bool) {
+        guard shell, playing != chromePlaying else { return }
+        chromePlaying = playing
+        UIApplication.shared.isIdleTimerDisabled = playing
+        setNeedsStatusBarAppearanceUpdate()
+        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
+        onChrome?(playing)
+    }
+
+    /// Returns true when the message was a shell message and is fully handled.
+    private func handleShellMessage(_ type: String, _ body: [String: Any]) -> Bool {
+        switch type {
+        case "shellReady":
+            shellReady = true
+            onShellReady?()
+        case "shellFallback":
+            onShellFallback?(body["reason"] as? String ?? "unspecified")
+        case "openSettings":
+            onOpenSettings?(body["section"] as? String)
+        case "openManageGold":
+            onOpenManageGold?()
+        case "openAnalytics":
+            onOpenAnalytics?()
+        case "requestReview":
+            onRequestReview?(body["reason"] as? String ?? "unspecified")
+        case "chrome":
+            setChrome(playing: (body["playing"] as? Bool) ?? false)
+        case "signedOut":
+            onSignedOut?()
+        case "leave":
+            break
+        default:
+            return false
+        }
+        return true
+    }
+
+    /// Tells the web shell the Gold state changed (purchase, restore, expiry).
+    func pushTier(_ gold: Bool) {
+        let js = "window.dispatchEvent(new CustomEvent('orion-native-tier', {detail:{gold:\(gold ? "true" : "false")}}));"
+        webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    /// Re-syncs the Keychain session into the WebView after a native sign-in or out.
+    /// The token goes straight into localStorage; the event only says "re-read it".
+    func pushSession() {
+        let js = """
+        (function(){
+          var t = \(Self.jsLiteral(KeychainStore.token));
+          var g = \(Self.jsLiteral(KeychainStore.guestSecret));
+          try {
+            if (t) localStorage.setItem('orion.session', t); else localStorage.removeItem('orion.session');
+            if (g) localStorage.setItem('orion.guestSecret', g);
+          } catch (e) {}
+          window.dispatchEvent(new CustomEvent('orion-native-session', {detail:{signedIn: t !== null}}));
+        })();
+        """
+        webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    private static func jsLiteral(_ s: String?) -> String {
+        guard let s else { return "null" }
+        let escaped = s
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        return "'\(escaped)'"
+    }
+
     private func requestLandscape() {
         guard let scene = view.window?.windowScene else { return }
         scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight)) { _ in }
@@ -243,14 +437,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
     }
 
     private var sessionInjection: String {
-        func jsString(_ s: String?) -> String {
-            guard let s else { return "null" }
-            let escaped = s
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "'", with: "\\'")
-                .replacingOccurrences(of: "\n", with: "\\n")
-            return "'\(escaped)'"
-        }
+        func jsString(_ s: String?) -> String { Self.jsLiteral(s) }
         let attempts = PreferencesStore.loadAttempts()
         let attemptsJSON: String
         if let data = try? JSONEncoder().encode(attempts), let s = String(data: data, encoding: .utf8) {
@@ -282,6 +469,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        if shell, handleShellMessage(type, body) { return }
         switch type {
         case "graze":
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -468,6 +656,69 @@ struct PlayView: UIViewControllerRepresentable {
 
     static func dismantleUIViewController(_ vc: PlayWebController, coordinator: ()) {
         vc.teardown()
+    }
+}
+
+/// Lets SwiftUI push native events (Gold state, session) into the shell WebView.
+@MainActor
+final class ShellChannel: ObservableObject {
+    fileprivate weak var controller: PlayWebController?
+
+    func pushTier(_ gold: Bool) { controller?.pushTier(gold) }
+    func pushSession() { controller?.pushSession() }
+    func isPresenting() -> Bool { controller?.presentedViewController != nil }
+}
+
+/// The web lobby (`?shell=`) in one persistent WebView. Callbacks are the native side of
+/// the bridge: sheets, review prompt, chrome (status bar and swipes follow run state).
+struct ShellView: UIViewControllerRepresentable {
+    let channel: ShellChannel
+    var onReady: () -> Void
+    var onFallback: (String) -> Void
+    var onOpenSettings: (String?) -> Void
+    var onOpenManageGold: () -> Void
+    var onOpenAnalytics: () -> Void
+    var onRequestReview: (String) -> Void
+    var onSignedOut: () -> Void
+    var onChrome: (Bool) -> Void
+    @EnvironmentObject private var model: AppModel
+
+    func makeUIViewController(context: Context) -> PlayWebController {
+        let vc = PlayWebController()
+        vc.shell = true
+        vc.sessions = NotificationScheduler.countSession()
+        vc.forceShell = PreferencesStore.forceShell
+        vc.recordRuns = model.isAdmin && PreferencesStore.recordRuns
+        vc.goldPatrol = model.isPremium
+        vc.appModel = model
+        vc.delegate = PlayViewDelegate(model: model)
+        vc.onSession = { token, secret, attempts in
+            Task { @MainActor in
+                model.applyBridgeSession(token: token, guestSecret: secret, dailyAttempts: attempts)
+            }
+        }
+        channel.controller = vc
+        wire(vc)
+        return vc
+    }
+
+    func updateUIViewController(_ vc: PlayWebController, context: Context) {
+        wire(vc)
+    }
+
+    static func dismantleUIViewController(_ vc: PlayWebController, coordinator: ()) {
+        vc.teardown()
+    }
+
+    private func wire(_ vc: PlayWebController) {
+        vc.onShellReady = onReady
+        vc.onShellFallback = onFallback
+        vc.onOpenSettings = onOpenSettings
+        vc.onOpenManageGold = onOpenManageGold
+        vc.onOpenAnalytics = onOpenAnalytics
+        vc.onRequestReview = onRequestReview
+        vc.onSignedOut = onSignedOut
+        vc.onChrome = onChrome
     }
 }
 

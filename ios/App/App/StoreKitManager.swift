@@ -49,19 +49,25 @@ final class StoreKitManager: ObservableObject {
         await updateEntitlement()
     }
 
-    func purchase(_ product: Product) async -> Bool {
+    /// `accountToken` is the signed-in account's `appAccountToken`; nil when signed out
+    /// (the server claims the purchase on the first signed-in report).
+    func purchase(_ product: Product, accountToken: UUID? = nil) async -> Bool {
         purchasing = true
         lastError = nil
         defer { purchasing = false }
         do {
-            let result = try await product.purchase()
+            var options: Set<Product.PurchaseOption> = []
+            if let accountToken {
+                options.insert(.appAccountToken(accountToken))
+            }
+            let result = try await product.purchase(options: options)
             switch result {
             case .success(let verification):
                 let (transaction, jws) = try checkVerifiedTransaction(verification)
                 await apply(transaction)
-                _ = try? await APIClient.shared.reportPremium(signedTransaction: jws)
+                let accepted = await reportToServer(jws)
                 await transaction.finish()
-                return true
+                return accepted
             case .userCancelled:
                 return false
             case .pending:
@@ -107,8 +113,24 @@ final class StoreKitManager: ObservableObject {
         for await update in Transaction.updates {
             guard let (transaction, jws) = try? checkVerifiedTransaction(update) else { continue }
             await apply(transaction)
-            _ = try? await APIClient.shared.reportPremium(signedTransaction: jws)
+            await reportToServer(jws)
             await transaction.finish()
+        }
+    }
+
+    /// Reports a verified transaction. Other failures stay silent (StoreKit remains the
+    /// source of truth); returns false only when the server says the purchase belongs to
+    /// another ORION account, with `lastError` set to explain.
+    @discardableResult
+    private func reportToServer(_ jws: String) async -> Bool {
+        do {
+            _ = try await APIClient.shared.reportPremium(signedTransaction: jws)
+            return true
+        } catch APIError.server(let message) where message == APIClient.accountMismatchMessage {
+            lastError = message
+            return false
+        } catch {
+            return true
         }
     }
 

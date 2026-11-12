@@ -25,6 +25,8 @@ struct SettingsView: View {
     @State private var recordRuns = PreferencesStore.recordRuns
     @State private var recordingMode = PreferencesStore.recordingMode
     @State private var restoreNote: String?
+    @State private var forceShell = PreferencesStore.forceShell
+    @State private var reviewLog = PreferencesStore.reviewLog
 
     private var canSignIn: Bool { !busy && callsign.count >= 3 && password.count >= 6 }
 
@@ -44,6 +46,7 @@ struct SettingsView: View {
                 accountSection
                 notificationsSection
                 pilotSection
+                    .id("pilot")
                 if model.isRealCrew {
                     crewSection
                         .id("crewTools")
@@ -57,6 +60,15 @@ struct SettingsView: View {
             .padding(.vertical, 12)
         }
         .onAppear {
+            if model.pendingScrollPilot {
+                model.pendingScrollPilot = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    withAnimation(OrionMotion.screen) {
+                        proxy.scrollTo("pilot", anchor: .top)
+                    }
+                }
+                return
+            }
             guard model.pendingScrollCrew else { return }
             model.pendingScrollCrew = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -137,6 +149,9 @@ struct SettingsView: View {
         }
         .onChange(of: recordingMode) { _, on in
             PreferencesStore.recordingMode = on
+        }
+        .onChange(of: forceShell) { _, on in
+            PreferencesStore.forceShell = on
         }
     }
 
@@ -307,10 +322,33 @@ struct SettingsView: View {
                         .foregroundStyle(OrionColor.dust)
                         .padding(.horizontal, 12)
                         .padding(.bottom, 8)
+                    hairline
+                    Toggle("Force web shell", isOn: $forceShell)
+                        .toggleStyle(OrionToggleStyle())
+                        .padding(.horizontal, 12)
+                    Text("Next launch boots the web lobby even while the app.shell switch is off.")
+                        .font(OrionFont.body(13, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
+                    hairline
+                    Text("Review log")
+                        .font(OrionFont.body(16))
+                        .foregroundStyle(OrionColor.starlight)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: OrionLayout.minTap)
+                    Text(reviewLog.isEmpty ? "No review decisions yet." : reviewLog.joined(separator: "\n"))
+                        .font(OrionFont.body(13, weight: .regular))
+                        .foregroundStyle(OrionColor.dust)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
                 }
             }
         }
-        .onAppear { photosStatus = ClipStore.photosStatus() }
+        .onAppear {
+            photosStatus = ClipStore.photosStatus()
+            reviewLog = PreferencesStore.reviewLog
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             photosStatus = ClipStore.photosStatus()
         }

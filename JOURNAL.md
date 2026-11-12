@@ -99,6 +99,21 @@ why, commit hash, follow-ups), committed together with the work. See
 - Tests: switch counts six to eight (`test-flags`, `test-flag-parity`, `test-server-flags`); new checks for defaults/params, old-bundle payload with the new keys leaves snapshots and ruleset identical, admin lists both keys, checkout 403 from capacitor/android origins (with and without session), not from web/site origin, portal allowed; `isAppOrigin` truth table in `test-stripe-billing`.
 - AGENTS.md "Switch registry" updated (eight switches, both keys, checkout guard).
 - Commit: see git log (`WS-S`). Follow-up: WS-A1/A2 read the keys; prod rows stay absent until Lucas's go.
+## 2026-11-12 PT: iOS 1.2 WS-N fix round (Opus review, uncompiled)
+
+- What: H1 `applyBridgeSession` clears `appAccountToken` and refreshes when the Keychain token changes; `PremiumSheet.buy` fetches `/api/me` right before paying and refuses to start the purchase if that fails (signed-in only). M1 late `shellReady` ignored unless still loading. M2 web `signedOut` now only triggers `model.refresh()` (clears the token only on a real 401); `applyBridgeSignedOut` left unused. M5 `pendingPlay` cleared once the shell is ready (deep links have no shell consumer). L1 blocked-URL logs host only. L2 review guard sees UIKit-presented sheets (`ShellChannel.isPresenting`). L3 `TRANSACTION_IN_USE` shows the same mismatch message.
+- Skipped: L4, L6, L7, L8, L10 (notes only, no code), L5 (privacy page variant, optional), L9 (harmless). M3 is a canary check (grep build log for "nearly matches"; Stripe navigation step). M4 follow-up, H2 release gate (WS-A2 must ship in the same bundle), D3 tracked.
+- No Stripe or fallback-path behaviour change. Commit: see git log.
+
+## 2026-11-12 PT: iOS 1.2 WS-N Swift shell (uncompiled, no Xcode on this machine)
+
+- What: `PlayWebController` gets a shell mode (one persistent WebView booted to `index.html?shell=1&appv=&sessions=[&shellForce=1][&goldPatrol=1]`). New bridge messages handled in `handleShellMessage`: `shellReady`, `shellFallback{reason}`, `openSettings{section}`, `openManageGold`, `openAnalytics`, `requestReview{reason}`, `chrome{playing}`, `signedOut`; `leave` ignored in shell. Native pushes `orion-native-tier {gold}` and `orion-native-session {signedIn}` (token goes into localStorage, never the event). `WKNavigationDelegate` allowlist (bundle only; any `stripe.com` host always cancelled; privacy page, Apple EULA, apps.apple.com open in `SFSafariViewController`; all else cancelled) plus `WKUIDelegate` for `window.open`. Content-process kill reloads the shell URL.
+- `OrionApp.swift`: new `RootView` (shell layer with splash, SwiftUI sheets for Settings/Manage Gold/Analytics/Premium, status bar, home indicator and edge swipes follow `chrome.playing`). Falls back to `NavigationStack { HomeView() }` on `shellFallback`, load failure, 8 s silence, or any `-QA` launch arg. 1.1 files (HomeView, PlayView, CalendarView) untouched and still the fallback.
+- appAccountToken: `MeResponse.appAccountToken`, `AppModel.appAccountToken`, `StoreKitManager.purchase(_:accountToken:)` (`.appAccountToken`), 409 `ACCOUNT_TOKEN_MISMATCH` mapped in `APIClient` to "This Apple purchase belongs to another ORION account." and surfaced by the purchase path.
+- Review: native hard guard `AppModel.approveReview` (one ask per `CFBundleShortVersionString`, never busy or inactive), `requestReview` env action, 10-entry log in Settings CREW TOOLS, with crew "Force web shell" toggle (`shellForce=1` next launch). Session count reuses `PreferencesStore.sessionCount` through a new idempotent `NotificationScheduler.countSession()`.
+- Settings opens at PILOT via `model.pendingScrollPilot`. No new files, no pbxproj edit. No TS or server change, so no gates run (cannot compile Swift here).
+- Money: no Stripe URL can load in the shell WebView (navigation denylist); Manage Gold keeps the 1.1 native portal call; no web checkout path added.
+- Follow-ups: first compile on the MacBook (canary build); WS-A2 must send the bridge messages above and read `shell`/`appv`/`sessions`/`shellForce`; fallback-path review prompt (HomeView `onDismiss`) not done; crew record-runs flag is injected at document start so it needs the signed-in crew state at launch (see report). Commit: see git log.
 
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
