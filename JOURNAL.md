@@ -4,6 +4,12 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: iOS 1.2 WS-N fix round (Opus review, uncompiled)
+
+- What: H1 `applyBridgeSession` clears `appAccountToken` and refreshes when the Keychain token changes; `PremiumSheet.buy` fetches `/api/me` right before paying and refuses to start the purchase if that fails (signed-in only). M1 late `shellReady` ignored unless still loading. M2 web `signedOut` now only triggers `model.refresh()` (clears the token only on a real 401); `applyBridgeSignedOut` left unused. M5 `pendingPlay` cleared once the shell is ready (deep links have no shell consumer). L1 blocked-URL logs host only. L2 review guard sees UIKit-presented sheets (`ShellChannel.isPresenting`). L3 `TRANSACTION_IN_USE` shows the same mismatch message.
+- Skipped: L4, L6, L7, L8, L10 (notes only, no code), L5 (privacy page variant, optional), L9 (harmless). M3 is a canary check (grep build log for "nearly matches"; Stripe navigation step). M4 follow-up, H2 release gate (WS-A2 must ship in the same bundle), D3 tracked.
+- No Stripe or fallback-path behaviour change. Commit: see git log.
+
 ## 2026-11-12 PT: iOS 1.2 WS-N Swift shell (uncompiled, no Xcode on this machine)
 
 - What: `PlayWebController` gets a shell mode (one persistent WebView booted to `index.html?shell=1&appv=&sessions=[&shellForce=1][&goldPatrol=1]`). New bridge messages handled in `handleShellMessage`: `shellReady`, `shellFallback{reason}`, `openSettings{section}`, `openManageGold`, `openAnalytics`, `requestReview{reason}`, `chrome{playing}`, `signedOut`; `leave` ignored in shell. Native pushes `orion-native-tier {gold}` and `orion-native-session {signedIn}` (token goes into localStorage, never the event). `WKNavigationDelegate` allowlist (bundle only; any `stripe.com` host always cancelled; privacy page, Apple EULA, apps.apple.com open in `SFSafariViewController`; all else cancelled) plus `WKUIDelegate` for `window.open`. Content-process kill reloads the shell URL.

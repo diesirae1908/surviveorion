@@ -320,7 +320,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             decisionHandler(.cancel)
             openExternal(url)
         case .blocked:
-            NSLog("ORION shell blocked navigation to %@", url.absoluteString)
+            NSLog("ORION shell blocked navigation to %@", url.host ?? url.scheme ?? "?")
             decisionHandler(.cancel)
         }
     }
@@ -336,7 +336,7 @@ final class PlayWebController: UIViewController, WKScriptMessageHandler, WKNavig
             if classify(url) == .external {
                 openExternal(url)
             } else {
-                NSLog("ORION shell blocked window.open to %@", url.absoluteString)
+                NSLog("ORION shell blocked window.open to %@", url.host ?? url.scheme ?? "?")
             }
         }
         return nil
@@ -666,6 +666,7 @@ final class ShellChannel: ObservableObject {
 
     func pushTier(_ gold: Bool) { controller?.pushTier(gold) }
     func pushSession() { controller?.pushSession() }
+    func isPresenting() -> Bool { controller?.presentedViewController != nil }
 }
 
 /// The web lobby (`?shell=`) in one persistent WebView. Callbacks are the native side of

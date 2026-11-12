@@ -268,11 +268,17 @@ final class AppModel: ObservableObject {
     }
 
     func applyBridgeSession(token: String?, guestSecret: String?, dailyAttempts: String?) {
+        let previous = KeychainStore.token
         if let token, !token.isEmpty { KeychainStore.token = token }
         if let guestSecret, !guestSecret.isEmpty { KeychainStore.guestSecret = guestSecret }
         PreferencesStore.applyWebAttemptsJSON(dailyAttempts)
         attemptsLeft = PreferencesStore.attemptsLeft()
         isSignedIn = KeychainStore.token != nil
+        if KeychainStore.token != previous {
+            // Account changed under us: never keep the old account's purchase token.
+            appAccountToken = nil
+            Task { await refresh() }
+        }
     }
 
     func showPremiumToast() {

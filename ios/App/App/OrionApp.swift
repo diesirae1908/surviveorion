@@ -53,7 +53,10 @@ private struct RootView: View {
             ShellView(
                 channel: channel,
                 onReady: {
+                    guard phase == .loading else { return }
                     phase = .ready
+                    model.pendingPlay = nil
+                    model.pendingPlayDate = nil
                     channel.pushTier(model.isPremium)
                 },
                 onFallback: { reason in fallBack(reason) },
@@ -70,7 +73,7 @@ private struct RootView: View {
                     if model.isPremium { showAnalytics = true } else { premium = .analytics }
                 },
                 onRequestReview: { reason in askReview(reason) },
-                onSignedOut: { model.applyBridgeSignedOut() },
+                onSignedOut: { Task { await model.refresh() } },
                 onChrome: { playing = $0 }
             )
             .ignoresSafeArea()
@@ -108,6 +111,13 @@ private struct RootView: View {
         .onChange(of: model.isPremium) { _, gold in
             channel.pushTier(gold)
         }
+        .onChange(of: model.pendingPlay) { _, mode in
+            // Deep links have no consumer in the shell; HomeView (fallback) is the only one.
+            if mode != nil && phase == .ready {
+                model.pendingPlay = nil
+                model.pendingPlayDate = nil
+            }
+        }
     }
 
     private func fallBack(_ reason: String) {
@@ -117,7 +127,7 @@ private struct RootView: View {
     }
 
     private func askReview(_ reason: String) {
-        let busy = playing || showSettings || showManage || showAnalytics || premium != nil
+        let busy = playing || showSettings || showManage || showAnalytics || premium != nil || channel.isPresenting()
         if model.approveReview(reason: reason, busy: busy, sceneActive: scenePhase == .active) {
             requestReview()
         }

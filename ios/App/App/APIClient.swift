@@ -312,7 +312,7 @@ actor APIClient {
             }
             if code == 409,
                let body = try? JSONDecoder().decode([String: String].self, from: data),
-               body["code"] == "ACCOUNT_TOKEN_MISMATCH" {
+               ["ACCOUNT_TOKEN_MISMATCH", "TRANSACTION_IN_USE"].contains(body["code"] ?? "") {
                 throw APIError.server(Self.accountMismatchMessage)
             }
             if code >= 400 {
