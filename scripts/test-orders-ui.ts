@@ -169,6 +169,11 @@ check("render: wake lanes are constants, no per-frame array literals", !/const l
 check("pilot trail picker: no hardcoded hull id, one save at a time", !/"hull"/.test(src("src/lobby/pilotView.ts")) && /saving/.test(src("src/lobby/pilotView.ts")));
 check("ladder.ts and cosmetics.ts import no sim state", !/from "\.\/(gameState|world|enemies)"/.test(src("src/ladder.ts") + src("src/cosmetics.ts")));
 check("the orders UI never names a field `rank`", !/\brank\s*:/.test(src("src/ladder.ts") + src("src/cosmetics.ts") + src("src/lobby/ordersPanel.ts")));
+// Free vs Gold never changes Orders or Merit (iOS 1.2 plan, section 3). Order difficulty `tier` is not an account tier.
+const ACCOUNT_TIER = /goldPatrol|premium|unlimitedDaily|"admin"|\bapi\.tier\b|isPremium|hasStripe/;
+for (const f of ["src/orders.ts", "src/ladder.ts", "src/cosmetics.ts", "src/lobby/ordersPanel.ts", "server/orders.mjs"]) {
+  check(`${f}: no account tier (free vs Gold) read`, !ACCOUNT_TIER.test(src(f)));
+}
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed`);

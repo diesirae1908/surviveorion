@@ -154,14 +154,16 @@ import { causeText } from "./resultView";
 import {
   bootNativeShell,
   hapticDeath,
-  isNativeApp,
+  isAppBinary,
   isNativePlay,
-  parseNativeGoldPatrol,
+  isShellHost,
+  nativeGold,
   parseNativePlay,
   parseNativePlayDate,
   postNativeGameOver,
   postNativeLeave,
   postNativeOpenAnalytics,
+  postNativeOpenManageGold,
   postNativePremium,
   setPlayChrome,
 } from "./native";
@@ -205,21 +207,20 @@ const NATIVE_PATROL_DATE = IS_NATIVE_PLAY && NATIVE_PLAY === "daily" ? parseNati
 const NATIVE_ARCHIVE = !!(NATIVE_PATROL_DATE && NATIVE_PATROL_DATE !== patrolDateStr());
 /** Website Gold Patrol calendar: past Daily file for this session (cleared on lobby). */
 let webArchiveDate: string | null = null;
-const NATIVE_GOLD = IS_NATIVE_PLAY && parseNativeGoldPatrol(location.search);
 const WEB_OVERRIDE = consumeWebOverride(location.search);
 const PHONE_LANDING = shouldShowPhoneLanding({
   search: location.search,
   ua: navigator.userAgent,
   protocol: location.protocol,
   nativePlay: IS_NATIVE_PLAY,
-  nativeApp: isNativeApp(),
+  nativeApp: isAppBinary(),
   coarsePointer: window.matchMedia("(pointer: coarse)").matches,
   innerWidth: window.innerWidth,
   sessionOverride: WEB_OVERRIDE,
 });
 
 function unlimitedDailyRuns(): boolean {
-  return NATIVE_GOLD || api.goldPatrolUnlimited;
+  return nativeGold() || api.goldPatrolUnlimited;
 }
 
 function webGoldPatrolPrices(): { monthly: string; yearly: string } {
@@ -230,9 +231,23 @@ function webGoldPatrolPrices(): { monthly: string; yearly: string } {
   };
 }
 
-/** Website Stripe checkout (never inside native Capacitor / iOS shell). */
+/** Website Stripe checkout (never inside the app binary: play page, web shell or Capacitor). */
 function webStripeBillingAvailable(): boolean {
-  return api.stripeBilling && !isNativeApp() && !IS_NATIVE_PLAY;
+  return api.stripeBilling && !isAppBinary();
+}
+
+/**
+ * A Gold offer is shown in a lobby surface: website Stripe checkout, or in the web shell the
+ * native StoreKit sheet. The offer carries no price or link of its own (see `openGoldPatrol`
+ * and `goldPlatePrice`); the play page has no lobby and never calls this.
+ */
+function goldOfferAvailable(): boolean {
+  return isShellHost() || webStripeBillingAvailable();
+}
+
+/** Website price label from the Stripe config. Never in the app: StoreKit's sheet owns the price there. */
+function goldPlatePrice(): string | null {
+  return webStripeBillingAvailable() ? webGoldPatrolPrices().monthly.replace(/\s*USD/i, "").trim() : null;
 }
 
 const PAYWALL_SOURCE_SET = new Set<PaywallSource>([
@@ -255,12 +270,13 @@ function asPaywallSource(raw: unknown, fallback: PaywallSource): PaywallSource {
 }
 
 function trackPaywall(step: PaywallStep, source: PaywallSource = paywallSource): void {
-  if (isNativeApp() || IS_NATIVE_PLAY) return;
+  if (isAppBinary()) return;
   paywallSource = source;
   api.logPaywallEvent(source, step);
 }
 
 async function startStripeCheckout(plan: "monthly" | "yearly"): Promise<void> {
+  if (isAppBinary()) throw new ApiError("Not available in the app", 403);
   try {
     const url = await api.startStripeCheckout(plan);
     trackPaywall("checkout_redirect");
@@ -272,12 +288,13 @@ async function startStripeCheckout(plan: "monthly" | "yearly"): Promise<void> {
 }
 
 async function startStripePortal(): Promise<void> {
+  if (isAppBinary()) throw new ApiError("Not available in the app", 403);
   const url = await api.openStripePortal();
   location.assign(url);
 }
 
 function openWebGoldPatrolPaywall(source: PaywallSource = paywallSource): void {
-  if (isNativeApp() || IS_NATIVE_PLAY) return;
+  if (isAppBinary()) return;
   trackPaywall("open", source);
   const onDismiss = (): void => {
     trackPaywall("dismiss");
@@ -308,9 +325,29 @@ function openWebGoldPatrolPaywall(source: PaywallSource = paywallSource): void {
   ui.showGoldPatrolPaywall(webGoldPatrolPrices(), runCheckout, onDismiss);
 }
 
-function handleUnlockGoldPatrol(source: PaywallSource = "lobby_upsell"): void {
-  if (IS_NATIVE_PLAY) postNativePremium("calendar");
+/**
+ * The one router for every Gold entry (lobby plate, dossier plate, calendar, result card,
+ * wingmates, patrol complete, settings). App binary: the native StoreKit sheet through the
+ * bridge. Website: the Stripe paywall. Nothing else calls `openWebGoldPatrolPaywall`.
+ */
+function openGoldPatrol(source: PaywallSource = "lobby_upsell"): void {
+  if (isAppBinary()) postNativePremium("calendar");
   else openWebGoldPatrolPaywall(source);
+}
+/** Manage Gold: the native screen in the app, the Stripe portal on the website. */
+function manageGoldPatrol(): void {
+  if (isAppBinary()) {
+    postNativeOpenManageGold();
+    return;
+  }
+  void (async () => {
+    try {
+      await startStripePortal();
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Could not open billing portal";
+      window.alert(msg);
+    }
+  })();
 }
 
 /** Past Daily file in play (native `?date=` or website calendar). Not today. */
@@ -343,7 +380,7 @@ function challengeParams(): ChallengeParams | null {
 
 /** Web daily only: never native, /fullgame, preview, archive or training. */
 function challengeAllowed(): boolean {
-  return DAILY_ONLY && !IS_NATIVE_PLAY && !isNativeApp() && !PREVIEW_ACTIVE && !isArchiveRun() && challengeParams() !== null;
+  return DAILY_ONLY && !isAppBinary() && !PREVIEW_ACTIVE && !isArchiveRun() && challengeParams() !== null;
 }
 
 /** The target, unless the patrol rolled over since it resolved (a live target is only comparable on its own day). */
@@ -886,7 +923,7 @@ function failTiltToStick(reason: TiltEnableResult): void {
     reason === "no-data"
       ? "No motion data from this device. Flying with the touch stick."
       : "Motion access is blocked, so tilt can't steer. Flying with the touch stick. " +
-          (isNativeApp() || isNativePlay()
+          (isAppBinary()
             ? "To fix it: allow Motion & Fitness for ORION in iOS Settings, then pick Tilt again."
             : "To fix it: quit and reopen your browser (or allow Motion & Orientation access" +
               " in its settings), then pick Tilt again."),
@@ -982,7 +1019,7 @@ const ui = new Ui(settings, {
   onWorldArena: () => community.showWorldArena(),
   onArenas: () => community.showArenas(),
   onFriends: () => {
-    if (!IS_NATIVE_PLAY && !isNativeApp() && !api.signedIn) {
+    if (!isAppBinary() && !api.signedIn) {
       ui.showGuestWingmates(
         () => community.showAuth(() => community.showFriends()),
         showMenu,
@@ -1049,7 +1086,7 @@ const ui = new Ui(settings, {
       showMenu();
     }),
   onPilot: (callsign) => community.showPilot(callsign, showMenu),
-  onUnlockGoldPatrol: (source) => handleUnlockGoldPatrol(source ?? "lobby_upsell"),
+  onUnlockGoldPatrol: (source) => openGoldPatrol(source ?? "lobby_upsell"),
   onGoldPatrolWebCheckout: (plan) => {
     void (async () => {
       try {
@@ -1060,16 +1097,7 @@ const ui = new Ui(settings, {
       }
     })();
   },
-  onManageGoldPatrol: () => {
-    void (async () => {
-      try {
-        await startStripePortal();
-      } catch (e) {
-        const msg = e instanceof ApiError ? e.message : "Could not open billing portal";
-        window.alert(msg);
-      }
-    })();
-  },
+  onManageGoldPatrol: () => manageGoldPatrol(),
   onNativeAnalytics: () => postNativeOpenAnalytics(),
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
@@ -1095,7 +1123,7 @@ const ui = new Ui(settings, {
 
 /** ui.lobby params for today into the Ui (null = off). The web lobby is never built on native play or Capacitor. */
 function syncLobbyFlags(): void {
-  ui.setLobbyFlags(clientFlagsSnapshot(PREVIEW_FLAGS).lobby, !IS_NATIVE_PLAY && !isNativeApp());
+  ui.setLobbyFlags(clientFlagsSnapshot(PREVIEW_FLAGS).lobby, !isAppBinary());
 }
 syncLobbyFlags();
 onFlagsChange(syncLobbyFlags);
@@ -1149,11 +1177,11 @@ function dailyLobbyInfo(): DailyLobbyInfo {
     country: api.user?.country,
     pendingFriends: api.pendingFriends,
     unlimitedDaily: unlimitedDailyRuns(),
-    showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
+    showWebGoldPatrol: goldOfferAvailable() && !unlimitedDailyRuns(),
     showManageGoldPatrol: webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
     hasStripeCustomer: api.stripeCustomer,
     tier: api.tier,
-    goldPatrolPrices: webGoldPatrolPrices(),
+    goldPatrolPrices: webStripeBillingAvailable() ? webGoldPatrolPrices() : undefined,
   };
 }
 
@@ -1382,7 +1410,7 @@ function playArchiveDay(date: string): void {
     return;
   }
   if (!unlimitedDailyRuns()) {
-    if (webStripeBillingAvailable()) openWebGoldPatrolPaywall("archive_day");
+    if (goldOfferAvailable()) openGoldPatrol("archive_day");
     return;
   }
   webArchiveDate = date;
@@ -1441,7 +1469,7 @@ function buildCalendarMonth(key: MonthKey, loading: boolean, serverUnavailable: 
     loading,
     serverUnavailable,
     canFlyArchive: unlimitedDailyRuns(),
-    showWebGoldPatrol: webStripeBillingAvailable() && !unlimitedDailyRuns(),
+    showWebGoldPatrol: goldOfferAvailable() && !unlimitedDailyRuns(),
     todayDate: today,
     attemptsLeft: Math.max(0, DAILY_MAX_ATTEMPTS - attempts.used),
     unlimitedDaily: unlimitedDailyRuns(),
@@ -1604,7 +1632,7 @@ function buildBriefingContext(quick: boolean): briefing.BriefingContext {
     effects: effectiveEffects(settings),
     shake: settings.screenShake,
     params: clientFlagsSnapshot(PREVIEW_FLAGS).lobby,
-    allowed: !IS_NATIVE_PLAY && !isNativeApp(),
+    allowed: !isAppBinary(),
     // audio.briefingStamp lands with WS-B; absent until then.
     playStamp: () => (audio as { briefingStamp?: () => void }).briefingStamp?.(),
   };
@@ -1656,14 +1684,14 @@ function openPilotDossier(): void {
     menuRows: ui.lobbyMenuRows(lobbyInfo),
     goldPlate: {
       show: !!lobbyInfo.showWebGoldPatrol,
-      priceLabel: lobbyInfo.showWebGoldPatrol ? webGoldPatrolPrices().monthly.replace(/\s*USD/i, "").trim() : null,
+      priceLabel: lobbyInfo.showWebGoldPatrol ? goldPlatePrice() : null,
     },
     canFlyArchive: unlimitedDailyRuns(),
     ladder: api.me ? { merit: api.me.ladder.merit, equippedTrail: api.me.cosmetics.trail ?? null } : null,
   };
   const dossierCb: PilotDossierCallbacks = {
     onPatrolCalendar: (date) => openPatrolCalendar(date),
-    onGoldPlate: () => handleUnlockGoldPatrol("lobby_upsell"),
+    onGoldPlate: () => openGoldPatrol("lobby_upsell"),
     onSignIn: () => community.showAuth(openPilotDossier),
     onAccount: () => community.showProfile(),
     onTrail: (id) =>
@@ -2239,8 +2267,8 @@ function showGameOverUi(): void {
     clipInbox: api.clipInbox,
     patrolDate: archivePatrolDate() ?? undefined,
     showGoldPatrolCta:
-      !unlimitedDailyRuns() && (IS_NATIVE_PLAY || webStripeBillingAvailable()),
-    showAnalyticsLink: IS_NATIVE_PLAY && unlimitedDailyRuns(),
+      !unlimitedDailyRuns() && (IS_NATIVE_PLAY || goldOfferAvailable()),
+    showAnalyticsLink: (IS_NATIVE_PLAY || isShellHost()) && unlimitedDailyRuns(),
   });
   submitRun();
   if (IS_NATIVE_PLAY) void emitNativePlayGameOver(dailyMedal?.tier ?? null);
@@ -2833,7 +2861,7 @@ window.addEventListener("pointerdown", () => {
 // server availability) so the community buttons appear/disappear correctly.
 window.addEventListener("orion-open-gold-patrol-paywall", (e: Event) => {
   const raw = (e as CustomEvent<{ source?: unknown }>).detail?.source;
-  openWebGoldPatrolPaywall(asPaywallSource(raw, "wingmates"));
+  openGoldPatrol(asPaywallSource(raw, "wingmates"));
 });
 
 // ui.challenge arrival (/c/<code>): stash the code for this session and put the URL back to the
@@ -2883,6 +2911,6 @@ void api.init().then(async () => {
 if (!IS_NATIVE_PLAY) void bootNativeShell();
 
 // traffic beacon: who's arriving, from where (admin dashboard only)
-if (!IS_NATIVE_PLAY) api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
+if (!isAppBinary()) api.logVisit(DAILY_ONLY ? "daily" : "fullgame", guessCountry());
 
 requestAnimationFrame(frame);

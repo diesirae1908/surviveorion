@@ -3,7 +3,7 @@
 
 import { COPY } from "./challenge";
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalTier } from "./medals";
-import { isNativeApp, isNativePlay, nativeShare, postNativeShare } from "./native";
+import { isAppBinary, isNativeApp, isNativePlay, isShellHost, nativeShare, postNativeShare } from "./native";
 import { patrolDateStr } from "./patrolDate";
 import { DAILY_MAX_ATTEMPTS } from "./save";
 import type { TraceBox, TracePath } from "./flightTrace";
@@ -125,7 +125,7 @@ export function buildShareText(s: ShareStats): string {
 
 /** True when this device can share a PNG file (native app, or the Web Share API with files). Stories need it. */
 export function canShareFiles(): boolean {
-  if (isNativePlay() || isNativeApp()) return true;
+  if (isAppBinary()) return true;
   try {
     if (typeof navigator === "undefined" || typeof navigator.canShare !== "function" || typeof File === "undefined") return false;
     return navigator.canShare({ files: [new File([""], "orion-patrol.png", { type: "image/png" })] });
@@ -331,7 +331,7 @@ export async function shareText(
   png?: Blob | null,
   url: string = SHARE_URL,
 ): Promise<ShareOutcome> {
-  if (isNativePlay()) {
+  if (isNativePlay() || isShellHost()) {
     postNativeShare(text, await pngToBase64(png));
     return "shared";
   }

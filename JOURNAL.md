@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: iOS 1.2 WS-A1, one host predicate + billing audit (no switch change, website unchanged)
+
+- `src/native.ts`: `parseNativeShell`, pure `classifyAppHost(search, bridge, capacitor)`, `appHost()` (web | play | shell), `isAppBinary()`, `isShellHost()`. `?shell=N` only counts with a native bridge (or the capacitor: origin), so a pasted `?shell=1` on the website stays the website. Play wins over shell. `nativeGold()` (pushed `orion-native-tier` value, else the URL `goldPatrol=1` hint, never on the web) replaces main.ts `NATIVE_GOLD`. `postNativePremium/Share/OpenAnalytics`, `exportNativeSession` and haptics now also work on the shell host; new `postNativeOpenManageGold`.
+- Billing gates (main.ts, ui.ts, community.ts, share.ts, api.ts) read the host predicate, not `isNativeApp()` / `IS_NATIVE_PLAY`: `webStripeBillingAvailable`, `trackPaywall`, `openWebGoldPatrolPaywall`, `challengeAllowed` (challenge link stays off in the whole app, same predicate, not a fork), phone landing, wingmates Unlock row, Google button, App Store CTAs (`appStoreCtaLive`), visit beacon (the app never logs a web visit).
+- One router `openGoldPatrol(source)`: app goes to the native StoreKit sheet via the bridge, web to the Stripe paywall. Every Gold entry uses it (lobby plate, dossier plate, calendar locked day, patrol complete, settings, wingmates event, result card). `manageGoldPatrol()`: app sends `openManageGold`, web opens the Stripe portal. Hard refusals inside `startStripeCheckout`, `startStripePortal`, `api.startStripeCheckout`, `api.openStripePortal` when `isAppBinary()`. The lobby gold plate has no price in the app (StoreKit's sheet owns it); website price text is unchanged.
+- Tests: new `scripts/test-app-host.ts` (classify truth table web/play/shell x bridge x capacitor, runtime predicate with stubbed globals, source guards: no isNativeApp / IS_NATIVE_PLAY in billing functions, refusals present, caller counts for checkout, portal and paywall, Stripe entry points named only in main and api, `location.assign` only in the two guarded functions). `test-orders-ui.ts`: orders and ladder modules never read the account tier. Two pinned-text asserts updated (`test-native-play`, `test-first-flight`).
+- Not touched: scoring, validate.mjs, mutators, attempts, POST /api/scores, rand draws, server, ios/. Gates all exit 0: tsc, npm test, sim-test, build.
+- Follow-ups: WS-A2 (shell boot, `app.shell` decision, bridge posts, review prompt). Gate values in main.ts are covered by source guards, not executed (no DOM env); QA step Q2 compares website screenshots.
+- Commit: see git log (WS-A1).
+
 ## 2026-11-12 PT: challenge link fix round + merges of origin/dev and feat/ios12-wss (`ui.challenge` still OFF)
 
 - Merged `origin/dev` (sim deflake, clean) and `feat/ios12-wss` (`app.shell`, `app.review`, checkout guard). Only conflicts: switch-count asserts in `test-flags.ts`, `test-flag-parity.ts`, `test-server-flags.mjs`; both sides kept. Those tests now assert the exact nine-key list (`EXPECTED_KEYS`) so the next switch does not conflict. `AGENTS.md` switch section lists all nine plus `ORION_PUBLIC_ORIGIN` and `ORION_DIST`. (review M2)

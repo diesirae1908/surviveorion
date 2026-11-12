@@ -76,7 +76,7 @@ assert.match(
 assert.match(main, /ui\.showGuestWingmates/);
 assert.match(
   main,
-  /if \(!IS_NATIVE_PLAY && !isNativeApp\(\) && !api\.signedIn\)/,
+  /if \(!isAppBinary\(\) && !api\.signedIn\)/,
   "native play still uses community.showFriends (login) for Wingmates",
 );
 assert.match(

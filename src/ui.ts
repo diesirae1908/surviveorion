@@ -55,6 +55,7 @@ import { canShareFiles, type ShareOutcome } from "./share";
 import { isNicknameBlocked, pickRejectionMessage, sanitizeCallsignForDisplay } from "./nickname";
 import { RECORDING_MAX_SECONDS, recordingSupported, recordingUnavailableReason } from "./recorder";
 import {
+  isAppBinary,
   isNativeApp,
   isNativePlay,
   nativeNotifPrefs,
@@ -92,7 +93,12 @@ import { ladderTierToday, todayView as ordersTodayView } from "./orders";
 import { menuRowSpecs, type MenuRowId } from "./lobby/menuRows";
 
 /** Flip false to hide the App Store CTA. Listing: apps.apple.com/app/id6811113450 */
-const APP_STORE_LIVE = true;
+const APP_STORE_LISTING_LIVE = true;
+
+/** The "Get on iPhone" CTA: website only, an app never links to its own store page. */
+function appStoreCtaLive(): boolean {
+  return APP_STORE_LISTING_LIVE && !isAppBinary();
+}
 
 export interface UiCallbacks {
   onPlay: (gameMode: GameMode) => void;
@@ -702,7 +708,7 @@ export class Ui {
       const unlock = this.button("Unlock Gold Patrol", false, () => this.cb.onUnlockGoldPatrol?.("patrol_complete"));
       unlock.classList.add("small-btn", "chamfer", "patrol-complete-unlock");
       card.appendChild(unlock);
-    } else if (APP_STORE_LIVE) {
+    } else if (appStoreCtaLive()) {
       const store = document.createElement("a");
       store.className = "patrol-complete-store chamfer";
       store.href = APP_STORE_URL;
@@ -1917,7 +1923,7 @@ export class Ui {
       },
       privacy: () => openPrivacyPolicy(),
     };
-    return menuRowSpecs(info, { unreadUpdate: unread, appStoreLive: APP_STORE_LIVE }).map((r) => ({
+    return menuRowSpecs(info, { unreadUpdate: unread, appStoreLive: appStoreCtaLive() }).map((r) => ({
       id: r.id,
       label: r.label,
       run: actions[r.id],
@@ -2228,14 +2234,15 @@ export class Ui {
       share.textContent = "SHARE RESULT";
       wrap.appendChild(share);
       wrap.appendChild(this.countdownLine());
-      if (info.showWebGoldPatrol && info.goldPatrolPrices && this.cb.onUnlockGoldPatrol) {
-        const monthly = info.goldPatrolPrices.monthly.replace(/\s*USD/i, "").trim();
+      if (info.showWebGoldPatrol && this.cb.onUnlockGoldPatrol) {
+        // No prices in the info (the app) = no price on the plate; StoreKit's sheet shows it.
+        const monthly = info.goldPatrolPrices?.monthly.replace(/\s*USD/i, "").trim();
         const row = document.createElement("button");
         row.type = "button";
         row.className = "lobby-upsell chamfer";
         row.innerHTML =
           `<span class="t"><b>GOLD PATROL</b><br>Keep flying today. Unlimited runs.</span>` +
-          `<span class="go">${escapeHtml(monthly)}/MO ›</span>`;
+          `<span class="go">${monthly ? `${escapeHtml(monthly)}/MO ` : ""}›</span>`;
         row.addEventListener("click", () => this.cb.onUnlockGoldPatrol?.("lobby_upsell"));
         wrap.appendChild(row);
       }
@@ -2659,7 +2666,7 @@ export class Ui {
     add("Training Ground", () => this.cb.onTraining());
     footer.appendChild(this.el("span", "lobby-foot-dot", "·"));
     add("How to play", () => this.cb.onTutorial());
-    if (APP_STORE_LIVE) {
+    if (appStoreCtaLive()) {
       footer.appendChild(this.el("span", "lobby-foot-dot", "·"));
       add("Get on iPhone", () => {
         window.open(APP_STORE_URL, "_blank", "noopener");

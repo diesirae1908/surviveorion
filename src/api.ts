@@ -3,7 +3,7 @@
 // thrown ApiError with a user-readable message.
 
 import type { GameMode } from "./config";
-import { apiBase } from "./native";
+import { apiBase, isAppBinary } from "./native";
 import { loadDeviceId } from "./device";
 import { loadRunCount } from "./save";
 import { setCreatorPreview, setRemoteFeatures } from "./flags";
@@ -521,11 +521,15 @@ export class Api {
   }
 
   async startStripeCheckout(plan: "monthly" | "yearly"): Promise<string> {
+    // App Store 3.1.1: no Stripe checkout is ever minted inside the app binary.
+    if (isAppBinary()) throw new ApiError("Not available in the app", 403);
     const r = await this.request<{ url: string }>("POST", "/api/billing/checkout", { price: plan });
     return r.url;
   }
 
   async openStripePortal(): Promise<string> {
+    // The app manages billing through the native Manage Gold screen, never a web portal link.
+    if (isAppBinary()) throw new ApiError("Not available in the app", 403);
     const r = await this.request<{ url: string }>("POST", "/api/billing/portal");
     return r.url;
   }

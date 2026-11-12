@@ -42,7 +42,83 @@ export function isNativePlay(): boolean {
   }
 }
 
-function postNative(payload: Record<string, unknown>): void {
+/**
+ * Web shell protocol (`?shell=<n>`): the App Store binary booted into the web lobby
+ * instead of a single run. Integer >= 1, anything else is "not a shell".
+ */
+export function parseNativeShell(search: string): number | null {
+  const v = new URLSearchParams(search).get("shell");
+  if (!v || !/^\d{1,2}$/.test(v)) return null;
+  const n = Number(v);
+  return n >= 1 ? n : null;
+}
+
+/** Which surface this page is: the website, the SwiftUI per-run play page, or the web shell. */
+export type AppHost = "web" | "play" | "shell";
+
+/**
+ * Pure host classification. `bridge` = a native message bridge (or the capacitor: origin)
+ * is present, so a pasted `?shell=1` on the website never changes the website.
+ * Play wins over shell; the legacy Capacitor shell counts as play.
+ */
+export function classifyAppHost(search: string, bridge: boolean, capacitorNative: boolean): AppHost {
+  if (parseNativePlay(search) !== null) return "play";
+  if (bridge && parseNativeShell(search) !== null) return "shell";
+  return capacitorNative ? "play" : "web";
+}
+
+function hasNativeBridge(): boolean {
+  try {
+    if (typeof location !== "undefined" && location.protocol === "capacitor:") return true;
+    return !!(window as unknown as { webkit?: { messageHandlers?: { orion?: unknown } } }).webkit?.messageHandlers
+      ?.orion;
+  } catch {
+    return false;
+  }
+}
+
+/** The one host predicate. Every billing and platform gate reads this (or `isAppBinary`). */
+export function appHost(): AppHost {
+  try {
+    if (typeof location === "undefined") return "web";
+    return classifyAppHost(location.search, hasNativeBridge(), isNativeApp());
+  } catch {
+    return "web";
+  }
+}
+
+/** True inside the App Store binary (play page, web shell or legacy Capacitor), false on the website. */
+export function isAppBinary(): boolean {
+  return appHost() !== "web";
+}
+
+/** True for the web shell only (lobby v3 inside the app). */
+export function isShellHost(): boolean {
+  return appHost() === "shell";
+}
+
+/**
+ * Gold state the native app reports. `null` = nothing pushed yet (the URL's goldPatrol=1
+ * and the server tier decide). Swift pushes `orion-native-tier` after purchase, restore, expiry.
+ */
+let nativeGoldPushed: boolean | null = null;
+
+export function setNativeGold(gold: boolean | null): void {
+  nativeGoldPushed = gold;
+}
+
+/** The native Gold state for this page: pushed value, else the URL hint, else false. Never true on the website. */
+export function nativeGold(): boolean {
+  if (!isNativePlay() && !isShellHost()) return false;
+  if (nativeGoldPushed !== null) return nativeGoldPushed;
+  try {
+    return parseNativeGoldPatrol(location.search);
+  } catch {
+    return false;
+  }
+}
+
+export function postNative(payload: Record<string, unknown>): void {
   try {
     const wk = (
       window as unknown as {
@@ -57,7 +133,7 @@ function postNative(payload: Record<string, unknown>): void {
 
 /** Push Bearer + guest secret back to the Swift Keychain after a run. */
 export function exportNativeSession(): void {
-  if (!isNativePlay()) return;
+  if (!isNativePlay() && !isShellHost()) return;
   try {
     postNative({
       type: "session",
@@ -98,19 +174,25 @@ export function postNativeLeave(): void {
 
 /** Present the native Gold Patrol paywall over the play WebView. */
 export function postNativePremium(context: "calendar" | "generic" = "calendar"): void {
-  if (!isNativePlay()) return;
+  if (!isNativePlay() && !isShellHost()) return;
   postNative({ type: "premium", context });
+}
+
+/** Open the native Manage Gold screen (shell). The web portal is never linked from the app. */
+export function postNativeOpenManageGold(): void {
+  if (!isShellHost()) return;
+  postNative({ type: "openManageGold" });
 }
 
 /** Native share sheet from the play WebView (WKWebView share is weak). */
 export function postNativeShare(text: string, pngBase64?: string | null): void {
-  if (!isNativePlay()) return;
+  if (!isNativePlay() && !isShellHost()) return;
   postNative({ type: "share", text, pngBase64: pngBase64 ?? null });
 }
 
 /** Leave play and open native Analytics from the home stack. */
 export function postNativeOpenAnalytics(): void {
-  if (!isNativePlay()) return;
+  if (!isNativePlay() && !isShellHost()) return;
   postNative({ type: "openAnalytics" });
   exportNativeSession();
 }
@@ -145,7 +227,7 @@ export function isNativeApp(): boolean {
  * web pilot recovers history. No automatic identity migration.
  */
 export function apiBase(): string {
-  return isNativeApp() || isNativePlay() ? LIVE_API_ORIGIN : "";
+  return isAppBinary() ? LIVE_API_ORIGIN : "";
 }
 
 export interface NativeNotifPrefs {
@@ -173,7 +255,7 @@ export async function setNativeNotifStreak(on: boolean): Promise<void> {
 }
 
 export async function hapticGraze(): Promise<void> {
-  if (isNativePlay()) {
+  if (isNativePlay() || isShellHost()) {
     postNative({ type: "graze" });
     return;
   }
@@ -187,7 +269,7 @@ export async function hapticGraze(): Promise<void> {
 }
 
 export async function hapticDeath(): Promise<void> {
-  if (isNativePlay()) {
+  if (isNativePlay() || isShellHost()) {
     postNative({ type: "death" });
     return;
   }

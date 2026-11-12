@@ -16,7 +16,7 @@ import { COUNTRIES, countryFlag, countryName, guessCountry } from "./countries";
 import { isTypingTarget } from "./input";
 import { sanitizePinnedRow } from "./nickname";
 import { dailyResetLabel } from "./ui";
-import { isNativeApp, openPrivacyPolicy } from "./native";
+import { isAppBinary, openPrivacyPolicy } from "./native";
 
 const BOARD_MODE_KEY = "orion.boardMode";
 const BOARD_GAME_MODE_KEY = "orion.boardGameMode";
@@ -279,7 +279,8 @@ export class CommunityUi {
       this.el("div", "field-hint center", "Enter the ranks. Your scores join the leaderboard."),
     );
 
-    const hasGoogle = Boolean(this.api.googleClientId);
+    // Google's web button cannot run in the app's WebView; the app signs in through native Settings.
+    const hasGoogle = Boolean(this.api.googleClientId) && !isAppBinary();
 
     // Primary path: Google's native button (one tap, no passwords, no redirects)
     if (hasGoogle) {
@@ -451,7 +452,7 @@ export class CommunityUi {
     if (this.api.pendingFriends > 0) wingmates.appendChild(this.el("span", "notif-dot"));
     body.appendChild(wingmates);
 
-    if (!isNativeApp() && this.api.stripeBilling) {
+    if (!isAppBinary() && this.api.stripeBilling) {
       if (!this.api.goldPatrolUnlimited) {
         body.appendChild(
           this.button("Unlock Gold Patrol", false, () => {
