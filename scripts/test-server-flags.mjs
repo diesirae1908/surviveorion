@@ -145,11 +145,11 @@ try {
 
   // --- definitions + empty state ---
   const g0 = await call("GET", "/api/admin/flags", { admin: true });
-  check("admin GET lists the six switches", g0.status === 200 && Object.keys(g0.body.flags).length === 6 && "ui.lobby" in g0.body.flags && "orders" in g0.body.flags);
+  check("admin GET lists the seven switches", g0.status === 200 && Object.keys(g0.body.flags).length === 7 && g0.body.flags["ui.challenge"]?.kind === "client" && "ui.lobby" in g0.body.flags && "orders" in g0.body.flags);
   check("admin GET carries capsSince for overdrive (gen 2 paths) and {} for others", g0.body.flags.overdrive.capsSince["forms.arc"] === 2 && g0.body.flags.overdrive.capsSince.alwaysHotScale === 2 && Object.keys(g0.body.flags["ui.hud"].capsSince).length === 0);
   check("new switches: ui.lobby is client, orders is gameplay/meta", g0.body.flags["ui.lobby"].kind === "client" && g0.body.flags.orders.kind === "gameplay" && g0.body.flags.orders.area === "meta");
   check("sameDayBypass is false on a production-mode server", g0.body.sameDayBypass === false);
-  check("all six resolve off today and tomorrow", Object.values(g0.body.flags).every((f) => !f.today.enabled && !f.tomorrow.enabled));
+  check("all seven resolve off today and tomorrow", Object.values(g0.body.flags).every((f) => !f.today.enabled && !f.tomorrow.enabled));
 
   // --- day-boundary rule ---
   const od = { key: "overdrive", enabled: true, note: "t" };

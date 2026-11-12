@@ -328,6 +328,16 @@ function renderOrders(o) {
     "</div><table><tr><th>Tier</th><th>Order</th><th>Target</th><th>Completions</th></tr>" + rows + "</table>";
 }
 
+function renderChallenge(c) {
+  if (!c) return "";
+  const head = "Challenge links" + (c.patrolNumber ? " (Patrol #" + c.patrolNumber + ")" : "");
+  if (!c.on && !c.minted) return "<h3>" + head + "</h3><p class='muted'>Switch off for this day.</p>";
+  return "<h3>" + head + "</h3><p>minted " + fmt(c.minted) + " · shared " + fmt(c.shared) +
+    " · opened " + fmt(c.opened) + " (new pilots " + fmt(c.openedNew) + ") · flew " + fmt(c.flew) +
+    " · beat " + fmt(c.beat) + " · lost " + fmt(c.lost) + " · sent back " + fmt(c.back) +
+    "</p><p class='muted'>Counters are approximate (client events, rate limited per IP).</p>";
+}
+
 function renderPaywall(p, vsPay, title) {
   if (!p) return "";
   const steps = p.byStep || {};
@@ -403,6 +413,7 @@ function renderDay(day) {
       stat("Stale bundle (needs gen " + (day.requiredGen == null ? "?" : day.requiredGen) + ")", day.staleBundle == null ? "-" : fmt(day.staleBundle)) +
     "</div>" +
     renderOrders(day.orders) +
+    renderChallenge(day.challenge) +
     renderPaywall(day.paywall, (curr, key) => {
       if (key === "open") return vs(curr, prev && prev.paywall && prev.paywall.byStep && prev.paywall.byStep.open);
       return vs(curr, prev && prev.paywall && prev.paywall[key]);

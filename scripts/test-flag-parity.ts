@@ -61,7 +61,17 @@ check("default-on ruleset id literal matches", (() => {
 // config.ts OVERDRIVE is the registry default, nothing else
 check("config.ts OVERDRIVE equals registry defaults", JSON.stringify(OVERDRIVE) === JSON.stringify(registry.flags.overdrive.default.params));
 check("materializing empty params gives the defaults", JSON.stringify(server.materializeParams(registry.flags.overdrive, {})) === JSON.stringify(registry.flags.overdrive.default.params));
-check("all six switches default off", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && Object.keys(registry.flags).length === 6);
+check("all seven switches default off", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && Object.keys(registry.flags).length === 7);
+
+// no rows: ui.challenge is off on both sides, every sub-switch present and true (read with === true)
+{
+  const cl = resolveFlagFrom("ui.challenge", "2026-11-12", [])!;
+  const sv = server.resolveFlag("ui.challenge", "2026-11-12", [])!;
+  const params = registry.flags["ui.challenge"].default.params as Record<string, unknown>;
+  check("no rows: ui.challenge off on both sides", !cl.enabled && !sv.enabled && cl.versionId === "d" && sv.versionId === "d");
+  check("ui.challenge sub-switches are all booleans defaulting true", Object.values(params).length === 6 && Object.values(params).every((v) => v === true));
+  check("ui.challenge is client kind (never enters the ruleset)", registry.flags["ui.challenge"].kind === "client" && server.rulesetIdFor("2026-11-12", []) === "base");
+}
 
 // old production rows (fixture old-row-930b7b4) resolve identically on both sides and are used as stored
 const oldFx = (JSON.parse(fs.readFileSync(path.join(here, "fixtures", "flags-fixtures.json"), "utf8")) as { "old-row-930b7b4": { params: Record<string, unknown> } })["old-row-930b7b4"];

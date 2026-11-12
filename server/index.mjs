@@ -58,6 +58,7 @@ import {
   syncUserBillingFromStripe,
 } from "./stripe.mjs";
 import { handlePaywallPost } from "./paywall.mjs";
+import * as challenge from "./challenge.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 // The Google OAuth client id is public by design (it ships to every browser),
@@ -73,7 +74,10 @@ const GOOGLE_IOS_CLIENT_ID = process.env.GOOGLE_IOS_CLIENT_ID || null;
 const SERVE_DIST = process.env.ORION_SERVE_DIST === "1";
 // Set ORION_ADMIN_KEY to unlock /admin + /api/admin/* (analytics, feedback).
 const ADMIN_KEY = process.env.ORION_ADMIN_KEY ?? "";
-const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
+const DIST = process.env.ORION_DIST ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
+// Public origin used in minted challenge URLs and OG tags. Env, never the Host
+// header (a spoofed Host would poison shared links). Staging sets its own.
+const PUBLIC_ORIGIN = (process.env.ORION_PUBLIC_ORIGIN || challenge.DEFAULT_ORIGIN).replace(/\/+$/, "");
 
 const CALLSIGN_RE = /^[A-Za-z0-9_\- ]{3,20}$/;
 const COUNTRY_RE = /^([A-Z]{2})?$/;
@@ -308,6 +312,57 @@ const publicBoardEntry = (e) => {
   return out;
 };
 const sanitizeEntries = (list) => list.map(publicBoardEntry);
+
+// --- Challenge links (the `ui.challenge` switch; logic in challenge.mjs) ---
+
+/** Resolved `ui.challenge` switch for today: `{ on, param(name) }`. A resolve failure reads as OFF. */
+function challengeSwitch() {
+  try {
+    return challenge.challengeSwitch(
+      flags.resolveFlag("ui.challenge", patrolToday(), flags.rowsForKey("ui.challenge")),
+    );
+  } catch {
+    return challenge.challengeSwitch(null);
+  }
+}
+
+const challengeDeps = () => ({
+  sw: challengeSwitch(),
+  rateLimit,
+  store,
+  sanitize: sanitizeEntry,
+  origin: PUBLIC_ORIGIN,
+  today: patrolToday(),
+});
+
+/** Cached dist/index.html, re-read when its mtime changes. Null when absent. */
+let indexCache = { mtimeMs: 0, html: null };
+function readIndexHtml() {
+  try {
+    const file = path.join(DIST, "index.html");
+    const { mtimeMs } = fs.statSync(file);
+    if (indexCache.html === null || mtimeMs !== indexCache.mtimeMs) {
+      indexCache = { mtimeMs, html: fs.readFileSync(file, "utf8") };
+    }
+    return indexCache.html;
+  } catch {
+    return null;
+  }
+}
+
+/** GET/HEAD /c/<code>. Never 404s or 429s a human: any miss serves the plain page. */
+function serveChallengePage(req, res, rawCode) {
+  const og = challenge.challengeOgFor({ ...challengeDeps(), rawCode, ip: clientIp(req) });
+  const html = og ? readIndexHtml() : null;
+  if (!og || html === null) return serveStatic(req, res, "/", DIST);
+  const body = Buffer.from(challenge.withOgBlock(html, challenge.challengeOgBlock(og)), "utf8");
+  res.writeHead(200, {
+    "Content-Type": "text/html",
+    "Content-Length": body.length,
+    "Cache-Control": "no-cache",
+  });
+  res.end(req.method === "HEAD" ? undefined : body);
+}
 
 // --- Daily Orders / Pilot Ladder (the `orders` switch; nothing below runs or
 // shows up when it resolves off for today) ---
@@ -1073,6 +1128,17 @@ const routes = {
     json(res, result.status, result.json);
   },
 
+  // Challenge links: mint (or fetch) the signed-in pilot's code for today.
+  "POST /api/challenge": async (req, res, user) => {
+    const r = challenge.handleMint({
+      ...challengeDeps(),
+      user,
+      patrolDate: patrolToday(),
+      randomBytes: crypto.randomBytes,
+    });
+    json(res, r.status, r.json);
+  },
+
   // Anonymous run telemetry (signed-in runs are logged via POST /api/scores).
   // Analytics only — never touches the leaderboards.
   "POST /api/runs": async (req, res) => {
@@ -1377,6 +1443,19 @@ const routes = {
         day.staleBundle = null;
       }
     }
+    if (day) {
+      try {
+        day.challenge = {
+          on: challenge.challengeSwitch(
+            flags.resolveFlag("ui.challenge", day.date, flags.rowsForKey("ui.challenge")),
+          ).on,
+          patrolNumber: challenge.patrolNumberFor(day.date),
+          ...store.challengeDaySummary(day.date),
+        };
+      } catch {
+        day.challenge = null;
+      }
+    }
     json(res, 200, { ...store.adminStats(), day });
   },
 
@@ -1586,6 +1665,30 @@ const server = http.createServer(async (req, res) => {
     const player = /^\/api\/players\/([^/]+)$/.exec(url.pathname);
     if (req.method === "GET" && player) {
       return playerProfile(req, res, authUser(req), decodeURIComponent(player[1]));
+    }
+    const chResolve = /^\/api\/challenge\/([^/]+)$/.exec(url.pathname);
+    if (req.method === "GET" && chResolve) {
+      const r = challenge.handleResolve({
+        ...challengeDeps(),
+        rawCode: chResolve[1],
+        viewer: authUser(req),
+        ip: clientIp(req),
+      });
+      return json(res, r.status, r.json);
+    }
+    const chEvent = /^\/api\/challenge\/([^/]+)\/event$/.exec(url.pathname);
+    if (req.method === "POST" && chEvent) {
+      const r = challenge.handleEvent({
+        ...challengeDeps(),
+        rawCode: chEvent[1],
+        body: await readBody(req),
+        ip: clientIp(req),
+      });
+      return json(res, r.status, r.json);
+    }
+    const chPage = /^\/c\/([0-9A-Za-z]{7})\/?$/.exec(url.pathname);
+    if (chPage && SERVE_DIST && isStaticMethod(req.method)) {
+      return serveChallengePage(req, res, chPage[1]);
     }
     const handler = routes[`${req.method} ${url.pathname}`];
     if (handler) return await handler(req, res, authUser(req), url);

@@ -368,6 +368,27 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_billing_events_date ON billing_events(patrol_date, kind);
 `);
 
+// Challenge links (`ui.challenge`). Additive. The row stores NO score (it is
+// read from the pilot's daily rows at request time); the counters are
+// admin-only vanity measurement. Deleting the pilot cascades the link away.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS challenge_links (
+    code        TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    patrol_date TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    shares      INTEGER NOT NULL DEFAULT 0,
+    opens       INTEGER NOT NULL DEFAULT 0,
+    opens_new   INTEGER NOT NULL DEFAULT 0,
+    flights     INTEGER NOT NULL DEFAULT 0,
+    beats       INTEGER NOT NULL DEFAULT 0,
+    losses      INTEGER NOT NULL DEFAULT 0,
+    backs       INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (user_id, patrol_date)
+  );
+  CREATE INDEX IF NOT EXISTS idx_challenge_date ON challenge_links(patrol_date);
+`);
+
 // One-time migration to platform-based boards (desktop / touch / tilt). The
 // old modes were flight-physics tags ('classic' = inertia, 'tilt' = direct
 // control); inertia is a flavor setting now, so old rows are refiled by the
@@ -576,6 +597,61 @@ export const deleteSession = (token) => db.prepare(`DELETE FROM sessions WHERE t
  */
 export function deleteUser(id) {
   db.prepare(`DELETE FROM users WHERE id = ?`).run(id);
+}
+
+// --- challenge links ---
+
+const CHALLENGE_COUNTERS = new Set(["shares", "opens", "opens_new", "flights", "beats", "losses", "backs"]);
+
+/** A pilot's best daily Classic score for a patrol date (0 when none). Same number the combined board shows. */
+export const challengeScore = (userId, patrolDate) => dailyRankCombined(userId, patrolDate)?.best ?? 0;
+
+/**
+ * The pilot's code for a patrol date: existing, else a new one from `makeCode`
+ * (retried on the rare primary-key collision). Idempotent per (user, date).
+ */
+export function mintChallenge(userId, patrolDate, makeCode, at = Date.now()) {
+  const find = db.prepare(`SELECT code FROM challenge_links WHERE user_id = ? AND patrol_date = ?`);
+  const ins = db.prepare(
+    `INSERT OR IGNORE INTO challenge_links (code, user_id, patrol_date, created_at) VALUES (?, ?, ?, ?)`,
+  );
+  for (let i = 0; i < 8; i++) {
+    const existing = find.get(userId, patrolDate);
+    if (existing) return existing.code;
+    ins.run(makeCode(), userId, patrolDate, at);
+  }
+  throw new Error("could not mint challenge code");
+}
+
+/** Link plus the owner's current callsign, or undefined. */
+export function getChallenge(code) {
+  const r = db
+    .prepare(
+      `SELECT c.code, c.user_id AS userId, c.patrol_date AS patrolDate, u.callsign AS callsign
+       FROM challenge_links c JOIN users u ON u.id = c.user_id WHERE c.code = ?`,
+    )
+    .get(code);
+  return r ? { ...r } : undefined;
+}
+
+/** Increment one counter column (allowlisted). False for an unknown column or code. */
+export function bumpChallenge(code, column) {
+  if (!CHALLENGE_COUNTERS.has(column)) return false;
+  const r = db.prepare(`UPDATE challenge_links SET ${column} = ${column} + 1 WHERE code = ?`).run(code);
+  return Number(r.changes) > 0;
+}
+
+/** Day report slice: counters summed across that patrol date's links. */
+export function challengeDaySummary(dateStr) {
+  const r = db
+    .prepare(
+      `SELECT COUNT(*) AS minted, COALESCE(SUM(shares),0) AS shared, COALESCE(SUM(opens),0) AS opened,
+              COALESCE(SUM(opens_new),0) AS openedNew, COALESCE(SUM(flights),0) AS flew,
+              COALESCE(SUM(beats),0) AS beat, COALESCE(SUM(losses),0) AS lost, COALESCE(SUM(backs),0) AS back
+       FROM challenge_links WHERE patrol_date = ?`,
+    )
+    .get(dateStr);
+  return { ...r };
 }
 
 // --- Daily Orders / Pilot Ladder ---

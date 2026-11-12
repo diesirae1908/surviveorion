@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: challenge link WS-1 server (switch `ui.challenge`, ships OFF)
+
+- What: opaque 7-char Crockford code per pilot per patrol day (`challenge_links` table, additive, cascades on account delete, stores no score). Pure module `server/challenge.mjs` (paywall.mjs pattern) plus `db.mjs` `mintChallenge`/`getChallenge`/`bumpChallenge`/`challengeScore`/`challengeDaySummary`. Routes: `POST /api/challenge` (Bearer, 10/min per pilot, 409 without a daily score), `GET /api/challenge/:code` (60/min per IP, callsign through `sanitizeEntry`, no userId/country/rank, `self` only for the owner's session, live or expired), `POST /api/challenge/:code/event` (allowlisted steps, 30/min per IP), `GET|HEAD /c/:code` (swaps the og block in `dist/index.html`, any miss serves the plain page, never 404/429). Admin day slice gets `challenge` plus a "Challenge links" line in `/admin`. `index.html` gets `<!-- og:start -->` / `<!-- og:end -->` only.
+- Switch: `ui.challenge` (client kind, default off, six sub-switches mint/lobbyBanner/paceTarget/resultLine/challengeBack/ogMeta all true, read with `=== true`). Server honours enabled, mint, ogMeta; the rest are for the client. Never enters `rulesetId`. Emergency off = a `ui.challenge` row with enabled off (routes inactive at once, `/c/` plain).
+- Two env additions in `server/index.mjs`: `ORION_PUBLIC_ORIGIN` (default https://surviveorion.com; used in minted URLs and og:url, never the Host header) and `ORION_DIST` (default `dist/`, lets the test point at a temp dir). Render dev should set `ORION_PUBLIC_ORIGIN=https://surviveorion-dev.onrender.com` or minted staging links point at production.
+- Tests: new `scripts/test-challenge-server.mjs` (64 checks), `test-account-delete.mjs` extended, switch count 6 to 7 in `test-flags.ts`, `test-flag-parity.ts` (+ "no rows: ui.challenge off on both sides"), `test-server-flags.mjs`. Not yet registered in `package.json` (WS-5 owns it).
+- Not touched: POST /api/scores, attempts, guest creation, validate.mjs, scoring, ios/.
+- Commit: see git log (`challenge link WS-1`). Follow-ups: WS-5 registers `test:challenge-server`; Render dev env var above.
+
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
 - Filter: `BLOCKED_TERMS` in `server/nickname.mjs` and `src/nickname.ts` extended (phrases/compounds only): devisgay/devsgay/suckmy/eatmyass/kissmyass, twat/bellend/wanker/tosser/bollocks/arsehole, peen/penis, cock compounds (cocksuck, cockhead, cockface, cockwomble, cockmunch, cocknose), ballsack/ballbag/nutsack. All six names from the live world top 50 now blocked. "gay" alone stays allowed. Skipped on purpose: knob, arse, prick, tits, bare ass/cock/balls/nuts. New `SAFE_EXCEPTIONS`: Dickens, Dickinson, Dickson, Dickerson (plain "dick" already blocked them), Atwater(s), Bellenden, Peenemunde, Penistone. Both lists now exported so `test-nickname.ts` asserts client/server parity.

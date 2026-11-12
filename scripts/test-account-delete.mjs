@@ -11,7 +11,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orion-delete-"));
 const dbPath = path.join(tmp, "orion.db");
 process.env.ORION_DB = dbPath;
 
-const { createUser, insertScore, deleteUser, getUserById, getUserBest, insertOrderCompletion, meritForUser, ordersDoneForDay, db } = await import(
+const { createUser, insertScore, deleteUser, getUserById, getUserBest, insertOrderCompletion, meritForUser, ordersDoneForDay, mintChallenge, getChallenge, db } = await import(
   "../server/db.mjs"
 );
 
@@ -40,7 +40,13 @@ assert.equal(insertOrderCompletion(user.id, { dailyDate: "2026-09-11", orderId: 
 assert.equal(meritForUser(user.id), 3);
 assert.deepEqual(ordersDoneForDay(user.id, "2026-09-11"), ["kills-25", "chain-5"]);
 
+// Challenge links: per-user rows must go with the account (their /c/ code goes dead).
+const linkCode = mintChallenge(user.id, "2026-09-11", () => "DEL0TEST");
+assert.equal(getChallenge(linkCode)?.userId, user.id);
+
 deleteUser(user.id);
+assert.equal(getChallenge(linkCode), undefined);
+assert.equal(db.prepare(`SELECT COUNT(*) AS c FROM challenge_links WHERE user_id = ?`).get(user.id).c, 0);
 assert.equal(getUserById(user.id), undefined);
 assert.equal(getUserBest(user.id, "touch", "classic"), 0);
 assert.equal(db.prepare(`SELECT COUNT(*) AS c FROM order_completions WHERE user_id = ?`).get(user.id).c, 0);
@@ -53,4 +59,4 @@ assert.equal(meritForUser(next.id), 0);
 assert.deepEqual(ordersDoneForDay(next.id, "2026-09-11"), []);
 
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log("PASS  DELETE user cascades scores and order completions (daily budget / rate limits unchanged)");
+console.log("PASS  DELETE user cascades scores, order completions and challenge links (daily budget / rate limits unchanged)");

@@ -278,9 +278,9 @@ check("rulesetStamp: base stays base, ruleset ids gain +g<ENGINE_GEN>", rulesetS
 check("rulesetStamp: matches the server's accepted charset and length", /^[a-z0-9.@#:+]+$/.test(rulesetStamp({ ...BASE_RULES, rulesetId: "overdrive@4#cafe0001" })));
 
 // registry shape: defaults are no-op
-check("six switches, all default off", (() => {
+check("seven switches, all default off", (() => {
   const f = (registryJson as unknown as { flags: Record<string, { default: { enabled: boolean } }> }).flags;
-  return Object.keys(f).length === 6 && Object.values(f).every((x) => x.default.enabled === false);
+  return Object.keys(f).length === 7 && Object.values(f).every((x) => x.default.enabled === false);
 })());
 check("new overdrive form defaults are all off and alwaysHotScale is 1", (() => {
   const d = (registryJson as unknown as { flags: { overdrive: { default: { params: { forms: Record<string, { on: boolean }>; alwaysHotScale: number } } } } }).flags.overdrive.default.params;
