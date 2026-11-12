@@ -202,6 +202,26 @@
         "pool.kills-250.target": [120, 600],
         "pool.fires-4.target": [2, 10]
       }
+    },
+    "app.shell": {
+      "kind": "client",
+      "area": "app.shell",
+      "description": "App Store build boots into the web lobby v3 (needs ui.lobby on and a build with shell protocol >= minShell). Off: native SwiftUI Home. Params AND-combine with ui.lobby params. Never reachable on the website.",
+      "default": {
+        "enabled": false,
+        "params": { "minShell": 1, "briefing": true, "pilotTab": true, "stories": true }
+      },
+      "bounds": { "minShell": [1, 99] }
+    },
+    "app.review": {
+      "kind": "client",
+      "area": "app.review",
+      "description": "Allows the App Store rating prompt in the app after a good run (medal or personal best, calm moment, once per app version). Off: never asked.",
+      "default": {
+        "enabled": false,
+        "params": { "minSessions": 3, "minRunSeconds": 30, "onMedal": true, "onPersonalBest": true }
+      },
+      "bounds": { "minSessions": [2, 20], "minRunSeconds": [30, 300] }
     }
   }
 }

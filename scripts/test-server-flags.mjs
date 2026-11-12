@@ -111,8 +111,8 @@ async function startServer(extraEnv = {}) {
     });
   });
   const origin = `http://127.0.0.1:${port}`;
-  const call = async (method, url, { body, token, admin } = {}) => {
-    const headers = { "Content-Type": "application/json" };
+  const call = async (method, url, { body, token, admin, headers: extraHeaders } = {}) => {
+    const headers = { "Content-Type": "application/json", ...extraHeaders };
     if (admin) headers.Authorization = `Bearer ${ADMIN_KEY}`;
     else if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(origin + url, { method, headers, body: body && method !== "GET" ? JSON.stringify(body) : undefined });
@@ -145,11 +145,12 @@ try {
 
   // --- definitions + empty state ---
   const g0 = await call("GET", "/api/admin/flags", { admin: true });
-  check("admin GET lists the six switches", g0.status === 200 && Object.keys(g0.body.flags).length === 6 && "ui.lobby" in g0.body.flags && "orders" in g0.body.flags);
+  check("admin GET lists the eight switches", g0.status === 200 && Object.keys(g0.body.flags).length === 8 && "ui.lobby" in g0.body.flags && "orders" in g0.body.flags && "app.shell" in g0.body.flags && "app.review" in g0.body.flags);
+  check("app.shell and app.review are client kind, own area, off today and tomorrow", ["app.shell", "app.review"].every((k) => g0.body.flags[k].kind === "client" && g0.body.flags[k].area === k && !g0.body.flags[k].today.enabled && !g0.body.flags[k].tomorrow.enabled));
   check("admin GET carries capsSince for overdrive (gen 2 paths) and {} for others", g0.body.flags.overdrive.capsSince["forms.arc"] === 2 && g0.body.flags.overdrive.capsSince.alwaysHotScale === 2 && Object.keys(g0.body.flags["ui.hud"].capsSince).length === 0);
   check("new switches: ui.lobby is client, orders is gameplay/meta", g0.body.flags["ui.lobby"].kind === "client" && g0.body.flags.orders.kind === "gameplay" && g0.body.flags.orders.area === "meta");
   check("sameDayBypass is false on a production-mode server", g0.body.sameDayBypass === false);
-  check("all six resolve off today and tomorrow", Object.values(g0.body.flags).every((f) => !f.today.enabled && !f.tomorrow.enabled));
+  check("all eight resolve off today and tomorrow", Object.values(g0.body.flags).every((f) => !f.today.enabled && !f.tomorrow.enabled));
 
   // --- day-boundary rule ---
   const od = { key: "overdrive", enabled: true, note: "t" };
@@ -187,6 +188,7 @@ try {
   const cfg = await call("GET", "/api/config");
   const feats = cfg.body.features;
   check("/api/config has features with versions", feats && feats.schema === 1 && feats.today === today && feats.flags.overdrive.versions.length === 1 && feats.flags.overdrive.versions[0].from === tomorrow && feats.flags["ui.hud"].kind === "client");
+  check("/api/config: app.shell and app.review are present with no rows (inert), other keys keep their shape", ["app.shell", "app.review"].every((k) => feats.flags[k]?.kind === "client" && feats.flags[k].versions.length === 0) && Object.keys(cfg.body).sort().join() === "billing,clerkPublishableKey,features,googleClientId,googleIosClientId");
   check("features rows are self-contained (hash + full params)", feats.flags.overdrive.versions[0].hash === rows[0].params_hash && feats.flags.overdrive.versions[0].params.forms.freeze.chainMax === 12);
 
   // --- creator preview ---
@@ -251,6 +253,21 @@ try {
   check("admin history shows the emergency row", gE.body.flags.overdrive.history.some((r) => r.emergency === true && r.from === today));
   const st = await call("GET", `/api/admin/stats?date=${today}`, { admin: true });
   check("admin day report: 200, numeric rulesetMismatch, emergencyOff true", st.status === 200 && typeof st.body.day?.rulesetMismatch === "number" && st.body.day.emergencyOff === true, JSON.stringify(st.body.day?.rulesetMismatch));
+
+  // --- checkout is refused from the App Store origin (3.1.1), web unchanged ---
+  const appHdr = { headers: { Origin: "capacitor://localhost" } };
+  const coApp = await call("POST", "/api/billing/checkout", { ...appHdr, token: crewTok, body: { price: "monthly" } });
+  check("checkout from capacitor://localhost is 403 APP_CHECKOUT", coApp.status === 403 && coApp.body.code === "APP_CHECKOUT", JSON.stringify(coApp));
+  const coAppAnon = await call("POST", "/api/billing/checkout", { ...appHdr, body: { price: "monthly" } });
+  check("checkout from the app origin is refused before auth too", coAppAnon.status === 403 && coAppAnon.body.code === "APP_CHECKOUT");
+  const coAndroid = await call("POST", "/api/billing/checkout", { headers: { Origin: "https://localhost" }, token: crewTok, body: { price: "monthly" } });
+  check("checkout from the Android shell origin is 403 APP_CHECKOUT", coAndroid.status === 403 && coAndroid.body.code === "APP_CHECKOUT");
+  const coWeb = await call("POST", "/api/billing/checkout", { token: crewTok, body: { price: "monthly" } });
+  check("checkout with no Origin (web) is not refused by the guard (503 unconfigured here)", coWeb.status === 503 && coWeb.body.code === undefined, JSON.stringify(coWeb));
+  const coSite = await call("POST", "/api/billing/checkout", { headers: { Origin: "https://surviveorion.com" }, token: crewTok, body: { price: "monthly" } });
+  check("checkout from the site origin is not refused by the guard", coSite.status === 503 && coSite.body.code === undefined, JSON.stringify(coSite));
+  const poApp = await call("POST", "/api/billing/portal", { ...appHdr, token: crewTok });
+  check("portal from the app origin stays allowed (not APP_CHECKOUT)", poApp.body.code !== "APP_CHECKOUT" && poApp.status !== 403, JSON.stringify(poApp));
 } catch (e) {
   check("test run completed", false, String(e?.stack ?? e));
 } finally {

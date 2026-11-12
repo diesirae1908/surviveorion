@@ -44,7 +44,7 @@ import { verifyAppleToken } from "./apple.mjs";
 import { patrolDateStr } from "./patrolDate.mjs";
 import { isStaticMethod, serveStatic } from "./serve-static.mjs";
 import { clipInboxAllowed, handleClipInboxPublic, handleClipInboxUpload, handleClipCutsPublic } from "./clip-inbox.mjs";
-import { applyCors, isCorsPreflight } from "./cors.mjs";
+import { applyCors, isAppOrigin, isCorsPreflight } from "./cors.mjs";
 import { userTier, resolveDailySubmit, clampMutatorRange, dailyAttemptBlocked, PREMIUM_PRODUCTS } from "./tier.mjs";
 import { verifyPremiumTransaction, sandboxTrustAllowed, entitlementFromPayload, decodeJws } from "./apple-iap.mjs";
 import {
@@ -748,6 +748,8 @@ const routes = {
   },
 
   "POST /api/billing/checkout": async (req, res, user) => {
+    // App Store binaries pay through StoreKit only (guideline 3.1.1): never mint a Stripe checkout for them.
+    if (isAppOrigin(req.headers.origin)) return json(res, 403, { error: "checkout is not available in the app", code: "APP_CHECKOUT" });
     if (!user) return json(res, 401, { error: "not signed in" });
     if (!billingConfigured()) return json(res, 503, { error: "billing not configured" });
     if (!rateLimit(`billing-checkout:${user.id}`, 12)) return json(res, 429, { error: "slow down" });

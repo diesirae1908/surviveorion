@@ -61,7 +61,7 @@ check("default-on ruleset id literal matches", (() => {
 // config.ts OVERDRIVE is the registry default, nothing else
 check("config.ts OVERDRIVE equals registry defaults", JSON.stringify(OVERDRIVE) === JSON.stringify(registry.flags.overdrive.default.params));
 check("materializing empty params gives the defaults", JSON.stringify(server.materializeParams(registry.flags.overdrive, {})) === JSON.stringify(registry.flags.overdrive.default.params));
-check("all six switches default off", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && Object.keys(registry.flags).length === 6);
+check("all eight switches default off", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && Object.keys(registry.flags).length === 8);
 
 // old production rows (fixture old-row-930b7b4) resolve identically on both sides and are used as stored
 const oldFx = (JSON.parse(fs.readFileSync(path.join(here, "fixtures", "flags-fixtures.json"), "utf8")) as { "old-row-930b7b4": { params: Record<string, unknown> } })["old-row-930b7b4"];

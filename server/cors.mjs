@@ -17,6 +17,11 @@ export function allowedAppOrigin(origin) {
   return APP_ORIGINS.has(origin) ? origin : null;
 }
 
+/** True when the request came from an App Store / native shell origin (never the website). */
+export function isAppOrigin(origin) {
+  return allowedAppOrigin(origin) !== null;
+}
+
 export function applyCors(req, res) {
   const allowed = allowedAppOrigin(req.headers.origin);
   if (!allowed) return false;
