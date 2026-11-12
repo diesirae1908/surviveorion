@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: sim-test deflake (test-side only, no game change)
+
+- Baseline on d15a3b9: 20 runs, 2 failed, both `pending grab claims the next drop` (empty detail). `lances/wheels/bombs burst back into drones` did not fail in the 20 (it failed 2 of 4 earlier today); an isolated rerun of that block gave 0 bursts in 2 of 60 runs.
+- Root cause, pending grab: the unseeded drop lands at a random spot and the magnet pulls it at 11/s, so a drop within roughly 1.1 units plus both radii of the stationary ship is collected inside the same 0.1s step and is never "inbound". The game is correct; the test was unseeded. Fix: `setRunSeed(90_212)` around section 3b (pins the drop position), reset to null after.
+- Root cause, burst: the emergent 240s run uses a stationary ship under a permanent shield that kills whatever touches it, and creatures are aimed at the ship, so most die on contact. Measured over 40 runs: about 27 forms but only ~3 bursts per run (min 0), so P(no burst) is a few percent. Not a game bug (burst path works, see below). Fix: the check now spawns a lance, a wheel and a bomb with `spawnAssemblyDirect`, ship parked in the far corner, and asserts each emits `assemblyBurst` and frees its members. The other four evolution checks stay on the emergent run unchanged.
+- No gameplay, scoring, validate.mjs, mutator or seeded-stream change.
+- Gates: tsc, `npm test`, `npm run build` exit 0; sim 30 of 30 (was 18 of 20).
+- Follow-up: the emergent 240s evolution run still has `Math.random` kind picks (game side, by design); nothing else in the sim flaked in 50 runs.
+
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
 - Filter: `BLOCKED_TERMS` in `server/nickname.mjs` and `src/nickname.ts` extended (phrases/compounds only): devisgay/devsgay/suckmy/eatmyass/kissmyass, twat/bellend/wanker/tosser/bollocks/arsehole, peen/penis, cock compounds (cocksuck, cockhead, cockface, cockwomble, cockmunch, cocknose), ballsack/ballbag/nutsack. All six names from the live world top 50 now blocked. "gay" alone stays allowed. Skipped on purpose: knob, arse, prick, tits, bare ass/cock/balls/nuts. New `SAFE_EXCEPTIONS`: Dickens, Dickinson, Dickson, Dickerson (plain "dick" already blocked them), Atwater(s), Bellenden, Peenemunde, Penistone. Both lists now exported so `test-nickname.ts` asserts client/server parity.
