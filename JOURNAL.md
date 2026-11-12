@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: challenge link WS-2, client model and API (feat/cl-ws2)
+
+- New `src/challenge.ts`: `parseChallengePath`, session context (`orion.challenge`, 24 h), per-date minted URL cache, event dedupe (`claimEvent`, opened/opened_new per session, rest per device), `targetFromResolve`, the copy table `COPY` (Lucas edits only that), `bannerModel`, `firstFlightLine`, `challengeResultModel` (tie reads "Dead even with X." and counts as a loss), `challengerShareLine`, `paceTargetFor`, `versusFor`. Pure, no network, no DOM, no run state.
+- `src/flags.ts`: `ChallengeParams`, `ClientFlags.challenge` (`ui.challenge`, null when off). `src/api.ts`: `resolveChallenge`, `mintChallenge`, `challengeEvent` (fire-and-forget, never throws).
+- `scripts/test-challenge.ts` (not yet in the `npm test` chain: package.json belongs to WS-5). Server `patrolNumberFor` parity check runs when `server/challenge.mjs` exists, else prints SKIP.
+- Known until WS-1 merges: `test:flag-parity` fails "every flag key referenced in src/ exists in the registry - flags.ts:ui.challenge", because the `ui.challenge` registry entry is WS-1's. Everything else green.
+- Follow-ups: WS-5 wires it all and registers the test.
+
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
 - Filter: `BLOCKED_TERMS` in `server/nickname.mjs` and `src/nickname.ts` extended (phrases/compounds only): devisgay/devsgay/suckmy/eatmyass/kissmyass, twat/bellend/wanker/tosser/bollocks/arsehole, peen/penis, cock compounds (cocksuck, cockhead, cockface, cockwomble, cockmunch, cocknose), ballsack/ballbag/nutsack. All six names from the live world top 50 now blocked. "gay" alone stays allowed. Skipped on purpose: knob, arse, prick, tits, bare ass/cock/balls/nuts. New `SAFE_EXCEPTIONS`: Dickens, Dickinson, Dickson, Dickerson (plain "dick" already blocked them), Atwater(s), Bellenden, Peenemunde, Penistone. Both lists now exported so `test-nickname.ts` asserts client/server parity.

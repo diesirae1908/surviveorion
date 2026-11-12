@@ -8,6 +8,7 @@ import { loadDeviceId } from "./device";
 import { loadRunCount } from "./save";
 import { setCreatorPreview, setRemoteFeatures } from "./flags";
 import { setOrdersSession } from "./orders";
+import type { ChallengeMintResponse, ChallengeResolveResponse, ChallengeStep } from "./challenge";
 
 export const PAYWALL_SOURCES = [
   "calendar_unlock",
@@ -750,6 +751,25 @@ export class Api {
       step,
       deviceId: loadDeviceId(),
     }).catch(() => {});
+  }
+
+  /** Challenge links. Resolve a friend's code (anonymous read; 404 means unknown or no score). */
+  resolveChallenge(code: string): Promise<ChallengeResolveResponse> {
+    return this.request("GET", `/api/challenge/${encodeURIComponent(code)}`);
+  }
+
+  /** Mint (or fetch) the signed-in pilot's link for today. 409 when no daily score yet. */
+  mintChallenge(): Promise<ChallengeMintResponse> {
+    return this.request("POST", "/api/challenge", {});
+  }
+
+  /** Challenge funnel counter. Fire-and-forget; never throws, never blocks the UI. */
+  challengeEvent(code: string, step: ChallengeStep): void {
+    try {
+      void this.request("POST", `/api/challenge/${encodeURIComponent(code)}/event`, { step }).catch(() => {});
+    } catch {
+      /* vanity counter */
+    }
   }
 
   /** Player feedback; email is optional (follow-ups / rewards). */
