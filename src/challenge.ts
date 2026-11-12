@@ -75,6 +75,7 @@ export const COPY = {
   shareChallenger: (url: string) => `Beat it: ${url}`,
   shareBackWin: (who: string, score: number, url: string) => `Beat ${who}'s ${fmt(score)}. Your move: ${url}`,
   shareBackLose: (who: string, gap: number, url: string) => `${who} is ${fmt(gap)} ahead. Beat me: ${url}`,
+  shareBackTie: (who: string, url: string) => `Dead even with ${who}. Beat me: ${url}`,
   ogTitleLive: (who: string, score: number, patrolNumber: number) =>
     `Beat ${who}'s ${fmt(score)} on ORION Patrol #${patrolNumber}`,
   ogTitleExpired: (who: string, score: number, patrolNumber: number) =>
@@ -292,7 +293,9 @@ export function challengeResultModel(
     ? null
     : win
       ? COPY.shareBackWin(who, target.score, url)
-      : COPY.shareBackLose(who, target.score - runScore, url);
+      : tie
+        ? COPY.shareBackTie(who, url)
+        : COPY.shareBackLose(who, target.score - runScore, url);
   return { line, tone: win ? "win" : "lose", buttonLabel, needsName: back && !!ctx.unnamed, shareText, outcome: win ? "beat" : "lost" };
 }
 

@@ -36,7 +36,28 @@ import {
   rulesetStamp,
   ordersParamsFor,
   activeCreatorPreview,
+  type ChallengeParams,
 } from "./flags";
+import {
+  bannerModel,
+  challengeResultModel,
+  challengerShareLine,
+  claimEvent,
+  eventStoreScope,
+  firstFlightLine,
+  loadChallengeContext,
+  loadMintedUrl,
+  paceTargetFor,
+  parseChallengePath,
+  saveMintedUrl,
+  storeChallengeContext,
+  targetFromResolve,
+  versusFor,
+  type BannerModel,
+  type ChallengeResultModel,
+  type ChallengeStep,
+  type ChallengeTarget,
+} from "./challenge";
 import * as feel from "./feel";
 import * as overdriveFx from "./fx/overdriveFx";
 import * as deathFx from "./fx/deathFx";
@@ -124,6 +145,7 @@ import {
   renderShareCardPng,
   buildShareText,
   SHARE_TRACE_BOX,
+  type ShareStats,
   type ShareFormat,
   type ShareOutcome,
 } from "./share";
@@ -300,6 +322,138 @@ function archivePatrolDate(): string | null {
 
 function isArchiveRun(): boolean {
   return NATIVE_ARCHIVE || archivePatrolDate() !== null;
+}
+
+// --- Challenge links (ui.challenge). Presentation and counters only: nothing here
+// touches the run, the attempt budget, scoring or any submit. With the switch off
+// (no row) every function below returns null/false early, so boot, lobby, run,
+// result and share are unchanged. See src/challenge.ts for the models and copy. ---
+
+/** The resolved link the pilot arrived on (null: none, off, self or dropped). */
+let challengeTarget: ChallengeTarget | null = null;
+let mintInFlight = false;
+let mintTriedDate = "";
+let lastChallengeScore = 0;
+
+function challengeParams(): ChallengeParams | null {
+  return clientFlagsSnapshot(PREVIEW_FLAGS).challenge;
+}
+
+/** Web daily only: never native, /fullgame, preview, archive or training. */
+function challengeAllowed(): boolean {
+  return DAILY_ONLY && !IS_NATIVE_PLAY && !isNativeApp() && !PREVIEW_ACTIVE && !isArchiveRun() && challengeParams() !== null;
+}
+
+/** The target, unless the patrol rolled over since it resolved (a live target is only comparable on its own day). */
+function activeChallengeTarget(): ChallengeTarget | null {
+  const t = challengeTarget;
+  if (!t || !challengeAllowed()) return null;
+  if (t.status === "live" && t.patrolDate !== patrolDateStr()) return null;
+  return t;
+}
+
+function fireChallengeEvent(code: string, step: ChallengeStep): void {
+  try {
+    const store = eventStoreScope(step) === "session" ? sessionStorage : localStorage;
+    if (claimEvent(store, step, code)) api.challengeEvent(code, step);
+  } catch {
+    /* storage blocked: counters are vanity */
+  }
+}
+
+/** Resolve the stashed arrival code. Silent on any failure: the pilot just sees the normal lobby. */
+async function loadChallengeTarget(): Promise<void> {
+  if (!challengeAllowed()) return;
+  const code = loadChallengeContext(sessionStorage);
+  if (!code) return;
+  let t: ChallengeTarget | null = null;
+  try {
+    t = targetFromResolve(code, await api.resolveChallenge(code));
+  } catch {
+    return;
+  }
+  if (!t || t.self) return;
+  challengeTarget = t;
+  fireChallengeEvent(code, "opened");
+  if (loadRunCount() === 0) fireChallengeEvent(code, "opened_new");
+  if (state === "menu") showMenu();
+}
+
+/** Re-read the challenger's best after a run, so a retry sees a newer score. Never blocks. */
+function refreshChallengeTarget(): void {
+  const t = challengeTarget;
+  if (!t || t.status !== "live" || !challengeAllowed()) return;
+  void api
+    .resolveChallenge(t.code)
+    .then((r) => {
+      const n = targetFromResolve(t.code, r);
+      if (n && !n.self && challengeTarget === t) challengeTarget = n;
+    })
+    .catch(() => {});
+}
+
+function currentChallengeBanner(): BannerModel | null {
+  const t = activeChallengeTarget();
+  if (!t) return null;
+  return bannerModel(t, {
+    params: challengeParams(),
+    attemptsLeft: unlimitedDailyRuns() ? null : dailyAttemptsLeft(),
+    dayBest: loadDailyAttempts().best?.score ?? null,
+  });
+}
+
+function challengeResultFor(runScore: number, unnamed: boolean): ChallengeResultModel | null {
+  const t = activeChallengeTarget();
+  if (!t) return null;
+  return challengeResultModel(runScore, t, {
+    params: challengeParams(),
+    preview: PREVIEW_ACTIVE,
+    archive: isArchiveRun(),
+    unnamed,
+    url: loadMintedUrl(sessionStorage, patrolDateStr()),
+  });
+}
+
+/** Own link for today, minted in the background so a share never waits on the network. */
+function prefetchChallengeMint(): void {
+  if (!challengeAllowed() || mintInFlight || !api.signedIn) return;
+  if (challengeParams()?.mint !== true) return;
+  const today = patrolDateStr();
+  if (mintTriedDate === today || loadMintedUrl(sessionStorage, today)) return;
+  if (!loadDailyAttempts().best) return;
+  mintInFlight = true;
+  mintTriedDate = today;
+  void api
+    .mintChallenge()
+    .then((r) => {
+      if (r.active && r.url && r.patrolDate === today) saveMintedUrl(sessionStorage, today, r.url);
+    })
+    .catch(() => {})
+    .finally(() => {
+      mintInFlight = false;
+    });
+}
+
+/** Extra share fields for this share, or {} (switch off, no cached link, or not a challenge context). */
+function challengeShareExtras(runScore: number | null): { challengeUrl?: string; versus?: ShareStats["versus"] } {
+  if (!challengeAllowed()) return {};
+  const params = challengeParams();
+  const url = loadMintedUrl(sessionStorage, patrolDateStr());
+  if (!url || !challengerShareLine(url, params)) return {};
+  const t = activeChallengeTarget();
+  const v =
+    runScore !== null && state === "gameover" && params?.challengeBack === true
+      ? versusFor(runScore, t, params)
+      : null;
+  return t && v ? { challengeUrl: url, versus: { callsign: v.callsign, delta: v.gap, targetScore: t.score } } : { challengeUrl: url };
+}
+
+/** Counters for a share that went out carrying a challenge link. */
+function noteChallengeShared(url: string | undefined): void {
+  if (!url) return;
+  fireChallengeEvent(url.slice(-7).toUpperCase(), "shared");
+  const t = activeChallengeTarget() ?? challengeTarget;
+  if (t) fireChallengeEvent(t.code, "back");
 }
 
 /** Free pilots hit the local 3-attempt lock. Gold Patrol / admin do not. */
@@ -756,6 +910,8 @@ function shareCurrent(format: ShareFormat): Promise<ShareOutcome> {
       : mutatorsToday.length > 0
         ? medalForScore(dailyBestScoreToday(), medalThresholdsFor(mutatorsToday))
         : undefined;
+  // ui.challenge: {} unless the switch is on and the pilot's own link is already cached
+  const extras = challengeShareExtras(state === "gameover" && lastRunShare ? lastRunShare.score : null);
   return sharePatrol(
     {
       dayNumber: dailyNumber(),
@@ -764,10 +920,14 @@ function shareCurrent(format: ShareFormat): Promise<ShareOutcome> {
       medal,
       preview: PREVIEW_ACTIVE,
       resultParams: clientFlagsSnapshot(PREVIEW_FLAGS).result,
+      ...extras,
     },
     isTouchDevice(),
     format,
-  );
+  ).then((outcome) => {
+    if (outcome !== "failed") noteChallengeShared(extras.challengeUrl);
+    return outcome;
+  });
 }
 
 const ui = new Ui(settings, {
@@ -990,6 +1150,8 @@ function showMenu(): void {
     return;
   }
   if (DAILY_ONLY) {
+    ui.setChallengeBanner(currentChallengeBanner());
+    prefetchChallengeMint();
     ui.showDailyLobby(dailyLobbyInfo());
     fillDailyHint();
     fillDailyBoard();
@@ -1618,13 +1780,19 @@ function startRun(): void {
     training: runIsTraining,
     params: ordersParamsFor(runPatrolDate, PREVIEW_FLAGS),
   });
+  // ui.challenge: the target is frozen here (no network mid-run). Absent unless the pilot
+  // arrived on a live link with paceTarget on; then pace.ts pins the chip's second line to it.
+  const runTarget = runIsDaily && !runIsFirstFlight && !runIsTraining ? activeChallengeTarget() : null;
+  const paceTarget = paceTargetFor(runTarget, challengeParams());
   pace.onRunStart({
     daily: runIsDaily,
     archive: isArchiveRun(),
     preview: PREVIEW_ACTIVE || world.rules.preview,
     online: api.online,
     fetchBoard: () => api.dailyLeaderboardCombined(100).then(toPaceRows),
+    ...(paceTarget ? { target: paceTarget, firstFlight: runIsFirstFlight } : {}),
   });
+  if (runTarget && runTarget.status === "live") fireChallengeEvent(runTarget.code, "flew");
   void setPlayChrome(true);
   recordBeaten = false;
   particles.clear();
@@ -1940,6 +2108,7 @@ function showGameOverUi(): void {
     ui.showTrainingEnd(DAILY_ONLY ? dailyAttemptsLeft() : 1, {
       firstFlight: runIsFirstFlight,
       onFlyPatrol: runIsFirstFlight ? launchDailyAfterFirstFlight : undefined,
+      challengeLine: runIsFirstFlight ? firstFlightLine(activeChallengeTarget(), challengeParams()) : null,
     });
     if (IS_NATIVE_PLAY && !runIsFirstFlight) void emitNativePlayGameOver(null);
     return;
@@ -2002,7 +2171,16 @@ function showGameOverUi(): void {
   // ui.result (presentation only, resolved for this run): result v2, the slide
   // after the death moment. Nothing below is submitted anywhere.
   const resultFlags = clientFlagsSnapshot(PREVIEW_FLAGS).result;
+  // ui.challenge: win/lose line against the arrival link (null when off, preview, archive or refunded)
+  lastChallengeScore = Math.floor(world.score);
+  const challengeResult =
+    cappedDaily && !runRefunded ? challengeResultFor(lastChallengeScore, !api.signedIn) : null;
+  if (challengeResult && challengeTarget) {
+    fireChallengeEvent(challengeTarget.code, challengeResult.outcome);
+    refreshChallengeTarget();
+  }
   ui.showGameOver({
+    challenge: challengeResult,
     resultV2: !!resultFlags?.resultV2,
     deathMoment: !!resultFlags?.deathMoment,
     stories: !!resultFlags?.shareV2 && !!resultFlags?.stories,
@@ -2072,6 +2250,11 @@ function renderRankResult(r: SubmitResult): void {
       maxMultiplier: world.maxMultiplier,
       rank: r.dailyRank,
     });
+    // ui.challenge: the score is on the board, so a link can be minted now (cached for share);
+    // a guest who just named themselves gets the real send-back button
+    prefetchChallengeMint();
+    const named = challengeResultFor(lastChallengeScore, false);
+    if (named) ui.replaceChallengeBack(named);
   }
   ui.setGameOverRank(
     // deriveGameOverRank sanitizes opts.callsign internally (it's the
@@ -2629,8 +2812,24 @@ window.addEventListener("orion-open-gold-patrol-paywall", (e: Event) => {
   openWebGoldPatrolPaywall(asPaywallSource(raw, "wingmates"));
 });
 
+// ui.challenge arrival (/c/<code>): stash the code for this session and put the URL back to the
+// site root so refresh, PWA and /fullgame detection behave as today. Web daily only; a preview
+// session leaves the URL alone, and so does a switch that is off (nothing is stored or rewritten).
+// Runs at boot (cached flags) and again after api.init (fresh flags); the second call is a no-op
+// once the URL is the site root. The code is resolved after api.init.
+function captureChallengeArrival(): void {
+  if (!challengeAllowed()) return;
+  const arrival = parseChallengePath(location.pathname);
+  if (!arrival) return;
+  storeChallengeContext(sessionStorage, arrival);
+  history.replaceState(null, "", `/${location.search}${location.hash}`);
+}
+captureChallengeArrival();
+
 void api.init().then(async () => {
   applyCreatorAccess(api.clipInbox);
+  captureChallengeArrival();
+  void loadChallengeTarget();
   const billingReturn = new URLSearchParams(location.search).get("billing");
   if (billingReturn === "success") {
     const clean = new URL(location.href);

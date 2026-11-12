@@ -13,6 +13,7 @@ import { MEDAL_LABEL, type MedalThresholds, type MedalTier } from "./medals";
 import type { DeathCause } from "./types";
 import { ORDERS_UI_COPY, fill, tierName } from "./ladder";
 import type { OrdersView } from "./orders";
+import type { ChallengeResultModel } from "./challenge";
 
 // --- design constants (not switches) ---
 
@@ -58,6 +59,8 @@ export interface ResultViewStats {
   hotCount?: number;
   medalThresholds?: MedalThresholds;
   effects?: "full" | "lite";
+  /** Challenge result line (ui.challenge). Absent or null: nothing is built. */
+  challenge?: ChallengeResultModel | null;
 }
 
 // --- pure helpers (tested in scripts/test-result-view.ts) ---
@@ -329,6 +332,11 @@ export function buildCauseLine(s: ResultViewStats): HTMLElement | null {
   return div("rv-cause", `${esc(p.before)}${p.name ? `<b>${esc(p.name)}</b>` : ""}${esc(p.after)}`);
 }
 
+/** The win or lose line against a challenger. Text only: the model came from challenge.ts. */
+export function buildChallengeLine(m: ChallengeResultModel): HTMLElement {
+  return div(`rv-challenge ${m.tone}`, esc(m.line));
+}
+
 // --- Daily Orders result block (WS-O2). Filled when the score response arrives. ---
 
 export interface OrdersBlockModel {
@@ -391,6 +399,7 @@ function ordersSlot(): HTMLElement {
 /** Everything above the actions, in reading order. */
 export function buildResultTop(s: ResultViewStats): HTMLElement[] {
   const out: HTMLElement[] = [buildResultStage(s)];
+  if (s.challenge) out.push(buildChallengeLine(s.challenge));
   const medal = buildMedalBar(s);
   if (medal) out.push(medal);
   out.push(buildChips(s));

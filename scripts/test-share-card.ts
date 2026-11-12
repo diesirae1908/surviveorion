@@ -239,6 +239,11 @@ for (const fmt of ["square", "story"] as ShareCardFormat[]) {
   const lose = { callsign: "GLINT", delta: -1204, targetScore: 1463185 };
   assert.equal(shareLastLine({ ...full, challengeUrl: url, versus: win }), `Beat GLINT's 1,463,185. Your move: ${url}`);
   assert.equal(shareLastLine({ ...full, challengeUrl: url, versus: lose }), `GLINT is 1,204 ahead. Beat me: ${url}`);
+  assert.equal(
+    shareLastLine({ ...full, challengeUrl: url, versus: { callsign: "GLINT", delta: 0, targetScore: 9 } }),
+    `Dead even with GLINT. Beat me: ${url}`,
+    "tie reads Dead even, from the single COPY table",
+  );
   const t = buildShareText({ ...full, challengeUrl: url });
   assert.ok(!t.includes(`\n${SHARE_URL}`), "challenge line replaces the plain URL");
   assert.equal(t.split("\n").slice(0, -1).join("\n"), buildShareText(full).split("\n").slice(0, -1).join("\n"), "card lines unchanged");

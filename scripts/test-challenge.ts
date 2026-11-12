@@ -276,6 +276,32 @@ check("parse root", parseChallengePath("/") === null);
   }
 }
 
+// --- WS-5: one copy home, tie everywhere, and "switch off = nothing" for every pure piece main.ts calls ---
+{
+  const url = "https://surviveorion.com/c/9P4RTVW";
+  const share = readFileSync(new URL("../src/share.ts", import.meta.url), "utf8");
+  check("share.ts holds no challenge copy of its own", !share.includes("CHALLENGE_SHARE_COPY") && !/Your move|Beat me|Beat it/.test(share));
+  check("tie share line reads Dead even", COPY.shareBackTie("GLINT", url) === `Dead even with GLINT. Beat me: ${url}`);
+  const tie = challengeResultModel(T.score, T, { params: ON, url });
+  check("tie result: line, share text and outcome agree", tie?.line === "Dead even with GLINT." && tie.shareText === COPY.shareBackTie("GLINT", url) && tie.outcome === "lost", tie?.shareText ?? "");
+  const lose = challengeResultModel(T.score - 5, T, { params: ON, url });
+  check("loss share text keeps the gap", lose?.shareText === COPY.shareBackLose("GLINT", 5, url), lose?.shareText ?? "");
+  check("tie versus gap is exactly zero", versusFor(T.score, T, ON)?.gap === 0);
+
+  // switch off (no row): every pure piece main.ts and ui.ts call yields nothing
+  const offAll: Array<[string, unknown]> = [
+    ["bannerModel", bannerModel(T, { params: null, attemptsLeft: 0, dayBest: 1 })],
+    ["firstFlightLine", firstFlightLine(T, null)],
+    ["paceTargetFor", paceTargetFor(T, null)],
+    ["challengeResultModel", challengeResultModel(1, T, { params: null, url })],
+    ["challengerShareLine", challengerShareLine(url, null)],
+    ["versusFor", versusFor(1, T, null)],
+  ];
+  for (const [name, v] of offAll) check(`switch off: ${name} is null`, v === null);
+  resetFlagsForTest();
+  check("no row: clientFlagsSnapshot().challenge is null", clientFlagsSnapshot().challenge === null);
+}
+
 if (failures > 0) {
   console.log(`\n${failures} check(s) failed`);
   process.exit(1);

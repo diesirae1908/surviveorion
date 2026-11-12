@@ -4,6 +4,16 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: challenge link WS-5 integration (switch `ui.challenge`, still OFF)
+
+- `src/main.ts`: arrival capture (`/c/<code>` stored in sessionStorage, URL put back to `/`, only when the switch is on and the session is web daily, not preview/archive/native/fullgame), resolve after `api.init`, banner into the lobby, `target`/`firstFlight` into `pace.onRunStart` (only when a live target exists, so the call is unchanged otherwise), First Flight end line, result model into game over, cached own link and `versus` into share stats, background mint prefetch (lobby and after a daily submit), events `opened`, `opened_new`, `flew`, `beat`/`lost`, `shared`, `back` (deduped per `claimEvent`). The target is re-read after each run so a retry sees a newer best; no network mid-run.
+- `src/ui.ts`: banner element in lobby v3 (above LAUNCH) and v2 (hero), First Flight end line, result line (v1) and send-back button (v1 and v2), `replaceChallengeBack` swaps the "name your callsign" button once a guest is named. `src/resultView.ts`: `buildChallengeLine`, placed under the stage by `buildResultTop`. CSS in `lobby.css`, `result.css`.
+- Copy has one home: `COPY` in `src/challenge.ts`. `CHALLENGE_SHARE_COPY` removed from `share.ts` (it now imports `COPY`; no cycle). Tie reads "Dead even with X." in the result line, banner, share text (`shareBackTie`, new) and counts as a loss. Pace chip tie keeps "+1".
+- `package.json`: `test:challenge` and `test:challenge-server` registered in `test`.
+- Switch off (no row): `challengeParams()` is null so every new path returns early; no storage write, no URL rewrite, no fetch, no extra DOM; share output unchanged (tests pin the pure pieces).
+- Not touched: POST /api/scores, attempts, guest creation, validate.mjs, scoring, rand draws, ios/.
+- Follow-ups: QA in a real browser (DOM paths are verified by reading only); set `ORION_PUBLIC_ORIGIN` on Render dev; `challengerShareLine` is now only a gate in main (share.ts builds the line). Commit: see git log (`WS-5 integration`).
+
 ## 2026-11-12 PT: challenge link WS-1 server (switch `ui.challenge`, ships OFF)
 
 - What: opaque 7-char Crockford code per pilot per patrol day (`challenge_links` table, additive, cascades on account delete, stores no score). Pure module `server/challenge.mjs` (paywall.mjs pattern) plus `db.mjs` `mintChallenge`/`getChallenge`/`bumpChallenge`/`challengeScore`/`challengeDaySummary`. Routes: `POST /api/challenge` (Bearer, 10/min per pilot, 409 without a daily score), `GET /api/challenge/:code` (60/min per IP, callsign through `sanitizeEntry`, no userId/country/rank, `self` only for the owner's session, live or expired), `POST /api/challenge/:code/event` (allowlisted steps, 30/min per IP), `GET|HEAD /c/:code` (swaps the og block in `dist/index.html`, any miss serves the plain page, never 404/429). Admin day slice gets `challenge` plus a "Challenge links" line in `/admin`. `index.html` gets `<!-- og:start -->` / `<!-- og:end -->` only.

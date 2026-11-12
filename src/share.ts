@@ -1,6 +1,7 @@
 // Share card for the daily-only site: a Wordle-style pasteable text block.
 // Native share sheet on phones, clipboard on desktop.
 
+import { COPY } from "./challenge";
 import { MEDAL_EMOJI, MEDAL_LABEL, type MedalTier } from "./medals";
 import { isNativeApp, isNativePlay, nativeShare, postNativeShare } from "./native";
 import { patrolDateStr } from "./patrolDate";
@@ -88,21 +89,15 @@ function loadMedalSvg(tier: MedalTier): Promise<HTMLImageElement | null> {
   return loadImage(`/medals/${tier}.svg`);
 }
 
-/** Last-line copy for challenge shares. WS-2 owns the player-facing copy table; keep these in step with it. */
-export const CHALLENGE_SHARE_COPY = {
-  challenger: (url: string) => `Beat it: ${url}`,
-  afterWin: (callsign: string, target: string, url: string) => `Beat ${callsign}'s ${target}. Your move: ${url}`,
-  afterLoss: (callsign: string, gap: string, url: string) => `${callsign} is ${gap} ahead. Beat me: ${url}`,
-};
-
-/** The last share-text line: the plain site URL, or the challenge line when a link is present. */
+/** The last share-text line: the plain site URL, or the challenge line when a link is present (copy: COPY in challenge.ts). */
 export function shareLastLine(s: ShareStats): string {
   const url = s.challengeUrl;
   if (!url) return SHARE_URL;
   const v = s.versus;
-  if (!v) return CHALLENGE_SHARE_COPY.challenger(url);
-  if (v.delta > 0) return CHALLENGE_SHARE_COPY.afterWin(v.callsign, Math.floor(v.targetScore).toLocaleString(), url);
-  return CHALLENGE_SHARE_COPY.afterLoss(v.callsign, Math.floor(-v.delta).toLocaleString(), url);
+  if (!v) return COPY.shareChallenger(url);
+  if (v.delta > 0) return COPY.shareBackWin(v.callsign, v.targetScore, url);
+  if (v.delta === 0) return COPY.shareBackTie(v.callsign, url);
+  return COPY.shareBackLose(v.callsign, -v.delta, url);
 }
 
 export function buildShareText(s: ShareStats): string {

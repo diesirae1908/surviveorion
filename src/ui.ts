@@ -24,7 +24,8 @@ import {
   type WeekCell,
 } from "./lobbyState";
 import { provisionalRank } from "./gameOverGoal";
-import { buildResultTop, GOLD_CARD_BELOW, SLIDE_MS } from "./resultView";
+import { buildChallengeLine, buildResultTop, GOLD_CARD_BELOW, SLIDE_MS } from "./resultView";
+import type { BannerModel, ChallengeResultModel } from "./challenge";
 import { DAILY_EPOCH_DATE } from "./share";
 import type {
   BooleanSetting,
@@ -213,6 +214,8 @@ export interface GameOverStats {
   preview?: boolean;
   /** "Razor-thin dodge at 1:24" style highlight line, or undefined for no grazes (see highlights.ts). */
   closestCallLabel?: string | null;
+  /** Challenge result (ui.challenge). Absent or null: no line, no button. */
+  challenge?: ChallengeResultModel | null;
   /** Personal best before this run (OR-07: hide New best on a first score). */
   prevBest?: number;
   /** Lifetime completed runs after this one is counted (OR-07). */
@@ -506,7 +509,56 @@ export class Ui {
   private dailyBoardPinned: DailyBoardRow | null = null;
   private dailyBoardSearchQuery = "";
   private lobbyInfo: DailyLobbyInfo | null = null;
-  private lobbyWeekServer = new Map<string, ServerDayEntry>();
+  /** ui.challenge banner for the next lobby render (null: the lobby is unchanged). */
+  private challengeBanner: BannerModel | null = null;
+
+  setChallengeBanner(m: BannerModel | null): void {
+    this.challengeBanner = m;
+  }
+
+  /** One line above LAUNCH; null (nothing appended) when there is no banner. */
+  private challengeBannerEl(): HTMLElement | null {
+    const m = this.challengeBanner;
+    if (!m) return null;
+    const el = this.el("div", `challenge-banner ${m.kind}`, escapeHtml(m.text));
+    el.id = "challenge-banner";
+    return el;
+  }
+
+  /** Result-screen button: shares the run (the share text carries the link), or asks for a name first. */
+  private challengeBackButton(m: ChallengeResultModel | null | undefined): HTMLElement | null {
+    if (!m || !m.buttonLabel) return null;
+    if (m.needsName) {
+      const ask = this.button(m.buttonLabel, false, () => {
+        const input = document.querySelector<HTMLInputElement>("#rank-line input.field");
+        input?.scrollIntoView({ block: "center" });
+        input?.focus();
+      });
+      ask.id = "challenge-back-btn";
+      return ask;
+    }
+    const btn = this.button(m.buttonLabel, false, () => {
+      btn.disabled = true;
+      void this.cb.onShare().then((outcome) => {
+        btn.disabled = false;
+        btn.textContent = outcome === "copied" ? "Copied" : outcome === "shared" ? "Sent" : "Couldn't share";
+        setTimeout(() => (btn.textContent = m.buttonLabel), 1600);
+      });
+    });
+    btn.id = "challenge-back-btn";
+    return btn;
+  }
+
+  /** After a guest names itself: swap the "name your callsign" button for the real one. No-op if absent. */
+  replaceChallengeBack(m: ChallengeResultModel | null): void {
+    const old = document.getElementById("challenge-back-btn");
+    if (!old) return;
+    const next = this.challengeBackButton(m);
+    if (next) old.replaceWith(next);
+    else old.remove();
+  }
+
+  private lobbyWeekServer =new Map<string, ServerDayEntry>();
   private lobbyCountdown: ReturnType<typeof setInterval> | null = null;
   private lobbyRulesOpen = false;
   private lobbyMenuKeyHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -1505,6 +1557,8 @@ export class Ui {
     const main = this.el("div", "v3-main", "");
     main.appendChild(this.lobbyV3Emblem(model));
     main.appendChild(this.lobbyV3HeroText(info, model, phase));
+    const challengeBanner = this.challengeBannerEl();
+    if (challengeBanner) main.appendChild(challengeBanner);
     main.appendChild(this.lobbyV3Launch(info, phase));
 
     const side = this.el("div", "v3-side", "");
@@ -1965,6 +2019,8 @@ export class Ui {
     const phase = lobbyPhase(info, loadRunCount());
     const hero = this.el("div", `lobby-hero chamfer phase-${phase}`, "");
     hero.appendChild(this.patrolLine(info, phase));
+    const challengeBanner = this.challengeBannerEl();
+    if (challengeBanner) hero.appendChild(challengeBanner);
 
     if (phase === "offline") {
       hero.appendChild(
@@ -3024,7 +3080,7 @@ export class Ui {
    */
   showTrainingEnd(
     attemptsLeft: number,
-    opts?: { firstFlight?: boolean; onFlyPatrol?: () => void },
+    opts?: { firstFlight?: boolean; onFlyPatrol?: () => void; challengeLine?: string | null },
   ): void {
     this.clear();
     this.pauseBtn.style.display = "none";
@@ -3040,6 +3096,7 @@ export class Ui {
           FIRST_FLIGHT_PATROL_LINE,
         ),
       );
+      if (opts.challengeLine) screen.appendChild(this.el("div", "hint", escapeHtml(opts.challengeLine)));
       const fly = (): void => {
         if (opts.onFlyPatrol) opts.onFlyPatrol();
         else this.cb.onDaily();
@@ -3842,6 +3899,11 @@ export class Ui {
     if (stats.isNewBest && (stats.prevBest ?? 0) > 0 && (stats.runCount ?? 0) > 1) {
       screen.appendChild(this.el("div", "new-best", "New best score"));
     }
+    if (stats.challenge) {
+      const line = buildChallengeLine(stats.challenge);
+      line.classList.add("challenge-line");
+      screen.appendChild(line);
+    }
 
     // one memorable moment from the run, if it earned one (see highlights.ts)
     if (stats.closestCallLabel) {
@@ -3909,6 +3971,8 @@ export class Ui {
         this.el("div", "daily-locked-sub", `Next patrol at ${dailyResetLabel()}`),
       );
     }
+    const challengeBtn = this.challengeBackButton(stats.challenge);
+    if (challengeBtn) actions.appendChild(challengeBtn);
     const navRow = this.el("div", "gameover-row", "");
     const menuBtn = this.button(capped ? "Back to base" : "Main menu", false, () => this.cb.onQuitToMenu());
     menuBtn.classList.add("small-btn", "chamfer");
@@ -4054,6 +4118,8 @@ export class Ui {
     }
     // GOLD_CARD_BELOW (resultView.ts): false puts the card right under FLY AGAIN
     if (!GOLD_CARD_BELOW && stats.showGoldPatrolCta) actions.appendChild(this.goldPatrolPitch());
+    const challengeBtn = this.challengeBackButton(stats.challenge);
+    if (challengeBtn) actions.appendChild(challengeBtn);
     const navRow = this.el("div", "gameover-row", "");
     if (stats.showShare) {
       const share = this.shareButton();

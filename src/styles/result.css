@@ -354,3 +354,20 @@
     animation: fadeIn 0.35s ease-out;
   }
 }
+
+/* challenge line (ui.challenge): win in gold, hold in alarm red (text, so Alarm not Rising Red) */
+.rv-challenge,
+.gameover-screen .challenge-line {
+  text-align: center;
+  font-size: 15px;
+  font-weight: var(--orion-weight-display, 700);
+  margin: 6px 0;
+}
+.rv-challenge.win,
+.gameover-screen .challenge-line.win {
+  color: var(--orion-gold);
+}
+.rv-challenge.lose,
+.gameover-screen .challenge-line.lose {
+  color: var(--orion-alarm);
+}
