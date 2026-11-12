@@ -161,6 +161,23 @@
       },
       "bounds": {}
     },
+    "ui.challenge": {
+      "kind": "client",
+      "area": "ui.challenge",
+      "description": "Challenge links: a pilot shares /c/<code> for today's patrol. Friends land on today's patrol with that score as the pace target, see win or lose on the result and can send theirs back. Web only. Off: links open the normal game with the normal preview, no banner, no target, no new links.",
+      "default": {
+        "enabled": false,
+        "params": {
+          "mint": true,
+          "lobbyBanner": true,
+          "paceTarget": true,
+          "resultLine": true,
+          "challengeBack": true,
+          "ogMeta": true
+        }
+      },
+      "bounds": {}
+    },
     "orders": {
       "kind": "gameplay",
       "area": "meta",
