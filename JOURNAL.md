@@ -11,6 +11,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - L1 and L3 doc wording in AGENTS.md; L2 identity comparisons on cached arrays replaced by id comparison (`overlayEntryForDate`, `guideMain.ts`). L4: iOS 1.0/1.1 bundled calendars carry 12 wrong names from 2027-02-07 (cosmetic, unfixable without a release), and past-date sublines for THE PIT and DEMOLITION DAY said "arena" in the old export.
 - Tests: `test-mutators` (first overlay day, skip tags), `test-server-flags` (`mutatorMixForDay`). M3 (balance, the 15 s fade) stays a play-test for Lucas on staging; the optional banking-bot sim line was not added.
 - Follow-ups: ON row at least 2 days ahead in production only after Lucas flies `?mutator=twin-orbs` on staging; iOS 1.2 must be built and checked on a device. Commit: see `git log` ("THE PASSAGE before-ON fixes").
+- 2026-11-12 follow-up (Opus review M1): `AppModel.refresh()` no longer awaits the `/api/config` overlay fetch; `refreshOverlayLabels()` runs it in an unstructured main-actor `Task` (cancel previous + generation counter, so an older result never overwrites a newer one). Failed or slow fetch keeps the bundled legacy labels. Swift only, uncompiled (no Xcode). Commit: see `git log` ("AppModel: overlay fetch off the refresh path").
 
 ## 2026-11-12 PT: THE PASSAGE (`twin-orbs`), pair orbs, first overlay Daily Mutator (WS-2)
 

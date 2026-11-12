@@ -117,6 +117,25 @@ final class AppModel: ObservableObject {
         PreferencesStore.previewTier = previewOverride
     }
 
+    private var overlayTask: Task<Void, Never>?
+    private var overlayGeneration = 0
+
+    /// Overlay Daily Mutator labels follow the `mutators.overlay` switch (same
+    /// /api/config the web canvas reads). Fire and forget so the board never waits
+    /// on it. A failed, slow or superseded fetch leaves the current rows (bundled
+    /// legacy labels at first) in place; only the newest refresh may apply.
+    private func refreshOverlayLabels() {
+        overlayTask?.cancel()
+        overlayGeneration += 1
+        let generation = overlayGeneration
+        overlayTask = Task { @MainActor [weak self] in
+            guard let cfg = try? await APIClient.shared.overlayConfig() else { return }
+            guard let self, !Task.isCancelled, generation == self.overlayGeneration else { return }
+            MutatorCatalog.overlayRows = cfg.rows
+            self.mutatorEpoch += 1
+        }
+    }
+
     func refresh() async {
         attemptsLeft = PreferencesStore.attemptsLeft()
         isSignedIn = KeychainStore.token != nil
@@ -128,12 +147,7 @@ final class AppModel: ObservableObject {
             attemptsLeft = 0
         }
         #endif
-        // Overlay Daily Mutator labels follow the `mutators.overlay` switch (same
-        // /api/config the web canvas reads). A failed fetch keeps the last rows.
-        if let cfg = try? await APIClient.shared.overlayConfig() {
-            MutatorCatalog.overlayRows = cfg.rows
-            mutatorEpoch += 1
-        }
+        refreshOverlayLabels()
         do {
             board = try await APIClient.shared.dailyBoard()
             online = true
