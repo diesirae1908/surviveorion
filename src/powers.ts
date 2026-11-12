@@ -7,6 +7,7 @@ import { droneRadius, killDrone, killDronesInRadius } from "./enemies";
 import { freezeMinesInRadius, isMineArmed, killMine, killMinesInRadius } from "./mines";
 import { killLighthousesInRadius } from "./lighthouse";
 import { mutatorPowerAmpScale, mutatorStarshellDurationScale } from "./mutators";
+import { claimByMagnet } from "./pickupPairs";
 import type { OverdriveRules } from "./flags";
 import type { ArcChainState, Drone, Mine, PowersState, ThunderChainState, World } from "./types";
 import { clamp01 } from "./math";
@@ -154,12 +155,19 @@ export function activatePower(world: World, power: PowerId, overdrive = false): 
       // OVERDRIVE: sweep up to `maxPull` of the nearest instead of one.
       const pulls = od?.forms.magnet.on ? Math.max(1, Math.round(od.forms.magnet.maxPull)) : 1;
       const free = world.pickups
-        .filter((pu) => !pu.magnetized)
+        .filter((pu) => !pu.magnetized && !pu.gone)
         .map((pu) => ({ pu, d: Math.hypot(pu.x - world.ship.x, pu.y - world.ship.y) }))
-        .sort((x, y) => x.d - y.d)
-        .slice(0, pulls);
-      if (free.length > 0) for (const f of free) f.pu.magnetized = true;
-      else p.magnetPending++;
+        .sort((x, y) => x.d - y.d);
+      // THE PASSAGE: claiming is choosing. At most one orb per pair; the claimed
+      // orb's partner vanishes at once (and so drops out of `free` below).
+      let claimed = 0;
+      for (const f of free) {
+        if (claimed >= pulls) break;
+        if (f.pu.gone) continue;
+        claimByMagnet(world, f.pu);
+        claimed++;
+      }
+      if (claimed === 0) p.magnetPending++;
       break;
     }
     case "afterburner":

@@ -337,6 +337,23 @@ first, then:
   filters). The sim-test determinism check compares drop kinds AND positions
   across two different play styles. Spawn weights follow a pecking order:
   pulse > shield > freeze > magnet > shockwave > the rest.
+- THE PASSAGE (`twin-orbs`, the first overlay Daily Mutator, Tier B flag
+  `pickupPairs` read via `mutatorPickupPairs()`, never by id): every drop is a
+  pair of two different powers 2.4 units apart on one `y` (`PICKUPS.pair`:
+  `spacing`, `lifetime` 15 s, `blinkFrom` 3 s). The primary is exactly today's
+  seeded drop (same 25 `rand` + 2 `scheduleRand`); the partner costs ZERO stream
+  draws: its power is a date-hash roll (`takeTwinPairKey`, `orion-twin-<date>-<seq>`,
+  same weights and demotion, spawnable pool only, minus the primary) and its
+  position is a fixed offset toward the field center. Pairs hold still (the
+  drift draw is consumed, not applied). Taking one orb vanishes the other the
+  same tick (`pickupVanish`, never a `pickup` event, so nothing that counts
+  pickups counts it); untouched pairs fade (`pickupExpire`); a magnetized orb
+  never expires; a magnet claim is a choice (one orb per pair, also for the
+  OVERDRIVE `maxPull` form). Rules live in `src/pickupPairs.ts` (post-draw,
+  player-side only). Never add a draw inside collect, vanish or expire. Sim-test
+  section 10a proves the pair script is identical for pilots taking left, right
+  or nothing, and that formations, mines and primary positions equal a plain
+  daily on the same seed.
 - Retention loop: the death cinematic is skippable (tap/key after 0.5s),
   retries use a 0.5s quick warp (Space/Enter on game over also retries), a
   mid-run NEW RECORD celebration fires when the local best is passed, and the

@@ -13,6 +13,7 @@ import {
   ENGINE_GEN,
   activeCreatorPreview,
   ordersParamsFor,
+  overlayEntryOn,
   rulesetStamp,
   shouldRecordLocalBest,
   clientFlagsSnapshot,
@@ -316,6 +317,42 @@ check("a payload with app.shell and app.review rows changes no existing snapshot
   return ok;
 })());
 check("no rows: app.shell and app.review resolve off", resolveFlag("app.shell", "2026-11-11")?.enabled === false && resolveFlag("app.review", "2026-11-11")?.enabled === false);
+
+// mutators.overlay: off with no row, per-entry, from its date, never in the ruleset
+check("mutators.overlay: no row resolves off for every entry", (() => {
+  resetFlagsForTest();
+  return !overlayEntryOn("2026-11-25", "twin-orbs") && !overlayEntryOn("2027-06-01", "twin-orbs") && resolveFlag("mutators.overlay", "2026-11-25")?.enabled === false;
+})());
+check("mutators.overlay: an on row from a date switches that entry on from that date, only that entry", (() => {
+  resetFlagsForTest();
+  setRemoteFeatures({ schema: 1, today: "2026-11-20", flags: { "mutators.overlay": { kind: "gameplay", versions: [row(9, "2026-11-23", true, { entries: { "twin-orbs": { on: true } } }, "cafe0009")] } } });
+  const ok = !overlayEntryOn("2026-11-22", "twin-orbs") && overlayEntryOn("2026-11-23", "twin-orbs") && overlayEntryOn("2027-01-01", "twin-orbs") && !overlayEntryOn("2026-11-25", "other-entry");
+  resetFlagsForTest();
+  return ok;
+})());
+check("mutators.overlay: a later per-entry off row (emergency off) wins from its date; an off switch is off", (() => {
+  resetFlagsForTest();
+  setRemoteFeatures({ schema: 1, today: "2026-11-20", flags: { "mutators.overlay": { kind: "gameplay", versions: [row(9, "2026-11-23", true, { entries: { "twin-orbs": { on: true } } }, "cafe0009"), row(10, "2026-11-27", true, { entries: { "twin-orbs": { on: false } } }, "cafe0010"), row(11, "2026-12-01", false, { entries: { "twin-orbs": { on: true } } }, "cafe0011")] } } });
+  const ok = overlayEntryOn("2026-11-26", "twin-orbs") && !overlayEntryOn("2026-11-27", "twin-orbs") && !overlayEntryOn("2026-12-02", "twin-orbs");
+  resetFlagsForTest();
+  return ok;
+})());
+check("mutators.overlay: a row never changes the ruleset id or stamp, or any other snapshot", (() => {
+  resetFlagsForTest();
+  const view = () => {
+    const rr = resolveRunRules("2026-11-25", { daily: true });
+    return JSON.stringify({ s: clientFlagsSnapshot(), r: rr.rulesetId, st: rulesetStamp(rr) });
+  };
+  const before = view();
+  setRemoteFeatures({ schema: 1, today: "2026-11-20", flags: { "mutators.overlay": { kind: "gameplay", versions: [row(9, "2026-11-23", true, { entries: { "twin-orbs": { on: true } } }, "cafe0009")] } } });
+  const ok = before === view();
+  resetFlagsForTest();
+  return ok;
+})());
+check("mutators.overlay: ?flags= preview turns the default entry on (unscored path), default off otherwise", (() => {
+  resetFlagsForTest();
+  return overlayEntryOn("2026-11-25", "twin-orbs", { "mutators.overlay": true }) && !overlayEntryOn("2026-11-25", "twin-orbs", {});
+})());
 
 // lobby fill targets still exist in source (a v3 lobby must keep them)
 const sourceText = ["ui.ts", "main.ts"].map((f) => fs.readFileSync(path.join(srcDir, f), "utf8")).join("\n");

@@ -148,6 +148,12 @@ export interface Pickup {
   vy?: number;
   /** Claimed by a magnet: homes straight to the ship until collected. */
   magnetized?: boolean;
+  /** THE PASSAGE: both orbs of a pair share this key; absent on ordinary orbs. */
+  pairId?: string;
+  /** THE PASSAGE: true on the seeded orb of a pair (wins a same-tick tie). */
+  primary?: boolean;
+  /** THE PASSAGE: the other orb of a pair was taken; swept at the end of the tick. */
+  gone?: boolean;
 }
 
 export interface PulseProjectile {
@@ -372,6 +378,10 @@ export type GameEvent =
   | { type: "mineExploded"; x: number; y: number; points: number }
   | { type: "pickup"; power: import("./config").PowerId; x: number; y: number }
   | { type: "pickupSpawn"; power: import("./config").PowerId; x: number; y: number }
+  /** THE PASSAGE: the partner orb vanished because its pair was chosen. Not a `pickup`. */
+  | { type: "pickupVanish"; power: import("./config").PowerId; x: number; y: number }
+  /** THE PASSAGE: an untouched orb faded at the end of its lifetime. Not a `pickup`. */
+  | { type: "pickupExpire"; power: import("./config").PowerId; x: number; y: number }
   | { type: "formation"; kind: import("./config").FormationKind }
   | { type: "shieldUp" }
   | { type: "starshellUp" }

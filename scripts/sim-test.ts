@@ -10,6 +10,7 @@ import type { InputState } from "../src/input";
 import type { PowerId } from "../src/config";
 import { clamp01, hashString, setRunSeed } from "../src/math";
 import { medalThresholdsForDate } from "../src/medals";
+import { activatePower } from "../src/powers";
 import {
   clearActiveMutators,
   getMutatorById,
@@ -1889,6 +1890,369 @@ const TRIAL_SEEDS = [11, 2027, 30313, 404_041, 5_050_505, 61, 707_071, 8081, 909
     "getMutatorById resolves every pool id",
     MUTATOR_POOL.every((m) => getMutatorById(m.id)?.id === m.id),
   );
+}
+
+// --- 10a. THE PASSAGE (twin-orbs): pair determinism, choice, magnets, balance ---
+//
+// Every drop is a pair: the seeded primary (exactly today's draws) plus a
+// partner from a date-hash roll and a fixed offset. The claims below are the
+// ones that keep Daily Patrol in sync: the pair script is identical whatever
+// the pilot takes (left orb, right orb, nothing), identical across play
+// styles, and the twin day's formation, mine and primary-position scripts are
+// the same as a plain daily on the same seed (no stream draw changed).
+{
+  const twin = getMutatorById("twin-orbs")!;
+  const TWIN_DATE = "2026-11-25";
+  type Pilot = "ram" | "drift" | "left" | "right" | "none";
+
+  interface Rec {
+    spawns: string[]; // every pickupSpawn (primary then partner), time + power + position
+    kinds: PowerId[]; // power of every spawned orb, in order
+    formations: string[];
+    mines: string[];
+    collected: PowerId[]; // `pickup` events
+    vanish: number;
+    expire: number;
+    maxCollectsPerPair: number;
+    survivors: number; // a pair left with exactly one un-magnetized orb alive
+    sameKind: number; // pairs whose two orbs are the same power
+    outOfBounds: number;
+    maxAge: number;
+    pairsSeen: number;
+    score: number;
+    time: number;
+  }
+
+  const record = (mutators: Mutator[], pilot: Pilot, seed: number, seconds: number): Rec => {
+    setRunSeed(seed);
+    setActiveMutators(mutators, TWIN_DATE);
+    const world = createWorld(17.8, 10, false, 0, "classic", true);
+    const hw = world.viewW / 2 - PICKUPS.edgeInset;
+    const hh = world.viewH / 2 - PICKUPS.edgeInset;
+    const rec: Rec = {
+      spawns: [], kinds: [], formations: [], mines: [], collected: [], vanish: 0, expire: 0,
+      maxCollectsPerPair: 0, survivors: 0, sameKind: 0, outOfBounds: 0, maxAge: 0, pairsSeen: 0, score: 0, time: 0,
+    };
+    const tracked = new Map<string, Array<(typeof world.pickups)[number]>>();
+    const collects = new Map<string, number>();
+    const corners = [
+      { x: -hw, y: -hh },
+      { x: hw, y: -hh },
+      { x: hw, y: hh },
+      { x: -hw, y: hh },
+    ];
+    let corner = 0;
+    let t = 0;
+    const steps = Math.round(seconds / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      t += FIXED_DT;
+      world.powers.starshellTimer = 9999;
+      let drive = { x: 0, y: 0 };
+      if (pilot === "drift") drive = { x: Math.cos(t * 0.7), y: Math.sin(t * 0.7) };
+      if (pilot === "left" || pilot === "right") {
+        const live = world.pickups.filter((p) => p.pairId !== undefined && !p.magnetized && !p.gone);
+        if (live.length > 0) {
+          const oldest = live.reduce((a, b) => (b.age > a.age ? b : a));
+          const mates = live.filter((p) => p.pairId === oldest.pairId).sort((a, b) => a.x - b.x);
+          parkShipOnPickup(world, pilot === "left" ? mates[0] : mates[mates.length - 1]);
+        }
+      }
+      if (pilot === "none") {
+        // never touch an orb: step to the next corner whenever one comes near
+        for (let k = 0; k < 4; k++) {
+          const near = world.pickups.some((p) => Math.hypot(p.x - world.ship.x, p.y - world.ship.y) < 1.6);
+          if (!near) break;
+          corner = (corner + 1) % 4;
+          world.ship.x = corners[corner].x;
+          world.ship.y = corners[corner].y;
+        }
+      }
+      const before = world.pickups.slice();
+      tick(world, { ...input, inertia: false, moveVector: drive }, FIXED_DT);
+
+      const used = new Set<(typeof before)[number]>();
+      for (const e of world.events) {
+        if (e.type === "formation") rec.formations.push(`${world.time.toFixed(2)}:${e.kind}`);
+        if (e.type === "pickupSpawn") {
+          rec.spawns.push(`${world.time.toFixed(2)}:${e.power}@${e.x.toFixed(2)},${e.y.toFixed(2)}`);
+          rec.kinds.push(e.power);
+        }
+        if (e.type === "pickupVanish") rec.vanish++;
+        if (e.type === "pickupExpire") rec.expire++;
+        if (e.type === "pickup") {
+          rec.collected.push(e.power);
+          let best: (typeof before)[number] | null = null;
+          let bestD = 1.5;
+          for (const o of before) {
+            if (used.has(o) || o.power !== e.power) continue;
+            const d = Math.hypot(o.x - e.x, o.y - e.y);
+            if (d < bestD) {
+              bestD = d;
+              best = o;
+            }
+          }
+          if (best) {
+            used.add(best);
+            if (best.pairId !== undefined) {
+              const c = (collects.get(best.pairId) ?? 0) + 1;
+              collects.set(best.pairId, c);
+              rec.maxCollectsPerPair = Math.max(rec.maxCollectsPerPair, c);
+            }
+          }
+        }
+      }
+      world.events.length = 0;
+      // pair bookkeeping from the world itself
+      for (const p of world.pickups) {
+        if (p.pairId === undefined) continue;
+        let list = tracked.get(p.pairId);
+        if (!list) {
+          list = [];
+          tracked.set(p.pairId, list);
+          rec.pairsSeen++;
+        }
+        if (!list.includes(p)) list.push(p);
+        if (!p.magnetized) rec.maxAge = Math.max(rec.maxAge, p.age);
+        if (Math.abs(p.x) > hw + 1e-6 || Math.abs(p.y) > hh + 1e-6) rec.outOfBounds++;
+      }
+      for (const list of tracked.values()) {
+        const alive = list.filter((p) => world.pickups.includes(p));
+        if (list.length === 2 && list[0].power === list[1].power) rec.sameKind++;
+        if (alive.length === 1 && !alive[0].magnetized) rec.survivors++;
+      }
+      for (const m of world.mines) rec.mines.push(`${world.time.toFixed(2)}:${m.x.toFixed(2)},${m.y.toFixed(2)}`);
+      world.mines.length = 0;
+    }
+    rec.score = world.score;
+    rec.time = world.time;
+    setRunSeed(null);
+    clearActiveMutators();
+    return rec;
+  };
+
+  // (a) two very different play styles: identical pair script, formations, mines
+  const ra = record([twin], "ram", 1234567, 180);
+  const rb = record([twin], "drift", 1234567, 180);
+  check(
+    "THE PASSAGE: pair script (time, both powers, both positions) identical across play styles",
+    ra.spawns.length > 10 && ra.spawns.join("|") === rb.spawns.join("|"),
+    `${ra.spawns.length} orbs`,
+  );
+  check(
+    "THE PASSAGE: formations and mines identical across play styles",
+    ra.formations.length > 10 && ra.formations.join("|") === rb.formations.join("|") && ra.mines.length > 3 && ra.mines.join("|") === rb.mines.join("|"),
+  );
+
+  // (b) opposite choices: always the left orb, always the right orb, never touch one
+  const pl = record([twin], "left", 4242, 120);
+  const pr = record([twin], "right", 4242, 120);
+  const pn = record([twin], "none", 4242, 120);
+  check(
+    "THE PASSAGE: pilots taking the left orb, the right orb or nothing see the identical pair script",
+    pl.spawns.length > 10 && pl.spawns.join("|") === pr.spawns.join("|") && pl.spawns.join("|") === pn.spawns.join("|"),
+    `${pl.spawns.length} orbs`,
+  );
+  check(
+    "THE PASSAGE: ...and identical formations and mines",
+    pl.formations.join("|") === pr.formations.join("|") && pl.formations.join("|") === pn.formations.join("|") && pl.mines.join("|") === pr.mines.join("|") && pl.mines.join("|") === pn.mines.join("|"),
+  );
+  check(
+    "THE PASSAGE: the pilots really chose differently (left and right took different powers; the idle pilot took none and let pairs fade)",
+    pl.collected.length > 3 && pr.collected.length > 3 && pl.collected.join() !== pr.collected.join() && pn.collected.length === 0 && pn.expire > 3,
+    `left ${pl.collected.length}, right ${pr.collected.length}, none ${pn.collected.length} (expired ${pn.expire})`,
+  );
+
+  // (c) no stream draw changed: the same seed on a plain daily has the same formations, mines, primary positions
+  const plain = record([], "ram", 1234567, 180);
+  check("THE PASSAGE vs a plain daily, same seed: formations identical", ra.formations.join("|") === plain.formations.join("|"));
+  check("THE PASSAGE vs a plain daily, same seed: mines identical", ra.mines.join("|") === plain.mines.join("|"));
+  // in a twin run the spawn events come as (primary, partner) pairs; keep time + position only
+  const posOnly = (rows: string[]): string[] => rows.map((s) => s.replace(/:[a-zA-Z]+@/, "@"));
+  check(
+    "THE PASSAGE vs a plain daily, same seed: primary drops (time + position) identical",
+    plain.spawns.length > 10 && posOnly(ra.spawns).filter((_, k) => k % 2 === 0).join("|") === posOnly(plain.spawns).join("|"),
+    `${plain.spawns.length} drops`,
+  );
+  const kindDiff = ra.spawns.filter((_, k) => k % 2 === 0).filter((s, k) => s.split(":")[1].split("@")[0] !== plain.spawns[k]?.split(":")[1].split("@")[0]).length;
+  console.log(`INFO  THE PASSAGE: ${kindDiff} of ${plain.spawns.length} primary kinds differ from the plain day (partner demotion shifts the weights, deterministically)`);
+
+  // (d) pair invariants over every recorded run
+  const all = [ra, rb, pl, pr, pn];
+  check(
+    "THE PASSAGE: at most one `pickup` per pair; the partner never survives a choice",
+    all.every((r) => r.maxCollectsPerPair <= 1 && r.survivors === 0),
+    all.map((r) => `${r.maxCollectsPerPair}/${r.survivors}`).join(" "),
+  );
+  check(
+    "THE PASSAGE: the two orbs of a pair are always different powers, and always in bounds",
+    all.every((r) => r.sameKind === 0 && r.outOfBounds === 0 && r.pairsSeen > 5),
+    all.map((r) => `${r.sameKind}/${r.outOfBounds}`).join(" "),
+  );
+  check(
+    "THE PASSAGE: nothing outlives the pair lifetime plus one step",
+    all.every((r) => r.maxAge < PICKUPS.pair.lifetime + FIXED_DT * 1.5),
+    `max age ${Math.max(...all.map((r) => r.maxAge)).toFixed(3)} s vs ${PICKUPS.pair.lifetime}`,
+  );
+  check(
+    "THE PASSAGE: a vanish per taken pair and an expiry per untouched orb; neither is a pickup",
+    pl.vanish > 3 && pl.vanish <= pl.collected.length && pn.expire > 0 && pn.vanish === 0,
+    `left: ${pl.collected.length} taken, ${pl.vanish} vanished`,
+  );
+  const poolSet = new Set<PowerId>(SPAWNABLE_POWER_IDS);
+  check(
+    "THE PASSAGE: the pair pool is the normal drop table only (no mutator-only, no benched powers)",
+    all.every((r) => r.kinds.every((k) => poolSet.has(k))),
+  );
+
+  // (e) magnets: claiming is choosing, one orb per pair
+  {
+    setRunSeed(777);
+    setActiveMutators([twin], TWIN_DATE);
+    const w = createWorld(17.8, 10, false, 0, "classic", true, false, rulesFromDefaults({ overdrive: true }));
+    w.pickups.length = 0;
+    w.ship.x = 0;
+    w.ship.y = 0;
+    const mk = (id: string, x: number, y: number, a: PowerId, b: PowerId, bx: number): void => {
+      w.pickups.push({ x, y, power: a, age: 0, pairId: id, primary: true });
+      w.pickups.push({ x: bx, y, power: b, age: 0, pairId: id });
+    };
+    // pair A has both orbs nearest the ship: a plain 3-pull would take both of them
+    mk("A", 1.2, 0, "shield", "pulse", -1.2);
+    mk("B", 0, 3, "freeze", "magnet", 0 + 2.4);
+    mk("C", 0, -4, "shockwave", "missiles", 2.4);
+    mk("D", 0, 6, "pulse", "shield", 2.4);
+    activatePower(w, "magnet", false);
+    const claimed = w.pickups.filter((p) => p.magnetized);
+    check(
+      "THE PASSAGE magnet: one grab claims one orb and its partner vanishes at once",
+      claimed.length === 1 && claimed[0].pairId === "A" && w.pickups.filter((p) => p.pairId === "A" && p.gone).length === 1 && w.events.some((e) => e.type === "pickupVanish"),
+    );
+    w.pickups.length = 0;
+    w.events.length = 0;
+    mk("A", 1.2, 0, "shield", "pulse", -1.2);
+    mk("B", 0, 3, "freeze", "magnet", 2.4);
+    mk("C", 0, -4, "shockwave", "missiles", 2.4);
+    mk("D", 0, 6, "pulse", "shield", 2.4);
+    activatePower(w, "magnet", true); // OVERDRIVE form, maxPull 3
+    const od = w.pickups.filter((p) => p.magnetized);
+    check(
+      "THE PASSAGE OVERDRIVE magnet (maxPull 3): the 3 nearest, at most one per pair",
+      od.length === 3 && new Set(od.map((p) => p.pairId)).size === 3 && !od.some((p) => p.pairId === "D"),
+      od.map((p) => p.pairId).join(","),
+    );
+    check(
+      "THE PASSAGE OVERDRIVE magnet: each claimed pair's partner vanished, the unclaimed pair is untouched",
+      w.pickups.filter((p) => p.gone).length === 3 && w.pickups.filter((p) => p.pairId === "D" && !p.gone).length === 2,
+    );
+    // an armed magnet on an empty board claims the nearer orb of the next pair
+    const w2 = createWorld(17.8, 10, false, 0, "classic", true);
+    w2.pickups.length = 0;
+    w2.powers.magnetPending = 1;
+    w2.pickupTimer = 0;
+    w2.events.length = 0; // the launch pair announced itself at createWorld
+    w2.powers.starshellTimer = 9999;
+    tick(w2, input, FIXED_DT);
+    check(
+      "THE PASSAGE pending magnet: the next pair is claimed (one orb), the other vanishes, both announced",
+      w2.pickups.length === 1 && w2.pickups[0].magnetized === true && w2.powers.magnetPending === 0 &&
+        w2.events.filter((e) => e.type === "pickupSpawn").length === 2 && w2.events.filter((e) => e.type === "pickupVanish").length === 1,
+      `${w2.pickups.length} left`,
+    );
+    clearActiveMutators();
+    setRunSeed(null);
+  }
+
+  // (f) balance: a greedy collector (always flies to the nearest orb) on 5 seeds, twin vs plain
+  {
+    const seeds = TRIAL_SEEDS.slice(0, 5);
+    const greedy = (mutators: Mutator[], seed: number): { collected: PowerId[]; score: number } => {
+      setRunSeed(seed);
+      setActiveMutators(mutators, TWIN_DATE);
+      const world = createWorld(17.8, 10, false, 0, "classic", true);
+      const collected: PowerId[] = [];
+      const steps = Math.round(180 / FIXED_DT);
+      for (let i = 0; i < steps; i++) {
+        world.powers.starshellTimer = 9999;
+        let dir = { x: 0, y: 0 };
+        let bestD = Infinity;
+        for (const p of world.pickups) {
+          if (p.gone) continue;
+          const d = Math.hypot(p.x - world.ship.x, p.y - world.ship.y);
+          if (d < bestD) {
+            bestD = d;
+            dir = { x: (p.x - world.ship.x) / (d || 1), y: (p.y - world.ship.y) / (d || 1) };
+          }
+        }
+        tick(world, { ...input, inertia: false, moveVector: dir }, FIXED_DT);
+        for (const e of world.events) if (e.type === "pickup") collected.push(e.power);
+        world.events.length = 0;
+      }
+      const score = world.score;
+      clearActiveMutators();
+      setRunSeed(null);
+      return { collected, score };
+    };
+    const tw = seeds.map((s) => greedy([twin], s));
+    const pn2 = seeds.map((s) => greedy([], s));
+    const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
+    const collT = sum(tw.map((r) => r.collected.length));
+    const collP = sum(pn2.map((r) => r.collected.length));
+    const ratios = tw.map((r, k) => r.score / Math.max(1, pn2[k].score)).sort((a, b) => a - b);
+    const medianRatio = ratios[Math.floor(ratios.length / 2)];
+    const distinct = new Set(tw.flatMap((r) => r.collected));
+    console.log(
+      `INFO  THE PASSAGE greedy collector, 5 seeds x 180 s: collected ${collT} twin vs ${collP} plain, score ratio per seed ${ratios.map((r) => r.toFixed(2)).join(" ")} (median ${medianRatio.toFixed(2)}), ${distinct.size} distinct powers`,
+    );
+    check("THE PASSAGE balance: the greedy collector takes at least 0.85x the powers of a plain day", collT >= 0.85 * collP, `${collT} vs ${collP}`);
+    // per-seed ratios swing with Math.random power effects (the bot is invulnerable and rams), so the band is on the median and the aggregate
+    const aggregate = sum(tw.map((r) => r.score)) / Math.max(1, sum(pn2.map((r) => r.score)));
+    check(
+      "THE PASSAGE balance: score ratio twin / plain (median and aggregate) inside the sanity band [0.7, 1.5]",
+      medianRatio >= 0.7 && medianRatio <= 1.5 && aggregate >= 0.7 && aggregate <= 1.5,
+      `median ${medianRatio.toFixed(2)}, aggregate ${aggregate.toFixed(2)}`,
+    );
+    check("THE PASSAGE balance: the choice does not collapse onto one power (>= 6 distinct powers taken)", distinct.size >= 6, `${distinct.size}`);
+  }
+
+  // (g) survival, reported: a collector that also dodges (evasive steering, orbs when it is calm), twin vs plain.
+  // Scores here are a heavy tail (one lucky missiles or shield pickup decides a run), so only survival is asserted.
+  {
+    const seeds = TRIAL_SEEDS;
+    const dodger = (mutators: Mutator[], seed: number): { time: number; score: number } => {
+      setRunSeed(seed);
+      setActiveMutators(mutators, TWIN_DATE);
+      const world = createWorld(17.8, 10, false, 0, "classic", true);
+      const cap = 150;
+      const steps = Math.round(cap / FIXED_DT);
+      for (let i = 0; i < steps; i++) {
+        if (world.phase !== "playing") break;
+        let dir = evasiveHeading(world);
+        if (dir.x === 0 && dir.y === 0) {
+          let bestD = Infinity;
+          for (const p of world.pickups) {
+            const d = Math.hypot(p.x - world.ship.x, p.y - world.ship.y);
+            if (d < bestD) {
+              bestD = d;
+              dir = { x: (p.x - world.ship.x) / (d || 1), y: (p.y - world.ship.y) / (d || 1) };
+            }
+          }
+        }
+        tick(world, { ...input, inertia: false, moveVector: dir }, FIXED_DT);
+        world.events.length = 0;
+      }
+      const out = { time: Math.min(world.time, cap), score: world.score };
+      clearActiveMutators();
+      setRunSeed(null);
+      return out;
+    };
+    const tw = seeds.map((s) => dodger([twin], s));
+    const pl2 = seeds.map((s) => dodger([], s));
+    const med = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    console.log(
+      `INFO  THE PASSAGE dodger+collector, 10 seeds (cap 150 s): survival median ${med(tw.map((r) => r.time)).toFixed(1)} s twin vs ${med(pl2.map((r) => r.time)).toFixed(1)} s plain; score median ${Math.round(med(tw.map((r) => r.score)))} twin vs ${Math.round(med(pl2.map((r) => r.score)))} plain`,
+    );
+    check("THE PASSAGE: the dodging collector survives on the twin day about as long as on a plain day (>= 0.6x)", med(tw.map((r) => r.time)) >= 0.6 * med(pl2.map((r) => r.time)));
+  }
 }
 
 // --- 10b. THE FLOOD v5: formations gone, metronome pops, opening flooded ---

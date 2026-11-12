@@ -49,6 +49,7 @@ import type { World } from "../src/types";
 import golden from "./mutator-snapshot.json";
 import goldenWave2 from "./mutator-snapshot-wave2.json";
 import goldenDiet from "./mutator-snapshot-spell-diet.json";
+import goldenOverlay from "./mutator-snapshot-overlay.json";
 
 const input: InputState = {
   turn: 0,
@@ -477,6 +478,7 @@ function dayRestricted(dateStr: string): boolean {
     "bait-shot": "override",
     "ion-day": "override",
     "howlers-day": "override",
+    "twin-orbs": "override",
   };
 
   const missing = MUTATOR_POOL.filter((m) => KIND[m.id] === undefined).map((m) => m.id);
@@ -1088,6 +1090,48 @@ function dayRestricted(dateStr: string): boolean {
     "overlay: legacyMutatorsForDate is the switch-off pick on every date",
     allDates.every((d) => legacyMutatorsForDate(d, poolOne).map((m) => m.id).join("+") === idsOf(d, MUTATOR_POOL)),
   );
+}
+
+// --- 9. THE PASSAGE (twin-orbs): the live overlay entry. Frozen overlay dates
+// (scripts/mutator-snapshot-overlay.json) through 2027-12-31; the legacy
+// rotation stays exactly the 32 entries every shipped bundle knows.
+{
+  const FROZEN: Record<string, [string, string]> = goldenOverlay as Record<string, [string, string]>;
+  const END = "2027-12-31";
+  const twin = getMutatorById("twin-orbs");
+  check("twin-orbs is an overlay entry (overlayOdds set, full-spell, Tier B flag)", !!twin && twin.overlayOdds === 17 && !twin.tags.includes("monopower") && twin.overrides.pickupPairs === true);
+  check("the legacy rotation is still exactly the 32 entries (no plain append since)", MUTATOR_POOL.filter((m) => m.overlayOdds === undefined).length === 32);
+  check("every entry after the first 32 is an overlay entry", MUTATOR_POOL.slice(32).every((m) => m.overlayOdds !== undefined));
+  check("twin-orbs is not available before 2026-11-23 (a future date when written)", twin?.availableFrom === "2026-11-23");
+
+  const dates: string[] = [];
+  for (let d = MUTATORS_START_DATE; d <= END; d = addUtcDays(d, 1)) dates.push(d);
+
+  setOverlayGate(() => false);
+  check("switch off: no day flies twin-orbs through 2027-12-31", dates.every((d) => !getMutatorsForDateStr(d).some((m) => m.id === "twin-orbs")));
+  check(
+    "switch off: the live pool equals the legacy rotation on every date",
+    dates.every((d) => getMutatorsForDateStr(d) === legacyMutatorsForDate(d)),
+  );
+
+  setOverlayGate(() => true);
+  const flown = dates.filter((d) => getMutatorsForDateStr(d).some((m) => m.id === "twin-orbs"));
+  check("switch on: twin-orbs flies exactly the frozen overlay dates", JSON.stringify(flown) === JSON.stringify(Object.keys(FROZEN)), `${flown.length} vs ${Object.keys(FROZEN).length}`);
+  check(
+    "switch on: each frozen date records the legacy pick it replaced",
+    flown.every((d) => legacyMutatorsForDate(d).length === 1 && legacyMutatorsForDate(d)[0].id === FROZEN[d][1]),
+  );
+  check(
+    "switch on: every other date is the legacy pick",
+    dates.every((d) => flown.includes(d) || getMutatorsForDateStr(d) === legacyMutatorsForDate(d)),
+  );
+  check("switch on: first overlay day is 2026-11-25 (a Wednesday)", flown[0] === "2026-11-25" && new Date("2026-11-25T00:00:00Z").getUTCDay() === 3);
+  check("switch on: no frozen snapshot date moves except overlay days", dates.filter((d) => d <= SNAPSHOT_END_DATE && !flown.includes(d)).every((d) => getMutatorsForDateStr(d).map((m) => m.id).join("+") === snapshotWant(d)));
+  setOverlayGate(() => false);
+
+  const grep = await import("node:fs");
+  const guideSrc = grep.readFileSync(new URL("../src/guideMain.ts", import.meta.url), "utf8");
+  check("guide shows the overlay switch and the legacy pick behind an overlay day", guideSrc.includes("mutators.overlay") && guideSrc.includes("(else "));
 }
 
 // player-facing copy never calls the play space an arena (Lucas's ban); ids and tags are not copy

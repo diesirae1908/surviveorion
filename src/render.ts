@@ -17,7 +17,7 @@ import { blastRadius, ionConeRadius, thunderRayWidth } from "./powers";
 import { lighthouseBeamLength, lighthouseBeamWidth, lighthouseBodyRadius } from "./lighthouse";
 import type { Particles } from "./particles";
 import type { Popups } from "./popups";
-import type { World } from "./types";
+import type { Pickup, World } from "./types";
 import type { ClientFlags, HudParams, OverdriveFxParams } from "./flags";
 import * as feel from "./feel";
 import {
@@ -1922,9 +1922,36 @@ export class Renderer {
     }
   }
 
+  /** THE PASSAGE: opacity of an orb in its pair's last seconds (blinks, then fades). 1 otherwise. */
+  private pairAlpha(p: Pickup): number {
+    if (p.pairId === undefined || p.magnetized) return 1;
+    const left = PICKUPS.pair.lifetime - p.age;
+    if (left > PICKUPS.pair.blinkFrom) return 1;
+    const fade = Math.max(0, left / PICKUPS.pair.blinkFrom);
+    return (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(left * 14))) * (0.4 + 0.6 * fade);
+  }
+
   private drawPickups(world: World, time: number): void {
     const { ctx } = this;
+    // THE PASSAGE: a thin bronze tether marks the two orbs of a pair, so several
+    // pairs on the board still read as pairs
     for (const p of world.pickups) {
+      if (!p.primary || p.magnetized) continue;
+      const q = world.pickups.find((o) => o !== p && o.pairId === p.pairId && !o.magnetized);
+      if (!q) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.4 * this.pairAlpha(p);
+      ctx.strokeStyle = PALETTE.bronze;
+      ctx.lineWidth = 0.04;
+      ctx.setLineDash([0.2, 0.16]);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const p of world.pickups) {
+      const pa = this.pairAlpha(p);
       const bob = 1 + 0.1 * Math.sin(p.age * PICKUPS.bobSpeed);
       const r = PICKUPS.radius * bob;
       const color = POWER_COLORS[p.power];
@@ -1937,14 +1964,14 @@ export class Renderer {
       const g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 2);
       g.addColorStop(0, color);
       g.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.35 + 0.12 * Math.sin(time * 3 + p.age);
+      ctx.globalAlpha = (0.35 + 0.12 * Math.sin(time * 3 + p.age)) * pa;
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(0, 0, r * 2, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = pa;
       ctx.fillStyle = "rgba(10,10,18,0.85)";
       ctx.strokeStyle = color;
       ctx.lineWidth = 0.06;

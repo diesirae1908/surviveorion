@@ -55,6 +55,7 @@ const GLYPHS: Record<string, string> = {
   [`cloak-day`]: svg(`<circle cx="24" cy="24" r="8" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"/>`),
   [`bait-shot`]: svg(`<circle cx="24" cy="24" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="24" r="1.6" fill="currentColor"/>`),
   [`ion-day`]: svg(`<circle cx="24" cy="24" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M24 16 V32 M16 24 H32" stroke="currentColor" stroke-width="2"/>`),
+  [`twin-orbs`]: svg(`<circle cx="16" cy="24" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="32" cy="24" r="5.5" fill="none" stroke="currentColor" stroke-width="2" opacity=".55"/><path d="M27 29 L37 19" stroke="currentColor" stroke-width="2"/>`),
   [`howlers-day`]: svg(`<path d="M14 30 C16 18 24 14 34 20 C28 22 26 28 24 34 C22 28 18 26 14 30 Z" fill="none" stroke="currentColor" stroke-width="2"/>`),
 };
 

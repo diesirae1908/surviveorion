@@ -339,6 +339,7 @@ All gameplay tuning lives in `src/config.ts` (the "Inspector" equivalent).
 | `src/popups.ts` | Floating score / power-name text |
 | `src/powers.ts` | Power effects (`PowerManager` + effect ScriptableObjects) |
 | `src/pickups.ts` | Pickup spawning + magnet pull (`PickupSpawner`, `PowerPickup`) |
+| `src/pickupPairs.ts` | THE PASSAGE pair rules: partner lookup, vanish on choice, magnet claim |
 | `src/scoring.ts` | Score + kill multiplier (`GameRules`) |
 | `src/gameState.ts` | World state, fixed-timestep tick, collisions |
 | `src/render.ts` | Canvas renderer: starfield, entities, HUD, cinematics (warp, intro) |

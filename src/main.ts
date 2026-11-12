@@ -2627,6 +2627,14 @@ function drainEvents(w: World): void {
         audio.pickup();
         clipPowerLog.push({ id: e.power, name: POWER_NAMES[e.power], time: world.time });
         break;
+      case "pickupVanish":
+        // THE PASSAGE: the orb you passed on implodes; the chosen orb's own sound already played
+        particles.burst(e.x, e.y, [POWER_COLORS[e.power], PALETTE.white], 8, 2, 0.35, 0.08);
+        break;
+      case "pickupExpire":
+        // an untouched pair fades: quiet and bronze, expiries are frequent
+        particles.burst(e.x, e.y, [PALETTE.bronze], 8, 2, 0.35, 0.08);
+        break;
       case "shieldUp":
         audio.shieldUp();
         break;

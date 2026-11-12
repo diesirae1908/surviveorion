@@ -54,6 +54,7 @@ const SPEC: Record<string, string> = {
   "lancer-doctrine": "radiant-beam.mp3",
   arsenal: "radiant-beam.mp3",
   "bait-shot": "radiant-beam.mp3",
+  "twin-orbs": "radiant-beam.mp3",
 };
 
 const DEFAULT_IDS = ["great-wall", "wheelhouse", "the-pit", "titanfall", "magnetic-field"];

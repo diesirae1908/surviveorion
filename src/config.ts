@@ -726,6 +726,14 @@ export const PICKUPS = {
   edgeInset: 1.0, // keep pickups this far inside the view bounds
   bobSpeed: 2.2,
   driftSpeed: 0.35, // pickups drift slowly and bounce softly off the walls
+  // THE PASSAGE (mutator `pickupPairs`): every drop is a pair, take one and the
+  // other vanishes. Constants, not switch params: changing any of them changes
+  // the shared run, so it ships in a reviewed bundle every client gets at once.
+  pair: {
+    spacing: 2.4, // center to center, units; partner sits toward the field center
+    lifetime: 15, // seconds an untouched pair lasts before both fade
+    blinkFrom: 3, // last seconds of the lifetime the pair blinks
+  },
 };
 
 export type PowerId =

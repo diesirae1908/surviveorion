@@ -130,6 +130,11 @@ export interface MutatorOverrides {
    * hash, not the shared seed streams. GOLD DASH replaces immediately;
    * RAM RAID waits `pickupHoldOneDelay` so the naked stretch is the day. */
   pickupHoldOne?: boolean;
+  /** THE PASSAGE: every drop is a pair of two different powers (the seeded drop
+   * plus a partner from a date-hash roll, zero extra stream draws); taking one
+   * vanishes the other, an untouched pair fades after PICKUPS.pair.lifetime.
+   * Read through mutatorPickupPairs(), never by id. */
+  pickupPairs?: boolean;
   /** Seconds after a hold-one collect before the next orb. 0/undefined =
    * immediate (GOLD DASH). Must be a constant: no seeded draws. */
   pickupHoldOneDelay?: number;
@@ -841,6 +846,24 @@ export const MUTATOR_POOL: Mutator[] = [
     availableFrom: WAVE2_AVAILABLE_FROM,
     overrides: { extraPowerIds: ["howlers"], powerWeights: monoPowerWeights("howlers") },
   },
+  // Overlay entries (see "overlay selection" below). Never reorder, never edit
+  // after the entry has flown a day.
+  {
+    id: "twin-orbs",
+    name: "THE PASSAGE",
+    briefing: "Two drop. One walks out.",
+    subline: "Every drop is a pair of two different powers. Touch one and it fires. The other vanishes. Pairs nobody takes fade after 15 seconds.",
+    hudRule: "Orbs drop in pairs. Take one, lose one.",
+    // Same drop count as a plain day, with a choice per pickup: closer to 1 than
+    // the pickup-rich days (ARSENAL, MAGNETIC FIELD at 0.85). See JOURNAL.md.
+    difficultyFactor: 0.95,
+    // Tags document which days a future Sunday rule must keep it away from
+    // (MAGNETIC FIELD pulls both orbs in, ARSENAL doubles the pairs).
+    tags: ["pickup-behavior", "pickup-rate"],
+    availableFrom: "2026-11-23",
+    overlayOdds: 17,
+    overrides: { pickupPairs: true },
+  },
 ];
 
 const MUTATOR_BY_ID = new Map(MUTATOR_POOL.map((m) => [m.id, m] as const));
@@ -1188,6 +1211,8 @@ let activeWindDate: string | null = null;
 let activeWindStrength = 0;
 let holdOneDate: string | null = null;
 let holdOneSeq = 0;
+let twinPairDate: string | null = null;
+let twinPairSeq = 0;
 
 const WIND_PERIOD_MIN = 20;
 const WIND_PERIOD_MAX = 28;
@@ -1271,6 +1296,8 @@ export function setActiveMutators(mutators: Mutator[], patrolDateLabel: string |
   }
   holdOneSeq = 0;
   holdOneDate = active.some((m) => m.overrides.pickupHoldOne) ? label : null;
+  twinPairSeq = 0;
+  twinPairDate = active.some((m) => m.overrides.pickupPairs) ? label : null;
 }
 
 export function clearActiveMutators(): void {
@@ -1279,6 +1306,8 @@ export function clearActiveMutators(): void {
   activeWindDate = null;
   holdOneDate = null;
   holdOneSeq = 0;
+  twinPairDate = null;
+  twinPairSeq = 0;
 }
 
 export function getActiveMutators(): Mutator[] {
@@ -1320,6 +1349,7 @@ export const MUTATOR_GAME_TRACK: Readonly<Record<string, string>> = {
   "lancer-doctrine": "radiant-beam.mp3",
   arsenal: "radiant-beam.mp3",
   "bait-shot": "radiant-beam.mp3",
+  "twin-orbs": "radiant-beam.mp3",
 };
 
 export function musicBedForMutator(id: string | undefined | null): string {
@@ -1477,6 +1507,23 @@ export function takeHoldOneSpawnKey(): string {
   const date = holdOneDate ?? "hold-one";
   const key = `orion-holdone-${date}-${holdOneSeq}`;
   holdOneSeq += 1;
+  return key;
+}
+
+/** THE PASSAGE: whether every drop is a pair. Gameplay reads this, never the mutator id. */
+export function mutatorPickupPairs(): boolean {
+  return twinPairDate !== null;
+}
+
+/**
+ * THE PASSAGE: date + incrementing index, one per pair. Keys the partner's
+ * power roll (a date hash, no seed streams) and tags the pair. Advances per
+ * spawned drop only, which on a Daily is timer-driven, so it never depends on
+ * what the pilot takes.
+ */
+export function takeTwinPairKey(): string {
+  const key = `orion-twin-${twinPairDate ?? "twin"}-${twinPairSeq}`;
+  twinPairSeq += 1;
   return key;
 }
 

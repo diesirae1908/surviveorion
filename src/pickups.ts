@@ -14,10 +14,13 @@ import {
   mutatorPickupHoldOneDelay,
   mutatorPickupIntervalScale,
   mutatorPickupMagnetStrength,
+  mutatorPickupPairs,
   mutatorPowerWeights,
   takeHoldOneSpawnKey,
+  takeTwinPairKey,
 } from "./mutators";
 import { circlesOverlap } from "./physics";
+import { claimByMagnet, partnerOf, vanishPartner } from "./pickupPairs";
 import { spendOverdrive } from "./overdrive";
 import { activatePower } from "./powers";
 import type { Pickup, World } from "./types";
@@ -69,7 +72,16 @@ export function updatePickups(world: World, dt: number): void {
 
   for (let i = world.pickups.length - 1; i >= 0; i--) {
     const p = world.pickups[i];
+    if (p.gone) continue; // its pair was chosen earlier this tick; swept below
     p.age += dt;
+
+    // THE PASSAGE: an untouched pair fades together. A magnetized orb is already
+    // chosen and in flight, so it never expires. Time-driven, no draws.
+    if (p.pairId !== undefined && !p.magnetized && p.age >= PICKUPS.pair.lifetime) {
+      world.pickups.splice(i, 1);
+      world.events.push({ type: "pickupExpire", power: p.power, x: p.x, y: p.y });
+      continue;
+    }
 
     if (p.magnetized) {
       // claimed by a magnet: forget the drift, home straight to the ship
@@ -108,8 +120,16 @@ export function updatePickups(world: World, dt: number): void {
     }
 
     if (circlesOverlap(ship.x, ship.y, SHIP.radius, p.x, p.y, PICKUPS.radius)) {
+      if (p.pairId !== undefined && !p.primary) {
+        // both orbs of a pair in reach on the same tick: resolve the pair once,
+        // the seeded (primary) orb wins and fires when the loop reaches it
+        const mate = partnerOf(world, p);
+        if (mate?.primary && circlesOverlap(ship.x, ship.y, SHIP.radius, mate.x, mate.y, PICKUPS.radius)) continue;
+      }
       world.pickups.splice(i, 1);
       world.events.push({ type: "pickup", power: p.power, x: p.x, y: p.y });
+      // THE PASSAGE: taking one orb vanishes its partner the same tick
+      vanishPartner(world, p);
       // OVERDRIVE: a HOT hull spends its charge on this orb (burst + form)
       const form = spendOverdrive(world, p.power);
       activatePower(world, p.power, form);
@@ -119,6 +139,13 @@ export function updatePickups(world: World, dt: number): void {
         else world.pickupTimer = delay;
       }
     }
+  }
+
+  // sweep orbs whose partner was taken (flagged by vanishPartner / a magnet claim)
+  if (world.pickups.some((q) => q.gone)) {
+    let w = 0;
+    for (const q of world.pickups) if (!q.gone) world.pickups[w++] = q;
+    world.pickups.length = w;
   }
 }
 
@@ -160,24 +187,67 @@ function spawnPickup(world: World): void {
   const driftAngle = rand() * Math.PI * 2; // drift heading (fixed draw too)
   const power = rollPowerId(world);
   if (!world.daily && world.pickups.length >= PICKUPS.maxActive) return;
-  const pickup: Pickup = {
-    x,
-    y,
-    power,
-    age: 0,
-    vx: Math.cos(driftAngle) * PICKUPS.driftSpeed,
-    vy: Math.sin(driftAngle) * PICKUPS.driftSpeed,
-  };
-  // a magnet grabbed on an empty board stays armed and claims the next drop
-  if (world.powers.magnetPending > 0) {
-    world.powers.magnetPending--;
-    pickup.magnetized = true;
+  const pickup: Pickup = { x, y, power, age: 0 };
+
+  // THE PASSAGE: the partner comes from a date-hash roll and a fixed offset, so
+  // the draws above are the whole stream cost of a drop, pair or not.
+  const pairKey = mutatorPickupPairs() ? takeTwinPairKey() : null;
+  const partnerPower = pairKey ? rollPartnerPowerId(world, power, pairKey) : null;
+  let partner: Pickup | null = null;
+  if (pairKey && partnerPower) {
+    // pairs hold still (the drift draw above is consumed, not applied); the
+    // partner sits toward the field center, so it is always in bounds
+    const toward = x >= 0 ? -1 : 1;
+    pickup.pairId = pairKey;
+    pickup.primary = true;
+    partner = { x: x + toward * PICKUPS.pair.spacing, y, power: partnerPower, age: 0, pairId: pairKey };
+  } else {
+    pickup.vx = Math.cos(driftAngle) * PICKUPS.driftSpeed;
+    pickup.vy = Math.sin(driftAngle) * PICKUPS.driftSpeed;
   }
   world.pickups.push(pickup);
+  if (partner) world.pickups.push(partner);
   // fired even if the ship overlaps this spot and collects it the same tick,
   // so anything auditing "what dropped and when" (e.g. sim-test's shared-seed
   // check) sees every scheduled drop, not just the ones that survive a frame.
   world.events.push({ type: "pickupSpawn", power, x, y });
+  if (partner) world.events.push({ type: "pickupSpawn", power: partner.power, x: partner.x, y: partner.y });
+  // a magnet grabbed on an empty board stays armed and claims the next drop;
+  // on a pair it claims the orb nearer the ship and the other vanishes
+  if (world.powers.magnetPending > 0) {
+    world.powers.magnetPending--;
+    const pick =
+      partner && Math.hypot(partner.x - world.ship.x, partner.y - world.ship.y) < Math.hypot(x - world.ship.x, y - world.ship.y)
+        ? partner
+        : pickup;
+    claimByMagnet(world, pick);
+  }
+}
+
+/**
+ * THE PASSAGE: the partner's power. Same drop table as the seeded roll (normal
+ * spawnable powers only, same weights and bad-luck demotion), minus the
+ * primary's power, but the roll value is a date hash keyed by the pair, so it
+ * costs no draw on either seeded stream. Null only when nothing else has weight.
+ */
+function rollPartnerPowerId(world: World, primary: PowerId, key: string): PowerId | null {
+  const { pool, weight } = dropTable(world);
+  const candidates = pool.filter((id) => id !== primary && SPAWNABLE_POWER_IDS.includes(id));
+  let total = 0;
+  for (const id of candidates) total += weight(id);
+  if (total <= 0) return null;
+  let roll = (hashString(key) / 4294967296) * total;
+  let picked = candidates[candidates.length - 1];
+  for (const id of candidates) {
+    roll -= weight(id);
+    if (roll <= 0) {
+      picked = id;
+      break;
+    }
+  }
+  // the partner always spawns, so its demotion is player-independent too
+  world.powerSpawnCounts[picked] = (world.powerSpawnCounts[picked] ?? 0) + 1;
+  return picked;
 }
 
 /** Hold-one replacement: extraPowerIds[0] if set (GOLD DASH Afterburner),
@@ -232,6 +302,19 @@ function spawnHoldOnePickup(world: World): void {
   world.events.push({ type: "pickupSpawn", power, x: bestX, y: bestY });
 }
 
+/** Today's drop table: the pool (time gates, mutator extras) and the live weight function. */
+function dropTable(world: World): { pool: PowerId[]; weight: (id: PowerId) => number } {
+  const minutes = world.time / 60;
+  const extra = mutatorExtraPowerIds().filter((id) => !SPAWNABLE_POWER_IDS.includes(id));
+  const pool = [...SPAWNABLE_POWER_IDS, ...extra].filter(
+    (id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0),
+  );
+  const overrideWeights = mutatorPowerWeights();
+  const weight = (id: PowerId): number =>
+    (overrideWeights[id] ?? POWER_SPAWN_WEIGHTS[id]) / (1 + 1.5 * (world.powerSpawnCounts[id] ?? 0));
+  return { pool, weight };
+}
+
 /**
  * Weighted random pick so not every power appears at the same frequency.
  * Late-game powers (POWER_MIN_MINUTES) only enter the pool once the run is
@@ -240,15 +323,7 @@ function spawnHoldOnePickup(world: World): void {
  * their moment instead of shield/shockwave hogging every drop.
  */
 function rollPowerId(world: World): PowerId {
-  const minutes = world.time / 60;
-  const extra = mutatorExtraPowerIds().filter((id) => !SPAWNABLE_POWER_IDS.includes(id));
-  const pool = [...SPAWNABLE_POWER_IDS, ...extra].filter(
-    (id) => minutes >= (POWER_MIN_MINUTES[id] ?? 0),
-  );
-
-  const overrideWeights = mutatorPowerWeights();
-  const weight = (id: PowerId): number =>
-    (overrideWeights[id] ?? POWER_SPAWN_WEIGHTS[id]) / (1 + 1.5 * (world.powerSpawnCounts[id] ?? 0));
+  const { pool, weight } = dropTable(world);
 
   let total = 0;
   for (const id of pool) total += weight(id);
