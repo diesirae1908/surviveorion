@@ -5,6 +5,7 @@
  */
 
 import { nextPatrolMidnight } from "./patrolDate";
+import type { ShellMessage } from "./appShell";
 
 export const LIVE_API_ORIGIN = "https://surviveorion.com";
 export const PRIVACY_URL = "https://surviveorion.com/privacy.html";
@@ -178,10 +179,15 @@ export function postNativePremium(context: "calendar" | "generic" = "calendar"):
   postNative({ type: "premium", context });
 }
 
+/** A shell-only message (1.2 bridge). No-op on the website and on the play page. */
+export function postShell(msg: ShellMessage): void {
+  if (!isShellHost()) return;
+  postNative(msg);
+}
+
 /** Open the native Manage Gold screen (shell). The web portal is never linked from the app. */
 export function postNativeOpenManageGold(): void {
-  if (!isShellHost()) return;
-  postNative({ type: "openManageGold" });
+  postShell({ type: "openManageGold" });
 }
 
 /** Native share sheet from the play WebView (WKWebView share is weak). */
@@ -324,6 +330,11 @@ async function writeSharePng(blob: Blob): Promise<string | null> {
 }
 
 export async function setPlayChrome(playing: boolean): Promise<void> {
+  if (isShellHost()) {
+    // Swift owns the status bar, edge swipes and idle timer in the shell.
+    postShell({ type: "chrome", playing });
+    return;
+  }
   if (!isNativeApp()) return;
   try {
     const { StatusBar } = await import("@capacitor/status-bar");

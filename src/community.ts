@@ -74,6 +74,12 @@ export class CommunityUi {
   private navDepth = 0;
   /** Tab bar for the WINGMATES tab screen (null = ui.lobby.tabBar is off). Set by main.ts. */
   tabBarFor: ((tab: "wingmates") => HTMLElement | null) | null = null;
+  /**
+   * App shell: sign in, account, sign out and delete live in native Settings. Set by main.ts in
+   * the shell only; returns true when it took over (the web screen is then never built), so the
+   * web sign-out and delete buttons cannot exist in the app. Unset on the website.
+   */
+  nativeAccountRoute: ((section: "pilot" | "crew", onDone?: () => void) => boolean) | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -274,6 +280,7 @@ export class CommunityUi {
   // --- auth ---
 
   showAuth(onDone: () => void): void {
+    if (this.nativeAccountRoute?.("pilot", onDone)) return;
     const { screen, body, error } = this.screen("PILOT LOGIN");
     body.appendChild(
       this.el("div", "field-hint center", "Enter the ranks. Your scores join the leaderboard."),
@@ -430,6 +437,7 @@ export class CommunityUi {
 
   /** Profile: change callsign/country, badge collection, sign out. */
   showProfile(): void {
+    if (this.nativeAccountRoute?.("pilot")) return;
     const user = this.api.user;
     if (!user) return this.showAuth(() => this.onBack());
     const { screen, body, error } = this.screen("PILOT PROFILE");

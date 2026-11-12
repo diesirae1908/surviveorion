@@ -221,6 +221,9 @@ export class Api {
   /** false once a request fails to reach the server at all. */
   online = true;
 
+  /** The server rejected a held token (401). Set by the app shell to tell Swift; unset on the website. */
+  onSessionRejected: (() => void) | null = null;
+
   get signedIn(): boolean {
     return !!this.token && !!this.user;
   }
@@ -249,6 +252,7 @@ export class Api {
     }
 
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && this.token) this.onSessionRejected?.();
     if (!res.ok) throw new ApiError(data.error ?? `request failed (${res.status})`, res.status);
     return data as T;
   }
@@ -492,6 +496,23 @@ export class Api {
     } catch {
       /* keep prior session */
     }
+  }
+
+  /**
+   * App shell: native wrote a new session (sign in or out) straight into localStorage and sent
+   * `orion-native-session`. Re-read it and refresh the account; no token means signed out.
+   */
+  async adoptStoredSession(): Promise<void> {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (!stored) {
+      this.clearLocalSession();
+      return;
+    }
+    if (stored !== this.token) {
+      this.token = stored;
+      this.user = null;
+    }
+    await this.refreshAccount();
   }
 
   async refreshClipInbox(): Promise<void> {

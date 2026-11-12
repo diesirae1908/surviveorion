@@ -46,7 +46,10 @@ assert.match(main, /clearScreens\(\)/);
 assert.match(main, /ui\.showIntroGate/);
 assert.match(main, /PHONE_LANDING/);
 assert.match(main, /showPhoneLanding/);
-assert.match(main, /if \(!IS_NATIVE_PLAY\) \{\s*if \(PHONE_LANDING\) ui\.showPhoneLanding\(\);\s*else ui\.showIntroGate/s);
+assert.match(
+  main,
+  /if \(!IS_NATIVE_PLAY\) \{\s*if \(PHONE_LANDING\) ui\.showPhoneLanding\(\);\s*else if \(isShellHost\(\)\) void bootShellHost\(\);\s*else ui\.showIntroGate/s,
+);
 assert.match(main, /nativePlay: IS_NATIVE_PLAY/);
 assert.match(main, /beginLaunch\(!training/);
 assert.equal(main.includes("showIntroGate(enterFromGate)") && main.includes("if (!IS_NATIVE_PLAY)"), true);

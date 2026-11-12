@@ -25,7 +25,9 @@ import {
 import { createWorld, resizeWorld, tick, DEATH_TO_GAMEOVER_SECONDS } from "./gameState";
 import { closestCallLabel } from "./highlights";
 import {
+  appFlags,
   clientFlagsSnapshot,
+  flagsLoaded,
   flagsNeedWait,
   flagsReady,
   onFlagsChange,
@@ -153,6 +155,7 @@ import { appendDeathPoint, traceToPath, type TracePath } from "./flightTrace";
 import { causeText } from "./resultView";
 import {
   bootNativeShell,
+  exportNativeSession,
   hapticDeath,
   isAppBinary,
   isNativePlay,
@@ -160,13 +163,27 @@ import {
   nativeGold,
   parseNativePlay,
   parseNativePlayDate,
+  parseNativeShell,
   postNativeGameOver,
   postNativeLeave,
   postNativeOpenAnalytics,
   postNativeOpenManageGold,
   postNativePremium,
+  postShell,
+  setNativeGold,
   setPlayChrome,
 } from "./native";
+import {
+  parseSessionEvent,
+  parseShellAppVersion,
+  parseShellSessions,
+  parseTierEvent,
+  shellDecision,
+  shellForceAllowed,
+  shellForceRequested,
+  type ShellDecision,
+} from "./appShell";
+import { calmForReview, reviewDecision, type ReviewReason } from "./reviewPrompt";
 import { TiltControl } from "./tilt";
 import { Tutorial } from "./tutorial";
 import type { FxContext, World } from "./types";
@@ -1099,6 +1116,7 @@ const ui = new Ui(settings, {
   },
   onManageGoldPatrol: () => manageGoldPatrol(),
   onNativeAnalytics: () => postNativeOpenAnalytics(),
+  onNativeSettings: isShellHost() ? () => postShell({ type: "openSettings", section: "pilot" }) : undefined,
   getControls: () => ({ mode: controls.mode, tiltSupported: TiltControl.supported() }),
   getKeyBindings: () => keybinds,
   onRebind: (action, code) => {
@@ -1121,9 +1139,49 @@ const ui = new Ui(settings, {
   },
 });
 
-/** ui.lobby params for today into the Ui (null = off). The web lobby is never built on native play or Capacitor. */
+// --- App shell (iOS 1.2, switch app.shell). The App Store binary boots this page as the web
+// lobby v3 in one persistent WebView. Decided once at boot (after flagsReady) by the pure
+// shellDecision: app.shell AND ui.lobby AND the build's protocol. Off: Swift shows its 1.1 Home
+// and this page stays blank. Presentation only: no run rules, scoring, attempts or submit change. ---
+
+const SHELL_VERSION = isShellHost() ? parseNativeShell(location.search) : null;
+const SHELL_SESSIONS = parseShellSessions(location.search);
+const SHELL_APP_VERSION = parseShellAppVersion(location.search);
+const REVIEW_ASKED_KEY = "orion.review.askedVersion";
+const SHELL_OFF: ShellDecision = { on: false, reason: "not-shell", lobby: null, stories: false };
+let shellState: ShellDecision = SHELL_OFF;
+/** `shellForce=1` from a server-confirmed crew/admin session: treated like a preview of app.shell + ui.lobby. */
+let shellForced = false;
+/** A good-moment candidate from the last result (app.review); asked at the next lobby repaint, never on the result. */
+let reviewCandidate: ReviewReason | null = null;
+
+function shellFlagPreview(): Record<string, boolean> {
+  return shellForced ? { ...PREVIEW_FLAGS, "ui.lobby": true, "app.shell": true } : PREVIEW_FLAGS;
+}
+
+function decideShell(): ShellDecision {
+  const preview = shellFlagPreview();
+  return shellDecision({
+    shellVersion: SHELL_VERSION,
+    flagsLoaded: flagsLoaded() || shellForced,
+    appShell: appFlags(preview).appShell,
+    lobby: clientFlagsSnapshot(preview).lobby,
+  });
+}
+
+/** The web lobby v3 is built on the website, and in the app only when the shell is on. */
+function lobbyHostAllowed(): boolean {
+  return isShellHost() ? shellState.on : !isAppBinary();
+}
+
+/** ui.lobby params for this host: the website's own, or the shell's AND-combined ones (null = off). */
+function hostLobbyParams(): ReturnType<typeof clientFlagsSnapshot>["lobby"] {
+  return isShellHost() ? shellState.lobby : clientFlagsSnapshot(PREVIEW_FLAGS).lobby;
+}
+
+/** ui.lobby params for today into the Ui (null = off). Never built on the play page or Capacitor. */
 function syncLobbyFlags(): void {
-  ui.setLobbyFlags(clientFlagsSnapshot(PREVIEW_FLAGS).lobby, !isAppBinary());
+  ui.setLobbyFlags(hostLobbyParams(), lobbyHostAllowed());
 }
 syncLobbyFlags();
 onFlagsChange(syncLobbyFlags);
@@ -1134,10 +1192,16 @@ const community = new CommunityUi(
   showMenu,
   () => {
     applyCreatorAccess(api.clipInbox);
+    if (isShellHost()) exportNativeSession();
   },
 );
 
 community.tabBarFor = (tab) => ui.tabBarFor(tab);
+
+/** Manage-subscription row: website = a Stripe customer (portal); shell = any Gold subscriber (native Manage Gold covers Apple and Stripe). */
+function manageGoldRow(): boolean {
+  return isShellHost() ? api.tier === "premium" : api.stripeCustomer;
+}
 
 function menuCommunityExtras(): Pick<
   MenuCommunity,
@@ -1145,7 +1209,7 @@ function menuCommunityExtras(): Pick<
 > {
   return {
     tier: api.tier,
-    hasStripeCustomer: api.stripeCustomer,
+    hasStripeCustomer: manageGoldRow(),
     webBillingEnabled: webStripeBillingAvailable(),
   };
 }
@@ -1179,7 +1243,7 @@ function dailyLobbyInfo(): DailyLobbyInfo {
     unlimitedDaily: unlimitedDailyRuns(),
     showWebGoldPatrol: goldOfferAvailable() && !unlimitedDailyRuns(),
     showManageGoldPatrol: webStripeBillingAvailable() && api.stripeCustomer && unlimitedDailyRuns(),
-    hasStripeCustomer: api.stripeCustomer,
+    hasStripeCustomer: manageGoldRow(),
     tier: api.tier,
     goldPatrolPrices: webStripeBillingAvailable() ? webGoldPatrolPrices() : undefined,
   };
@@ -1190,7 +1254,8 @@ function showMenu(): void {
     ui.showPhoneLanding();
     return;
   }
-  if (IS_NATIVE_PLAY) {
+  if (IS_NATIVE_PLAY || (isShellHost() && !shellState.on)) {
+    // play page, or a shell that is off / not decided yet: Swift owns the screen, stay blank
     ui.clearScreens();
     return;
   }
@@ -1202,6 +1267,7 @@ function showMenu(): void {
     fillDailyBoard();
     fillLobbyWeek();
     maybeShowPatrolComplete(false);
+    maybeAskForReview();
     return;
   }
   bestScore = loadBestScore(pendingGameMode);
@@ -1213,6 +1279,53 @@ function showMenu(): void {
     ...menuCommunityExtras(),
   });
   fillDailyHint();
+}
+
+/** Ask Swift for the rating dialog once, at the calm point after a good run. Swift keeps its own per-version guard. */
+function maybeAskForReview(): void {
+  if (!isShellHost() || !calmForReview(state, reviewCandidate !== null) || ui.hasPatrolComplete()) return;
+  const reason = reviewCandidate as ReviewReason;
+  reviewCandidate = null;
+  try {
+    if (SHELL_APP_VERSION) localStorage.setItem(REVIEW_ASKED_KEY, SHELL_APP_VERSION);
+  } catch {
+    // private mode: Swift's guard still holds
+  }
+  // let the lobby paint first so the dialog lands on a calm screen
+  window.setTimeout(() => {
+    if (state === "menu") postShell({ type: "requestReview", reason });
+  }, 700);
+}
+
+/** Result screen: hold a review candidate when the run was a good moment (pure policy in reviewPrompt.ts). */
+function recordReviewCandidate(run: {
+  medalBefore: import("./medals").MedalTier | null;
+  medalAfter: import("./medals").MedalTier | null;
+  refunded: boolean;
+}): void {
+  if (!isShellHost()) return;
+  let asked: string | null = null;
+  try {
+    asked = localStorage.getItem(REVIEW_ASKED_KEY);
+  } catch {
+    // private mode
+  }
+  const d = reviewDecision({
+    params: appFlags(PREVIEW_FLAGS).appReview,
+    shell: shellState.on,
+    preview: PREVIEW_ACTIVE,
+    archive: isArchiveRun(),
+    training: runIsTraining || runIsFirstFlight,
+    refunded: run.refunded,
+    runSeconds: world.time,
+    medalBefore: run.medalBefore,
+    medalAfter: run.medalAfter,
+    newPersonalBest: lastRunWasBest,
+    sessions: SHELL_SESSIONS,
+    appVersion: SHELL_APP_VERSION,
+    askedVersion: asked,
+  });
+  if (d.ask) reviewCandidate = d.reason;
 }
 
 /**
@@ -1631,8 +1744,8 @@ function buildBriefingContext(quick: boolean): briefing.BriefingContext {
     preview: PREVIEW_ACTIVE,
     effects: effectiveEffects(settings),
     shake: settings.screenShake,
-    params: clientFlagsSnapshot(PREVIEW_FLAGS).lobby,
-    allowed: !isAppBinary(),
+    params: hostLobbyParams(),
+    allowed: lobbyHostAllowed(),
     // audio.briefingStamp lands with WS-B; absent until then.
     playStamp: () => (audio as { briefingStamp?: () => void }).briefingStamp?.(),
   };
@@ -2166,6 +2279,8 @@ function showGameOverUi(): void {
   // design, so it never touches the best-of-day record either.
   let dailyMedal: { tier: import("./medals").MedalTier | null; hint: string | null } | undefined;
   let resultThresholds: import("./medals").MedalThresholds | undefined;
+  // best-of-day before this run lands, for the review prompt's "first medal / upgrade" test
+  const dayBestBefore = cappedDaily && !PREVIEW_ACTIVE ? dailyBestScoreToday() : 0;
   if (cappedDaily && !runRefunded) {
     if (!PREVIEW_ACTIVE) {
       // remember the run for the share card (rank arrives with the submit)
@@ -2228,7 +2343,7 @@ function showGameOverUi(): void {
     challenge: challengeResult,
     resultV2: !!resultFlags?.resultV2,
     deathMoment: !!resultFlags?.deathMoment,
-    stories: !!resultFlags?.shareV2 && !!resultFlags?.stories,
+    stories: !!resultFlags?.shareV2 && !!resultFlags?.stories && (!isShellHost() || shellState.stories),
     effects: effectiveEffects(settings),
     track: world.shipTrack,
     field: world.clipArena,
@@ -2271,6 +2386,13 @@ function showGameOverUi(): void {
     showAnalyticsLink: (IS_NATIVE_PLAY || isShellHost()) && unlimitedDailyRuns(),
   });
   submitRun();
+  // shell: keep Swift's Keychain copy and the SwiftUI fallback's attempts in step after every run
+  if (isShellHost()) exportNativeSession();
+  recordReviewCandidate({
+    medalBefore: resultThresholds ? medalForScore(dayBestBefore, resultThresholds) : null,
+    medalAfter: dailyMedal?.tier ?? null,
+    refunded: runRefunded,
+  });
   if (IS_NATIVE_PLAY) void emitNativePlayGameOver(dailyMedal?.tier ?? null);
   else maybeShowPatrolComplete(true);
 }
@@ -2366,6 +2488,8 @@ function submitRun(): void {
             throw e;
           }
         }
+        // shell: the guest session now exists, hand it to the Keychain before anything else can fail
+        if (isShellHost()) exportNativeSession();
         renderRankResult(await api.submitScore(run));
         // the name matched this device's existing guest pilot: scores merge
         if (reusedName) ui.appendGameOverRankNote(`Welcome back, “${name.trim()}”: this run counts for your existing pilot.`);
@@ -2832,8 +2956,77 @@ function skipDeathCinematic(): void {
   }
 }
 
+const apiInit = api.init();
+
+/** How long the shell waits for flags before deciding (Swift's own fallback is 8 s of silence). */
+const SHELL_FLAGS_WAIT_MS = 1500;
+/** `shellForce=1` also needs the server-confirmed crew session, so it waits for /api/me too. */
+const SHELL_FORCE_WAIT_MS = 4000;
+let shellSignedOutPosted = false;
+let shellAudioArmed = false;
+/** A native sign-in the web asked for (showAuth in the shell): run its follow-up once, on the same screen. */
+let pendingNativeAuth: { done: () => void; state: AppState } | null = null;
+
+/** Repaint the lobby after a native change (tier, session) when nothing else is on screen. */
+function shellRepaint(): void {
+  if (shellState.on && state === "menu") showMenu();
+}
+
+/**
+ * Shell boot: wait for flags (bounded), decide once, tell Swift. `shellReady` lets Swift drop its
+ * splash; `shellFallback` sends it to the 1.1 Home. A run in progress is never pulled back by a
+ * later flag change: the decision is frozen until the next cold launch.
+ */
+async function bootShellHost(): Promise<void> {
+  state = "menu"; // no tap-to-enter gate: Swift's splash covers the boot, audio arms on the first tap
+  api.onSessionRejected = () => {
+    if (shellSignedOutPosted) return;
+    shellSignedOutPosted = true;
+    postShell({ type: "signedOut" });
+  };
+  community.nativeAccountRoute = (section, onDone) => {
+    if (!shellState.on) return false;
+    pendingNativeAuth = onDone ? { done: onDone, state } : null;
+    postShell({ type: "openSettings", section });
+    return true;
+  };
+  window.addEventListener("orion-native-tier", (e) => {
+    const gold = parseTierEvent(e);
+    if (gold === null) return;
+    setNativeGold(gold);
+    shellRepaint();
+    void api.refreshAccount().then(shellRepaint);
+  });
+  window.addEventListener("orion-native-session", (e) => {
+    const signedIn = parseSessionEvent(e);
+    if (signedIn === null) return;
+    const pending = pendingNativeAuth;
+    pendingNativeAuth = null;
+    void api.adoptStoredSession().then(() => {
+      applyCreatorAccess(api.clipInbox);
+      if (signedIn && pending && pending.state === state) pending.done();
+      else shellRepaint();
+    });
+  });
+  try {
+    if (shellForceRequested(location.search)) {
+      await Promise.race([apiInit, new Promise<void>((r) => setTimeout(r, SHELL_FORCE_WAIT_MS))]);
+      shellForced = shellForceAllowed(location.search, api);
+    } else {
+      await flagsReady(SHELL_FLAGS_WAIT_MS);
+    }
+    shellState = decideShell();
+  } catch {
+    shellState = { ...SHELL_OFF, reason: "load-error" };
+  }
+  syncLobbyFlags();
+  postShell(shellState.on ? { type: "shellReady" } : { type: "shellFallback", reason: shellState.reason });
+  if (shellState.on) showMenu();
+}
+
 if (!IS_NATIVE_PLAY) {
   if (PHONE_LANDING) ui.showPhoneLanding();
+  else if (isShellHost()) void bootShellHost();
   else ui.showIntroGate(enterFromGate);
 }
 // keyboard players can enter with any key; any input after a short beat skips
@@ -2853,6 +3046,11 @@ window.addEventListener("keydown", (e) => {
   }
 });
 window.addEventListener("pointerdown", () => {
+  if (isShellHost() && !shellAudioArmed) {
+    shellAudioArmed = true;
+    audio.unlock();
+    if (state === "menu" && shellState.on) audio.playTrack("menu");
+  }
   if (state === "intro" && fx && fx.t * INTRO_SECONDS > INTRO_SKIP_AFTER) endIntro();
   else skipDeathCinematic();
 });
@@ -2878,7 +3076,7 @@ function captureChallengeArrival(): void {
 }
 captureChallengeArrival();
 
-void api.init().then(async () => {
+void apiInit.then(async () => {
   applyCreatorAccess(api.clipInbox);
   captureChallengeArrival();
   void loadChallengeTarget();

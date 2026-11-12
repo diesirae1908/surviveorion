@@ -153,6 +153,8 @@ export interface UiCallbacks {
   onManageGoldPatrol?: () => void;
   /** Native play: leave play and open native Analytics. */
   onNativeAnalytics?: () => void;
+  /** App shell only: open the native Settings sheet (account, reminders, crew tools). Unset on the website. */
+  onNativeSettings?: () => void;
   /** Lobby v3 tab bar: open the pilot dossier. Falls back to onProfile. */
   onPilotTab?: () => void;
   /** Lobby v3 tab bar: open the full board. Falls back to the current full board. */
@@ -3281,6 +3283,24 @@ export class Ui {
           `<span>Manage Gold Patrol subscription</span><span class="settings-row-chevron">›</span>`;
         manage.addEventListener("click", () => this.cb.onManageGoldPatrol?.());
         accountPanel.appendChild(manage);
+      }
+    }
+    if (this.cb.onNativeSettings) {
+      // App shell: account, reminders, Manage Gold and crew tools are native screens.
+      accountPanel.appendChild(this.el("div", "settings-hairline", ""));
+      const native = document.createElement("button");
+      native.type = "button";
+      native.className = "settings-row settings-row-link";
+      native.innerHTML = `<span>Account, reminders and crew tools</span><span class="settings-row-chevron">›</span>`;
+      native.addEventListener("click", () => this.cb.onNativeSettings?.());
+      accountPanel.appendChild(native);
+      if ((tier === "premium" || tier === "admin") && this.cb.onNativeAnalytics) {
+        const analytics = document.createElement("button");
+        analytics.type = "button";
+        analytics.className = "settings-row settings-row-link";
+        analytics.innerHTML = `<span>Gold Patrol analytics</span><span class="settings-row-chevron">›</span>`;
+        analytics.addEventListener("click", () => this.cb.onNativeAnalytics?.());
+        accountPanel.appendChild(analytics);
       }
     }
     accountSection.appendChild(accountPanel);

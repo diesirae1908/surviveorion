@@ -113,6 +113,25 @@ export interface ChallengeParams {
   ogMeta: boolean;
 }
 
+/**
+ * App Store web shell (app.shell). The whole layer is gated by `enabled`; the sub-switches only
+ * narrow the matching ui.lobby / ui.result params (AND), so read each with `!== false`.
+ */
+export interface AppShellParams {
+  minShell?: number;
+  briefing?: boolean;
+  pilotTab?: boolean;
+  stories?: boolean;
+}
+
+/** App Store rating prompt (app.review). Thresholds are read with `??` so a row missing a key keeps the default. */
+export interface AppReviewParams {
+  minSessions?: number;
+  minRunSeconds?: number;
+  onMedal?: boolean;
+  onPersonalBest?: boolean;
+}
+
 /** Daily Orders (the `orders` gameplay-kind switch). Targets and merit are registry params. */
 export interface OrdersParams {
   meritEasy: number;
@@ -128,6 +147,12 @@ export interface ClientFlags {
   result: ResultParams | null;
   lobby: LobbyParams | null;
   challenge: ChallengeParams | null;
+}
+
+/** The two app-only switches. Kept out of `ClientFlags` so the website's snapshot never carries them. */
+export interface AppFlags {
+  appShell: AppShellParams | null;
+  appReview: AppReviewParams | null;
 }
 
 export interface FlagRow {
@@ -335,6 +360,11 @@ function flagsFresh(): boolean {
   return remote !== null && Date.now() - remoteFetchedAt < CACHE_FRESH_MS;
 }
 
+/** True once any rows are in memory (fresh, or a stale cache). False = no server answer and no cache yet. */
+export function flagsLoaded(): boolean {
+  return remote !== null;
+}
+
 /** Whether a launch should wait for flags first (stale or no cache, not yet waited). */
 export function flagsNeedWait(): boolean {
   return !waited && !flagsFresh();
@@ -506,6 +536,20 @@ export function clientFlagsSnapshot(preview?: Record<string, boolean>): ClientFl
   };
   if (!previewFlags) snapshotCache = { date: today, stamp, cp, flags };
   return flags;
+}
+
+/**
+ * `app.shell` and `app.review` for today (honors a creator preview and `?flags=` like the ui.*
+ * flags). Read only by the App Store shell; uncached because it runs at boot and once per result.
+ */
+export function appFlags(preview?: Record<string, boolean>): AppFlags {
+  const previewFlags = preview && Object.keys(preview).length > 0 ? preview : undefined;
+  const today = patrolToday();
+  const pick = <T>(key: string): T | null => {
+    const e = effectiveFlag(key, today, previewFlags);
+    return e && e.flag.enabled ? (e.flag.params as T) : null;
+  };
+  return { appShell: pick<AppShellParams>("app.shell"), appReview: pick<AppReviewParams>("app.review") };
 }
 
 /** Test seam: drop all remote and preview state. */
