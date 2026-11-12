@@ -4,6 +4,13 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: challenge link WS-4, share text and card (branch feat/cl-ws4)
+
+- `src/share.ts`: `ShareStats.challengeUrl?` and `ShareStats.versus?` (`{callsign, delta, targetScore}`, delta = run minus challenger). `buildShareText` last line now comes from `shareLastLine`: plain `SHARE_URL` without a link (byte-identical), `Beat it: <url>` with one, win/lose variants with `versus`. `shareText(text, preferNative, png, url = SHARE_URL)` hands the url to `navigator.share`; `sharePatrol` passes `challengeUrl`. Copy lives in `CHALLENGE_SHARE_COPY` (draft, mirrors the plan table; WS-2 owns the canonical table).
+- `src/shareCardV2.ts`: optional `versus` row ("VS GLINT  +12,480", gold ahead / alarm red behind) between score and cause line, square and story, fitted with `fitTextTo`; the model key exists only when versus is set. v1 card ignores it.
+- Tests: `scripts/test-share-card.ts` extended (byte-identical without the fields, text lines, margins, story safe zones, v1 unchanged). No switch read here; the caller gates on `ui.challenge`.
+- Follow-ups: WS-5 wires `challengeUrl`/`versus` from the result model; dedupe copy with WS-2's table at integration.
+
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
 - Filter: `BLOCKED_TERMS` in `server/nickname.mjs` and `src/nickname.ts` extended (phrases/compounds only): devisgay/devsgay/suckmy/eatmyass/kissmyass, twat/bellend/wanker/tosser/bollocks/arsehole, peen/penis, cock compounds (cocksuck, cockhead, cockface, cockwomble, cockmunch, cocknose), ballsack/ballbag/nutsack. All six names from the live world top 50 now blocked. "gay" alone stays allowed. Skipped on purpose: knob, arse, prick, tits, bare ass/cock/balls/nuts. New `SAFE_EXCEPTIONS`: Dickens, Dickinson, Dickson, Dickerson (plain "dick" already blocked them), Atwater(s), Bellenden, Peenemunde, Penistone. Both lists now exported so `test-nickname.ts` asserts client/server parity.

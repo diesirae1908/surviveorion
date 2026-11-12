@@ -3,6 +3,9 @@
 import assert from "node:assert/strict";
 import {
   MEDAL_WORD_COLOR,
+  buildShareText,
+  shareLastLine,
+  SHARE_URL,
   effectiveShareFormat,
   useShareV2,
   SHARE_ROW_PITCH_MIN,
@@ -218,6 +221,63 @@ for (const fmt of ["square", "story"] as ShareCardFormat[]) {
   assert.equal(effectiveShareFormat({ ...full, resultParams: { stories: true } }, "story"), "square", "stories alone is not enough");
   assert.equal(effectiveShareFormat({ ...full, resultParams: { shareV2: true, stories: true } }, "story"), "story");
   assert.equal(effectiveShareFormat({ ...full, resultParams: { shareV2: true, stories: true } }, "square"), "square");
+}
+
+// --- challenge link (ui.challenge): absent fields = today's output, byte for byte ---
+{
+  const lines = buildShareText(full).split("\n");
+  assert.equal(lines[lines.length - 1], SHARE_URL, "no challengeUrl: plain last line");
+  assert.equal(buildShareText({ ...full, challengeUrl: null, versus: null }), buildShareText(full), "null fields = absent");
+  assert.equal(
+    buildShareText({ ...full, versus: { callsign: "GLINT", delta: 5, targetScore: 9 } }),
+    buildShareText(full),
+    "versus without a link changes no text",
+  );
+  const url = "https://surviveorion.com/c/7KQ2MXA";
+  assert.equal(shareLastLine({ ...full, challengeUrl: url }), `Beat it: ${url}`);
+  const win = { callsign: "GLINT", delta: 12480, targetScore: 1463185 };
+  const lose = { callsign: "GLINT", delta: -1204, targetScore: 1463185 };
+  assert.equal(shareLastLine({ ...full, challengeUrl: url, versus: win }), `Beat GLINT's 1,463,185. Your move: ${url}`);
+  assert.equal(shareLastLine({ ...full, challengeUrl: url, versus: lose }), `GLINT is 1,204 ahead. Beat me: ${url}`);
+  const t = buildShareText({ ...full, challengeUrl: url });
+  assert.ok(!t.includes(`\n${SHARE_URL}`), "challenge line replaces the plain URL");
+  assert.equal(t.split("\n").slice(0, -1).join("\n"), buildShareText(full).split("\n").slice(0, -1).join("\n"), "card lines unchanged");
+  assert.ok(!/[–—!]/.test(t), "no dashes or exclamation marks");
+
+  for (const fmt of ["square", "story"] as ShareCardFormat[]) {
+    const base = withTrace(full);
+    const a = JSON.stringify(shareCardV2Model(base, fmt));
+    assert.equal(JSON.stringify(shareCardV2Model({ ...base, challengeUrl: url }, fmt)), a, `${fmt} model unchanged by url alone`);
+    assert.ok(!("versus" in shareCardV2Model(base, fmt)), "no versus key when absent");
+    const h = fmt === "story" ? STORY_HEIGHT : CARD_W;
+    for (const v of [win, lose, { callsign: "X".repeat(60), delta: 1234567890, targetScore: 5 }]) {
+      for (const stats of [base, { ...base, causeLabel: undefined }, { ...base, medal: null as null }]) {
+        const m = shareCardV2Model({ ...stats, versus: v }, fmt);
+        assert.ok(m.versus, "versus row present");
+        assert.ok(m.versus.text.startsWith("VS "), "reads VS NAME");
+        assert.ok(m.versus.text.includes(v.delta >= 0 ? "+" : "-"), "signed gap");
+        assert.equal(m.h, h);
+        for (const b of m.boxes) {
+          assert.ok(b.x >= SHARE_MARGIN - 1 && b.x + b.w <= CARD_W - SHARE_MARGIN + 1, `${fmt} ${b.id} inside margins`);
+          assert.ok(b.y >= m.contentTop - 1 && b.y + b.h <= m.contentBottom + 1, `${fmt} ${b.id} inside content`);
+          if (fmt === "story") assert.ok(b.y >= STORY_SAFE.top && b.y + b.h <= STORY_HEIGHT - STORY_SAFE.bottom, `story ${b.id} safe`);
+        }
+        const vb = m.boxes.find((b) => b.id === "versus")!;
+        const sb = m.boxes.find((b) => b.id === "score")!;
+        assert.ok(vb.y >= sb.y + sb.h - 1, "versus sits below the score");
+        assert.ok(vb.y + vb.h <= m.rule.y, "versus above the stats rule");
+        const d = fakeCtx();
+        drawShareCardV2(d.ctx, m, { medalImg: img, markImg: img, markFallback: () => {} });
+        assert.ok(d.calls.some((c) => c.fn === "fillText" && c.args[0] === m.versus!.text), "versus row drawn");
+      }
+    }
+  }
+  // v1 card ignores versus
+  const c1 = fakeCtx();
+  drawShareCard(c1.ctx, full, { medalImg: img, markImg: img });
+  const c2 = fakeCtx();
+  drawShareCard(c2.ctx, { ...full, versus: { callsign: "GLINT", delta: 5, targetScore: 9 } }, { medalImg: img, markImg: img });
+  assert.deepEqual(c2.calls, c1.calls, "v1 card draws identically with versus");
 }
 
 console.log("PASS test-share-card");
