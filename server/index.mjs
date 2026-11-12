@@ -150,11 +150,35 @@ function clientIp(req) {
   return req.socket.remoteAddress ?? "?";
 }
 
-/** Mutator names for a Daily date from the schedule, or null if unknown (-> pool worst case). */
+/**
+ * Mutator names for a Daily date from the schedule, or null if unknown (-> pool
+ * worst case). Used only for validation ceilings, so it is the UNION of what any
+ * client could fly: the legacy pick (older bundles, switch off) plus the overlay
+ * entry when the day has one (see `overlayName` in mutator-schedule.json). Sundays
+ * never carry an overlay, so this stays within grazeLimits' two-name path.
+ */
 function scheduledMutatorNames(rawDate) {
   const date = typeof rawDate === "string" && isValidUtcDateStr(rawDate) ? rawDate : patrolToday();
   const day = loadMutatorSchedule()[date];
-  return Array.isArray(day) && day.length > 0 ? day.map((m) => m.name) : null;
+  if (!Array.isArray(day) || day.length === 0) return null;
+  const names = day.map((m) => m.name);
+  const overlayName = day[0]?.overlayName;
+  if (typeof overlayName === "string" && !names.includes(overlayName)) names.push(overlayName);
+  return names;
+}
+
+/**
+ * What the day flies for clients that follow the switch: the overlay entry's
+ * name/subline when `mutators.overlay` is on for that date, else the schedule's
+ * legacy rows. (The schedule's primary row stays the legacy pick so older native
+ * readers keep showing what their own bundle flies.)
+ */
+function publishedMutatorRows(date, rows) {
+  const id = rows[0]?.overlayId;
+  if (typeof id === "string" && flags.overlayEntryOn(date, id)) {
+    return [{ name: rows[0].overlayName, subline: rows[0].overlaySubline }];
+  }
+  return rows;
 }
 
 const cleanPlatform = (p) => (["touch", "desktop"].includes(p) ? p : "");
@@ -1244,7 +1268,7 @@ const routes = {
     const schedule = loadMutatorSchedule();
     const entries = [];
     for (let d = range.from; d <= range.to; ) {
-      const rows = schedule[d] ?? [];
+      const rows = publishedMutatorRows(d, schedule[d] ?? []);
       entries.push({
         date: d,
         name: rows[0]?.name ?? "CLASSIC",

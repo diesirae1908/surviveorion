@@ -280,7 +280,7 @@ check("rulesetStamp: matches the server's accepted charset and length", /^[a-z0-
 // registry shape: defaults are no-op
 check("expected switch keys, all default off", (() => {
   const f = (registryJson as unknown as { flags: Record<string, { default: { enabled: boolean } }> }).flags;
-  const EXPECTED_KEYS = ["overdrive", "ui.overdriveFx", "ui.hud", "ui.result", "ui.lobby", "ui.challenge", "orders", "app.shell", "app.review"];
+  const EXPECTED_KEYS = ["overdrive", "ui.overdriveFx", "ui.hud", "ui.result", "ui.lobby", "ui.challenge", "orders", "app.shell", "app.review", "mutators.overlay"];
   return JSON.stringify(Object.keys(f)) === JSON.stringify(EXPECTED_KEYS) && Object.values(f).every((x) => x.default.enabled === false);
 })());
 check("new overdrive form defaults are all off and alwaysHotScale is 1", (() => {

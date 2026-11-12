@@ -31,6 +31,7 @@ import {
   flagsNeedWait,
   flagsReady,
   onFlagsChange,
+  overlayEntryOn,
   parsePreviewFlags,
   resolveRunRules,
   shouldSubmit,
@@ -85,8 +86,10 @@ import {
   getMutatorById,
   getMutatorsForDate,
   getMutatorsForDateStr,
+  invalidateOverlayCache,
   mutatorViewScale,
   setActiveMutators,
+  setOverlayGate,
   MUTATOR_POOL,
   type Mutator,
 } from "./mutators";
@@ -648,6 +651,18 @@ function refreshPreviewActive(): void {
 
 syncPreview();
 onFlagsChange(syncPreview);
+
+// Overlay Daily Mutators (THE PASSAGE): the `mutators.overlay` switch decides,
+// per patrol date, whether an overlay entry replaces the legacy pick. Off with
+// no row, so before the rows arrive the day is the legacy one (what older
+// bundles fly). When rows change the day, the lobby repaints once.
+setOverlayGate((date, id) => overlayEntryOn(date, id, PREVIEW_FLAGS));
+onFlagsChange(() => {
+  const before = getMutatorsForDateStr(patrolDateStr());
+  invalidateOverlayCache();
+  const after = getMutatorsForDateStr(patrolDateStr());
+  if (state === "menu" && before.map((m) => m.id).join() !== after.map((m) => m.id).join()) showMenu();
+});
 
 function addIsoDays(dateStr: string, n: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);

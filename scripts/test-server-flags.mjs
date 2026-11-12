@@ -145,7 +145,7 @@ try {
 
   // --- definitions + empty state ---
   const g0 = await call("GET", "/api/admin/flags", { admin: true });
-  const EXPECTED_KEYS = ["overdrive", "ui.overdriveFx", "ui.hud", "ui.result", "ui.lobby", "ui.challenge", "orders", "app.shell", "app.review"];
+  const EXPECTED_KEYS = ["overdrive", "ui.overdriveFx", "ui.hud", "ui.result", "ui.lobby", "ui.challenge", "orders", "app.shell", "app.review", "mutators.overlay"];
   check("admin GET lists exactly the expected switch keys", g0.status === 200 && JSON.stringify(Object.keys(g0.body.flags)) === JSON.stringify(EXPECTED_KEYS) && g0.body.flags["ui.challenge"]?.kind === "client");
   check("app.shell and app.review are client kind, own area, off today and tomorrow", ["app.shell", "app.review"].every((k) => g0.body.flags[k].kind === "client" && g0.body.flags[k].area === k && !g0.body.flags[k].today.enabled && !g0.body.flags[k].tomorrow.enabled));
   check("admin GET carries capsSince for overdrive (gen 2 paths) and {} for others", g0.body.flags.overdrive.capsSince["forms.arc"] === 2 && g0.body.flags.overdrive.capsSince.alwaysHotScale === 2 && Object.keys(g0.body.flags["ui.hud"].capsSince).length === 0);
@@ -269,6 +269,7 @@ try {
   check("checkout from the site origin is not refused by the guard", coSite.status === 503 && coSite.body.code === undefined, JSON.stringify(coSite));
   const poApp = await call("POST", "/api/billing/portal", { ...appHdr, token: crewTok });
   check("portal from the app origin stays allowed (not APP_CHECKOUT)", poApp.body.code !== "APP_CHECKOUT" && poApp.status !== 403, JSON.stringify(poApp));
+
 } catch (e) {
   check("test run completed", false, String(e?.stack ?? e));
 } finally {
@@ -289,6 +290,36 @@ try {
   check("bypass run completed", false, String(e?.stack ?? e));
 } finally {
   srv2?.child.kill();
+}
+
+// --- mutators.overlay (own server: the flags:admin rate limit is per process) ---
+let srv3;
+try {
+  srv3 = await startServer();
+  const call = srv3.call;
+
+  // gameplay kind, off with no row, per-entry on/off, not in the ruleset
+  // (rows are read back over /api/config: this process closed its own DB handle)
+  const ovDef = flagsMod.loadRegistry().flags["mutators.overlay"];
+  check("mutators.overlay is a gameplay switch, off by default, per-entry default on", ovDef?.kind === "gameplay" && ovDef.default.enabled === false && ovDef.default.params.entries["twin-orbs"].on === true, JSON.stringify(ovDef?.default));
+  check("no row: overlayEntryOn is false for every date and entry", !flagsMod.overlayEntryOn(addDays(today, 9), "twin-orbs", []) && !flagsMod.overlayEntryOn(today, "twin-orbs", []));
+  const ovToday = await call("POST", "/api/admin/flags", { admin: true, body: { key: "mutators.overlay", enabled: true, effectiveFrom: today, params: {} } });
+  check("turning the overlay ON the same day is refused (gameplay lead rule)", ovToday.status === 400);
+  const ovFrom = addDays(today, 6);
+  const ovRow = await call("POST", "/api/admin/flags", { admin: true, body: { key: "mutators.overlay", enabled: true, effectiveFrom: ovFrom, params: { entries: { "twin-orbs": { on: true }, "unknown-entry": { on: true } } }, note: "overlay on" } });
+  check("an overlay ON row for a future day is accepted; unknown entries are dropped", ovRow.status === 200 && JSON.stringify(ovRow.body.row.params) === JSON.stringify({ entries: { "twin-orbs": { on: true } } }), JSON.stringify(ovRow.body));
+  const ovOffRow = await call("POST", "/api/admin/flags", { admin: true, body: { key: "mutators.overlay", enabled: true, effectiveFrom: addDays(ovFrom, 10), params: { entries: { "twin-orbs": { on: false } } } } });
+  check("a per-entry off row is accepted", ovOffRow.status === 200, JSON.stringify(ovOffRow.body));
+  const cfgOv = await call("GET", "/api/config");
+  const ovRows = cfgOv.body.features.flags["mutators.overlay"].versions;
+  check("overlayEntryOn follows the rows from their dates, per entry", !flagsMod.overlayEntryOn(addDays(ovFrom, -1), "twin-orbs", ovRows) && flagsMod.overlayEntryOn(ovFrom, "twin-orbs", ovRows) && flagsMod.overlayEntryOn(addDays(ovFrom, 9), "twin-orbs", ovRows) && !flagsMod.overlayEntryOn(addDays(ovFrom, 10), "twin-orbs", ovRows) && !flagsMod.overlayEntryOn(ovFrom, "other-entry", ovRows));
+  const odRows = cfgOv.body.features.flags.overdrive.versions;
+  check("an overlay row never enters the ruleset id", flagsMod.rulesetIdFor(ovFrom, odRows) === flagsMod.rulesetIdFor(addDays(ovFrom, -1), odRows));
+  check("/api/config carries the overlay rows, every other key keeps its shape", ovRows.length === 2 && cfgOv.body.features.flags["ui.hud"].versions.length >= 1);
+} catch (e) {
+  check("overlay run completed", false, String(e?.stack ?? e));
+} finally {
+  srv3?.child.kill();
 }
 
 process.exit(failures === 0 ? (console.log("\nALL PASS"), 0) : (console.log(`\n${failures} FAILED`), 1));

@@ -12,14 +12,23 @@
  * (native Patrol Calendar via the server call), even though the local,
  * bundled iOS copy shows the real name. Run this script after any mutator
  * schedule change and commit both output files.
+ *
+ * Overlay days (see "overlay selection" in src/mutators.ts): the day's entry
+ * stays the LEGACY pick (what older bundles and the switch-off state fly, so
+ * older native readers keep showing it) and gains additive flat
+ * `overlayId` / `overlayName` / `overlaySubline` strings naming the entry that replaces it while `mutators.overlay` is on.
+ * The server decides per date which one to publish and validates against both.
  */
 import fs from "node:fs";
 import path from "node:path";
-import { getMutatorsForDateStr } from "../src/mutators.ts";
+import { legacyMutatorsForDate, overlayEntryForDate } from "../src/mutators.ts";
 import { MUTATORS_START_DATE } from "../src/mutators.ts";
 
 const UNTIL = "2027-12-31";
-const out: Record<string, Array<{ name: string; subline: string }>> = {};
+// Flat string fields on purpose: the shipped iOS app decodes this file as [String: [[String: String]]],
+// so a nested object (or any non-string value) would make every bundled schedule fail to decode.
+type Row = { name: string; subline: string; overlayId?: string; overlayName?: string; overlaySubline?: string };
+const out: Record<string, Row[]> = {};
 
 function addCivilDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -29,7 +38,10 @@ function addCivilDays(dateStr: string, days: number): string {
 
 let d = MUTATORS_START_DATE;
 while (d <= UNTIL) {
-  out[d] = getMutatorsForDateStr(d).map((m) => ({ name: m.name, subline: m.subline }));
+  const rows: Row[] = legacyMutatorsForDate(d).map((m) => ({ name: m.name, subline: m.subline }));
+  const ov = overlayEntryForDate(d);
+  if (ov && rows.length > 0) Object.assign(rows[0], { overlayId: ov.id, overlayName: ov.name, overlaySubline: ov.subline });
+  out[d] = rows;
   d = addCivilDays(d, 1);
 }
 

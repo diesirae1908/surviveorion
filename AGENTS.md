@@ -179,6 +179,28 @@ JOURNAL.md, mutator-hardening pass): appending a 23rd entry must never
 reshuffle any past Daily Patrol day. Read `mutators.ts`'s header comment
 first, then:
 
+- **New entries are overlay entries (since 2026-11-12).** The iOS app bundles
+  `dist/` and selection is client-side, so a plain append (`% eligible.length`
+  grows from 32 to 33) changes the pick on nearly every day for every older
+  bundle. The legacy rotation is therefore frozen at the 32 entries every
+  field binary knows (`eligiblePool` skips entries with `overlayOdds`). A new
+  mutator is added with `overlayOdds` (non power of 2, e.g. 17, about 1 day in
+  29): it REPLACES one legacy pick when the date is >= its `availableFrom`, is
+  not a Sunday, the legacy day is one full-spell mutator (never monopower),
+  yesterday was not this entry, `hashString("orion-overlay-<id>-<date>") %
+  overlayOdds === 0`, and the **`mutators.overlay` switch** is on for that date
+  and entry (`setOverlayGate`, wired in `main.ts`; default off = exactly the
+  legacy rotation = exactly what older apps fly). A plain append (an entry
+  without `overlayOdds`) needs Lucas's OK. After adding one run
+  `npx tsx scripts/export-mutator-schedule.ts` (legacy stays the day's primary
+  row; flat `overlayId/overlayName/overlaySubline` strings are added on overlay
+  days, strings only because the iOS decoder is `[String: [[String: String]]]`),
+  commit both schedule files, and keep `scripts/mutator-snapshot-overlay.json`
+  (the frozen overlay dates) in step. Graze ceilings validate against the union
+  of the legacy and overlay names (`scheduledMutatorNames`). ON for players is a
+  `/admin` > Switches row at least 2 days ahead in production; emergency off is
+  a row from today.
+
 - **Tier A, override-only.** A new `MUTATOR_POOL` entry that reuses existing
   override knobs (rate/scale/weight/interval multipliers, `firstOf`
   replacements). Set `availableFrom` to a **future** patrol date, never in the
@@ -422,7 +444,7 @@ Every gameplay switch (`overdrive` and later) can be turned off at any time, wit
 - **Turn back on:** add a normal row for tomorrow or later (enabled on, at least 1 day ahead). Rows are append-only: never edit or delete.
 - Creator preview (`/admin` > Creator preview) is separate: it only affects the allowlisted account, for 1 to 12 hours, and its runs are unscored.
 
-### Switch registry: the nine switches and the generation rule
+### Switch registry: the ten switches and the generation rule
 
 - Switches (`server/flags-registry.json`, the single source; tests assert the exact key list, so adding one means updating `EXPECTED_KEYS` in `test-flags.ts`, `test-flag-parity.ts`, `test-server-flags.mjs`):
   - `overdrive`: gameplay, the only one that enters the ruleset.
@@ -434,6 +456,7 @@ Every gameplay switch (`overdrive` and later) can be turned off at any time, wit
   - `orders`: gameplay kind = date-bound (scheduling rule only), area `meta`.
   - `app.shell`: client, App Store build boots into web lobby v3 (details below).
   - `app.review`: client, allows the App Store rating prompt (details below).
+  - `mutators.overlay`: gameplay, area `gameplay`, never in the ruleset, no `capsSince`. Params `entries: { "<overlay id>": { on } }` (per-entry on/off; a second overlay mutator is a param, not a new key). Off or no row = the legacy Daily rotation (what older apps fly); on = overlay entries replace their sparse weekday picks (see "Adding a Daily Mutator"). Lead rule as any gameplay row (2 days ahead in production); emergency off is a row from today, and a run in progress keeps its rules.
 - Env vars: `ORION_PUBLIC_ORIGIN` (public origin for checkout URLs and challenge link/OG URLs; set to `https://surviveorion-dev.onrender.com` on staging, defaults to production) and `ORION_DIST` (path to the built `dist/`, resolved to absolute; defaults to `../dist`).
 - **Host predicate** (`src/native.ts`): `appHost()` is `web | play | shell`; `isAppBinary()` is play or shell. Every billing and platform gate reads it, never `isNativeApp()` or `IS_NATIVE_PLAY` alone (`test-app-host.ts` guards this). `?shell=N` counts only with a native bridge, so a pasted `?shell=1` on the website is still the website. Gold entries go through `openGoldPatrol` (StoreKit in the app, Stripe on the web); Stripe checkout and portal refuse inside the app. App-only flags are read with `appFlags()` (`src/flags.ts`), never through `ClientFlags`. The shell decision is the pure `shellDecision` in `src/appShell.ts`; the rating prompt rule is `src/reviewPrompt.ts`.
 - `app.shell` (client, default off; params `minShell` 1..99, `briefing`, `pilotTab`, `stories`): an App Store build boots into the web lobby v3 only when this AND `ui.lobby` are on and the build's shell protocol is >= `minShell`; off = native SwiftUI Home (iOS 1.1 behaviour). Params AND-combine with the `ui.lobby` / `ui.result` params. Never reachable on the website. Client switch: rows may start today, emergency off is a row from today.

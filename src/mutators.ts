@@ -28,6 +28,11 @@
 // ambient-rate combine is back to plain multiplication (round 4's "max wins"
 // exception is gone: nothing needs an ambient floor anymore).
 //
+// New entries are OVERLAY entries (`overlayOdds`, see "overlay selection"
+// below): the legacy rotation above is frozen at the 32 entries every shipped
+// bundle knows, and an overlay entry replaces a sparse set of weekday picks
+// only while the `mutators.overlay` switch is on.
+//
 // None of these touch SCORING (src/config.ts); see JOURNAL.md for the
 // server/validate.mjs ceiling analysis (round 1 + round 2, incl. OVERCHARGE)
 // that cleared the whole pool.
@@ -186,6 +191,14 @@ export interface Mutator {
    * afterward (see AGENTS.md "Adding a Daily Mutator").
    */
   availableFrom: string;
+  /**
+   * Overlay entry (see "overlay selection" below). Present = this entry is NOT
+   * in the legacy rotation: it replaces one eligible weekday pick with odds
+   * 1 in `overlayOdds`, only while the `mutators.overlay` switch is on for
+   * that date. Pick a non power-of-2 (the FNV low bits are poorly mixed).
+   * Never edited after the entry has flown a day.
+   */
+  overlayOdds?: number;
   overrides: MutatorOverrides;
 }
 
@@ -895,8 +908,8 @@ function resolvedCacheFor(pool: Mutator[]): Map<string, Mutator[]> {
  * were full-spell. Dates before SPELL_DIET_FROM never consult this.
  */
 function restrictedDayAllowed(dateStr: string, pool: Mutator[]): boolean {
-  const prev1 = getMutatorsForDateStr(addCivilDays(dateStr, -1), pool);
-  const prev2 = getMutatorsForDateStr(addCivilDays(dateStr, -2), pool);
+  const prev1 = legacyMutatorsForDateStr(addCivilDays(dateStr, -1), pool);
+  const prev2 = legacyMutatorsForDateStr(addCivilDays(dateStr, -2), pool);
   return !dayIsRestricted(prev1) && !dayIsRestricted(prev2);
 }
 
@@ -906,9 +919,12 @@ function restrictedDayAllowed(dateStr: string, pool: Mutator[]): boolean {
  * 23rd entry (future availableFrom) can never change what any past date
  * resolves to: past dates see the exact same eligible list, same length,
  * same order, as before the append (see JOURNAL.md "append-only selection").
+ * Overlay entries (`overlayOdds`) are never part of this list: the legacy
+ * rotation stays the 32 entries every shipped bundle knows (see "overlay
+ * selection" below).
  */
 function eligiblePool(pool: Mutator[], dateStr: string): Mutator[] {
-  return pool.filter((m) => m.availableFrom <= dateStr);
+  return pool.filter((m) => m.availableFrom <= dateStr && m.overlayOdds === undefined);
 }
 
 /**
@@ -982,8 +998,8 @@ function pickSecond(dateStr: string, first: Mutator, pool: Mutator[], allowRestr
   return fallback ?? first;
 }
 
-/** Mutator(s) for a YYYY-MM-DD patrol label: 1 normally, 2 on Sundays. */
-export function getMutatorsForDateStr(dateStr: string, pool: Mutator[] = MUTATOR_POOL): Mutator[] {
+/** The legacy rotation for a date: 1 mutator normally, 2 on Sundays. Overlay entries never take part. */
+function legacyMutatorsForDateStr(dateStr: string, pool: Mutator[]): Mutator[] {
   const cache = resolvedCacheFor(pool);
   const hit = cache.get(dateStr);
   if (hit) return hit;
@@ -997,6 +1013,117 @@ export function getMutatorsForDateStr(dateStr: string, pool: Mutator[] = MUTATOR
   const result = !isSundayDateStr(dateStr) ? [first] : [first, pickSecond(dateStr, first, pool, allowRestricted)];
   cache.set(dateStr, result);
   return result;
+}
+
+// --- overlay selection ---
+//
+// Why this exists: selection is client-side and the iOS app bundles it, so
+// appending a 33rd entry to the legacy rotation (`% eligible.length`) would
+// change the pick on nearly every day for every older bundle, not only on the
+// new mutator's days. An overlay entry leaves the legacy rotation untouched and
+// instead REPLACES one legacy pick on a sparse set of days, so an older bundle
+// is wrong only on those days (it flies the legacy pick, which is also exactly
+// what the switch-off state flies).
+//
+// An overlay entry replaces the legacy day iff ALL hold:
+//   - the date is >= its availableFrom (a future date, never in the past);
+//   - it is not a Sunday (Sunday's 2nd slot is chosen against the 1st);
+//   - the legacy day is one full-spell mutator (never a monopower day, so the
+//     spell diet sees the same restricted pattern and nothing cascades);
+//   - yesterday's resolved day was not this entry (never two days in a row);
+//   - hashString("orion-overlay-<id>-<date>") % overlayOdds === 0;
+//   - the overlay gate (the `mutators.overlay` switch, see setOverlayGate) is
+//     on for that date and entry.
+// Several overlay entries: each has its own hash key, first in pool order
+// wins a shared day, so adding one never moves another's days.
+// With the gate off (the default, and every old bundle) the result is exactly
+// the legacy rotation.
+
+let overlayGate: (dateStr: string, id: string) => boolean = () => false;
+let overlayVersion = 0;
+const overlayResolvedByPool = new WeakMap<Mutator[], { version: number; days: Map<string, Mutator[]> }>();
+
+/**
+ * Wire the per-date, per-entry overlay switch (main.ts reads the
+ * `mutators.overlay` rows here). Default: off for everything. Drops the overlay
+ * cache; the legacy cache never depends on the gate.
+ */
+export function setOverlayGate(fn: (dateStr: string, id: string) => boolean): void {
+  overlayGate = fn;
+  overlayVersion++;
+}
+
+/** Call when the rows the gate reads changed (flags arrived). */
+export function invalidateOverlayCache(): void {
+  overlayVersion++;
+}
+
+type OverlayGate = (dateStr: string, id: string) => boolean;
+type OverlayDays = Map<string, Mutator[]>;
+
+function overlayDaysFor(pool: Mutator[]): OverlayDays {
+  let c = overlayResolvedByPool.get(pool);
+  if (!c || c.version !== overlayVersion) {
+    c = { version: overlayVersion, days: new Map() };
+    overlayResolvedByPool.set(pool, c);
+  }
+  return c.days;
+}
+
+/** The overlay entry that replaces the legacy pick on `dateStr`, or null. */
+function overlayFor(dateStr: string, legacy: Mutator[], pool: Mutator[], gate: OverlayGate, days: OverlayDays): Mutator | null {
+  if (legacy.length !== 1 || isSpellRestricted(legacy[0]) || isSundayDateStr(dateStr)) return null;
+  const yesterday = addCivilDays(dateStr, -1);
+  for (const m of pool) {
+    const odds = m.overlayOdds;
+    if (odds === undefined || m.availableFrom > dateStr) continue;
+    if (hashString(`orion-overlay-${m.id}-${dateStr}`) % odds !== 0) continue;
+    if (!gate(dateStr, m.id)) continue;
+    if (resolveWith(yesterday, pool, gate, days).some((y) => y.id === m.id)) continue;
+    return m;
+  }
+  return null;
+}
+
+function resolveWith(dateStr: string, pool: Mutator[], gate: OverlayGate, days: OverlayDays): Mutator[] {
+  const hit = days.get(dateStr);
+  if (hit) return hit;
+  const legacy = legacyMutatorsForDateStr(dateStr, pool);
+  const o = pool.some((m) => m.overlayOdds !== undefined) ? overlayFor(dateStr, legacy, pool, gate, days) : null;
+  const result = o ? [o] : legacy;
+  days.set(dateStr, result);
+  return result;
+}
+
+/**
+ * The legacy rotation's pick for a date, regardless of the overlay gate: what
+ * an older bundle (and the switch-off state) flies.
+ */
+export function legacyMutatorsForDate(dateStr: string, pool: Mutator[] = MUTATOR_POOL): Mutator[] {
+  return legacyMutatorsForDateStr(dateStr, pool);
+}
+
+const overlayAllOnByPool = new WeakMap<Mutator[], OverlayDays>();
+
+/**
+ * The overlay entry that takes `dateStr` when every gate is on (hash, weekday,
+ * full-spell and no-back-to-back rules only), or null. Independent of the live
+ * gate and of any switch row: the schedule export and the guide use it to show
+ * what the switch would fly.
+ */
+export function overlayEntryForDate(dateStr: string, pool: Mutator[] = MUTATOR_POOL): Mutator | null {
+  let days = overlayAllOnByPool.get(pool);
+  if (!days) {
+    days = new Map();
+    overlayAllOnByPool.set(pool, days);
+  }
+  const r = resolveWith(dateStr, pool, () => true, days);
+  return r === legacyMutatorsForDateStr(dateStr, pool) ? null : r[0];
+}
+
+/** Mutator(s) for a YYYY-MM-DD patrol label: 1 normally, 2 on Sundays. */
+export function getMutatorsForDateStr(dateStr: string, pool: Mutator[] = MUTATOR_POOL): Mutator[] {
+  return resolveWith(dateStr, pool, overlayGate, overlayDaysFor(pool));
 }
 
 /** Resolve mutators for a Date anchored at UTC midnight of its label. Live
@@ -1022,7 +1149,11 @@ export function getMutatorById(id: string): Mutator | undefined {
   return MUTATOR_BY_ID.get(id);
 }
 
-/** Next patrol dates a mutator is assigned, from `fromDate` inclusive. */
+/**
+ * Next patrol dates a mutator is assigned, from `fromDate` inclusive. For an
+ * overlay entry these are the dates it takes with its switch on (the dates the
+ * switch-off state never flies).
+ */
 export function nextDatesForMutator(
   id: string,
   fromDate: string,
@@ -1032,7 +1163,11 @@ export function nextDatesForMutator(
   const out: string[] = [];
   let d = fromDate;
   while (d <= until && out.length < count) {
-    if (getMutatorsForDateStr(d).some((m) => m.id === id)) out.push(d);
+    const hit =
+      getMutatorById(id)?.overlayOdds !== undefined
+        ? overlayEntryForDate(d)?.id === id
+        : getMutatorsForDateStr(d).some((m) => m.id === id);
+    if (hit) out.push(d);
     d = addCivilDays(d, 1);
   }
   return out;

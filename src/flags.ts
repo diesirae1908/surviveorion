@@ -515,6 +515,22 @@ export function ordersParamsFor(patrolDate: string, previewFlags?: Record<string
   return e && e.flag.enabled ? (e.flag.params as OrdersParams) : null;
 }
 
+/** `mutators.overlay` params: per overlay-entry on/off. Read each with `=== true`. */
+export interface MutatorOverlayParams {
+  entries?: Record<string, { on?: boolean }>;
+}
+
+/**
+ * Whether the overlay Daily Mutator `id` may replace the legacy pick on a patrol
+ * date (the `mutators.overlay` switch for that date, per entry). Off with no row,
+ * which is also what every older bundle flies. Wired into `setOverlayGate`.
+ */
+export function overlayEntryOn(patrolDate: string, id: string, previewFlags?: Record<string, boolean>): boolean {
+  const pf = previewFlags && Object.keys(previewFlags).length > 0 ? previewFlags : undefined;
+  const e = effectiveFlag("mutators.overlay", patrolDate, pf);
+  return !!e && e.flag.enabled && (e.flag.params as MutatorOverlayParams | undefined)?.entries?.[id]?.on === true;
+}
+
 /** The `ui.*` flags for today, cached per patrol date until flags change. */
 export function clientFlagsSnapshot(preview?: Record<string, boolean>): ClientFlags {
   const previewFlags = preview && Object.keys(preview).length > 0 ? preview : undefined;

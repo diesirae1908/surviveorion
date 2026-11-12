@@ -179,6 +179,16 @@ export const rowsForKey = (key) => store.listFlagVersions(key).map(normalizeRow)
 /** Ruleset id the server expects for a daily_date. */
 export const serverRulesetFor = (dateStr) => rulesetIdFor(dateStr, rowsForKey("overdrive"));
 
+/**
+ * Whether the overlay Daily Mutator `id` replaces the legacy pick on a patrol
+ * date: the `mutators.overlay` switch for that date, per entry (mirrors
+ * overlayEntryOn in src/flags.ts). Off with no row.
+ */
+export function overlayEntryOn(dateStr, id, rows = rowsForKey("mutators.overlay"), registry = loadRegistry()) {
+  const r = resolveFlag("mutators.overlay", dateStr, rows, registry);
+  return !!r && r.enabled && r.params?.entries?.[id]?.on === true;
+}
+
 /** The `features` block of GET /api/config. */
 export function publicFeatures(todayStr) {
   const registry = loadRegistry();

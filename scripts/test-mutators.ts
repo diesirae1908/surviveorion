@@ -21,6 +21,10 @@ import {
   getMutatorById,
   getMutatorsForDate,
   getMutatorsForDateFromPool,
+  getMutatorsForDateStr,
+  legacyMutatorsForDate,
+  overlayEntryForDate,
+  setOverlayGate,
   MUTATOR_POOL,
   MUTATORS_START_DATE,
   SPELL_DIET_FROM,
@@ -981,6 +985,109 @@ function dayRestricted(dateStr: string): boolean {
     `pickups ${goldWorld.pickups.length} power ${goldWorld.pickups[0]?.power}`,
   );
   clearActiveMutators();
+}
+
+// --- 8. Overlay selection (see "overlay selection" in src/mutators.ts). Fake
+// overlay entries injected through a pool argument, never the live pool.
+// Proves: switch off = exactly the legacy rotation everywhere (what every older
+// bundle flies); switch on = only overlay days move, never a Sunday, never a
+// monopower day, never two days in a row; a second overlay entry never moves
+// the first one's days.
+{
+  const OVERLAY_FROM = "2026-11-23";
+  const OVERLAY_END = "2027-12-31";
+  const fakeOverlay = (id: string, odds: number, from = OVERLAY_FROM): Mutator => ({
+    id,
+    name: id.toUpperCase(),
+    briefing: "test-only",
+    subline: "test-only",
+    hudRule: "test-only",
+    difficultyFactor: 1,
+    tags: ["test-only"],
+    availableFrom: from,
+    overlayOdds: odds,
+    overrides: {},
+  });
+  const ov1 = fakeOverlay("test-overlay-1", 17);
+  const ov2 = fakeOverlay("test-overlay-2", 13);
+  const poolOne = [...MUTATOR_POOL, ov1];
+  const poolTwo = [...MUTATOR_POOL, ov1, ov2];
+  const idsOf = (d: string, pool: Mutator[]): string => getMutatorsForDateStr(d, pool).map((m) => m.id).join("+");
+  const allDates: string[] = [];
+  for (let d = MUTATORS_START_DATE; d <= OVERLAY_END; d = addUtcDays(d, 1)) allDates.push(d);
+  const windowDates = allDates.filter((d) => d >= OVERLAY_FROM);
+
+  setOverlayGate(() => false);
+  const offMismatch = allDates.filter((d) => idsOf(d, poolOne) !== idsOf(d, MUTATOR_POOL));
+  check(
+    "overlay: switch off, an overlay entry in the pool changes no date (legacy rotation exactly)",
+    offMismatch.length === 0,
+    `${allDates.length} dates, ${offMismatch.slice(0, 3).join(",")}`,
+  );
+  const offSnapshot = allDates.filter((d) => d <= SNAPSHOT_END_DATE && idsOf(d, poolOne) !== snapshotWant(d));
+  check("overlay: switch off, the frozen snapshots still match with an overlay entry present", offSnapshot.length === 0, offSnapshot.slice(0, 3).join(","));
+
+  setOverlayGate(() => true);
+  const moved = allDates.filter((d) => idsOf(d, poolOne) !== idsOf(d, MUTATOR_POOL));
+  check("overlay: switch on, at least 400 dates compared", windowDates.length >= 400, String(windowDates.length));
+  check("overlay: switch on, some days are overlay days", moved.length >= 5, `${moved.length} overlay days`);
+  check(
+    "overlay: switch on, only overlay days differ (and every one of them is the overlay entry)",
+    moved.every((d) => idsOf(d, poolOne) === ov1.id) &&
+      allDates.every((d) => moved.includes(d) || idsOf(d, poolOne) === idsOf(d, MUTATOR_POOL)),
+  );
+  check("overlay: no date before availableFrom moves", moved.every((d) => d >= OVERLAY_FROM));
+  check("overlay: never a Sunday", moved.every((d) => new Date(`${d}T00:00:00Z`).getUTCDay() !== 0), moved.filter((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 0).join(","));
+  check(
+    "overlay: never replaces a monopower day, only one full-spell day",
+    moved.every((d) => {
+      const legacy = getMutatorsForDateStr(d, MUTATOR_POOL);
+      return legacy.length === 1 && !legacy[0].tags.includes("monopower");
+    }),
+  );
+  check("overlay: never two days in a row", moved.every((d) => !moved.includes(addUtcDays(d, 1))));
+  check(
+    "overlay: roughly 1 in 29 (odds 17 over the window, between 5 and 40 days)",
+    moved.length >= 5 && moved.length <= 40,
+    `${moved.length}`,
+  );
+
+  // A second overlay entry never moves the first one's days; first in pool order wins a shared day.
+  const firstDays = windowDates.filter((d) => idsOf(d, poolOne) === ov1.id);
+  const firstDaysTwo = windowDates.filter((d) => idsOf(d, poolTwo) === ov1.id);
+  const secondDays = windowDates.filter((d) => idsOf(d, poolTwo) === ov2.id);
+  check("overlay: a second overlay entry leaves the first one's days exactly as they were", JSON.stringify(firstDays) === JSON.stringify(firstDaysTwo));
+  check("overlay: the second overlay entry flies some days and never on the first's days", secondDays.length >= 3 && secondDays.every((d) => !firstDays.includes(d)), `${secondDays.length}`);
+  check(
+    "overlay: with two overlay entries every other date is still the legacy pick",
+    allDates.every((d) => firstDaysTwo.includes(d) || secondDays.includes(d) || idsOf(d, poolTwo) === idsOf(d, MUTATOR_POOL)),
+  );
+
+  // The gate is per date: on only from a later date leaves every earlier date on the legacy pick.
+  const GATE_FROM = "2027-03-01";
+  setOverlayGate((d) => d >= GATE_FROM);
+  check(
+    "overlay: a gate that opens on a date moves nothing before that date",
+    allDates.filter((d) => d < GATE_FROM).every((d) => idsOf(d, poolOne) === idsOf(d, MUTATOR_POOL)),
+  );
+  // Per entry: gate keyed by id.
+  setOverlayGate((_d, id) => id === ov2.id);
+  check(
+    "overlay: a gate that opens only one entry never flies the other",
+    windowDates.every((d) => idsOf(d, poolTwo) !== ov1.id),
+  );
+  setOverlayGate(() => false);
+
+  // The export view: what the switch would fly, independent of the live gate.
+  setOverlayGate(() => false);
+  check(
+    "overlay: overlayEntryForDate reports the switch-on days while the live gate is off",
+    windowDates.filter((d) => overlayEntryForDate(d, poolOne)?.id === ov1.id).join() === firstDays.join(),
+  );
+  check(
+    "overlay: legacyMutatorsForDate is the switch-off pick on every date",
+    allDates.every((d) => legacyMutatorsForDate(d, poolOne).map((m) => m.id).join("+") === idsOf(d, MUTATOR_POOL)),
+  );
 }
 
 // player-facing copy never calls the play space an arena (Lucas's ban); ids and tags are not copy

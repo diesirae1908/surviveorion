@@ -239,6 +239,16 @@
         "params": { "minSessions": 3, "minRunSeconds": 30, "onMedal": true, "onPersonalBest": true }
       },
       "bounds": { "minSessions": [2, 20], "minRunSeconds": [30, 300] }
+    },
+    "mutators.overlay": {
+      "kind": "gameplay",
+      "area": "gameplay",
+      "description": "Overlay Daily Mutators (THE PASSAGE): an overlay entry replaces one eligible weekday pick (never a Sunday, never a monopower day, never two days in a row). Per entry on/off in params.entries. Off or no row: the legacy rotation, which is also exactly what older apps fly. Not part of the ruleset.",
+      "default": {
+        "enabled": false,
+        "params": { "entries": { "twin-orbs": { "on": true } } }
+      },
+      "bounds": {}
     }
   }
 }
