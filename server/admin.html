@@ -411,6 +411,11 @@ function renderDay(day) {
       stat("Ruleset mismatches", day.rulesetMismatch == null ? "-" : fmt(day.rulesetMismatch)) +
       stat("Of which old bundle (no ruleset)", day.rulesetLegacy == null ? "-" : fmt(day.rulesetLegacy)) +
       stat("Stale bundle (needs gen " + (day.requiredGen == null ? "?" : day.requiredGen) + ")", day.staleBundle == null ? "-" : fmt(day.staleBundle)) +
+      (day.overlayMix
+        ? stat("Overlay day (" + day.overlayMix.id + (day.overlayMix.on ? ", switch on" : ", switch off") + "): flew overlay", fmt(day.overlayMix.flown)) +
+          stat("Overlay day: flew legacy pick", fmt(day.overlayMix.other)) +
+          stat("Overlay day: old bundle (no mutator field)", fmt(day.overlayMix.unreported))
+        : "") +
     "</div>" +
     renderOrders(day.orders) +
     renderChallenge(day.challenge) +

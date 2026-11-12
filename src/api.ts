@@ -621,6 +621,8 @@ export class Api {
     dailyDate?: string;
     /** Switch set the run was flown under ("base" or overdrive@id#hash). */
     ruleset?: string;
+    /** Mutator ids this bundle flew ("a" or "a,b"). Reporting only; older servers ignore it. */
+    mutator?: string;
     odHot?: number;
     odFires?: number;
     /** Run-side counters the server may use to credit Daily Orders (WS-O1). Ignored by older servers. */
@@ -648,6 +650,8 @@ export class Api {
     platform: string;
     daily?: boolean;
     ruleset?: string;
+    /** Mutator ids this bundle flew ("a" or "a,b"). Reporting only; older servers ignore it. */
+    mutator?: string;
     odHot?: number;
     odFires?: number;
     /** Run-side counters the server may use to credit Daily Orders (WS-O1). Ignored by older servers. */

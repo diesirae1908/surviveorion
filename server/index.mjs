@@ -230,6 +230,13 @@ function bodyRuleset(body) {
   return /^[a-z0-9.@#:+]+$/.test(r) ? r : null;
 }
 
+/** Mutator ids the client says it flew ("a" or "a,b"); null when absent or malformed. Reporting only. */
+function bodyMutator(body) {
+  const m = body?.mutator;
+  if (typeof m !== "string" || m.length === 0 || m.length > 80) return null;
+  return /^[a-z0-9-]+(,[a-z0-9-]+)*$/.test(m) ? m : null;
+}
+
 /** Overdrive counters (odHot, odFires): int 0..10,000 or null. */
 function bodyOdCount(v) {
   if (typeof v !== "number" || !Number.isFinite(v)) return null;
@@ -1025,7 +1032,8 @@ const routes = {
       return json(res, 429, { error: "daily attempt limit reached, next patrol at midnight Pacific" });
 
     const ruleset = bodyRuleset(body);
-    store.insertScore(user.id, { ...run, dailyDate, ruleset });
+    const mutator = bodyMutator(body);
+    store.insertScore(user.id, { ...run, dailyDate, ruleset, mutator });
     // Daily Orders: today's daily only (never archive, Classic, or anonymous),
     // credited from the validated fields above. The score is never affected.
     let ordersResult;
@@ -1048,6 +1056,7 @@ const routes = {
       deviceHash: bodyDeviceHash(body),
       runIndex: bodyRunIndex(body),
       ruleset,
+      mutator,
       odHot: bodyOdCount(body.odHot),
       odFires: bodyOdCount(body.odFires),
     });
@@ -1169,6 +1178,7 @@ const routes = {
       deviceHash: bodyDeviceHash(body),
       runIndex: bodyRunIndex(body),
       ruleset: bodyRuleset(body),
+      mutator: bodyMutator(body),
       odHot: bodyOdCount(body.odHot),
       odFires: bodyOdCount(body.odFires),
     });
@@ -1442,6 +1452,13 @@ const routes = {
         day.rulesetLegacy = m.legacy;
         day.staleBundle = m.stale;
         day.requiredGen = need;
+        // Overlay day: how many scores say they flew the overlay entry vs the
+        // legacy pick (reporting only, see store.mutatorMixForDay).
+        const overlayId = loadMutatorSchedule()[day.date]?.[0]?.overlayId;
+        day.overlayMix =
+          typeof overlayId === "string"
+            ? { id: overlayId, on: flags.overlayEntryOn(day.date, overlayId), ...store.mutatorMixForDay(day.date, overlayId) }
+            : null;
         day.emergencyOff = flags.emergencyOffOn(day.date);
         const oc = ordersContext(day.date);
         day.orders = oc

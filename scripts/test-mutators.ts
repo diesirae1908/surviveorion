@@ -1125,7 +1125,13 @@ function dayRestricted(dateStr: string): boolean {
     "switch on: every other date is the legacy pick",
     dates.every((d) => flown.includes(d) || getMutatorsForDateStr(d) === legacyMutatorsForDate(d)),
   );
-  check("switch on: first overlay day is 2026-11-25 (a Wednesday)", flown[0] === "2026-11-25" && new Date("2026-11-25T00:00:00Z").getUTCDay() === 3);
+  check("switch on: first overlay day is 2026-12-29 (a Tuesday, TITANFALL)", flown[0] === "2026-12-29" && new Date("2026-12-29T00:00:00Z").getUTCDay() === 2);
+  check(
+    "switch on: overlaySkipTags keep twin-orbs off ARSENAL and MAGNETIC FIELD days (data-driven, no date)",
+    !!twin?.overlaySkipTags?.length &&
+      flown.every((d) => !legacyMutatorsForDate(d)[0].tags.some((t) => twin?.overlaySkipTags?.includes(t))) &&
+      ["2026-11-25", "2027-05-25"].every((d) => !flown.includes(d)),
+  );
   check("switch on: no frozen snapshot date moves except overlay days", dates.filter((d) => d <= SNAPSHOT_END_DATE && !flown.includes(d)).every((d) => getMutatorsForDateStr(d).map((m) => m.id).join("+") === snapshotWant(d)));
   setOverlayGate(() => false);
 

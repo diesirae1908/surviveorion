@@ -2485,6 +2485,9 @@ function submitRun(): void {
     daily: (runIsDaily && !runRefunded) || undefined,
     dailyDate: runIsDaily ? (NATIVE_PATROL_DATE ?? webArchiveDate ?? undefined) : undefined,
     ruleset: rulesetStamp(world.rules),
+    // Reporting only: which mutators this bundle flew (the admin day report
+    // counts old-bundle runs on an overlay day). Never read for scoring.
+    mutator: runIsDaily && getActiveMutators().length > 0 ? getActiveMutators().map((m) => m.id).join(",") : undefined,
     odHot: world.overdrive.hotCount,
     odFires: world.overdrive.fires,
     orderStats: orders.runStats() ?? undefined,

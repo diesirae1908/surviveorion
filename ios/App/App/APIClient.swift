@@ -175,6 +175,11 @@ actor APIClient {
         try await request("GET", "/api/config")
     }
 
+    /// The same `/api/config` response, read for the `mutators.overlay` switch rows only.
+    func overlayConfig() async throws -> OverlayConfig {
+        try await request("GET", "/api/config")
+    }
+
     func googleSignIn(idToken: String, country: String) async throws -> LoginResponse {
         try await request("POST", "/api/auth/google", json: [
             "idToken": idToken,

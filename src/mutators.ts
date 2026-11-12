@@ -204,6 +204,12 @@ export interface Mutator {
    * Never edited after the entry has flown a day.
    */
   overlayOdds?: number;
+  /**
+   * Overlay entry only: never replace a legacy day whose mutator carries any of
+   * these tags (a day that already tunes the same lever, or the pool's top
+   * scorer). Keeps the rule data-driven instead of hard-coding dates.
+   */
+  overlaySkipTags?: string[];
   overrides: MutatorOverrides;
 }
 
@@ -862,6 +868,9 @@ export const MUTATOR_POOL: Mutator[] = [
     tags: ["pickup-behavior", "pickup-rate"],
     availableFrom: "2026-11-23",
     overlayOdds: 17,
+    // Never lands on ARSENAL or MAGNETIC FIELD (the pool's top-scoring day, which
+    // old bundles would still fly on a mixed board).
+    overlaySkipTags: ["pickup-behavior", "pickup-rate"],
     overrides: { pickupPairs: true },
   },
 ];
@@ -1053,6 +1062,7 @@ function legacyMutatorsForDateStr(dateStr: string, pool: Mutator[]): Mutator[] {
 //   - it is not a Sunday (Sunday's 2nd slot is chosen against the 1st);
 //   - the legacy day is one full-spell mutator (never a monopower day, so the
 //     spell diet sees the same restricted pattern and nothing cascades);
+//   - the legacy pick carries none of the entry's `overlaySkipTags`;
 //   - yesterday's resolved day was not this entry (never two days in a row);
 //   - hashString("orion-overlay-<id>-<date>") % overlayOdds === 0;
 //   - the overlay gate (the `mutators.overlay` switch, see setOverlayGate) is
@@ -1100,6 +1110,7 @@ function overlayFor(dateStr: string, legacy: Mutator[], pool: Mutator[], gate: O
   for (const m of pool) {
     const odds = m.overlayOdds;
     if (odds === undefined || m.availableFrom > dateStr) continue;
+    if (m.overlaySkipTags?.some((t) => legacy[0].tags.includes(t))) continue;
     if (hashString(`orion-overlay-${m.id}-${dateStr}`) % odds !== 0) continue;
     if (!gate(dateStr, m.id)) continue;
     if (resolveWith(yesterday, pool, gate, days).some((y) => y.id === m.id)) continue;
@@ -1141,7 +1152,8 @@ export function overlayEntryForDate(dateStr: string, pool: Mutator[] = MUTATOR_P
     overlayAllOnByPool.set(pool, days);
   }
   const r = resolveWith(dateStr, pool, () => true, days);
-  return r === legacyMutatorsForDateStr(dateStr, pool) ? null : r[0];
+  const legacy = legacyMutatorsForDateStr(dateStr, pool);
+  return r.length === legacy.length && r.every((m, i) => m.id === legacy[i].id) ? null : r[0];
 }
 
 /** Mutator(s) for a YYYY-MM-DD patrol label: 1 normally, 2 on Sundays. */

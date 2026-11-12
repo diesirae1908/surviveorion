@@ -245,6 +245,9 @@ db.exec(`
 for (const stmt of [
   `ALTER TABLE scores ADD COLUMN ruleset TEXT`,
   `ALTER TABLE runs ADD COLUMN ruleset TEXT`,
+  // Which mutator ids the client says it flew (reporting only, never trusted).
+  `ALTER TABLE scores ADD COLUMN mutator TEXT`,
+  `ALTER TABLE runs ADD COLUMN mutator TEXT`,
   `ALTER TABLE runs ADD COLUMN od_hot INTEGER`,
   `ALTER TABLE runs ADD COLUMN od_fires INTEGER`,
   `ALTER TABLE flag_versions ADD COLUMN emergency INTEGER NOT NULL DEFAULT 0`,
@@ -738,12 +741,12 @@ export const purgeExpiredSessions = () =>
 
 export function insertScore(
   userId,
-  { score, timeSurvived, kills, maxMultiplier, mode, gameMode, dailyDate = null, ruleset = null },
+  { score, timeSurvived, kills, maxMultiplier, mode, gameMode, dailyDate = null, ruleset = null, mutator = null },
 ) {
   db.prepare(
-    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, daily_date, ruleset, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "desktop", gameMode ?? "classic", dailyDate, ruleset, Date.now());
+    `INSERT INTO scores (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, daily_date, ruleset, mutator, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(userId, score, timeSurvived, kills, maxMultiplier, mode ?? "desktop", gameMode ?? "classic", dailyDate, ruleset, mutator, Date.now());
 }
 
 export const getUserBest = (userId, mode = "desktop", gameMode = "classic") =>
@@ -1557,14 +1560,15 @@ export function insertRun(
     deviceHash = null,
     runIndex = null,
     ruleset = null,
+    mutator = null,
     odHot = null,
     odFires = null,
     at = Date.now(),
   },
 ) {
   db.prepare(
-    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, platform, device_hash, run_index, ruleset, od_hot, od_fires, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO runs (user_id, score, time_survived, kills, max_multiplier, mode, game_mode, platform, device_hash, run_index, ruleset, mutator, od_hot, od_fires, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     userId,
     score,
@@ -1577,6 +1581,7 @@ export function insertRun(
     deviceHash,
     runIndex,
     ruleset,
+    mutator,
     odHot,
     odFires,
     at,
@@ -1635,6 +1640,28 @@ export function rulesetHealthForDay(date, expectedId, requiredGen = 1) {
     }
     if (st.base !== expectedId) out.mismatch += r.n;
     if (st.gen < requiredGen) out.stale += r.n;
+  }
+  return out;
+}
+
+/**
+ * Which mutator the daily scores on `date` say they flew, relative to the
+ * overlay entry `overlayId` that the schedule can put on that day. Reporting
+ * only (the field is client-supplied and never trusted for scoring):
+ * flown = the stamp names the overlay entry, other = a stamp naming something
+ * else (an older or stale bundle flying the legacy pick), unreported = NULL (a
+ * bundle that predates the field, so also an old bundle on an overlay day).
+ */
+export function mutatorMixForDay(date, overlayId) {
+  const rows = db
+    .prepare(`SELECT mutator, COUNT(*) AS n FROM scores WHERE daily_date = ? GROUP BY mutator`)
+    .all(date);
+  const out = { total: 0, flown: 0, other: 0, unreported: 0 };
+  for (const r of rows) {
+    out.total += r.n;
+    if (r.mutator == null) out.unreported += r.n;
+    else if (r.mutator.split(",").includes(overlayId)) out.flown += r.n;
+    else out.other += r.n;
   }
   return out;
 }

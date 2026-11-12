@@ -38,11 +38,12 @@ function render(): void {
   for (const date of upcoming) {
     const picks = getMutatorsForDateStr(date);
     const legacy = legacyMutatorsForDate(date);
+    const sameDay = picks.length === legacy.length && picks.every((m, i) => m.id === legacy[i].id);
     // An overlay day names the legacy pick it replaces (what older apps and the switch-off state fly).
     const names =
       (picks.map((p) => p.name).join(" + ") || "CLASSIC") +
-      (picks !== legacy ? ` (else ${legacy.map((p) => p.name).join(" + ")})` : "");
-    const waiting = picks === legacy ? overlayEntryForDate(date) : null;
+      (!sameDay ? ` (else ${legacy.map((p) => p.name).join(" + ")})` : "");
+    const waiting = sameDay ? overlayEntryForDate(date) : null;
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `

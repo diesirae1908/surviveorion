@@ -199,7 +199,16 @@ first, then:
   (the frozen overlay dates) in step. Graze ceilings validate against the union
   of the legacy and overlay names (`scheduledMutatorNames`). ON for players is a
   `/admin` > Switches row at least 2 days ahead in production; emergency off is
-  a row from today.
+  a row from today. **On a switch-on overlay day the board mixes the overlay
+  entry (new bundles) and the legacy pick (iOS 1.0/1.1, stale tabs); scores are
+  always accepted.** The run payload carries an optional `mutator` (ids the
+  client flew, reporting only, never read for scoring or ceilings, stored in
+  nullable `scores.mutator` / `runs.mutator`); the admin day report shows
+  overlay / legacy pick / no field (old bundle) counts on overlay days
+  (`overlayMix`). An overlay entry can carry `overlaySkipTags`: it never
+  replaces a legacy day whose mutator has one of those tags (THE PASSAGE skips
+  ARSENAL and MAGNETIC FIELD days). iOS 1.2 native labels follow the switch
+  (`MutatorCatalog.overlayOn`, rows read from `/api/config`).
 
 - **Tier A, override-only.** A new `MUTATOR_POOL` entry that reuses existing
   override knobs (rate/scale/weight/interval multipliers, `firstOf`
@@ -340,8 +349,10 @@ first, then:
 - THE PASSAGE (`twin-orbs`, the first overlay Daily Mutator, Tier B flag
   `pickupPairs` read via `mutatorPickupPairs()`, never by id): every drop is a
   pair of two different powers 2.4 units apart on one `y` (`PICKUPS.pair`:
-  `spacing`, `lifetime` 15 s, `blinkFrom` 3 s). The primary is exactly today's
-  seeded drop (same 25 `rand` + 2 `scheduleRand`); the partner costs ZERO stream
+  `spacing`, `lifetime` 15 s, `blinkFrom` 3 s). The primary keeps today's
+  seeded draws, time and position (same 25 `rand` + 2 `scheduleRand`; its kind
+  follows the pair-shifted demotion, identical for every pilot); on a same-tick
+  overlap the primary wins; the partner costs ZERO stream
   draws: its power is a date-hash roll (`takeTwinPairKey`, `orion-twin-<date>-<seq>`,
   same weights and demotion, spawnable pool only, minus the primary) and its
   position is a fixed offset toward the field center. Pairs hold still (the

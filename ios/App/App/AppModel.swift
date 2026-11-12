@@ -66,6 +66,8 @@ final class AppModel: ObservableObject {
     @Published var qaCrew = false
     @Published var previewOverride: AccountTier = .admin
     @Published var store = StoreKitManager()
+    /// Bumped when the `mutators.overlay` rows arrive so views re-read `MutatorCatalog`.
+    @Published var mutatorEpoch = 0
 
     init() {
         PreferencesStore.resetPreviewTierToCrew()
@@ -126,6 +128,12 @@ final class AppModel: ObservableObject {
             attemptsLeft = 0
         }
         #endif
+        // Overlay Daily Mutator labels follow the `mutators.overlay` switch (same
+        // /api/config the web canvas reads). A failed fetch keeps the last rows.
+        if let cfg = try? await APIClient.shared.overlayConfig() {
+            MutatorCatalog.overlayRows = cfg.rows
+            mutatorEpoch += 1
+        }
         do {
             board = try await APIClient.shared.dailyBoard()
             online = true

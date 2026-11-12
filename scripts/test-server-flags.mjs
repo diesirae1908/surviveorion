@@ -60,6 +60,13 @@ const h2 = store.rulesetHealthForDay(d2, "overdrive@9#aaaaaaaa", 2);
 check("health: Phase 1 stamp is stale on a gen-2 day, +g2 and null are not; +g2 matches the id", h2.total === 3 && h2.stale === 1 && h2.legacy === 1 && h2.mismatch === 1, JSON.stringify(h2));
 const h1 = store.rulesetHealthForDay(d2, "overdrive@9#aaaaaaaa", 1);
 check("health: nothing is stale on a gen-1 day", h1.stale === 0 && h1.mismatch === 1, JSON.stringify(h1));
+// Overlay day mix: the optional client `mutator` field is reporting only. NULL = a bundle
+// that predates the field; the stored column is additive and nullable.
+const d3 = addDays(today, 6);
+for (const m of ["twin-orbs", "twin-orbs,other", "titanfall", null]) store.insertScore(other.id, { ...base, dailyDate: d3, mutator: m });
+const mix = store.mutatorMixForDay(d3, "twin-orbs");
+check("mutatorMixForDay: overlay / legacy pick / no field", mix.total === 4 && mix.flown === 2 && mix.other === 1 && mix.unreported === 1, JSON.stringify(mix));
+check("mutatorMixForDay: omitting the field on insertScore stores NULL (old clients unchanged)", store.mutatorMixForDay(d2, "twin-orbs").unreported === 3);
 check("parseStamp: suffix, no suffix, null, junk", (() => {
   const a = flagsMod.parseStamp("overdrive@4#cafe0001+g2");
   const b = flagsMod.parseStamp("overdrive@4#cafe0001");
