@@ -171,7 +171,15 @@ function muteAmbientPickups(world: World): void {
 }
 
 // --- 3b. magnet: one-shot grab yanks a single pickup to the ship ---
+//
+// Seeded (2026-11-12): the pending-grab check spawns the next drop at a
+// random spot and the magnet hauls it at pullSpeed 11, so a drop landing
+// within ~1.1 units + both radii of the stationary ship is collected inside
+// the same 0.1s step and never shows up as inbound (flaked ~1 in 10 runs,
+// empty detail). The game is right to collect it; the test needs a pinned
+// drop position, which the seed gives it.
 {
+  setRunSeed(90_212);
   const world = createWorld(17.8, 10);
   step(world, 5);
   muteAmbientPickups(world);
@@ -196,6 +204,7 @@ function muteAmbientPickups(world: World): void {
     inbound.length === 1 && world.powers.magnetPending === 0,
     inbound.map((p) => p.power).join(","),
   );
+  setRunSeed(null);
 }
 
 // --- 3c. ion: Pulse-style charge, then a directed cone shove ---
@@ -955,7 +964,6 @@ function muteAmbientPickups(world: World): void {
   let sawAssembly = false;
   let sawMembers = false;
   let sawActive = false;
-  let sawBurst = false;
   const kindsSeen = new Set<string>();
   const steps = Math.round(240 / FIXED_DT);
   for (let i = 0; i < steps; i++) {
@@ -966,7 +974,6 @@ function muteAmbientPickups(world: World): void {
         sawAssembly = true;
         kindsSeen.add(e.kind);
       }
-      if (e.type === "assemblyBurst") sawBurst = true;
     }
     world.events.length = 0;
     if (world.assemblies.length > 0) {
@@ -978,7 +985,11 @@ function muteAmbientPickups(world: World): void {
   check("evolutions form within 4 minutes", sawAssembly);
   check("evolution members carry their assembly ref", sawMembers);
   check("evolutions reach the active phase", sawActive);
-  check("lances/wheels/bombs burst back into drones", sawBurst);
+  // Burst is checked directly per kind below, not on this emergent run
+  // (2026-11-12): the observer sits still under a permanent shield that kills
+  // whatever touches it, and every creature is aimed at the ship, so most die
+  // on contact. A 240s run averages only ~3 bursts (0 in ~5% of runs), which
+  // made this a dice roll rather than a test of the burst path.
   check("multiple evolution kinds appear", kindsSeen.size >= 2, [...kindsSeen].join(","));
   // death disbands everything (checked directly on the running world)
   if (world.assemblies.length === 0) {
@@ -994,6 +1005,44 @@ function muteAmbientPickups(world: World): void {
   tick(world, input, FIXED_DT);
   const freed = world.drones.every((d) => !d.assembly);
   check("death disbands all evolutions", world.assemblies.length === 0 && freed);
+}
+
+// --- 6f2. every burst-capable kind actually bursts back into drones ---
+{
+  const burstKinds = ["lance", "wheel", "bomb"] as const;
+  const burst: string[] = [];
+  const missed: string[] = [];
+  for (const kind of burstKinds) {
+    const world = createWorld(17.8, 10);
+    world.drones.length = 0;
+    world.assemblies.length = 0;
+    world.time = 40;
+    world.assemblyTimer = 999;
+    world.crowdAssemblyTimer = 999;
+    world.nextFormationDelay = 999;
+    world.sustainedSpawnCooldown = 999;
+    world.spawnAccumulator = 0;
+    // far corner: the creature flies away from the ship, so only its own
+    // timer/bounce limit can end it (never contact with the observer)
+    world.ship.x = -8;
+    world.ship.y = -4;
+    spawnAssemblyDirect(world, 1, kind, 10, 3, 0, 1, 0);
+    let saw = false;
+    const steps = Math.round(15 / FIXED_DT);
+    for (let i = 0; i < steps && !saw; i++) {
+      world.powers.starshellTimer = 9999;
+      tick(world, input, FIXED_DT);
+      if (world.events.some((e) => e.type === "assemblyBurst" && e.kind === kind)) saw = true;
+      world.events.length = 0;
+    }
+    const freed = world.drones.filter((d) => !d.assembly).length;
+    (saw && freed > 0 ? burst : missed).push(kind);
+  }
+  check(
+    "lances/wheels/bombs burst back into drones",
+    missed.length === 0,
+    missed.length ? `no burst: ${missed.join(",")}` : burst.join(","),
+  );
 }
 
 // --- 6g. Training Ground: capped trickle, no formations/assemblies/mines ---
