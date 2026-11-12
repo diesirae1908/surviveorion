@@ -103,6 +103,16 @@ export interface LobbyParams {
   pilotTab: boolean;
 }
 
+/** Challenge links (ui.challenge). Sub-switches default true; the whole layer is gated by `enabled`. Read each with `=== true`. */
+export interface ChallengeParams {
+  mint: boolean;
+  lobbyBanner: boolean;
+  paceTarget: boolean;
+  resultLine: boolean;
+  challengeBack: boolean;
+  ogMeta: boolean;
+}
+
 /** Daily Orders (the `orders` gameplay-kind switch). Targets and merit are registry params. */
 export interface OrdersParams {
   meritEasy: number;
@@ -117,6 +127,7 @@ export interface ClientFlags {
   hud: HudParams | null;
   result: ResultParams | null;
   lobby: LobbyParams | null;
+  challenge: ChallengeParams | null;
 }
 
 export interface FlagRow {
@@ -491,6 +502,7 @@ export function clientFlagsSnapshot(preview?: Record<string, boolean>): ClientFl
     hud: pick<HudParams>("ui.hud"),
     result: pick<ResultParams>("ui.result"),
     lobby: pick<LobbyParams>("ui.lobby"),
+    challenge: pick<ChallengeParams>("ui.challenge"),
   };
   if (!previewFlags) snapshotCache = { date: today, stamp, cp, flags };
   return flags;

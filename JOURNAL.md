@@ -12,6 +12,13 @@ why, commit hash, follow-ups), committed together with the work. See
 - Tests: new `scripts/test-challenge-server.mjs` (64 checks), `test-account-delete.mjs` extended, switch count 6 to 7 in `test-flags.ts`, `test-flag-parity.ts` (+ "no rows: ui.challenge off on both sides"), `test-server-flags.mjs`. Not yet registered in `package.json` (WS-5 owns it).
 - Not touched: POST /api/scores, attempts, guest creation, validate.mjs, scoring, ios/.
 - Commit: see git log (`challenge link WS-1`). Follow-ups: WS-5 registers `test:challenge-server`; Render dev env var above.
+## 2026-11-12 PT: challenge link WS-2, client model and API (feat/cl-ws2)
+
+- New `src/challenge.ts`: `parseChallengePath`, session context (`orion.challenge`, 24 h), per-date minted URL cache, event dedupe (`claimEvent`, opened/opened_new per session, rest per device), `targetFromResolve`, the copy table `COPY` (Lucas edits only that), `bannerModel`, `firstFlightLine`, `challengeResultModel` (tie reads "Dead even with X." and counts as a loss), `challengerShareLine`, `paceTargetFor`, `versusFor`. Pure, no network, no DOM, no run state.
+- `src/flags.ts`: `ChallengeParams`, `ClientFlags.challenge` (`ui.challenge`, null when off). `src/api.ts`: `resolveChallenge`, `mintChallenge`, `challengeEvent` (fire-and-forget, never throws).
+- `scripts/test-challenge.ts` (not yet in the `npm test` chain: package.json belongs to WS-5). Server `patrolNumberFor` parity check runs when `server/challenge.mjs` exists, else prints SKIP.
+- Known until WS-1 merges: `test:flag-parity` fails "every flag key referenced in src/ exists in the registry - flags.ts:ui.challenge", because the `ui.challenge` registry entry is WS-1's. Everything else green.
+- Follow-ups: WS-5 wires it all and registers the test.
 
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
