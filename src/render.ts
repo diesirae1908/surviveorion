@@ -2781,7 +2781,7 @@ export class Renderer {
     const warning = opts.daily ? mutatorWindShiftWarning(world.time) : null;
     const mins = Math.floor(world.time / 60);
     const secs = Math.floor(world.time % 60);
-    const paceOn = !!(hud && hud.paceChip && opts.daily && playing && opts.pace);
+    const paceOn = !!(hud && (hud.paceChip || opts.pace?.vs) && opts.daily && playing && opts.pace);
     const risingPx = lay ? fitScorePx(scoreText.length, lay.scoreMaxW, scorePx) : 28;
     const boxes = hudTextBoxes(
       { w: this.cssW, h: this.cssH },

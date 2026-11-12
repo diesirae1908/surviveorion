@@ -5,7 +5,7 @@
 import { createWorld } from "../src/gameState";
 import { resetFlagsForTest, setRemoteFeatures } from "../src/flags";
 import { CHAIN_GAP_PX, hudLayout, hudTextBoxes, fitScorePx, type HudBox, type HudTextBoxes } from "../src/feel";
-import { PACE_CALLSIGN_MAX, countAbove, normalizeRows, onRunStart, paceEligible, paceLines, paceView, snapshot, type PaceRow } from "../src/pace";
+import { PACE_CALLSIGN_MAX, countAbove, normalizeRows, onRunStart, paceEligible, paceLines, paceView, snapshot, targetOnlyView, type PaceRow } from "../src/pace";
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ""): void {
@@ -46,6 +46,37 @@ check("lines: no gain, no arrow", paceLines(paceView(rows, 0))[0] === "PACE #5")
 check("lines: leading", paceLines(paceView(rows, 12000)).join("|") === "PACE #1 ▲4|LEADING");
 check("lines: long callsign truncated", paceLines(paceView([R("ABCDEFGHIJKLMNOPQRS", 900)], 0))[1].startsWith(`NEXT ${"ABCDEFGHIJKLMNOPQRS".slice(0, PACE_CALLSIGN_MAX)} +`));
 check("eligibility: daily, online, today, not preview", paceEligible({ daily: true, archive: false, preview: false, online: true }) && !paceEligible({ daily: false, archive: false, preview: false, online: true }) && !paceEligible({ daily: true, archive: true, preview: false, online: true }) && !paceEligible({ daily: true, archive: false, preview: true, online: true }) && !paceEligible({ daily: true, archive: false, preview: false, online: false }));
+
+// --- challenge target (ui.challenge.paceTarget) ---
+const noTargetSnap = [0, 3500, 7000, 12000].map((s) => paceLines(paceView(rows, s)).join("|")).join(" ; ");
+check("no target: lines byte-identical to the pre-target snapshot", noTargetSnap === "PACE #5|NEXT D +3,000 ; PACE #4 ▲1|NEXT C +3,500 ; PACE #2 ▲3|NEXT A +2,000 ; PACE #1 ▲4|LEADING", noTargetSnap);
+check("no target: vs null and explicit null/undefined agree", paceView(rows, 3500).vs === null && paceLines(paceView(rows, 3500, null)).join() === paceLines(paceView(rows, 3500)).join());
+const GL = { callsign: "Glint", score: 4704 };
+check("target behind: head plus VS line", paceLines(paceView(rows, 3500, GL)).join("|") === "PACE #4 ▲1|VS GLINT +1,204");
+check("target ahead: PAST line with a rising arrow", paceLines(paceView(rows, 5016, GL)).join("|") === "PACE #4 ▲1|PAST GLINT ▲312");
+check("target exactly equal: not ahead, gap 1", (() => {
+  const v = paceView(rows, 4704, GL);
+  return v.vs?.ahead === false && v.vs.gap === 1 && paceLines(v)[1] === "VS GLINT +1";
+})());
+check("target one point above: ahead by 1", paceView(rows, 4705, GL).vs?.ahead === true && paceView(rows, 4705, GL).vs?.gap === 1);
+check("target leading the board: second line is still the target, not LEADING", paceLines(paceView(rows, 12000, GL)).join("|") === "PACE #1 ▲4|PAST GLINT ▲7,296");
+check("target only: single line, no rank", (() => {
+  const v = targetOnlyView(3500, GL);
+  return v.board === false && paceLines(v).join("|") === "VS GLINT +1,204";
+})());
+check("target only ahead", paceLines(targetOnlyView(5016.7, GL)).join("|") === "PAST GLINT ▲312");
+check("view without target or board draws no lines", paceLines({ rank: 0, delta: 0, next: null, board: false, vs: null }).length === 0);
+// challenger also on the board: rank math is unchanged, only line two differs
+const withChallenger = normalizeRows([R("Me", 5000, true), R("A", 9000), R("Glint", 4704), R("B", 7000), R("D", 3000)]);
+const withoutChallenger = normalizeRows([R("A", 9000), R("B", 7000), R("D", 3000)]);
+check("challenger in rows: rank and delta match the same board with a target", (() => {
+  const a = paceView(withChallenger, 3500, GL);
+  const b = paceView(withChallenger, 3500);
+  return a.rank === b.rank && a.delta === b.delta && a.next?.callsign === b.next?.callsign && a.rank === 4;
+})());
+check("challenger row counted like any pilot (one place more than without)", paceView(withChallenger, 3500).rank === paceView(withoutChallenger, 3500).rank + 1);
+check("target long or odd callsign truncated to the chip max", paceLines(paceView(rows, 0, { callsign: "ABCDEFGHIJKLMNOPQRS", score: 900 }))[1] === `VS ${"ABCDEFGHIJKLMNOPQRS".slice(0, PACE_CALLSIGN_MAX)} +900`);
+check("masked callsign passes through", paceLines(targetOnlyView(0, { callsign: "P***t", score: 10 }))[0] === "VS P***T +10");
 
 // --- start/snapshot wiring, old row no-op ---
 async function wiring(): Promise<void> {
@@ -114,6 +145,54 @@ async function wiring(): Promise<void> {
   release([R("Late", 1000)]);
   await new Promise((r) => setTimeout(r, 5));
   check("stale fetch ignored after a newer run", snapshot(world) === null);
+
+  // --- target wiring ---
+  const tgt = { callsign: "Glint", score: 4704 };
+  resetFlagsForTest(); // ui.hud default: board off
+  const f0 = fetches;
+  onRunStart({ ...ctx, boardOn: false, target: tgt });
+  world.score = 3500;
+  check("boardOn false + target: no fetchBoard call", fetches === f0);
+  check("boardOn false + target: target-only line right away", paceLines(snapshot(world) as NonNullable<ReturnType<typeof snapshot>>).join("|") === "VS GLINT +1,204");
+  check("target-only snapshot cached per integer score", snapshot(world) === snapshot(world));
+
+  onRunStart({ ...ctx, boardOn: true, target: tgt });
+  check("boardOn true: target-only until the board lands", paceLines(snapshot(world) as NonNullable<ReturnType<typeof snapshot>>).length === 1);
+  await new Promise((r) => setTimeout(r, 5));
+  check("board landed: one fetch, rank plus target line", fetches === f0 + 1 && paceLines(snapshot(world) as NonNullable<ReturnType<typeof snapshot>>).join("|") === "PACE #3|VS GLINT +1,204");
+
+  onRunStart({ ...ctx, boardOn: true, target: tgt, fetchBoard: () => Promise.reject(new Error("net")) });
+  await new Promise((r) => setTimeout(r, 5));
+  check("board failure with a target: target-only line survives", paceLines(snapshot(world) as NonNullable<ReturnType<typeof snapshot>>).join("|") === "VS GLINT +1,204");
+
+  // target never applies outside an eligible run, in First Flight, or with a bad score
+  for (const [name, c] of [
+    ["preview", { ...ctx, preview: true }],
+    ["archive", { ...ctx, archive: true }],
+    ["offline", { ...ctx, online: false }],
+    ["non-daily", { ...ctx, daily: false }],
+    ["first flight", { ...ctx, firstFlight: true }],
+    ["zero score", { ...ctx, target: { callsign: "Glint", score: 0 } }],
+    ["blank callsign", { ...ctx, target: { callsign: "", score: 99 } }],
+    ["null target", { ...ctx, target: null }],
+  ] as const) {
+    onRunStart({ boardOn: false, target: tgt, ...c });
+    check(`no chip for target when ${name}`, snapshot(world) === null);
+  }
+
+  // stale board fetch dropped, even with a target
+  let release2: (r: PaceRow[]) => void = () => {};
+  onRunStart({ ...ctx, boardOn: true, target: tgt, fetchBoard: () => new Promise<PaceRow[]>((res) => (release2 = res)) });
+  onRunStart({ ...ctx, boardOn: true, target: { callsign: "Next", score: 8000 }, fetchBoard: async () => [R("A", 9000)] });
+  release2([R("Late", 1)]);
+  await new Promise((r) => setTimeout(r, 5));
+  check("token guard: stale fetch dropped, new target kept", snapshot(world)?.vs?.callsign === "Next" && snapshot(world)?.next?.callsign === "A");
+
+  // legacy callers without boardOn still follow ui.hud.paceChip
+  resetFlagsForTest();
+  const f1 = fetches;
+  onRunStart(ctx);
+  check("legacy ctx (no boardOn, no target): no fetch with the switch off", fetches === f1 && snapshot(world) === null);
 }
 
 // --- hudTextBoxes: no overlaps ---

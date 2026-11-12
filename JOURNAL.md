@@ -19,6 +19,13 @@ why, commit hash, follow-ups), committed together with the work. See
 - `scripts/test-challenge.ts` (not yet in the `npm test` chain: package.json belongs to WS-5). Server `patrolNumberFor` parity check runs when `server/challenge.mjs` exists, else prints SKIP.
 - Known until WS-1 merges: `test:flag-parity` fails "every flag key referenced in src/ exists in the registry - flags.ts:ui.challenge", because the `ui.challenge` registry entry is WS-1's. Everything else green.
 - Follow-ups: WS-5 wires it all and registers the test.
+## 2026-11-12 PT: challenge link WS-3, pace chip target mode
+
+- `src/pace.ts`: optional challenge target. `PaceStartCtx` gains `target`, `boardOn` (absent: falls back to the `ui.hud.paceChip` flag, so existing callers are unchanged) and `firstFlight`. `PaceView` gains `board` and `vs`. With a target the second chip line pins to the challenger (`VS GLINT +1,204` behind, `PAST GLINT ▲312` ahead; a tie reads as behind by 1). Rank math is untouched, so a challenger on the board counts like any pilot. Target only (board off or failed): one line, no rank. Target frozen at run start, no network mid-run, token guard kept. No target: output byte-identical (pinned snapshot).
+- `src/render.ts`: `paceOn` also true when `opts.pace?.vs` is set (still needs the Rising Gold HUD).
+- `scripts/test-pace.ts`: 30+ new checks (snapshot, behind/ahead/equal, target-only, challenger in rows, truncation, no fetch with `boardOn:false`, ineligible runs, stale token).
+- No determinism surface touched (reads `world.score`/`phase` only). Gates: tsc, `npm test`, sim-test, build all exit 0.
+- Follow-ups for WS-5: pass `target` (gated on `ui.challenge.paceTarget`), `boardOn`, `firstFlight` from `main.ts` `startRun()`. Commit: see git log (`WS-3 pace target`).
 
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 

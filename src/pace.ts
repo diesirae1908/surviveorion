@@ -1,6 +1,7 @@
 // Live pace chip data (owner: WS-H). One board fetch at run start, then pure
 // rank math against that snapshot as the score climbs. No network mid-run.
-// Switch: ui.hud.paceChip (default off). Daily, online, today, not preview.
+// Switch: ui.hud.paceChip (default off) for the board; a challenge target
+// (ui.challenge.paceTarget) is gated by the caller. Daily, online, today, not preview.
 
 import type { World } from "./types";
 import { clientFlagsSnapshot } from "./flags";
@@ -21,6 +22,16 @@ export interface PaceView {
   delta: number;
   /** Closest pilot ahead, or null when leading. gap >= 1. */
   next: { callsign: string; gap: number } | null;
+  /** True when the rank fields come from a fetched board; false for a target-only view. */
+  board: boolean;
+  /** Challenge target line data, or null. gap >= 1 when behind; `ahead` when the score is strictly above. */
+  vs: { callsign: string; gap: number; ahead: boolean } | null;
+}
+
+/** A single score to chase (the challenger's best today). Frozen at run start. */
+export interface PaceTarget {
+  callsign: string;
+  score: number;
 }
 
 export interface PaceStartCtx {
@@ -29,6 +40,12 @@ export interface PaceStartCtx {
   preview: boolean;
   online: boolean;
   fetchBoard: () => Promise<PaceRow[]>;
+  /** Challenge target, or null/absent. The caller gates it on ui.challenge.paceTarget. */
+  target?: PaceTarget | null;
+  /** Board fetch gate (ui.hud.paceChip). Absent: read the flag here, as before. */
+  boardOn?: boolean;
+  /** First Flight is unscored practice: never a target. */
+  firstFlight?: boolean;
 }
 
 /** Longest callsign shown on the chip. */
@@ -55,7 +72,7 @@ export function countAbove(rows: readonly PaceRow[], score: number): number {
 }
 
 /** Rank view for an integer score against normalized rows. Pure. */
-export function paceView(rows: readonly PaceRow[], score: number): PaceView {
+export function paceView(rows: readonly PaceRow[], score: number, target?: PaceTarget | null): PaceView {
   const s = Math.floor(score);
   const above = countAbove(rows, s);
   const startAbove = countAbove(rows, 0);
@@ -64,12 +81,34 @@ export function paceView(rows: readonly PaceRow[], score: number): PaceView {
     rank: above + 1,
     delta: Math.max(0, startAbove - above),
     next: next ? { callsign: next.callsign, gap: Math.max(1, next.score - s) } : null,
+    board: true,
+    vs: vsOf(s, target),
   };
+}
+
+function vsOf(s: number, target?: PaceTarget | null): PaceView["vs"] {
+  if (!target) return null;
+  const ahead = s > target.score;
+  return { callsign: target.callsign, gap: ahead ? s - target.score : Math.max(1, target.score - s), ahead };
+}
+
+/** View with no board: only the target line. Pure. */
+export function targetOnlyView(score: number, target: PaceTarget): PaceView {
+  return { rank: 0, delta: 0, next: null, board: false, vs: vsOf(Math.floor(score), target) };
+}
+
+function paceVsLine(vs: NonNullable<PaceView["vs"]>): string {
+  const name = vs.callsign.toUpperCase().slice(0, PACE_CALLSIGN_MAX);
+  const gap = vs.gap.toLocaleString("en-US");
+  return vs.ahead ? `PAST ${name} ▲${gap}` : `VS ${name} +${gap}`;
 }
 
 /** Chip text lines. Pure. */
 export function paceLines(v: PaceView): string[] {
+  const vsLine = v.vs ? paceVsLine(v.vs) : null;
+  if (!v.board) return vsLine ? [vsLine] : [];
   const head = v.delta > 0 ? `PACE #${v.rank} ▲${v.delta}` : `PACE #${v.rank}`;
+  if (vsLine) return [head, vsLine];
   if (!v.next) return [head, "LEADING"];
   const name = v.next.callsign.toUpperCase().slice(0, PACE_CALLSIGN_MAX);
   return [head, `NEXT ${name} +${v.next.gap.toLocaleString("en-US")}`];
@@ -81,6 +120,7 @@ export function paceEligible(ctx: Pick<PaceStartCtx, "daily" | "archive" | "prev
 }
 
 let rows: PaceRow[] | null = null;
+let target: PaceTarget | null = null;
 let token = 0;
 let cachedScore = -1;
 let cachedView: PaceView | null = null;
@@ -91,15 +131,21 @@ export function onRunStart(ctx: PaceStartCtx): void {
   rows = null;
   cachedScore = -1;
   cachedView = null;
+  target = null;
   const mine = token;
   if (!paceEligible(ctx)) return;
-  if (!clientFlagsSnapshot().hud?.paceChip) return; // switch off: no fetch
+  const t = ctx.target;
+  if (t && !ctx.firstFlight && t.callsign && Number.isFinite(t.score) && t.score > 0) target = t;
+  const boardOn = ctx.boardOn ?? clientFlagsSnapshot().hud?.paceChip === true;
+  if (!boardOn) return; // switch off: no fetch (a target, if any, shows alone)
   void ctx
     .fetchBoard()
     .then((r) => {
       if (mine !== token) return; // a newer run started
       const n = normalizeRows(r);
       rows = n.length > 0 ? n : null;
+      cachedScore = -1; // drop a target-only view cached before the board landed
+      cachedView = null;
     })
     .catch(() => {
       /* failure or offline: chip stays hidden */
@@ -108,11 +154,11 @@ export function onRunStart(ctx: PaceStartCtx): void {
 
 /** Per-frame view for the HUD. Cached per integer score. */
 export function snapshot(world: World): PaceView | null {
-  if (!rows || world.phase !== "playing") return null;
+  if ((!rows && !target) || world.phase !== "playing") return null;
   const s = Math.floor(world.score);
   if (s !== cachedScore || !cachedView) {
     cachedScore = s;
-    cachedView = paceView(rows, s);
+    cachedView = rows ? paceView(rows, s, target) : targetOnlyView(s, target as PaceTarget);
   }
   return cachedView;
 }
