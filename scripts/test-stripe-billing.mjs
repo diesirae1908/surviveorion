@@ -23,6 +23,10 @@ function check(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
+const { isAppOrigin } = await import("../server/cors.mjs");
+check("isAppOrigin: app shells yes", isAppOrigin("capacitor://localhost") && isAppOrigin("ionic://localhost") && isAppOrigin("https://localhost"));
+check("isAppOrigin: website, dev server, junk no", !isAppOrigin("https://surviveorion.com") && !isAppOrigin("http://localhost:5173") && !isAppOrigin(undefined) && !isAppOrigin("") && !isAppOrigin("null"));
+
 const cfg = billingPublicConfig();
 check("billing display monthly USD", cfg.monthly.displayAmount === "$1.99 USD");
 check("billing display yearly USD", cfg.yearly.displayAmount === "$14.99 USD");

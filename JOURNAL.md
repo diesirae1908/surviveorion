@@ -50,6 +50,14 @@ why, commit hash, follow-ups), committed together with the work. See
 - No gameplay, scoring, validate.mjs, mutator or seeded-stream change.
 - Gates: tsc, `npm test`, `npm run build` exit 0; sim 30 of 30 (was 18 of 20).
 - Follow-up: the emergent 240s evolution run still has `Math.random` kind picks (game side, by design); nothing else in the sim flaked in 50 runs.
+## 2026-11-12 PT: iOS 1.2 WS-S server contract (app.shell, app.review, checkout origin guard)
+
+- Registry: appended `app.shell` (client, off; `minShell` 1..99, `briefing`, `pilotTab`, `stories`) and `app.review` (client, off; `minSessions` 2..20, `minRunSeconds` 30..300, `onMedal`, `onPersonalBest`). No capsSince change, no gameplay param, not in the ruleset.
+- Server: `POST /api/billing/checkout` now 403 `APP_CHECKOUT` for app shell origins (`isAppOrigin` added to `server/cors.mjs`, one guard line at the top of the route). Portal untouched. Web (no Origin or site origin) behaves as before.
+- Visible change with no rows: `/api/config` features now lists the two new keys with `versions: []` (inert; old bundles ignore unknown keys). Every other response is unchanged. The optional `app` visit surface was not built (not needed by the contract).
+- Tests: switch counts six to eight (`test-flags`, `test-flag-parity`, `test-server-flags`); new checks for defaults/params, old-bundle payload with the new keys leaves snapshots and ruleset identical, admin lists both keys, checkout 403 from capacitor/android origins (with and without session), not from web/site origin, portal allowed; `isAppOrigin` truth table in `test-stripe-billing`.
+- AGENTS.md "Switch registry" updated (eight switches, both keys, checkout guard).
+- Commit: see git log (`WS-S`). Follow-up: WS-A1/A2 read the keys; prod rows stay absent until Lucas's go.
 
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 

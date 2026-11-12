@@ -422,9 +422,22 @@ Every gameplay switch (`overdrive` and later) can be turned off at any time, wit
 - **Turn back on:** add a normal row for tomorrow or later (enabled on, at least 1 day ahead). Rows are append-only: never edit or delete.
 - Creator preview (`/admin` > Creator preview) is separate: it only affects the allowlisted account, for 1 to 12 hours, and its runs are unscored.
 
-### Switch registry: the six switches and the generation rule
+### Switch registry: the nine switches and the generation rule
 
-- Switches (`server/flags-registry.json`, the single source): `overdrive` (gameplay), `ui.overdriveFx`, `ui.hud`, `ui.result`, `ui.lobby` (client, web lobby v3 layer, never on native play), `orders` (gameplay kind = date-bound, area `meta`).
+- Switches (`server/flags-registry.json`, the single source; tests assert the exact key list, so adding one means updating `EXPECTED_KEYS` in `test-flags.ts`, `test-flag-parity.ts`, `test-server-flags.mjs`):
+  - `overdrive`: gameplay, the only one that enters the ruleset.
+  - `ui.overdriveFx`: client, overdrive visual effects.
+  - `ui.hud`: client, in-run HUD layer (pace chip and friends).
+  - `ui.result`: client, result screen layer.
+  - `ui.lobby`: client, web lobby v3 layer, never on native play.
+  - `ui.challenge`: client, web only, never in the ruleset. Challenge links (`/c/<code>`): mint, lobby banner, pace target, result line, send-back, link-preview meta (sub-switches default true). Off: no new requests, no banner, `/c/<code>` serves the plain page, mint/resolve return `{active:false}`, events write nothing. Never active in the native app. Emergency off is a row from today like any client switch.
+  - `orders`: gameplay kind = date-bound (scheduling rule only), area `meta`.
+  - `app.shell`: client, App Store build boots into web lobby v3 (details below).
+  - `app.review`: client, allows the App Store rating prompt (details below).
+- Env vars: `ORION_PUBLIC_ORIGIN` (public origin for checkout URLs and challenge link/OG URLs; set to `https://surviveorion-dev.onrender.com` on staging, defaults to production) and `ORION_DIST` (path to the built `dist/`, resolved to absolute; defaults to `../dist`).
+- `app.shell` (client, default off; params `minShell` 1..99, `briefing`, `pilotTab`, `stories`): an App Store build boots into the web lobby v3 only when this AND `ui.lobby` are on and the build's shell protocol is >= `minShell`; off = native SwiftUI Home (iOS 1.1 behaviour). Params AND-combine with the `ui.lobby` / `ui.result` params. Never reachable on the website. Client switch: rows may start today, emergency off is a row from today.
+- `app.review` (client, default off; params `minSessions` 2..20, `minRunSeconds` 30..300, `onMedal`, `onPersonalBest`): allows the App Store rating prompt after a good run; off = never asked.
+- `POST /api/billing/checkout` returns 403 `{code: "APP_CHECKOUT"}` when the request Origin is an app shell origin (`isAppOrigin` in `server/cors.mjs`: capacitor/ionic/localhost shells). Stripe checkout is never minted for the App Store binary (guideline 3.1.1). The portal is unaffected.
 - **Only `overdrive` enters the ruleset** (`rulesetId`). `orders` is gameplay-kind only for its scheduling rule (rows start a patrol day ahead, 2 days in production). An emergency off on any key but `overdrive` does not flag the day's board (`emergencyOffOn` matches `overdrive` only; `emergencyRowsOn` lists all keys for the Switches list).
 - **New params are always no-op by default** and read only when present (`=== true`, `?? 1`). Turning one on in production is a new row written after the bundle that knows it is deployed (`materializeParams` drops unknown keys); production rows written earlier hold none of them and must behave like before (fixture `old-row-930b7b4`).
 - **`capsSince` (bundle generation).** `capsSince: { "<key>": { "<dotted.path>": <gen> } }` at the top of the registry; an unlisted path is generation 1. Rule: a new gameplay param whose non-default value needs new engine code gets `since = current max + 1`. A bundle stamps `<rulesetId>+g<ENGINE_GEN>` on submitted runs (`ENGINE_GEN` = max `capsSince` value, computed in `src/flags.ts`, never hand-written; `base` stays `base`). `server/flags.mjs` `requiredGen(date)` is the generation that day's `overdrive` row needs; the admin day report shows `staleBundle` (stamp generation too low), `rulesetLegacy` (no stamp) and `rulesetMismatch` (wrong base id). Scores are always accepted; before scheduling a generation-2 row in production look at a recent day's `staleBundle`.

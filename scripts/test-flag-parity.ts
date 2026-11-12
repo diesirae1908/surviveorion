@@ -61,7 +61,8 @@ check("default-on ruleset id literal matches", (() => {
 // config.ts OVERDRIVE is the registry default, nothing else
 check("config.ts OVERDRIVE equals registry defaults", JSON.stringify(OVERDRIVE) === JSON.stringify(registry.flags.overdrive.default.params));
 check("materializing empty params gives the defaults", JSON.stringify(server.materializeParams(registry.flags.overdrive, {})) === JSON.stringify(registry.flags.overdrive.default.params));
-check("all seven switches default off", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && Object.keys(registry.flags).length === 7);
+const EXPECTED_KEYS = ["overdrive", "ui.overdriveFx", "ui.hud", "ui.result", "ui.lobby", "ui.challenge", "orders", "app.shell", "app.review"];
+check("all switches default off and the key list is exactly the expected one", Object.values(registry.flags).every((f) => (f as { default: { enabled: boolean } }).default.enabled === false) && JSON.stringify(Object.keys(registry.flags)) === JSON.stringify(EXPECTED_KEYS));
 
 // no rows: ui.challenge is off on both sides, every sub-switch present and true (read with === true)
 {

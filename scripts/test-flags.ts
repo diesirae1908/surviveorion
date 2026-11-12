@@ -278,9 +278,10 @@ check("rulesetStamp: base stays base, ruleset ids gain +g<ENGINE_GEN>", rulesetS
 check("rulesetStamp: matches the server's accepted charset and length", /^[a-z0-9.@#:+]+$/.test(rulesetStamp({ ...BASE_RULES, rulesetId: "overdrive@4#cafe0001" })));
 
 // registry shape: defaults are no-op
-check("seven switches, all default off", (() => {
+check("expected switch keys, all default off", (() => {
   const f = (registryJson as unknown as { flags: Record<string, { default: { enabled: boolean } }> }).flags;
-  return Object.keys(f).length === 7 && Object.values(f).every((x) => x.default.enabled === false);
+  const EXPECTED_KEYS = ["overdrive", "ui.overdriveFx", "ui.hud", "ui.result", "ui.lobby", "ui.challenge", "orders", "app.shell", "app.review"];
+  return JSON.stringify(Object.keys(f)) === JSON.stringify(EXPECTED_KEYS) && Object.values(f).every((x) => x.default.enabled === false);
 })());
 check("new overdrive form defaults are all off and alwaysHotScale is 1", (() => {
   const d = (registryJson as unknown as { flags: { overdrive: { default: { params: { forms: Record<string, { on: boolean }>; alwaysHotScale: number } } } } }).flags.overdrive.default.params;
@@ -292,6 +293,29 @@ check("new ui params default off", (() => {
   const r = f["ui.result"].default.params;
   return h.edgeRadar === false && h.hitStop === false && h.sky === false && h.paceChip === false && r.shareV2 === false && r.stories === false;
 })());
+
+// app.shell / app.review: a payload carrying them leaves every existing snapshot and rule identical
+check("app.shell and app.review default off with the planned params", (() => {
+  const f = (registryJson as unknown as { flags: Record<string, { kind: string; default: { enabled: boolean; params: Record<string, unknown> } }> }).flags;
+  const s = f["app.shell"];
+  const r = f["app.review"];
+  return s.kind === "client" && r.kind === "client" && JSON.stringify(s.default.params) === JSON.stringify({ minShell: 1, briefing: true, pilotTab: true, stories: true }) && JSON.stringify(r.default.params) === JSON.stringify({ minSessions: 3, minRunSeconds: 30, onMedal: true, onPersonalBest: true });
+})());
+check("a payload with app.shell and app.review rows changes no existing snapshot or ruleset", (() => {
+  resetFlagsForTest();
+  const basePayload = { schema: 1, today: "2026-11-11", flags: { overdrive: { kind: "gameplay", versions: [row(4, "2026-11-11", true, { chargePerGraze: 0.99 }, "cafe0001")] }, "ui.hud": { kind: "client", versions: [row(5, "2026-11-11", true, { chainBar: true }, "cafe0002")] } } };
+  const view = () => {
+    const rr = resolveRunRules("2026-11-11", { daily: true });
+    return JSON.stringify({ s: clientFlagsSnapshot(), r: rr.rulesetId, st: rulesetStamp(rr) });
+  };
+  setRemoteFeatures(basePayload);
+  const before = view();
+  setRemoteFeatures({ ...basePayload, flags: { ...basePayload.flags, "app.shell": { kind: "client", versions: [row(6, "2026-11-11", true, { minShell: 1, briefing: true }, "cafe0003")] }, "app.review": { kind: "client", versions: [row(7, "2026-11-11", true, { minSessions: 3 }, "cafe0004")] } } });
+  const ok = before === view() && resolveFlag("app.shell", "2026-11-11")?.enabled === true && resolveFlag("app.review", "2026-11-11")?.versionId === "7";
+  resetFlagsForTest();
+  return ok;
+})());
+check("no rows: app.shell and app.review resolve off", resolveFlag("app.shell", "2026-11-11")?.enabled === false && resolveFlag("app.review", "2026-11-11")?.enabled === false);
 
 // lobby fill targets still exist in source (a v3 lobby must keep them)
 const sourceText = ["ui.ts", "main.ts"].map((f) => fs.readFileSync(path.join(srcDir, f), "utf8")).join("\n");
