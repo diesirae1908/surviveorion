@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
+
+- Filter: `BLOCKED_TERMS` in `server/nickname.mjs` and `src/nickname.ts` extended (phrases/compounds only): devisgay/devsgay/suckmy/eatmyass/kissmyass, twat/bellend/wanker/tosser/bollocks/arsehole, peen/penis, cock compounds (cocksuck, cockhead, cockface, cockwomble, cockmunch, cocknose), ballsack/ballbag/nutsack. All six names from the live world top 50 now blocked. "gay" alone stays allowed. Skipped on purpose: knob, arse, prick, tits, bare ass/cock/balls/nuts. New `SAFE_EXCEPTIONS`: Dickens, Dickinson, Dickson, Dickerson (plain "dick" already blocked them), Atwater(s), Bellenden, Peenemunde, Penistone. Both lists now exported so `test-nickname.ts` asserts client/server parity.
+- Masking: the mechanism already existed (`sanitizeCallsignForDisplay` via `sanitizeEntry`, hash-derived alias such as "Dusty Comet", on world/daily/friends/arena/podium/profile/gap-to-goal), so the new terms mask the existing rows with no further code and no DB write. Kept the existing alias list instead of adding "Pilot NNNN". Gap closed: `GET /api/players/:name` and `POST /api/friends/request` now 404 when the stored callsign is blocked and the viewer is not the owner, so a masked name cannot be reached by its original text. `/api/me` and login are unchanged: the owner still sees their real callsign (no cheap notice surface; flag for Sam).
+- Tests: `test-nickname.ts` (+37 allowed names, +25 blocked, parity), new `test-server-callsign-mask.mjs` (spawns the server on a temp DB, checks 8 board routes, profile and friend lookup, owner view), wired into `npm test`.
+- Terms: `public/terms.html` now says free-to-play plus an optional Gold Patrol subscription ($1.99/mo, $14.99/yr USD), Stripe on web, Apple on iOS, cancel via portal / Apple subscriptions, refunds per Apple on iOS and on request by feedback form on web (DRAFT, no policy existed in repo; Lucas to approve). Liability line and "UTC days" (patrol days are Pacific) corrected. `public/privacy.html`: one "free game" line now notes the optional subscription; privacy still lacks Stripe/Apple as third parties (not fixed, reported).
+- Commit: see git log (`trust batch`). Follow-ups: Lucas approves refund wording; privacy third-party section; Task 2 world-board rule proposal is in the dispatch report, nothing built.
+
 ## 2026-10-31 PT: FIELD UPDATE "Rising Gold" for the v3 live launch
 
 - `public/updates.json`: new first entry `2026-10-31-rising-gold` (title "Rising Gold", 4 lines: new lobby/HUD/SIGNAL LOST screen, OVERDRIVE from Patrol #111, Daily Orders from tonight's patrol, iPhone app update). Older ids unchanged and still valid.

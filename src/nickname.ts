@@ -11,7 +11,7 @@
 // documented duplication rather than an oversight). See server/nickname.mjs
 // for the full rationale behind the term list and the matching approach.
 
-const BLOCKED_TERMS = [
+export const BLOCKED_TERMS = [
   "nigger", "nigga", "faggot", "fag", "chink", "spic", "kike", "tranny",
   "retard", "retarded", "coon", "gook", "wetback", "beaner", "paki",
   "fuck", "shit", "cunt", "dick", "pussy", "whore", "slut", "bastard",
@@ -25,15 +25,26 @@ const BLOCKED_TERMS = [
   // (see server/nickname.mjs for the full rationale and the skipped-terms
   // note: "butt"/"nuts"/"redact" deliberately stay off the list).
   "buttsniff", "deeznuts", "deezenuts", "deeznutz", "deezenutz",
+  // 2026-11-12 trust batch (rationale and skipped terms in server/nickname.mjs).
+  "devisgay", "devsgay", "devisagay", "devissogay", "suckmy", "eatmyass",
+  "kissmyass",
+  "twat", "bellend", "wanker", "tosser", "bollocks", "arsehole",
+  "peen", "penis", "cocksuck", "cockhead", "cockface", "cockwomble",
+  "cockmunch", "cocknose", "ballsack", "ballbag", "nutsack",
 ];
 
-const SAFE_EXCEPTIONS: string[] = [
+export const SAFE_EXCEPTIONS: string[] = [
   "Scunthorpe",
   "Grape", "Grapes", "Grapefruit", "Grapevine",
   "Drape", "Drapes", "Drapery",
   "Therapist", "Therapists",
   "Despicable", "Conspicuous",
   "Retardant",
+  "Dickens", "Dickinson", "Dickson", "Dickerson",
+  "Atwater", "Atwaters",
+  "Bellenden",
+  "Peenemunde",
+  "Penistone",
 ];
 
 const LEET_MAP: Record<string, string> = {

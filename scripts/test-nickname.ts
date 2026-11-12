@@ -90,6 +90,43 @@ const ALLOWED = [
   "Nutshell",
   "Redactor",
   "Redacted",
+  // 2026-11-12 trust batch tripwires: ordinary names near the new terms
+  "Dickens",
+  "Dickinson",
+  "Gay Pilot", // identity word alone stays allowed
+  "Gayle",
+  "Nutmeg",
+  "Peenemunde",
+  "Bellenden",
+  "Atwater",
+  "Penistone",
+  "Sussex Pilot",
+  "Cockpit Ace",
+  "Peacock",
+  "Hancock",
+  "Wankel", // not "wanker"
+  "Tosca",
+  "Bollard",
+  "Arsenal",
+  "Parsec",
+  "Hearse Driver",
+  "Knobloch",
+  "Prickly",
+  "Doorknob",
+  "Pineapple",
+  "Penguin",
+  "Pennant",
+  "Spenser",
+  "Devon",
+  "Devastator",
+  "Developer",
+  "Eaton",
+  "Chuck Norris",
+  "Suckerpunch", // not "suck my"
+  "Chrisgayle",
+  "Balls of Steel", // "balls" alone is not a term
+  "Nuthatch",
+  "Butterfly",
 ];
 
 // Names that must be blocked, including the exact leaderboard examples that
@@ -138,6 +175,33 @@ const BLOCKED = [
   "redactdeeznuts",
   "deez nuts",
   "Deez Nutz",
+  // 2026-11-12: the six names seen in the world top 50, plus the class
+  "Suck my nuts dev",
+  "The Dev Is Gay",
+  "EatMyAss",
+  "eatpeen",
+  "twatzilla",
+  "bellend",
+  "dev is gay",
+  "devs gay",
+  "suck my dick",
+  "eat my ass",
+  "kiss my ass",
+  "T W A T",
+  "tw4t",
+  "wanker",
+  "Tosser99",
+  "bollocks",
+  "arsehole",
+  "peen",
+  "big peeen",
+  "penis",
+  "p3nis",
+  "cocksucker",
+  "cockhead",
+  "ballsack",
+  "nutsack",
+  "Bellend_01",
 ];
 
 for (const name of ALLOWED) {
@@ -149,6 +213,20 @@ for (const name of BLOCKED) {
   check(`client blocks "${name}"`, client.isNicknameBlocked(name), true);
   check(`server blocks "${name}"`, server.isNicknameBlocked(name), true);
 }
+
+// Client/server list parity: the two runtimes duplicate the term list by
+// design, so a one-sided edit must fail here.
+check(
+  "client/server BLOCKED_TERMS match",
+  JSON.stringify(client.BLOCKED_TERMS),
+  JSON.stringify(server.BLOCKED_TERMS),
+);
+check(
+  "client/server SAFE_EXCEPTIONS match",
+  JSON.stringify(client.SAFE_EXCEPTIONS),
+  JSON.stringify(server.SAFE_EXCEPTIONS),
+);
+check("at least 30 new legitimate names covered", ALLOWED.length >= 90, true);
 
 // Non-string input (malformed request bodies) must never slip through.
 check("client blocks non-string", client.isNicknameBlocked(null as unknown as string), true);

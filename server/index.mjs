@@ -1234,7 +1234,8 @@ const routes = {
     const { callsign } = await readBody(req);
     if (typeof callsign !== "string") return json(res, 400, { error: "missing callsign" });
     const target = store.getUserByCallsign(callsign.trim());
-    if (!target) return json(res, 404, { error: "no pilot with that callsign" });
+    if (!target || (target.id !== user.id && isNicknameBlocked(target.callsign)))
+      return json(res, 404, { error: "no pilot with that callsign" });
     if (target.id === user.id) return json(res, 400, { error: "that's you, pilot" });
 
     const existing = store.getFriendship(user.id, target.id);
@@ -1443,6 +1444,11 @@ const routes = {
 function playerProfile(req, res, user, callsign) {
   const target = store.getUserByCallsign(callsign);
   if (!target) return json(res, 404, { error: "pilot not found" });
+  // A masked (blocked legacy) callsign cannot be looked up by its original
+  // text, or the mask would be defeated by typing the name into the URL.
+  // The owner still resolves their own record.
+  if (user?.id !== target.id && isNicknameBlocked(target.callsign))
+    return json(res, 404, { error: "pilot not found" });
   const career = store.userCareer(target.id);
 
   let friendship = null;

@@ -19,7 +19,7 @@
 // ordinary words should essentially never false-positive; if one does,
 // extend SAFE_EXCEPTIONS rather than trimming BLOCKED_TERMS.
 
-const BLOCKED_TERMS = [
+export const BLOCKED_TERMS = [
   // slurs (racial, ethnic, homophobic, transphobic, ableist)
   "nigger", "nigga", "faggot", "fag", "chink", "spic", "kike", "tranny",
   "retard", "retarded", "coon", "gook", "wetback", "beaner", "paki",
@@ -43,6 +43,21 @@ const BLOCKED_TERMS = [
   // note below), so the collision surface with ordinary words/names is
   // effectively zero.
   "buttsniff", "deeznuts", "deezenuts", "deeznutz", "deezenutz",
+  // 2026-11-12 trust batch: the top-50 world board carried "Suck my nuts
+  // dev", "The Dev Is Gay", "EatMyAss", "eatpeen", "twatzilla" and "bellend".
+  // Same policy: phrases and compounds, never bare ambiguous fragments.
+  // "gay" alone stays allowed (identity word); it is blocked only inside
+  // dev-insult phrases. Deliberately NOT added: "knob" (Knobloch, doorknob),
+  // "arse" (Arsenal, hearse, parse), "prick" (prickly), "tits" and bare
+  // "ass" / "cock" / "balls" / "nuts".
+  // insult-the-dev / sexual-demand phrases
+  "devisgay", "devsgay", "devisagay", "devissogay", "suckmy", "eatmyass",
+  "kissmyass",
+  // British profanity
+  "twat", "bellend", "wanker", "tosser", "bollocks", "arsehole",
+  // genital slang (compounds where the short form is a common word)
+  "peen", "penis", "cocksuck", "cockhead", "cockface", "cockwomble",
+  "cockmunch", "cocknose", "ballsack", "ballbag", "nutsack",
 ];
 
 // Deliberately NOT added, even though they're part of the taunts above:
@@ -64,13 +79,18 @@ const BLOCKED_TERMS = [
 //    (grape, Scunthorpe, despicable...) need an explicit exception.
 //  - Kept short and documented: these exist because we hit a real false
 //    positive, not as a general escape hatch.
-const SAFE_EXCEPTIONS = [
+export const SAFE_EXCEPTIONS = [
   "Scunthorpe", // contains "cunt"
   "Grape", "Grapes", "Grapefruit", "Grapevine", // contain "rape"
   "Drape", "Drapes", "Drapery", // contain "rape"
   "Therapist", "Therapists", // contain "rapist"
   "Despicable", "Conspicuous", // contain "spic"
   "Retardant", // contains "retard" (fire retardant)
+  "Dickens", "Dickinson", "Dickson", "Dickerson", // contain "dick"
+  "Atwater", "Atwaters", // contain "twat"
+  "Bellenden", // contains "bellend"
+  "Peenemunde", // contains "peen"
+  "Penistone", // contains "penis"
 ];
 
 // Leetspeak / lookalike-character substitutions, applied before the block
