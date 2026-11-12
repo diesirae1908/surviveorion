@@ -84,6 +84,8 @@ export interface ShareCardV2Model {
   scoreMaxW: number;
   medal: { tier: MedalTier; box: V2Box; word: V2Text } | null;
   cause: V2Text | null;
+  /** "VS GLINT  +12,480" row under the score. Only present when the run has a versus. */
+  versus?: V2Text;
   rule: { y: number; x1: number; x2: number };
   stats: Array<{ label: V2Text; value: V2Text }>;
   footer: V2Text;
@@ -253,6 +255,27 @@ export function shareCardV2Model(s: ShareStats, format: ShareCardFormat): ShareC
     causeTop = cause.y - causeSize;
   }
 
+  // --- versus row (challenge): sits between the score and the cause line ---
+  let versus: V2Text | undefined;
+  if (s.versus) {
+    const vsSize = Math.round(30 * k);
+    const d = Math.round(s.versus.delta);
+    const gap = `${d >= 0 ? "+" : "-"}${Math.abs(d).toLocaleString("en-US")}`;
+    const tail = `  ${gap}`;
+    const name = fitTextTo(`VS ${s.versus.callsign.toUpperCase()}`, vsSize, 3, w - 2 * M - estTextWidth(tail, vsSize, 3));
+    versus = text({
+      text: `${name}${tail}`,
+      x: M,
+      y: causeTop - Math.round(22 * k),
+      size: vsSize,
+      color: d >= 0 ? GOLD : RED,
+      weight: 600,
+      spacing: 3,
+    });
+    addTextBox("versus", versus);
+    causeTop = versus.y - vsSize;
+  }
+
   // --- score hero + medal ---
   const medalSize = s.medal ? Math.round(150 * k) : 0;
   const scoreMaxW = w - 2 * M - (s.medal ? medalSize + 28 : 0);
@@ -330,6 +353,7 @@ export function shareCardV2Model(s: ShareStats, format: ShareCardFormat): ShareC
     scoreMaxW,
     medal,
     cause,
+    ...(versus ? { versus } : {}),
     rule,
     stats,
     footer,
@@ -576,6 +600,7 @@ export function drawShareCardV2(ctx: CanvasRenderingContext2D, m: ShareCardV2Mod
   }
   drawMedal(ctx, m, assets);
   if (m.cause) drawText(ctx, m.cause);
+  if (m.versus) drawText(ctx, m.versus);
 
   // hairline over the stats row
   ctx.fillStyle = "rgba(255,247,224,0.12)";

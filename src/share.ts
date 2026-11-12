@@ -55,6 +55,14 @@ export interface ShareStats {
   causeLabel?: string;
   /** ui.result params resolved by the caller (preview flags included). Absent = v1 card, square only. */
   resultParams?: { shareV2?: boolean; stories?: boolean } | null;
+  /** Challenge link for this share (WS-2 mints it). Absent = the plain surviveorion.com last line. */
+  challengeUrl?: string | null;
+  /**
+   * This run against a challenger (WS-5 fills it from the challenge result model).
+   * `delta` = this run minus the challenger's score (positive: ahead). `targetScore` is the
+   * challenger's score. Text and the v2 card only; the v1 card ignores it.
+   */
+  versus?: { callsign: string; delta: number; targetScore: number } | null;
 }
 
 
@@ -80,6 +88,23 @@ function loadMedalSvg(tier: MedalTier): Promise<HTMLImageElement | null> {
   return loadImage(`/medals/${tier}.svg`);
 }
 
+/** Last-line copy for challenge shares. WS-2 owns the player-facing copy table; keep these in step with it. */
+export const CHALLENGE_SHARE_COPY = {
+  challenger: (url: string) => `Beat it: ${url}`,
+  afterWin: (callsign: string, target: string, url: string) => `Beat ${callsign}'s ${target}. Your move: ${url}`,
+  afterLoss: (callsign: string, gap: string, url: string) => `${callsign} is ${gap} ahead. Beat me: ${url}`,
+};
+
+/** The last share-text line: the plain site URL, or the challenge line when a link is present. */
+export function shareLastLine(s: ShareStats): string {
+  const url = s.challengeUrl;
+  if (!url) return SHARE_URL;
+  const v = s.versus;
+  if (!v) return CHALLENGE_SHARE_COPY.challenger(url);
+  if (v.delta > 0) return CHALLENGE_SHARE_COPY.afterWin(v.callsign, Math.floor(v.targetScore).toLocaleString(), url);
+  return CHALLENGE_SHARE_COPY.afterLoss(v.callsign, Math.floor(-v.delta).toLocaleString(), url);
+}
+
 export function buildShareText(s: ShareStats): string {
   const mins = Math.floor(s.time / 60);
   const secs = Math.floor(s.time % 60).toString().padStart(2, "0");
@@ -97,7 +122,7 @@ export function buildShareText(s: ShareStats): string {
     line.join("  ·  "),
     medalLine,
     s.preview ? null : `attempt ${Math.min(s.attempt, DAILY_MAX_ATTEMPTS)}/${DAILY_MAX_ATTEMPTS}`,
-    SHARE_URL,
+    shareLastLine(s),
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
@@ -305,7 +330,12 @@ async function pngToBase64(png: Blob | null | undefined): Promise<string | null>
   });
 }
 
-export async function shareText(text: string, preferNative: boolean, png?: Blob | null): Promise<ShareOutcome> {
+export async function shareText(
+  text: string,
+  preferNative: boolean,
+  png?: Blob | null,
+  url: string = SHARE_URL,
+): Promise<ShareOutcome> {
   if (isNativePlay()) {
     postNativeShare(text, await pngToBase64(png));
     return "shared";
@@ -321,9 +351,9 @@ export async function shareText(text: string, preferNative: boolean, png?: Blob 
           ? [new File([png], "orion-patrol.png", { type: "image/png" })]
           : undefined;
       if (files && navigator.canShare?.({ files })) {
-        await navigator.share({ text, url: SHARE_URL, files });
+        await navigator.share({ text, url, files });
       } else {
-        await navigator.share({ text, url: SHARE_URL });
+        await navigator.share({ text, url });
       }
       return "shared";
     } catch (e) {
@@ -345,5 +375,5 @@ export async function sharePatrol(
 ): Promise<ShareOutcome> {
   const text = buildShareText(stats);
   const png = await renderShareCardPng(stats, format);
-  return shareText(text, preferNative, png);
+  return shareText(text, preferNative, png, stats.challengeUrl || SHARE_URL);
 }

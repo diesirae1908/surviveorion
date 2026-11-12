@@ -26,6 +26,12 @@ why, commit hash, follow-ups), committed together with the work. See
 - `scripts/test-pace.ts`: 30+ new checks (snapshot, behind/ahead/equal, target-only, challenger in rows, truncation, no fetch with `boardOn:false`, ineligible runs, stale token).
 - No determinism surface touched (reads `world.score`/`phase` only). Gates: tsc, `npm test`, sim-test, build all exit 0.
 - Follow-ups for WS-5: pass `target` (gated on `ui.challenge.paceTarget`), `boardOn`, `firstFlight` from `main.ts` `startRun()`. Commit: see git log (`WS-3 pace target`).
+## 2026-11-12 PT: challenge link WS-4, share text and card (branch feat/cl-ws4)
+
+- `src/share.ts`: `ShareStats.challengeUrl?` and `ShareStats.versus?` (`{callsign, delta, targetScore}`, delta = run minus challenger). `buildShareText` last line now comes from `shareLastLine`: plain `SHARE_URL` without a link (byte-identical), `Beat it: <url>` with one, win/lose variants with `versus`. `shareText(text, preferNative, png, url = SHARE_URL)` hands the url to `navigator.share`; `sharePatrol` passes `challengeUrl`. Copy lives in `CHALLENGE_SHARE_COPY` (draft, mirrors the plan table; WS-2 owns the canonical table).
+- `src/shareCardV2.ts`: optional `versus` row ("VS GLINT  +12,480", gold ahead / alarm red behind) between score and cause line, square and story, fitted with `fitTextTo`; the model key exists only when versus is set. v1 card ignores it.
+- Tests: `scripts/test-share-card.ts` extended (byte-identical without the fields, text lines, margins, story safe zones, v1 unchanged). No switch read here; the caller gates on `ui.challenge`.
+- Follow-ups: WS-5 wires `challengeUrl`/`versus` from the result model; dedupe copy with WS-2's table at integration.
 
 ## 2026-11-12 PT: trust batch (callsign filter class, display masking, terms)
 
