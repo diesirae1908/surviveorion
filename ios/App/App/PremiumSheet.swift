@@ -215,7 +215,7 @@ struct PremiumSheet: View {
             model.store.lastError = "Premium unavailable"
             return
         }
-        if await model.store.purchase(product) {
+        if await model.store.purchase(product, accountToken: model.appAccountToken) {
             await model.refresh()
             model.showPremiumToast()
             onDismiss()

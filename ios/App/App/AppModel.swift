@@ -39,6 +39,10 @@ final class AppModel: ObservableObject {
     @Published var pendingPlayDate: String?
     @Published var pendingSettings = false
     @Published var pendingScrollCrew = false
+    /// Web shell asked for Settings at the PILOT section (sign in / account).
+    @Published var pendingScrollPilot = false
+    /// Account UUID for StoreKit `.appAccountToken`; nil while signed out.
+    @Published var appAccountToken: UUID?
     @Published var pendingBoard = false
     @Published var pendingGameOver = false
     @Published var pendingGameOverArchive = false
@@ -139,6 +143,7 @@ final class AppModel: ObservableObject {
                         serverTier = clipInbox ? .admin : .free
                     }
                     premiumSource = me.premiumSource
+                    appAccountToken = me.appAccountToken.flatMap { UUID(uuidString: $0) }
                     if let ms = me.joinedAt {
                         joinedAt = Date(timeIntervalSince1970: ms / (ms > 10_000_000_000 ? 1000 : 1))
                     }
@@ -150,12 +155,14 @@ final class AppModel: ObservableObject {
                     clipInbox = false
                     pendingFriends = 0
                     premiumSource = nil
+                    appAccountToken = nil
                 }
             } else {
                 serverTier = .free
                 clipInbox = false
                 pendingFriends = 0
                 premiumSource = nil
+                appAccountToken = nil
             }
         } catch APIError.offline {
             online = false
@@ -207,6 +214,7 @@ final class AppModel: ObservableObject {
         clipInbox = false
         pendingFriends = 0
         premiumSource = nil
+        appAccountToken = nil
         await refresh()
     }
 
@@ -218,7 +226,45 @@ final class AppModel: ObservableObject {
         serverTier = .free
         clipInbox = false
         premiumSource = nil
+        appAccountToken = nil
         await refresh()
+    }
+
+    /// The web shell reported the session gone (expired or invalid token).
+    func applyBridgeSignedOut() {
+        KeychainStore.token = nil
+        callsign = nil
+        isSignedIn = false
+        serverTier = .free
+        clipInbox = false
+        pendingFriends = 0
+        premiumSource = nil
+        appAccountToken = nil
+    }
+
+    var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    }
+
+    /// Native hard guard under the web review policy: one ask per app version, never
+    /// over a sheet, mid-run or while inactive. Every decision lands in the crew review log.
+    func approveReview(reason: String, busy: Bool, sceneActive: Bool) -> Bool {
+        let version = appVersion
+        var blocker: String?
+        if PreferencesStore.reviewAskedVersion == version {
+            blocker = "already asked for \(version)"
+        } else if busy {
+            blocker = "sheet open or run active"
+        } else if !sceneActive {
+            blocker = "app not active"
+        }
+        if let blocker {
+            PreferencesStore.appendReviewLog("blocked: \(blocker) (\(reason))")
+            return false
+        }
+        PreferencesStore.reviewAskedVersion = version
+        PreferencesStore.appendReviewLog("asked: \(reason)")
+        return true
     }
 
     func applyBridgeSession(token: String?, guestSecret: String?, dailyAttempts: String?) {
