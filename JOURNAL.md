@@ -11,6 +11,7 @@ why, commit hash, follow-ups), committed together with the work. See
 - Kept the slow far-layer drift: it is time-based (0.18 units over a ~2 min sine), not tied to the ship, and too slow to read as the screen moving.
 - Tests: `scripts/test-sky.ts` drops the parallax checks and draws through a stub canvas at four ship positions, asserting the `drawImage` rects are identical. No switch default, gameplay, scoring, lobby or title starfield change.
 - Follow-ups: Lucas re-flies staging after the next `dev` deploy. Commit: see `git log` ("Sky: drop the ship parallax").
+- 2026-11-12 follow-up: the far layer's diagonal band is gone (Lucas: "I dont like the 'milky way' in the back"). The 4 remaining clouds are near round and dimmed by `FAR_DIM` 0.15 (center alpha peaked at 0.35, now at most 0.052), a barely visible tint; near dust and stars unchanged. `test-sky` asserts no band and peak <= 0.06. Commit: see `git log` ("Sky: remove the nebula band").
 
 ## 2026-11-12 PT: THE PASSAGE before-ON fix round (review M1, M2, L1 to L4)
 

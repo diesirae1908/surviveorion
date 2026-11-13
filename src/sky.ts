@@ -7,8 +7,9 @@
 // screen moving with the ship). Return true when the sky drew (the caller then
 // skips the old star field), false to fall back to the old stars.
 //
-// Look: two cached offscreen layers, a far nebula (soft tinted blobs and one
-// faint band) and a near dust field (fine points, a few flared stars). They are
+// Look: two cached offscreen layers, a far tint (four round, very faint blobs;
+// the diagonal band was removed 2026-11-12, the owner read it as a "milky way")
+// and a near dust field (fine points, a few flared stars). They are
 // generated at resize (200 ms debounce) and at tint change, with Math.random at
 // generation only, and drawn with two drawImage calls per frame: no per-frame
 // gradients. The tint follows the day's mutator(s) and stays inside the brand
@@ -75,6 +76,8 @@ export const SKY_RESIZE_DEBOUNCE_MS = 200;
 export const DRIFT = 0.18;
 /** Layer overscan (world units) so the drift never shows an edge. */
 export const OVERSCAN = DRIFT + 0.3;
+/** Far-layer dimmer: a cloud center peaks near 0.05 alpha, a tint, never a glow. */
+export const FAR_DIM = 0.15;
 
 const NEUTRAL: SkyTint = TINTS.void;
 
@@ -138,7 +141,7 @@ export function skyTintFor(mutators: readonly Mutator[]): { far: SkyTint; near: 
 export interface NebulaBlob {
   x: number;
   y: number;
-  /** Radii in world units (rx > ry stretches it into a band piece). */
+  /** Radii in world units (kept near round so no blob reads as a streak). */
   rx: number;
   ry: number;
   rot: number;
@@ -172,23 +175,7 @@ export function planSky(viewW: number, viewH: number, rng: () => number = Math.r
   const w = viewW + OVERSCAN * 2;
   const h = viewH + OVERSCAN * 2;
   const blobs: NebulaBlob[] = [];
-  // one diagonal band (a faint galactic ridge) built from overlapping stretched blobs
-  const bandAngle = (rng() - 0.5) * 0.9 + (rng() < 0.5 ? 0.35 : -0.35);
-  const bandLen = Math.hypot(w, h) * 0.42;
-  const bandPieces = 5;
-  for (let i = 0; i < bandPieces; i++) {
-    const t = (i / (bandPieces - 1) - 0.5) * 2;
-    blobs.push({
-      x: Math.cos(bandAngle) * t * bandLen + (rng() - 0.5) * 2,
-      y: Math.sin(bandAngle) * t * bandLen + (rng() - 0.5) * 2,
-      rx: Math.max(w, h) * (0.2 + rng() * 0.08),
-      ry: Math.max(w, h) * (0.05 + rng() * 0.03),
-      rot: bandAngle,
-      alpha: 0.7 + rng() * 0.3,
-      accent: false,
-    });
-  }
-  // a few round clouds off the band, two of them with the accent color
+  // a few round, very faint clouds (no band: the owner read it as a "milky way"), two with the accent color
   const clouds = 4;
   for (let i = 0; i < clouds; i++) {
     const r = Math.max(w, h) * (0.14 + rng() * 0.12);
@@ -196,7 +183,7 @@ export function planSky(viewW: number, viewH: number, rng: () => number = Math.r
       x: (rng() - 0.5) * w * 0.9,
       y: (rng() - 0.5) * h * 0.9,
       rx: r,
-      ry: r * (0.55 + rng() * 0.4),
+      ry: r * (0.75 + rng() * 0.25),
       rot: rng() * Math.PI,
       alpha: 0.35 + rng() * 0.35,
       accent: i < 2,
@@ -295,6 +282,11 @@ function rgba(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
+/** Peak alpha of one far-layer cloud (its gradient center). */
+export function farBlobAlpha(b: NebulaBlob, tint: SkyTint): number {
+  return b.alpha * tint.alpha * FAR_DIM * (b.accent ? 0.55 : 1);
+}
+
 function buildFar(plan: SkyPlan, tint: SkyTint, pxPerUnit: number): Layer | null {
   const c = makeCanvas(plan.w * pxPerUnit, plan.h * pxPerUnit);
   const g = c?.getContext("2d");
@@ -305,7 +297,7 @@ function buildFar(plan: SkyPlan, tint: SkyTint, pxPerUnit: number): Layer | null
   g.scale(sx, sy);
   for (const b of plan.blobs) {
     const color = b.accent ? tint.accent : tint.color;
-    const a = b.alpha * tint.alpha * (b.accent ? 0.55 : 1);
+    const a = farBlobAlpha(b, tint);
     g.save();
     g.translate(b.x, b.y);
     g.rotate(b.rot);

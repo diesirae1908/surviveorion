@@ -1,5 +1,5 @@
 /**
- * WS-K sky: tint by mutator, switch gating, resize debounce, no ship parallax, plan.
+ * WS-K sky: tint by mutator, switch gating, resize debounce, no ship parallax, plan (no band, faint far tint).
  * Run: npx tsx scripts/test-sky.ts
  */
 import { MUTATOR_POOL } from "../src/mutators";
@@ -8,6 +8,7 @@ import type { ClientFlags } from "../src/flags";
 import {
   DRIFT,
   OVERSCAN,
+  farBlobAlpha,
   SKY_RESIZE_DEBOUNCE_MS,
   SKY_TOKEN_COLORS,
   SkyScheduler,
@@ -130,7 +131,15 @@ function check(name: string, ok: boolean, detail = ""): void {
   const rng = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   const p = planSky(17.8, 10, rng);
   check("plan covers the view plus drift overscan", OVERSCAN > DRIFT && p.w >= 17.8 + 2 * OVERSCAN - 1e-9 && p.h >= 10 + 2 * OVERSCAN - 1e-9);
-  check("plan has band + clouds, dust and flares", p.blobs.length >= 8 && p.dust.length > 100 && p.flares.length >= 5);
+  check("plan has clouds, dust and flares", p.dust.length > 100 && p.flares.length >= 5);
+  check("no band: exactly 4 far clouds, all near round", p.blobs.length === 4 && p.blobs.every((b) => b.ry / b.rx >= 0.75 - 1e-9));
+  let peak = 0;
+  for (let s = 1; s <= 50; s++) {
+    let q = s;
+    const r = () => ((q = (q * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (const b of planSky(17.8, 10, r).blobs) for (const m of MUTATOR_POOL) peak = Math.max(peak, farBlobAlpha(b, skyTintOf(m)));
+  }
+  check("far layer is a barely visible tint: cloud peak alpha <= 0.06", peak > 0 && peak <= 0.06, peak.toFixed(3));
   check("plan points stay inside the layer", p.dust.every((d) => Math.abs(d.x) <= p.w / 2 && Math.abs(d.y) <= p.h / 2));
   const big = planSky(40, 22.5);
   check("dust count scales with area but stays bounded", big.dust.length < 6000, `${big.dust.length}`);
