@@ -1,19 +1,18 @@
 /**
- * WS-K sky: tint by mutator, switch gating, resize debounce, parallax, plan.
+ * WS-K sky: tint by mutator, switch gating, resize debounce, no ship parallax, plan.
  * Run: npx tsx scripts/test-sky.ts
  */
 import { MUTATOR_POOL } from "../src/mutators";
 import { createWorld } from "../src/gameState";
 import type { ClientFlags } from "../src/flags";
 import {
-  PARALLAX_FAR,
-  PARALLAX_NEAR,
+  DRIFT,
+  OVERSCAN,
   SKY_RESIZE_DEBOUNCE_MS,
   SKY_TOKEN_COLORS,
   SkyScheduler,
   drawSky,
   hashTint,
-  parallaxOffset,
   planSky,
   skyEnabled,
   skyTintFor,
@@ -88,15 +87,41 @@ function check(name: string, ok: boolean, detail = ""): void {
   check("debounce is 200 ms", SKY_RESIZE_DEBOUNCE_MS === 200);
 }
 
-// parallax
+// no ship parallax: with a stub canvas, the drawn layer rects do not depend on the ship
 {
-  const a = parallaxOffset(0, 0, 8.9, 5, PARALLAX_NEAR);
-  check("parallax: centered ship = no offset", a.x === 0 && a.y === 0);
-  const e = parallaxOffset(8.9, -5, 8.9, 5, PARALLAX_NEAR);
-  check("parallax: edge = max travel, opposite direction", Math.abs(e.x + PARALLAX_NEAR) < 1e-9 && Math.abs(e.y - PARALLAX_NEAR) < 1e-9);
-  const o = parallaxOffset(99, 99, 8.9, 5, PARALLAX_FAR);
-  check("parallax: clamped outside the arena", Math.abs(o.x) <= PARALLAX_FAR && Math.abs(o.y) <= PARALLAX_FAR);
-  check("far layer moves less than near", PARALLAX_FAR === 0.4 && PARALLAX_NEAR === 0.8);
+  // any 2D call is a no-op; gradients accept color stops
+  const noop2d = (): unknown =>
+    new Proxy({}, { get: (_t, k) => (k === "createRadialGradient" ? () => ({ addColorStop() {} }) : k === "canvas" ? undefined : () => {}), set: () => true });
+  const g = globalThis as Record<string, unknown>;
+  g.document = { createElement: () => ({ width: 0, height: 0, getContext: noop2d }) };
+  const calls: number[][] = [];
+  const ctx = new Proxy({}, {
+    get: (_t, k) => (k === "drawImage" ? (_c: unknown, ...r: number[]) => calls.push(r) : () => {}),
+    set: () => true,
+  }) as unknown as CanvasRenderingContext2D;
+  const w = createWorld(17.8, 10);
+  const args = {
+    viewport: { cssW: 800, cssH: 450, viewW: 17.8, viewH: 10 },
+    field: { scale: 45, ox: 0, oy: 0, fieldCssW: 800, fieldCssH: 450 },
+    world: w,
+    // a tint the earlier checks never built, so the scheduler builds at once
+    mutators: [MUTATOR_POOL.find((m) => m.id === "red-alert")!],
+    uiTime: 12.5,
+    flags: { hud: { sky: true } } as unknown as ClientFlags,
+    effects: "full" as const,
+  };
+  const rects: string[] = [];
+  for (const [x, y] of [[0, 0], [8.9, 5], [-8.9, -5], [3, -4]]) {
+    w.ship.x = x;
+    w.ship.y = y;
+    calls.length = 0;
+    const drew = drawSky(ctx, args);
+    if (!drew || calls.length !== 2) rects.push(`drew=${drew} calls=${calls.length}`);
+    else rects.push(JSON.stringify(calls));
+  }
+  check("sky draws two layers with a stub canvas", rects.every((r) => r.startsWith("[[")), rects[0]);
+  check("layer position does not depend on the ship position", rects.every((r) => r === rects[0]));
+  delete g.document;
 }
 
 // plan: deterministic with injected rng, covers the overscan, bounded size
@@ -104,7 +129,7 @@ function check(name: string, ok: boolean, detail = ""): void {
   let seed = 7;
   const rng = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   const p = planSky(17.8, 10, rng);
-  check("plan covers the view plus parallax overscan", p.w >= 17.8 + 2 * PARALLAX_NEAR && p.h >= 10 + 2 * PARALLAX_NEAR);
+  check("plan covers the view plus drift overscan", OVERSCAN > DRIFT && p.w >= 17.8 + 2 * OVERSCAN - 1e-9 && p.h >= 10 + 2 * OVERSCAN - 1e-9);
   check("plan has band + clouds, dust and flares", p.blobs.length >= 8 && p.dust.length > 100 && p.flares.length >= 5);
   check("plan points stay inside the layer", p.dust.every((d) => Math.abs(d.x) <= p.w / 2 && Math.abs(d.y) <= p.h / 2));
   const big = planSky(40, 22.5);

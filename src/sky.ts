@@ -1,10 +1,11 @@
-// Sky and parallax background (owner: WS-K).
+// Sky background (owner: WS-K).
 //
 // Contract for `drawSky`: render() calls it in place of `drawStars` while the
 // WORLD transform is active (world units, y up, field clip on), so everything
-// is drawn in world space. `world.ship` is the parallax anchor. Return true
-// when the sky drew (the caller then skips the old star field), false to fall
-// back to the old stars.
+// is drawn in world space. Both layers are fixed to the field: the ship never
+// moves them (the ship parallax was removed 2026-11-12, the owner disliked the
+// screen moving with the ship). Return true when the sky drew (the caller then
+// skips the old star field), false to fall back to the old stars.
 //
 // Look: two cached offscreen layers, a far nebula (soft tinted blobs and one
 // faint band) and a near dust field (fine points, a few flared stars). They are
@@ -68,15 +69,12 @@ const TINT_NAMES: SkyTintName[] = ["void", "red", "gold", "starlight"];
 /** Every color the sky can paint with, for tests. */
 export const SKY_TOKEN_COLORS: ReadonlySet<string> = new Set(Object.values(SKY_TOKENS));
 
-/** Parallax travel at the arena edge, in world units. */
-export const PARALLAX_FAR = 0.4;
-export const PARALLAX_NEAR = 0.8;
 /** Resize debounce before the layers regenerate. */
 export const SKY_RESIZE_DEBOUNCE_MS = 200;
-/** Layer overscan (world units) so parallax and drift never show an edge. */
-const OVERSCAN = PARALLAX_NEAR + 0.3;
-/** Slow far-layer drift amplitude (world units). */
-const DRIFT = 0.18;
+/** Slow far-layer drift amplitude (world units). Time-based, never ship-based. */
+export const DRIFT = 0.18;
+/** Layer overscan (world units) so the drift never shows an edge. */
+export const OVERSCAN = DRIFT + 0.3;
 
 const NEUTRAL: SkyTint = TINTS.void;
 
@@ -133,13 +131,6 @@ export function skyTintFor(mutators: readonly Mutator[]): { far: SkyTint; near: 
   const far = skyTintOf(mutators[0]);
   const near = mutators.length > 1 ? skyTintOf(mutators[1]) : far;
   return { far, near };
-}
-
-/** Parallax offset for one layer: ship position over the half arena, clamped, times the layer travel. Pure. */
-export function parallaxOffset(shipX: number, shipY: number, halfW: number, halfH: number, travel: number): { x: number; y: number } {
-  const nx = halfW > 0 ? Math.max(-1, Math.min(1, shipX / halfW)) : 0;
-  const ny = halfH > 0 ? Math.max(-1, Math.min(1, shipY / halfH)) : 0;
-  return { x: -nx * travel, y: -ny * travel };
 }
 
 // --- layer plans (pure, rng injected) ---
@@ -396,15 +387,11 @@ export function drawSky(ctx: CanvasRenderingContext2D, args: SkyArgs): boolean {
   if (!farLayer || !nearLayer) return false;
   // BLACKOUT lights-out: draw nothing extra, the field stays black
   if (args.world.blackoutPhase === "dark") return true;
-  const hw = args.world.viewW / 2;
-  const hh = args.world.viewH / 2;
-  const far = parallaxOffset(args.world.ship.x, args.world.ship.y, hw, hh, PARALLAX_FAR);
-  const near = parallaxOffset(args.world.ship.x, args.world.ship.y, hw, hh, PARALLAX_NEAR);
   const drift = Math.sin(args.uiTime * 0.05) * DRIFT;
   const twinkle = 0.9 + 0.1 * Math.sin(args.uiTime * 1.3);
   ctx.save();
-  drawLayer(ctx, farLayer, far.x + drift, far.y + drift * 0.6, 1);
-  drawLayer(ctx, nearLayer, near.x, near.y, twinkle);
+  drawLayer(ctx, farLayer, drift, drift * 0.6, 1);
+  drawLayer(ctx, nearLayer, 0, 0, twinkle);
   ctx.restore();
   return true;
 }

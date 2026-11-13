@@ -4,6 +4,14 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-12 PT: mutator sky, ship parallax removed
+
+- What: `src/sky.ts` no longer shifts its two layers against the ship position. `parallaxOffset`, `PARALLAX_FAR`, `PARALLAX_NEAR` removed; overscan now only covers the drift (`OVERSCAN = DRIFT + 0.3`). Tint, the BLACKOUT lights-out rule and the twinkle are unchanged.
+- Why: Lucas flew staging (`ui.hud` param `sky` is ON there) and did not like the screen moving with the ship.
+- Kept the slow far-layer drift: it is time-based (0.18 units over a ~2 min sine), not tied to the ship, and too slow to read as the screen moving.
+- Tests: `scripts/test-sky.ts` drops the parallax checks and draws through a stub canvas at four ship positions, asserting the `drawImage` rects are identical. No switch default, gameplay, scoring, lobby or title starfield change.
+- Follow-ups: Lucas re-flies staging after the next `dev` deploy. Commit: see `git log` ("Sky: drop the ship parallax").
+
 ## 2026-11-12 PT: THE PASSAGE before-ON fix round (review M1, M2, L1 to L4)
 
 - M1 mixed board: (a) new `overlaySkipTags` on a `Mutator` (data-driven, no date): THE PASSAGE never replaces a legacy day tagged `pickup-behavior` or `pickup-rate` (MAGNETIC FIELD, ARSENAL). The overlay dates moved: 2026-11-25 and 2027-05-25 (both MAGNETIC FIELD) dropped, the other 12 through 2027 are unchanged. First 5 overlay dates now: 2026-12-29 (TITANFALL), 2027-02-16 (HUNTING PARTY), 2027-03-04 (THE FLOOD), 2027-03-25 (WHEELHOUSE), 2027-05-19 (GIANTS). `scripts/mutator-snapshot-overlay.json` re-frozen and both schedule exports regenerated (no overlay day has flown, so moving them is allowed). (b) the run payload carries an optional `mutator` (ids the client flew, daily runs only); the server stores it in additive nullable `scores.mutator` / `runs.mutator`, never reads it for scoring, ceilings or attempts (ceilings stay the union), and no response field changed. The admin day report adds `overlayMix` (overlay / legacy pick / no field) next to the stale-bundle numbers, on overlay days only. (c) AGENTS.md says the board mixes on a switch-on overlay day.
