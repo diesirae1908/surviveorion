@@ -808,12 +808,14 @@ export const MUTATOR_POOL: Mutator[] = [
     id: "cloak-day",
     name: "CLOAK",
     briefing: "They lose the lock. You seed the dark.",
-    subline: "Every pickup is Cloak. Drones hover, lost. Invisible bombs drop along your path and explode when you reappear.",
-    hudRule: "Vanish. Seed bombs. They blow on return.",
+    subline: "Mostly Cloak, with some Shockwave. Drones hover, lost. Invisible bombs drop along your path and explode when you reappear. Everything blasts wider.",
+    hudRule: "Vanish, seed bombs. Shockwave clears.",
     difficultyFactor: 0.9,
     tags: ["monopower"],
     availableFrom: WAVE2_AVAILABLE_FROM,
-    overrides: { extraPowerIds: ["cloak"], powerWeights: monoPowerWeights("cloak") },
+    // Cloak 20 : Shockwave 10 (about 2/3 cloak). powerAmpScale widens cloak bombs and the
+    // shockwave for this day only (Lucas, 2026-11-17: cloak alone left the field too crowded).
+    overrides: { extraPowerIds: ["cloak"], powerWeights: { ...monoPowerWeights("cloak"), shockwave: 10 }, powerAmpScale: 1.6 },
   },
   {
     id: "bait-shot",

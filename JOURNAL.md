@@ -4,6 +4,15 @@ Newest first. Every substantive change gets a dated entry here (what changed,
 why, commit hash, follow-ups), committed together with the work. See
 `AGENTS.md` → "Recording your work".
 
+## 2026-11-17 PT: CLOAK day clears more (Shockwave in the mix, wider blasts)
+
+- Why: Lucas playing the 2026-11-17 daily: "cloak is not great... we need a way to kill the enemies more than just the cloak, otherwise it just becomes WAYYYY too crowded". Mono-Cloak had one kill source.
+- What (`src/mutators.ts`, cloak-day only): `powerWeights: { ...monoPowerWeights("cloak"), shockwave: 10 }` (Cloak 20 : Shockwave 10, about 2/3 Cloak; same pattern as ion-day) plus `powerAmpScale: 1.6`. That existing day knob scales cloak bomb radius (1.65 -> 2.64) and the Shockwave core and wave (radius 1.75 -> 2.8, wave 3.5 -> 5.6) for this day only. `POWERS.cloak` and Classic weights untouched, no new flag. Copy: subline "Mostly Cloak, with some Shockwave. ... Everything blasts wider."; hudRule "Vanish, seed bombs. Shockwave clears." (<= 44 chars test).
+- Regenerated with `scripts/export-mutator-schedule.ts` (`server/` and `ios/` schedule JSON, one subline each). `social/assets/mutators.json`: `social/scripts/extract-mutators.mjs` hard-codes the old `~/Documents/games/orion-web` path and cannot run here, so the one subline string was edited to match the script output (follow-up: fix that path).
+- New `scripts/measure-cloak-day.ts` (`--immortal`, `--per-pickup`): bot that collects pickups, 10 fixed seeds, 90 s. Immortal bot, alive drones before -> after: t45 161 -> 152, t60 224 -> 149, peak 374 -> 304. Per pickup at t=40 (drones removed vs control): Cloak 15.7 -> 24.1, Shockwave 27.6 (amp 1) -> 63.2. Real-death survival (bot) 17.5 s -> 17.3 s; idle survival (QA-style, no pickups) 13.25 -> 13.87 s phone, 12.93 s desktop 16x10 (>= 12 bar). Bot only collects about 2.5 powers per 90 s, so whole-field gains are modest; per-pickup clearing is the clearer signal. amp 2.0 tested: Cloak 47.8 and Shockwave 79 per pickup, judged too close to a free wipe.
+- Tests: `tsc --noEmit`, `npm run build`, `test-mutators.ts` (ALL PASS), `test-schedule-export`, `test-no-em-dash`, `sim-test.ts` (exit 0, no FAIL).
+- Does not ship until Sam promotes; the 2026-11-17 run changes only on deploy.
+
 ## 2026-11-12 PT: mutator sky, ship parallax removed
 
 - What: `src/sky.ts` no longer shifts its two layers against the ship position. `parallaxOffset`, `PARALLAX_FAR`, `PARALLAX_NEAR` removed; overscan now only covers the drift (`OVERSCAN = DRIFT + 0.3`). Tint, the BLACKOUT lights-out rule and the twinkle are unchanged.
